@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "timestamp": "2026-02-09T19:39:55.043Z",
+  "timestamp": "2026-02-11T15:57:05.699Z",
   "sourceFile": "assets/office_tileset_16x16.png",
   "tileset": {
     "width": 256,
@@ -3216,8 +3216,8 @@
     },
     {
       "id": "ASSET_127",
-      "paddedX": 241,
-      "paddedY": 432,
+      "paddedX": 240,
+      "paddedY": 431,
       "paddedWidth": 16,
       "paddedHeight": 16,
       "name": "CRATE",
@@ -3468,8 +3468,8 @@
     },
     {
       "id": "ASSET_138",
-      "paddedX": 129,
-      "paddedY": 448,
+      "paddedX": 130,
+      "paddedY": 447,
       "paddedWidth": 16,
       "paddedHeight": 32,
       "name": "CRATES_SM",
@@ -3486,8 +3486,8 @@
     },
     {
       "id": "ASSET_135",
-      "paddedX": 145,
-      "paddedY": 448,
+      "paddedX": 143,
+      "paddedY": 447,
       "paddedWidth": 16,
       "paddedHeight": 32,
       "name": "CRATES_SM_2",
@@ -3504,8 +3504,8 @@
     },
     {
       "id": "ASSET_136",
-      "paddedX": 160,
-      "paddedY": 448,
+      "paddedX": 157,
+      "paddedY": 447,
       "paddedWidth": 32,
       "paddedHeight": 32,
       "name": "CRATES",
@@ -3518,12 +3518,238 @@
       "discard": false,
       "partOfGroup": false,
       "groupId": null,
-      "canPlaceOnSurfaces": false
+      "canPlaceOnSurfaces": false,
+      "erasedPixels": [
+        {
+          "x": 1,
+          "y": 12
+        },
+        {
+          "x": 1,
+          "y": 13
+        },
+        {
+          "x": 1,
+          "y": 14
+        },
+        {
+          "x": 1,
+          "y": 15
+        },
+        {
+          "x": 1,
+          "y": 16
+        },
+        {
+          "x": 1,
+          "y": 17
+        },
+        {
+          "x": 1,
+          "y": 18
+        },
+        {
+          "x": 1,
+          "y": 19
+        },
+        {
+          "x": 1,
+          "y": 20
+        },
+        {
+          "x": 1,
+          "y": 21
+        },
+        {
+          "x": 1,
+          "y": 22
+        },
+        {
+          "x": 1,
+          "y": 23
+        },
+        {
+          "x": 1,
+          "y": 24
+        },
+        {
+          "x": 1,
+          "y": 25
+        },
+        {
+          "x": 1,
+          "y": 26
+        },
+        {
+          "x": 1,
+          "y": 27
+        },
+        {
+          "x": 1,
+          "y": 28
+        },
+        {
+          "x": 1,
+          "y": 29
+        },
+        {
+          "x": 1,
+          "y": 30
+        },
+        {
+          "x": 1,
+          "y": 31
+        },
+        {
+          "x": 0,
+          "y": 31
+        },
+        {
+          "x": 0,
+          "y": 30
+        },
+        {
+          "x": 0,
+          "y": 29
+        },
+        {
+          "x": 0,
+          "y": 28
+        },
+        {
+          "x": 0,
+          "y": 27
+        },
+        {
+          "x": 0,
+          "y": 26
+        },
+        {
+          "x": 0,
+          "y": 25
+        },
+        {
+          "x": 0,
+          "y": 24
+        },
+        {
+          "x": 0,
+          "y": 23
+        },
+        {
+          "x": 0,
+          "y": 22
+        },
+        {
+          "x": 0,
+          "y": 21
+        },
+        {
+          "x": 0,
+          "y": 20
+        },
+        {
+          "x": 0,
+          "y": 19
+        },
+        {
+          "x": 0,
+          "y": 18
+        },
+        {
+          "x": 0,
+          "y": 17
+        },
+        {
+          "x": 2,
+          "y": 12
+        },
+        {
+          "x": 1,
+          "y": 11
+        },
+        {
+          "x": 0,
+          "y": 11
+        },
+        {
+          "x": 0,
+          "y": 12
+        },
+        {
+          "x": 0,
+          "y": 13
+        },
+        {
+          "x": 0,
+          "y": 14
+        },
+        {
+          "x": 0,
+          "y": 15
+        },
+        {
+          "x": 0,
+          "y": 16
+        },
+        {
+          "x": 1,
+          "y": 10
+        },
+        {
+          "x": 1,
+          "y": 9
+        },
+        {
+          "x": 2,
+          "y": 10
+        },
+        {
+          "x": 2,
+          "y": 11
+        },
+        {
+          "x": 2,
+          "y": 13
+        },
+        {
+          "x": 2,
+          "y": 17
+        },
+        {
+          "x": 2,
+          "y": 16
+        },
+        {
+          "x": 2,
+          "y": 15
+        },
+        {
+          "x": 2,
+          "y": 14
+        },
+        {
+          "x": 2,
+          "y": 18
+        },
+        {
+          "x": 2,
+          "y": 19
+        },
+        {
+          "x": 2,
+          "y": 20
+        },
+        {
+          "x": 0,
+          "y": 10
+        }
+      ]
     },
     {
       "id": "ASSET_137",
-      "paddedX": 192,
-      "paddedY": 448,
+      "paddedX": 195,
+      "paddedY": 447,
       "paddedWidth": 32,
       "paddedHeight": 32,
       "name": "CRATES_2",
@@ -3541,7 +3767,7 @@
     {
       "id": "ASSET_139",
       "paddedX": 224,
-      "paddedY": 448,
+      "paddedY": 447,
       "paddedWidth": 32,
       "paddedHeight": 32,
       "name": "CRATES_3",
@@ -3717,6 +3943,42 @@
       "partOfGroup": false,
       "groupId": null,
       "canPlaceOnSurfaces": true
+    },
+    {
+      "id": "ASSET_NEW_106",
+      "paddedX": 16,
+      "paddedY": -10,
+      "paddedWidth": 48,
+      "paddedHeight": 32,
+      "name": "TABLE_WOOD",
+      "label": "Wooden Table",
+      "category": "desks",
+      "footprintW": 3,
+      "footprintH": 2,
+      "isDesk": true,
+      "colorEditable": true,
+      "discard": false,
+      "canPlaceOnSurfaces": false,
+      "partOfGroup": false,
+      "groupId": null
+    },
+    {
+      "id": "ASSET_NEW_107",
+      "paddedX": 64,
+      "paddedY": -10,
+      "paddedWidth": 48,
+      "paddedHeight": 32,
+      "name": "TABLE_PLAIN_WOOD",
+      "label": "Plain Wooden Table",
+      "category": "desks",
+      "footprintW": 3,
+      "footprintH": 2,
+      "isDesk": true,
+      "colorEditable": true,
+      "discard": false,
+      "canPlaceOnSurfaces": false,
+      "partOfGroup": false,
+      "groupId": null
     }
   ]
 }

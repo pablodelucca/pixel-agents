@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Asset Manager</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Toolbar */
+    #toolbar { padding: 8px 12px; background: #16213e; border-bottom: 1px solid #333; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    #toolbar button, #toolbar select { font-size: 12px; padding: 5px 10px; border-radius: 3px; border: 1px solid #555; background: #2a2a4a; color: #e0e0e0; cursor: pointer; }
+    #toolbar button:hover { background: #1a5276; }
+    #toolbar button.primary { background: #27ae60; border-color: #2ecc71; font-weight: 600; }
+    #toolbar button.primary:hover { background: #2ecc71; }
+    #toolbar label { font-size: 11px; color: #aaa; }
+    .sep { width: 1px; height: 22px; background: #444; flex-shrink: 0; }
+
+    /* Main 3-panel layout */
+    #main { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+
+    /* Left: Asset List */
+    #list-panel { width: 260px; display: flex; flex-direction: column; background: #16213e; border-right: 1px solid #333; flex-shrink: 0; }
+    #list-header { padding: 8px 10px; font-size: 12px; font-weight: 600; border-bottom: 1px solid #333; background: #0f3460; display: flex; justify-content: space-between; align-items: center; }
+    #search-box { padding: 6px 8px; border-bottom: 1px solid #333; }
+    #search-box input { width: 100%; padding: 5px 8px; background: #2a2a4a; border: 1px solid #555; color: #e0e0e0; border-radius: 2px; font-size: 11px; }
+    #asset-list { flex: 1; overflow-y: auto; padding: 2px 0; }
+    .asset-item {
+      padding: 6px 8px; margin: 1px 4px; border-radius: 3px; cursor: pointer;
+      display: flex; gap: 8px; align-items: center;
+      background: #1a1a3e; border: 1px solid transparent; transition: border-color 0.15s;
+    }
+    .asset-item:hover { border-color: #555; }
+    .asset-item.selected { border-color: #3498db; background: #1a3a5e; }
+    .asset-item.discarded { opacity: 0.45; }
+    .asset-thumb { width: 40px; height: 40px; flex-shrink: 0; image-rendering: pixelated; background: #000; border: 1px solid #444; border-radius: 2px; }
+    .asset-meta { flex: 1; min-width: 0; }
+    .asset-meta .name { font-weight: 600; font-size: 11px; color: #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .asset-meta .dims { font-size: 9px; color: #888; margin-top: 1px; }
+    .asset-meta .cat { font-size: 9px; color: #6aa; margin-top: 1px; }
+    .badge { display: inline-block; padding: 1px 5px; border-radius: 2px; font-size: 8px; font-weight: 600; margin-left: 4px; vertical-align: middle; }
+    .badge-discard { background: #c0392b; color: #fff; }
+
+    /* Resize handle */
+    .resize-handle { width: 4px; background: #333; cursor: col-resize; user-select: none; flex-shrink: 0; }
+    .resize-handle:hover { background: #3498db; }
+
+    /* Center: Preview */
+    #preview-panel { flex: 1; display: flex; flex-direction: column; background: #1a1a2e; border-right: 1px solid #333; min-width: 200px; }
+    #preview-header { padding: 8px 10px; font-size: 12px; font-weight: 600; border-bottom: 1px solid #333; background: #0f3460; display: flex; justify-content: space-between; align-items: center; }
+    #preview-header select { font-size: 11px; padding: 2px 6px; background: #2a2a4a; border: 1px solid #555; color: #e0e0e0; border-radius: 2px; cursor: pointer; }
+    #preview-container { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; overflow: auto; }
+    #preview-canvas { image-rendering: pixelated; border: 2px solid #555; background: #000; }
+    #preview-canvas.invalid { border-color: #e74c3c; }
+    #preview-canvas.eraser-active { cursor: crosshair; }
+    #preview-tools { display: flex; gap: 6px; align-items: center; }
+    #preview-tools button { font-size: 10px; padding: 2px 8px; background: #2a2a4a; border: 1px solid #555; color: #e0e0e0; border-radius: 2px; cursor: pointer; }
+    #preview-tools button:hover { background: #3a3a6a; }
+    #preview-tools button.active { background: #c0392b; border-color: #e74c3c; color: #fff; }
+    #preview-tools button.clear-btn:hover { background: #6b2020; }
+    #eraser-info { font-size: 9px; color: #e74c3c; display: none; }
+    #eraser-info.visible { display: inline; }
+
+    /* Tileset view (Add Asset mode) */
+    #tileset-view { display: none; flex: 1; flex-direction: column; min-height: 0; }
+    #tileset-view.active { display: flex; }
+    #tileset-view .tv-bar { padding: 6px 10px; background: #1a3a1a; border-bottom: 1px solid #2a5a2a; display: flex; gap: 10px; align-items: center; font-size: 11px; flex-shrink: 0; }
+    #tileset-view .tv-bar span { color: #8c8; }
+    #tileset-view .tv-bar select, #tileset-view .tv-bar label { font-size: 11px; color: #aaa; }
+    #tileset-view .tv-bar select { padding: 2px 6px; background: #2a2a4a; border: 1px solid #555; color: #e0e0e0; border-radius: 2px; cursor: pointer; }
+    #tileset-view .tv-bar button { font-size: 11px; padding: 3px 10px; background: #6b2020; border: 1px solid #8b3030; color: #e0e0e0; border-radius: 2px; cursor: pointer; }
+    #tileset-view .tv-bar button:hover { background: #8b3030; }
+    #tileset-wrap { flex: 1; overflow: auto; background: #111; position: relative; cursor: crosshair; }
+    #tileset-canvas { display: block; image-rendering: pixelated; }
+    #select-rect { position: absolute; border: 2px solid #2ecc71; background: rgba(46,204,113,0.15); pointer-events: none; display: none; }
+
+    #toolbar button.add-btn { background: #1a5a2a; border-color: #2a8a3a; }
+    #toolbar button.add-btn:hover { background: #2a8a3a; }
+    #toolbar button.add-btn.active { background: #2ecc71; border-color: #27ae60; color: #000; font-weight: 600; }
+
+    /* Right: Editor */
+    #editor-panel { width: 340px; display: flex; flex-direction: column; background: #16213e; flex-shrink: 0; }
+    #editor-header { padding: 8px 10px; font-size: 12px; font-weight: 600; border-bottom: 1px solid #333; background: #0f3460; }
+    #editor-form { flex: 1; overflow-y: auto; padding: 12px; }
+
+    .section-title { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.8px; margin: 14px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #333; font-weight: 600; }
+    .section-title:first-child { margin-top: 0; }
+
+    .field { margin-bottom: 10px; }
+    .field-label { font-size: 10px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; display: block; font-weight: 600; }
+    .field input[type="text"], .field input[type="number"], .field select {
+      width: 100%; padding: 5px 7px; background: #2a2a4a; border: 1px solid #555; color: #e0e0e0; border-radius: 2px; font-size: 11px;
+    }
+    .field input:focus, .field select:focus { outline: none; border-color: #3498db; }
+    .field input[readonly] { background: #1a1a3e; cursor: not-allowed; color: #888; }
+
+    .geo-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+    .geo-row label { font-size: 10px; color: #aaa; width: 16px; text-align: right; flex-shrink: 0; }
+    .geo-row input { flex: 1; min-width: 0; }
+    .geo-row .step-btn { padding: 2px 6px; font-size: 10px; background: #2a2a4a; border: 1px solid #555; color: #e0e0e0; border-radius: 2px; cursor: pointer; flex-shrink: 0; line-height: 1; }
+    .geo-row .step-btn:hover { background: #3a3a6a; }
+
+    .field-row { display: flex; gap: 8px; }
+    .field-row .field { flex: 1; }
+
+    .checkbox-group { display: flex; flex-direction: column; gap: 6px; }
+    .checkbox-item { display: flex; align-items: center; gap: 6px; }
+    .checkbox-item input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; accent-color: #3498db; }
+    .checkbox-item label { cursor: pointer; font-size: 11px; }
+
+    .rotation-fields { margin-top: 6px; display: none; }
+    .rotation-fields.visible { display: block; }
+    .rotation-fields .field { margin-bottom: 8px; }
+
+    .discard-section { padding: 8px 10px; margin-top: 6px; background: #4a1a1a; border: 1px solid #6b2020; border-radius: 3px; }
+    .discard-section label { color: #ff9988; font-weight: 600; }
+
+    #editor-buttons { padding: 10px 12px; border-top: 1px solid #333; display: flex; gap: 8px; }
+    #editor-buttons button { flex: 1; padding: 6px 10px; font-size: 11px; border-radius: 3px; border: 1px solid #555; background: #2a2a4a; color: #e0e0e0; cursor: pointer; }
+    #editor-buttons button:hover { background: #3a3a6a; }
+    #editor-buttons button.primary { background: #27ae60; border-color: #2ecc71; font-weight: 600; }
+    #editor-buttons button.primary:hover { background: #2ecc71; }
+
+    /* Status bar */
+    #status { padding: 6px 12px; background: #0f3460; font-size: 11px; color: #888; border-top: 1px solid #333; display: flex; justify-content: space-between; }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1a1a2e; }
+    ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #555; }
+  </style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div id="toolbar">
+  <button id="btn-load-json">Load JSON</button>
+  <button id="btn-load-png">Load PNG</button>
+  <span class="sep"></span>
+  <label>Filter:</label>
+  <select id="filter-cat">
+    <option value="">All categories</option>
+    <option value="desks">Desks</option>
+    <option value="chairs">Chairs</option>
+    <option value="storage">Storage</option>
+    <option value="decor">Decor</option>
+    <option value="electronics">Electronics</option>
+    <option value="misc">Misc</option>
+  </select>
+  <label>Show:</label>
+  <select id="filter-show">
+    <option value="all">All</option>
+    <option value="approved">Approved only</option>
+    <option value="discarded">Discarded only</option>
+  </select>
+  <span class="sep"></span>
+  <button class="add-btn" id="btn-add-asset">+ Add Asset</button>
+  <span class="sep"></span>
+  <button class="primary" id="btn-export">Export</button>
+</div>
+
+<!-- Main 3-panel layout -->
+<div id="main">
+  <!-- Left: Asset List -->
+  <div id="list-panel">
+    <div id="list-header">
+      <span>Assets</span>
+      <span id="counter" style="font-weight: 400; color: #aaa;">0 / 0</span>
+    </div>
+    <div id="search-box">
+      <input type="text" id="search" placeholder="Search name or label...">
+    </div>
+    <div id="asset-list"></div>
+  </div>
+
+  <div class="resize-handle" id="handle-left"></div>
+
+  <!-- Center: Preview -->
+  <div id="preview-panel">
+    <div id="preview-header">
+      <span>Preview</span>
+      <div id="preview-tools">
+        <button id="btn-eraser">Eraser</button>
+        <button id="btn-clear-erased" class="clear-btn">Clear Erased</button>
+        <span id="eraser-info">click/drag to erase pixels</span>
+        <label style="font-size:10px; color:#aaa; margin-right:4px;">Zoom:</label>
+        <select id="preview-zoom">
+          <option value="1">1x</option>
+          <option value="2">2x</option>
+          <option value="3">3x</option>
+          <option value="4" selected>4x</option>
+          <option value="6">6x</option>
+          <option value="8">8x</option>
+        </select>
+      </div>
+    </div>
+    <div id="preview-container">
+      <canvas id="preview-canvas"></canvas>
+    </div>
+    <!-- Tileset view for Add Asset mode -->
+    <div id="tileset-view">
+      <div class="tv-bar">
+        <span>Drag to select a region on the tileset</span>
+        <label>Zoom:</label>
+        <select id="tileset-zoom">
+          <option value="1">1x</option>
+          <option value="2" selected>2x</option>
+          <option value="3">3x</option>
+          <option value="4">4x</option>
+        </select>
+        <label><input type="checkbox" id="snap-grid" checked> Snap 16px</label>
+        <button id="btn-cancel-add">Cancel</button>
+      </div>
+      <div id="tileset-wrap">
+        <canvas id="tileset-canvas"></canvas>
+        <div id="select-rect"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="resize-handle" id="handle-right"></div>
+
+  <!-- Right: Editor -->
+  <div id="editor-panel">
+    <div id="editor-header">Editor</div>
+    <div id="editor-form">
+      <!-- Geometry -->
+      <div class="section-title">Geometry</div>
+      <div class="geo-row">
+        <label>X:</label>
+        <button class="step-btn" data-field="paddedX" data-delta="-16">-16</button>
+        <button class="step-btn" data-field="paddedX" data-delta="-1">-1</button>
+        <input id="geo-x" type="number">
+        <button class="step-btn" data-field="paddedX" data-delta="1">+1</button>
+        <button class="step-btn" data-field="paddedX" data-delta="16">+16</button>
+      </div>
+      <div class="geo-row">
+        <label>Y:</label>
+        <button class="step-btn" data-field="paddedY" data-delta="-16">-16</button>
+        <button class="step-btn" data-field="paddedY" data-delta="-1">-1</button>
+        <input id="geo-y" type="number">
+        <button class="step-btn" data-field="paddedY" data-delta="1">+1</button>
+        <button class="step-btn" data-field="paddedY" data-delta="16">+16</button>
+      </div>
+      <div class="geo-row">
+        <label>W:</label>
+        <button class="step-btn" data-field="paddedWidth" data-delta="-16">-16</button>
+        <button class="step-btn" data-field="paddedWidth" data-delta="-1">-1</button>
+        <input id="geo-w" type="number" min="1">
+        <button class="step-btn" data-field="paddedWidth" data-delta="1">+1</button>
+        <button class="step-btn" data-field="paddedWidth" data-delta="16">+16</button>
+      </div>
+      <div class="geo-row">
+        <label>H:</label>
+        <button class="step-btn" data-field="paddedHeight" data-delta="-16">-16</button>
+        <button class="step-btn" data-field="paddedHeight" data-delta="-1">-1</button>
+        <input id="geo-h" type="number" min="1">
+        <button class="step-btn" data-field="paddedHeight" data-delta="1">+1</button>
+        <button class="step-btn" data-field="paddedHeight" data-delta="16">+16</button>
+      </div>
+
+      <!-- Metadata -->
+      <div class="section-title">Metadata</div>
+      <div class="field">
+        <label class="field-label">ID</label>
+        <input id="f-id" type="text" readonly>
+      </div>
+      <div class="field">
+        <label class="field-label">Name</label>
+        <input id="f-name" type="text" placeholder="e.g., DESK_WOOD_SM">
+      </div>
+      <div class="field">
+        <label class="field-label">Label</label>
+        <input id="f-label" type="text" placeholder="e.g., Small Wood Desk">
+      </div>
+      <div class="field">
+        <label class="field-label">Category</label>
+        <select id="f-category">
+          <option value="desks">Desks</option>
+          <option value="chairs">Chairs</option>
+          <option value="storage">Storage</option>
+          <option value="decor">Decor</option>
+          <option value="electronics">Electronics</option>
+          <option value="misc">Misc</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label">Footprint W</label>
+          <input id="f-fpw" type="number" min="1" max="10">
+        </div>
+        <div class="field">
+          <label class="field-label">Footprint H</label>
+          <input id="f-fph" type="number" min="1" max="10">
+        </div>
+      </div>
+
+      <!-- Flags -->
+      <div class="section-title">Flags</div>
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input id="f-isdesk" type="checkbox">
+          <label for="f-isdesk">Is Desk</label>
+        </div>
+        <div class="checkbox-item">
+          <input id="f-color" type="checkbox">
+          <label for="f-color">Color Editable</label>
+        </div>
+        <div class="checkbox-item">
+          <input id="f-ontop" type="checkbox">
+          <label for="f-ontop">Can Place On Surfaces</label>
+        </div>
+      </div>
+
+      <!-- Rotation Group -->
+      <div class="section-title">Rotation Group</div>
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input id="f-grouped" type="checkbox">
+          <label for="f-grouped">Part of rotation group</label>
+        </div>
+      </div>
+      <div class="rotation-fields" id="rotation-fields">
+        <div class="field">
+          <label class="field-label">Group ID</label>
+          <input id="f-group-id" type="text" placeholder="e.g., CUSHIONED_CHAIR">
+        </div>
+        <div class="field">
+          <label class="field-label">Orientation</label>
+          <select id="f-orientation">
+            <option value="front">Front</option>
+            <option value="right">Right</option>
+            <option value="back">Back</option>
+            <option value="left">Left</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Discard -->
+      <div class="section-title">Discard</div>
+      <div class="discard-section">
+        <div class="checkbox-item">
+          <input id="f-discard" type="checkbox">
+          <label for="f-discard">Mark as discarded</label>
+        </div>
+      </div>
+    </div>
+
+    <div id="editor-buttons">
+      <button class="primary" id="btn-save">Save</button>
+      <button id="btn-reset">Reset</button>
+    </div>
+  </div>
+</div>
+
+<!-- Status bar -->
+<div id="status">
+  <span id="status-msg">Ready</span>
+  <span id="status-counts"></span>
+</div>
+
+<!-- Hidden file inputs -->
+<input type="file" id="json-file" accept="application/json" style="display:none">
+<input type="file" id="png-file" accept="image/png" style="display:none">
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════════════
+
+let data = null          // Full JSON (version, assets[], etc.)
+let tilesetImg = null    // Loaded tileset Image
+let selectedIdx = -1     // Index into data.assets
+let filtered = []        // Indices into data.assets matching current filter
+let previewZoom = 4
+let savedSnapshot = null // Deep copy for Reset button
+let saveTimer = null     // Debounced localStorage save
+
+// Add Asset mode
+let addMode = false
+let tilesetZoom = 2
+let dragStart = null     // {x, y} in tileset pixels
+let dragEnd = null       // {x, y} in tileset pixels
+let isDragging = false
+
+// Eraser
+let eraserActive = false
+let isErasing = false
+let lastErasePx = null   // {x, y} last erased pixel for line interpolation
+
+// Undo/redo
+const undoStack = []
+const redoStack = []
+const MAX_UNDO = 20
+
+const statusMsg = document.getElementById('status-msg')
+const statusCounts = document.getElementById('status-counts')
+const assetListEl = document.getElementById('asset-list')
+const previewCanvas = document.getElementById('preview-canvas')
+const previewCtx = previewCanvas.getContext('2d')
+
+// ════════════════════════════════════════════════════════════════════════
+// FILE LOADING
+// ════════════════════════════════════════════════════════════════════════
+
+document.getElementById('btn-load-json').onclick = () => document.getElementById('json-file').click()
+document.getElementById('json-file').onchange = (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    try {
+      loadJsonData(JSON.parse(ev.target.result))
+      statusMsg.textContent = '\u2713 Loaded ' + data.assets.length + ' assets from ' + file.name
+    } catch (err) {
+      alert('Invalid JSON: ' + err.message)
+    }
+  }
+  reader.readAsText(file)
+  e.target.value = '' // Allow re-loading same file
+}
+
+document.getElementById('btn-load-png').onclick = () => document.getElementById('png-file').click()
+document.getElementById('png-file').onchange = (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    const img = new Image()
+    img.onload = () => {
+      tilesetImg = img
+      renderList()
+      renderPreview()
+      statusMsg.textContent = '\u2713 Tileset loaded: ' + img.width + 'x' + img.height + 'px'
+    }
+    img.src = ev.target.result
+  }
+  reader.readAsDataURL(file)
+  e.target.value = ''
+}
+
+function loadJsonData(parsed) {
+  data = parsed
+  selectedIdx = data.assets.length > 0 ? 0 : -1
+  savedSnapshot = JSON.parse(JSON.stringify(data))
+  undoStack.length = 0
+  redoStack.length = 0
+  updateFilter()
+  if (selectedIdx >= 0) loadForm(selectedIdx)
+  renderPreview()
+  updateCounts()
+  scheduleSave()
+}
+
+// Auto-load from localStorage
+window.addEventListener('load', () => {
+  try {
+    const saved = localStorage.getItem('asset-manager-data')
+    if (saved) {
+      loadJsonData(JSON.parse(saved))
+      statusMsg.textContent = 'Restored from localStorage'
+    }
+  } catch {}
+})
+
+// ════════════════════════════════════════════════════════════════════════
+// PERSISTENCE (localStorage, debounced)
+// ════════════════════════════════════════════════════════════════════════
+
+function scheduleSave() {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    if (data) {
+      try { localStorage.setItem('asset-manager-data', JSON.stringify(data)) } catch {}
+    }
+  }, 2000)
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// UNDO / REDO
+// ════════════════════════════════════════════════════════════════════════
+
+function pushUndo() {
+  undoStack.push(JSON.stringify(data.assets))
+  if (undoStack.length > MAX_UNDO) undoStack.shift()
+  redoStack.length = 0
+}
+
+function undo() {
+  if (undoStack.length === 0) return
+  redoStack.push(JSON.stringify(data.assets))
+  data.assets = JSON.parse(undoStack.pop())
+  refreshAfterUndoRedo()
+}
+
+function redo() {
+  if (redoStack.length === 0) return
+  undoStack.push(JSON.stringify(data.assets))
+  data.assets = JSON.parse(redoStack.pop())
+  refreshAfterUndoRedo()
+}
+
+function refreshAfterUndoRedo() {
+  // Clamp selectedIdx
+  if (selectedIdx >= data.assets.length) selectedIdx = data.assets.length - 1
+  updateFilter()
+  if (selectedIdx >= 0) loadForm(selectedIdx)
+  renderPreview()
+  updateCounts()
+  scheduleSave()
+  statusMsg.textContent = 'Undo/Redo applied'
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// FILTERING
+// ════════════════════════════════════════════════════════════════════════
+
+document.getElementById('filter-cat').onchange = () => updateFilter()
+document.getElementById('filter-show').onchange = () => updateFilter()
+document.getElementById('search').oninput = () => updateFilter()
+
+function updateFilter() {
+  if (!data) return
+  const search = document.getElementById('search').value.toLowerCase()
+  const cat = document.getElementById('filter-cat').value
+  const show = document.getElementById('filter-show').value
+
+  filtered = []
+  data.assets.forEach((asset, idx) => {
+    if (cat && asset.category !== cat) return
+    if (show === 'approved' && asset.discard) return
+    if (show === 'discarded' && !asset.discard) return
+    if (search) {
+      const name = (asset.name || '').toLowerCase()
+      const label = (asset.label || '').toLowerCase()
+      const id = (asset.id || '').toLowerCase()
+      if (!name.includes(search) && !label.includes(search) && !id.includes(search)) return
+    }
+    filtered.push(idx)
+  })
+
+  renderList()
+  updateCounts()
+}
+
+function updateCounts() {
+  if (!data) { statusCounts.textContent = ''; return }
+  const approved = data.assets.filter(a => !a.discard).length
+  const discarded = data.assets.length - approved
+  document.getElementById('counter').textContent = filtered.length + ' / ' + data.assets.length
+  statusCounts.textContent = approved + ' approved, ' + discarded + ' discarded'
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ASSET LIST RENDERING
+// ════════════════════════════════════════════════════════════════════════
+
+function renderList() {
+  if (!data) return
+  assetListEl.innerHTML = ''
+
+  filtered.forEach(idx => {
+    const asset = data.assets[idx]
+    const div = document.createElement('div')
+    div.className = 'asset-item' + (idx === selectedIdx ? ' selected' : '') + (asset.discard ? ' discarded' : '')
+    div.dataset.idx = idx
+    div.onclick = () => selectAsset(idx)
+
+    // Thumbnail
+    const thumb = document.createElement('canvas')
+    thumb.width = 40; thumb.height = 40
+    thumb.className = 'asset-thumb'
+    if (tilesetImg && asset.paddedWidth > 0 && asset.paddedHeight > 0) {
+      const tctx = thumb.getContext('2d')
+      tctx.imageSmoothingEnabled = false
+      const srcX = Math.max(0, asset.paddedX)
+      const srcY = Math.max(0, asset.paddedY)
+      const offX = Math.max(0, -asset.paddedX)
+      const offY = Math.max(0, -asset.paddedY)
+      const srcW = asset.paddedWidth - offX
+      const srcH = asset.paddedHeight - offY
+      if (srcW > 0 && srcH > 0 && srcX < tilesetImg.width && srcY < tilesetImg.height) {
+        const s = Math.min(40 / asset.paddedWidth, 40 / asset.paddedHeight)
+        const dw = asset.paddedWidth * s
+        const dh = asset.paddedHeight * s
+        const dx = (40 - dw) / 2 + offX * s
+        const dy = (40 - dh) / 2 + offY * s
+        tctx.drawImage(tilesetImg,
+          srcX, srcY, Math.min(srcW, tilesetImg.width - srcX), Math.min(srcH, tilesetImg.height - srcY),
+          dx, dy, Math.min(srcW, tilesetImg.width - srcX) * s, Math.min(srcH, tilesetImg.height - srcY) * s
+        )
+      }
+    }
+    div.appendChild(thumb)
+
+    // Info
+    const meta = document.createElement('div')
+    meta.className = 'asset-meta'
+    let nameHtml = '<div class="name">' + escHtml(asset.name || asset.id) + '</div>'
+    nameHtml += '<div class="dims">' + asset.paddedWidth + '\u00d7' + asset.paddedHeight + 'px'
+    if (asset.footprintW && asset.footprintH) nameHtml += '  \u2022  ' + asset.footprintW + '\u00d7' + asset.footprintH + ' tiles'
+    nameHtml += '</div>'
+    nameHtml += '<div class="cat">' + escHtml(asset.category || '')
+    if (asset.discard) nameHtml += ' <span class="badge badge-discard">DISCARDED</span>'
+    nameHtml += '</div>'
+    meta.innerHTML = nameHtml
+    div.appendChild(meta)
+
+    assetListEl.appendChild(div)
+  })
+
+  // Scroll selected into view
+  const sel = assetListEl.querySelector('.selected')
+  if (sel) sel.scrollIntoView({ block: 'nearest' })
+}
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// SELECTION & FORM
+// ════════════════════════════════════════════════════════════════════════
+
+function selectAsset(idx) {
+  if (!data || idx < 0 || idx >= data.assets.length) return
+  selectedIdx = idx
+  deactivateEraser()
+  loadForm(idx)
+  renderList()
+  renderPreview()
+}
+
+function deactivateEraser() {
+  eraserActive = false
+  isErasing = false
+  lastErasePx = null
+  document.getElementById('btn-eraser').classList.remove('active')
+  document.getElementById('eraser-info').classList.remove('visible')
+  previewCanvas.classList.remove('eraser-active')
+}
+
+function loadForm(idx) {
+  const a = data.assets[idx]
+  document.getElementById('geo-x').value = a.paddedX
+  document.getElementById('geo-y').value = a.paddedY
+  document.getElementById('geo-w').value = a.paddedWidth
+  document.getElementById('geo-h').value = a.paddedHeight
+  document.getElementById('f-id').value = a.id
+  document.getElementById('f-name').value = a.name || ''
+  document.getElementById('f-label').value = a.label || ''
+  document.getElementById('f-category').value = a.category || 'misc'
+  document.getElementById('f-fpw').value = a.footprintW || 1
+  document.getElementById('f-fph').value = a.footprintH || 1
+  document.getElementById('f-isdesk').checked = !!a.isDesk
+  document.getElementById('f-color').checked = !!a.colorEditable
+  document.getElementById('f-ontop').checked = !!a.canPlaceOnSurfaces
+  document.getElementById('f-grouped').checked = !!a.partOfGroup
+  document.getElementById('f-group-id').value = a.groupId || ''
+  document.getElementById('f-orientation').value = a.orientation || 'front'
+  document.getElementById('f-discard').checked = !!a.discard
+  updateRotationVisibility()
+}
+
+function updateRotationVisibility() {
+  const visible = document.getElementById('f-grouped').checked
+  document.getElementById('rotation-fields').classList.toggle('visible', visible)
+}
+
+document.getElementById('f-grouped').onchange = updateRotationVisibility
+
+// ════════════════════════════════════════════════════════════════════════
+// GEOMETRY INPUTS (live preview)
+// ════════════════════════════════════════════════════════════════════════
+
+// Number input live update
+;['geo-x', 'geo-y', 'geo-w', 'geo-h'].forEach(id => {
+  document.getElementById(id).oninput = () => {
+    if (selectedIdx < 0 || !data) return
+    const a = data.assets[selectedIdx]
+    a.paddedX = +document.getElementById('geo-x').value
+    a.paddedY = +document.getElementById('geo-y').value
+    a.paddedWidth = +document.getElementById('geo-w').value || 1
+    a.paddedHeight = +document.getElementById('geo-h').value || 1
+    renderPreview()
+  }
+})
+
+// Stepper buttons
+document.querySelectorAll('.step-btn').forEach(btn => {
+  btn.onclick = () => {
+    if (selectedIdx < 0 || !data) return
+    const field = btn.dataset.field
+    const delta = +btn.dataset.delta
+    const a = data.assets[selectedIdx]
+    pushUndo()
+    a[field] = (a[field] || 0) + delta
+    if (field === 'paddedWidth' && a.paddedWidth < 1) a.paddedWidth = 1
+    if (field === 'paddedHeight' && a.paddedHeight < 1) a.paddedHeight = 1
+    loadForm(selectedIdx)
+    renderPreview()
+    scheduleSave()
+  }
+})
+
+// ════════════════════════════════════════════════════════════════════════
+// SAVE / RESET / EXPORT
+// ════════════════════════════════════════════════════════════════════════
+
+document.getElementById('btn-save').onclick = () => {
+  if (selectedIdx < 0 || !data) return
+  pushUndo()
+
+  const a = data.assets[selectedIdx]
+  // Geometry
+  a.paddedX = +document.getElementById('geo-x').value
+  a.paddedY = +document.getElementById('geo-y').value
+  a.paddedWidth = +document.getElementById('geo-w').value || a.paddedWidth
+  a.paddedHeight = +document.getElementById('geo-h').value || a.paddedHeight
+  // Metadata
+  a.name = document.getElementById('f-name').value.trim() || a.name
+  a.label = document.getElementById('f-label').value.trim() || a.label
+  a.category = document.getElementById('f-category').value
+  a.footprintW = +document.getElementById('f-fpw').value || a.footprintW
+  a.footprintH = +document.getElementById('f-fph').value || a.footprintH
+  // Flags
+  a.isDesk = document.getElementById('f-isdesk').checked
+  a.colorEditable = document.getElementById('f-color').checked
+  a.canPlaceOnSurfaces = document.getElementById('f-ontop').checked
+  // Rotation
+  a.partOfGroup = document.getElementById('f-grouped').checked
+  a.groupId = document.getElementById('f-group-id').value.trim() || null
+  a.orientation = document.getElementById('f-grouped').checked ? document.getElementById('f-orientation').value : undefined
+  // Discard
+  a.discard = document.getElementById('f-discard').checked
+
+  updateFilter()
+  renderList()
+  renderPreview()
+  updateCounts()
+  scheduleSave()
+  statusMsg.textContent = '\u2713 Saved ' + a.name
+}
+
+document.getElementById('btn-reset').onclick = () => {
+  if (selectedIdx < 0 || !data) return
+  loadForm(selectedIdx)
+  renderPreview()
+  statusMsg.textContent = 'Reset to last saved'
+}
+
+document.getElementById('btn-export').onclick = () => {
+  if (!data) return
+
+  // Include ALL assets (discarded ones keep discard:true so they can be recovered)
+  const output = {
+    version: data.version || 1,
+    timestamp: new Date().toISOString(),
+    sourceFile: data.sourceFile,
+    tileset: data.tileset,
+    backgroundColor: data.backgroundColor,
+    assets: data.assets
+  }
+
+  const json = JSON.stringify(output, null, 2)
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'tileset-metadata-final.json'
+  a.click()
+  URL.revokeObjectURL(url)
+
+  const approved = data.assets.filter(x => !x.discard).length
+  statusMsg.textContent = '\u2713 Exported ' + approved + ' approved + ' + (data.assets.length - approved) + ' discarded assets'
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// PREVIEW RENDERING
+// ════════════════════════════════════════════════════════════════════════
+
+document.getElementById('preview-zoom').onchange = (e) => {
+  previewZoom = +e.target.value
+  renderPreview()
+}
+
+function renderPreview() {
+  if (!data || selectedIdx < 0 || selectedIdx >= data.assets.length) {
+    previewCanvas.width = 100; previewCanvas.height = 100
+    previewCtx.fillStyle = '#111'; previewCtx.fillRect(0, 0, 100, 100)
+    previewCtx.fillStyle = '#444'; previewCtx.font = '12px sans-serif'; previewCtx.textAlign = 'center'
+    previewCtx.fillText('No asset selected', 50, 55)
+    previewCanvas.classList.remove('invalid')
+    return
+  }
+
+  const asset = data.assets[selectedIdx]
+  const w = asset.paddedWidth * previewZoom
+  const h = asset.paddedHeight * previewZoom
+
+  // Validation
+  const invalid = w <= 0 || h <= 0
+  previewCanvas.classList.toggle('invalid', invalid)
+  if (invalid) {
+    previewCanvas.width = 200; previewCanvas.height = 60
+    previewCtx.fillStyle = '#2a0a0a'; previewCtx.fillRect(0, 0, 200, 60)
+    previewCtx.fillStyle = '#e74c3c'; previewCtx.font = '12px sans-serif'; previewCtx.textAlign = 'center'
+    previewCtx.fillText('Invalid geometry', 100, 35)
+    return
+  }
+
+  previewCanvas.width = w
+  previewCanvas.height = h
+  previewCtx.imageSmoothingEnabled = false
+  previewCtx.clearRect(0, 0, w, h)
+
+  // Draw tileset region
+  if (tilesetImg) {
+    const srcX = Math.max(0, asset.paddedX)
+    const srcY = Math.max(0, asset.paddedY)
+    const offX = Math.max(0, -asset.paddedX)
+    const offY = Math.max(0, -asset.paddedY)
+    const srcW = asset.paddedWidth - offX
+    const srcH = asset.paddedHeight - offY
+    const dstX = offX * previewZoom
+    const dstY = offY * previewZoom
+
+    if (srcW > 0 && srcH > 0 && srcX < tilesetImg.width && srcY < tilesetImg.height) {
+      const clampW = Math.min(srcW, tilesetImg.width - srcX)
+      const clampH = Math.min(srcH, tilesetImg.height - srcY)
+      previewCtx.drawImage(tilesetImg,
+        srcX, srcY, clampW, clampH,
+        dstX, dstY, clampW * previewZoom, clampH * previewZoom
+      )
+    }
+  }
+
+  // 16px grid overlay
+  previewCtx.strokeStyle = 'rgba(255,255,255,0.15)'
+  previewCtx.lineWidth = 1
+  for (let x = 0; x <= w; x += 16 * previewZoom) {
+    previewCtx.beginPath(); previewCtx.moveTo(x + 0.5, 0); previewCtx.lineTo(x + 0.5, h); previewCtx.stroke()
+  }
+  for (let y = 0; y <= h; y += 16 * previewZoom) {
+    previewCtx.beginPath(); previewCtx.moveTo(0, y + 0.5); previewCtx.lineTo(w, y + 0.5); previewCtx.stroke()
+  }
+
+  // Erased pixels overlay (from stage 2)
+  if (asset.erasedPixels && asset.erasedPixels.length > 0) {
+    previewCtx.fillStyle = 'rgba(255, 0, 0, 0.35)'
+    for (const p of asset.erasedPixels) {
+      previewCtx.fillRect(p.x * previewZoom, p.y * previewZoom, previewZoom, previewZoom)
+    }
+  }
+
+  // Border
+  previewCtx.strokeStyle = '#3498db'
+  previewCtx.lineWidth = 2
+  previewCtx.strokeRect(0, 0, w, h)
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// PIXEL ERASER
+// ════════════════════════════════════════════════════════════════════════
+
+document.getElementById('btn-eraser').onclick = () => {
+  eraserActive = !eraserActive
+  document.getElementById('btn-eraser').classList.toggle('active', eraserActive)
+  document.getElementById('eraser-info').classList.toggle('visible', eraserActive)
+  previewCanvas.classList.toggle('eraser-active', eraserActive)
+}
+
+document.getElementById('btn-clear-erased').onclick = () => {
+  if (selectedIdx < 0 || !data) return
+  const asset = data.assets[selectedIdx]
+  if (!asset.erasedPixels || asset.erasedPixels.length === 0) return
+  pushUndo()
+  asset.erasedPixels = []
+  renderPreview()
+  scheduleSave()
+  statusMsg.textContent = 'Cleared erased pixels for ' + asset.name
+}
+
+// Bresenham line: all integer pixels between two points
+function bresenham(x0, y0, x1, y1) {
+  const pts = []
+  const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0)
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1
+  let err = dx - dy
+  let x = x0, y = y0
+  while (true) {
+    pts.push({ x, y })
+    if (x === x1 && y === y1) break
+    const e2 = 2 * err
+    if (e2 > -dy) { err -= dy; x += sx }
+    if (e2 < dx) { err += dx; y += sy }
+  }
+  return pts
+}
+
+function previewPixelAt(e) {
+  const rect = previewCanvas.getBoundingClientRect()
+  return {
+    x: Math.floor((e.clientX - rect.left) / previewZoom),
+    y: Math.floor((e.clientY - rect.top) / previewZoom)
+  }
+}
+
+function erasePixels(pts) {
+  if (selectedIdx < 0 || !data) return
+  const asset = data.assets[selectedIdx]
+  if (!asset.erasedPixels) asset.erasedPixels = []
+  const existing = new Set(asset.erasedPixels.map(p => p.x + ',' + p.y))
+  for (const p of pts) {
+    if (p.x < 0 || p.y < 0 || p.x >= asset.paddedWidth || p.y >= asset.paddedHeight) continue
+    const key = p.x + ',' + p.y
+    if (!existing.has(key)) {
+      asset.erasedPixels.push({ x: p.x, y: p.y })
+      existing.add(key)
+    }
+  }
+}
+
+previewCanvas.onmousedown = (e) => {
+  if (!eraserActive || selectedIdx < 0 || !data) return
+  e.preventDefault()
+  pushUndo()
+  isErasing = true
+  const p = previewPixelAt(e)
+  lastErasePx = p
+  erasePixels([p])
+  renderPreview()
+}
+
+previewCanvas.onmousemove = (e) => {
+  if (!isErasing) return
+  const p = previewPixelAt(e)
+  // Interpolate from last point for smooth strokes
+  const pts = lastErasePx ? bresenham(lastErasePx.x, lastErasePx.y, p.x, p.y) : [p]
+  lastErasePx = p
+  erasePixels(pts)
+  renderPreview()
+}
+
+previewCanvas.onmouseup = () => {
+  if (isErasing) {
+    isErasing = false
+    lastErasePx = null
+    scheduleSave()
+  }
+}
+
+previewCanvas.onmouseleave = () => {
+  if (isErasing) {
+    isErasing = false
+    lastErasePx = null
+    scheduleSave()
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADD ASSET MODE
+// ════════════════════════════════════════════════════════════════════════
+
+const tilesetCanvas = document.getElementById('tileset-canvas')
+const tilesetCtx = tilesetCanvas.getContext('2d')
+const tilesetWrap = document.getElementById('tileset-wrap')
+const selectRect = document.getElementById('select-rect')
+
+document.getElementById('btn-add-asset').onclick = () => {
+  if (!tilesetImg) { alert('Load a tileset PNG first'); return }
+  if (!data) { alert('Load a JSON file first'); return }
+  toggleAddMode(!addMode)
+}
+
+document.getElementById('btn-cancel-add').onclick = () => toggleAddMode(false)
+
+document.getElementById('tileset-zoom').onchange = (e) => {
+  tilesetZoom = +e.target.value
+  if (addMode) renderTileset()
+}
+
+function toggleAddMode(on) {
+  addMode = on
+  dragStart = null
+  dragEnd = null
+  isDragging = false
+  selectRect.style.display = 'none'
+  if (on) deactivateEraser()
+
+  document.getElementById('btn-add-asset').classList.toggle('active', on)
+  document.getElementById('preview-container').style.display = on ? 'none' : ''
+  document.getElementById('preview-header').querySelector('span').textContent = on ? 'Add Asset' : 'Preview'
+  document.getElementById('tileset-view').classList.toggle('active', on)
+
+  if (on) renderTileset()
+}
+
+function renderTileset() {
+  if (!tilesetImg) return
+  tilesetCanvas.width = tilesetImg.width * tilesetZoom
+  tilesetCanvas.height = tilesetImg.height * tilesetZoom
+  tilesetCtx.imageSmoothingEnabled = false
+  tilesetCtx.drawImage(tilesetImg, 0, 0, tilesetCanvas.width, tilesetCanvas.height)
+
+  // Draw existing asset bounding boxes
+  if (data) {
+    data.assets.forEach(asset => {
+      if (asset.discard) return
+      const x = asset.paddedX * tilesetZoom
+      const y = asset.paddedY * tilesetZoom
+      const w = asset.paddedWidth * tilesetZoom
+      const h = asset.paddedHeight * tilesetZoom
+      tilesetCtx.strokeStyle = 'rgba(52, 152, 219, 0.5)'
+      tilesetCtx.lineWidth = 1
+      tilesetCtx.strokeRect(x + 0.5, y + 0.5, w, h)
+    })
+  }
+}
+
+// Tileset mouse handlers for rectangle selection
+tilesetWrap.onmousedown = (e) => {
+  if (e.target !== tilesetCanvas) return
+  const rect = tilesetCanvas.getBoundingClientRect()
+  const px = (e.clientX - rect.left) / tilesetZoom
+  const py = (e.clientY - rect.top) / tilesetZoom
+  dragStart = snapCoord(px, py)
+  dragEnd = { ...dragStart }
+  isDragging = true
+  updateSelectRect()
+  selectRect.style.display = 'block'
+  e.preventDefault()
+}
+
+tilesetWrap.onmousemove = (e) => {
+  if (!isDragging) return
+  const rect = tilesetCanvas.getBoundingClientRect()
+  const px = (e.clientX - rect.left) / tilesetZoom
+  const py = (e.clientY - rect.top) / tilesetZoom
+  dragEnd = snapCoord(px, py)
+  updateSelectRect()
+}
+
+tilesetWrap.onmouseup = (e) => {
+  if (!isDragging) return
+  isDragging = false
+
+  const rect = tilesetCanvas.getBoundingClientRect()
+  const px = (e.clientX - rect.left) / tilesetZoom
+  const py = (e.clientY - rect.top) / tilesetZoom
+  dragEnd = snapCoord(px, py)
+
+  // Compute selected region
+  const x1 = Math.min(dragStart.x, dragEnd.x)
+  const y1 = Math.min(dragStart.y, dragEnd.y)
+  const x2 = Math.max(dragStart.x, dragEnd.x)
+  const y2 = Math.max(dragStart.y, dragEnd.y)
+  const w = x2 - x1
+  const h = y2 - y1
+
+  if (w < 1 || h < 1) {
+    selectRect.style.display = 'none'
+    return
+  }
+
+  createNewAsset(x1, y1, w, h)
+}
+
+function snapCoord(px, py) {
+  const snap = document.getElementById('snap-grid').checked
+  if (snap) {
+    return { x: Math.round(px / 16) * 16, y: Math.round(py / 16) * 16 }
+  }
+  return { x: Math.round(px), y: Math.round(py) }
+}
+
+function updateSelectRect() {
+  if (!dragStart || !dragEnd) return
+  const x1 = Math.min(dragStart.x, dragEnd.x) * tilesetZoom
+  const y1 = Math.min(dragStart.y, dragEnd.y) * tilesetZoom
+  const x2 = Math.max(dragStart.x, dragEnd.x) * tilesetZoom
+  const y2 = Math.max(dragStart.y, dragEnd.y) * tilesetZoom
+  selectRect.style.left = x1 + 'px'
+  selectRect.style.top = y1 + 'px'
+  selectRect.style.width = (x2 - x1) + 'px'
+  selectRect.style.height = (y2 - y1) + 'px'
+}
+
+function createNewAsset(x, y, w, h) {
+  // Generate a unique ID
+  const existingIds = new Set(data.assets.map(a => a.id))
+  let idx = data.assets.length
+  let newId
+  do {
+    newId = 'ASSET_NEW_' + idx
+    idx++
+  } while (existingIds.has(newId))
+
+  const fpW = Math.max(1, Math.round(w / 16))
+  const fpH = Math.max(1, Math.round(h / 16))
+
+  const newAsset = {
+    id: newId,
+    paddedX: x,
+    paddedY: y,
+    paddedWidth: w,
+    paddedHeight: h,
+    name: newId,
+    label: 'New Asset',
+    category: 'misc',
+    footprintW: fpW,
+    footprintH: fpH,
+    isDesk: false,
+    colorEditable: false,
+    discard: false
+  }
+
+  pushUndo()
+  data.assets.push(newAsset)
+  const newIdx = data.assets.length - 1
+
+  // Exit add mode, select the new asset
+  toggleAddMode(false)
+  selectedIdx = newIdx
+  updateFilter()
+  loadForm(newIdx)
+  renderPreview()
+  updateCounts()
+  scheduleSave()
+  statusMsg.textContent = '\u2713 Created ' + newId + ' (' + w + '\u00d7' + h + 'px)'
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// RESIZE HANDLES
+// ════════════════════════════════════════════════════════════════════════
+
+let resizing = null
+
+document.getElementById('handle-left').onmousedown = (e) => { resizing = 'left'; e.preventDefault() }
+document.getElementById('handle-right').onmousedown = (e) => { resizing = 'right'; e.preventDefault() }
+
+document.onmousemove = (e) => {
+  if (resizing) {
+    const mainRect = document.getElementById('main').getBoundingClientRect()
+    const x = e.clientX - mainRect.left
+
+    if (resizing === 'left') {
+      const w = Math.max(150, Math.min(x, mainRect.width - 500))
+      document.getElementById('list-panel').style.width = w + 'px'
+    } else if (resizing === 'right') {
+      const editorW = mainRect.width - x
+      const w = Math.max(250, Math.min(editorW, mainRect.width - 400))
+      document.getElementById('editor-panel').style.width = w + 'px'
+    }
+  }
+}
+
+document.onmouseup = () => {
+  resizing = null
+  // Cancel tileset drag if mouse released outside
+  if (isDragging) {
+    isDragging = false
+    selectRect.style.display = 'none'
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ════════════════════════════════════════════════════════════════════════
+
+document.onkeydown = (e) => {
+  const tag = e.target.tagName
+  const inInput = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA'
+
+  // Ctrl+Z / Ctrl+Y always work
+  if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); return }
+  if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); return }
+  if (e.ctrlKey && e.shiftKey && e.key === 'Z') { e.preventDefault(); redo(); return }
+
+  // Enter saves from anywhere
+  if (e.key === 'Enter' && !e.ctrlKey) {
+    e.preventDefault()
+    document.getElementById('btn-save').click()
+    return
+  }
+
+  // Escape: cancel add mode → clear search → deselect
+  if (e.key === 'Escape') {
+    if (addMode) {
+      toggleAddMode(false)
+    } else {
+      const search = document.getElementById('search')
+      if (search.value) {
+        search.value = ''
+        updateFilter()
+      } else {
+        selectedIdx = -1
+        renderList()
+        renderPreview()
+      }
+    }
+    return
+  }
+
+  if (inInput) return
+
+  // Arrow keys navigate filtered list
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault()
+    if (!data || filtered.length === 0) return
+    const pos = filtered.indexOf(selectedIdx)
+    if (e.key === 'ArrowUp') {
+      if (pos > 0) selectAsset(filtered[pos - 1])
+      else if (pos === -1 && filtered.length > 0) selectAsset(filtered[filtered.length - 1])
+    } else {
+      if (pos < filtered.length - 1) selectAsset(filtered[pos + 1])
+      else if (pos === -1 && filtered.length > 0) selectAsset(filtered[0])
+    }
+  }
+}
+</script>
+</body>
+</html>

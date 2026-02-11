@@ -123,7 +123,9 @@ Users can import custom pixel art tilesets via the interactive CLI at `scripts/0
 
 **Stage 4 (Review)**: Browser-based editor (`scripts/4-review-metadata.html`) for reviewing and editing all metadata before export.
 
-**Stage 5 (Export)**: Export approved assets as individual PNG files organized by category, generate `furniture-catalog.json`.
+**Unified Asset Manager** (`scripts/asset-manager.html`): Standalone browser editor that combines Stage 2 + Stage 4 into a single 3-panel interface (asset list | preview | editor). Supports loading JSON + tileset PNG, editing geometry (X/Y/W/H with steppers), metadata (name, label, category, footprint), flags (isDesk, colorEditable, rotation groups), pixel eraser, add new assets by drag-selecting on the tileset, discard/un-discard, undo/redo (Ctrl+Z/Y), localStorage auto-save, and export. Exported JSON includes all assets (discarded ones keep `discard: true` for recovery).
+
+**Stage 5 (Export)**: Export approved assets as individual PNG files (named by `asset.name`, not ID) organized by category, generate `furniture-catalog.json`. Cleans the output folder before exporting. Copies `groupId` and `orientation` fields for rotation groups (derives orientation from name suffix if not explicit).
 
 **Stage 6 (Build)**: Run `npm run build` to bundle assets with extension.
 

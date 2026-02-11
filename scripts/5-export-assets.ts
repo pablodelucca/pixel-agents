@@ -12,7 +12,7 @@
  *   - assets/office_tileset_16x16.png (source tileset)
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from 'fs'
 import { join } from 'path'
 import { PNG } from 'pngjs'
 
@@ -31,6 +31,9 @@ interface Asset {
   isDesk: boolean
   colorEditable: boolean
   discard?: boolean
+  partOfGroup?: boolean
+  groupId?: string | null
+  orientation?: string
 }
 
 interface CatalogEntry {
@@ -45,6 +48,8 @@ interface CatalogEntry {
   footprintH: number
   isDesk: boolean
   colorEditable: boolean
+  groupId?: string
+  orientation?: string
 }
 
 const metadataPath = './scripts/.tileset-working/tileset-metadata-final.json'
@@ -119,11 +124,16 @@ function extractAssetPng(asset: Asset): Buffer {
 // Create folder structure
 // ─────────────────────────────────────────────────────────────────────
 
+console.log(`🗑️  Cleaning old assets...`)
+
+if (existsSync(assetsDir)) {
+  rmSync(assetsDir, { recursive: true })
+  console.log(`   Removed ${assetsDir}`)
+}
+
 console.log(`📁 Creating folder structure...`)
 
-if (!existsSync(assetsDir)) {
-  mkdirSync(assetsDir, { recursive: true })
-}
+mkdirSync(assetsDir, { recursive: true })
 
 const categories = new Set(assets.map((a) => a.category))
 for (const category of categories) {
@@ -146,7 +156,7 @@ let exported = 0
 
 for (const asset of assets) {
   const categoryDir = join(assetsDir, asset.category)
-  const filename = `${asset.id}.png`
+  const filename = `${asset.name}.png`
   const filepath = join(categoryDir, filename)
   const relativePath = `furniture/${asset.category}/${filename}`
 
@@ -154,7 +164,7 @@ for (const asset of assets) {
     const pngBuffer = extractAssetPng(asset)
     writeFileSync(filepath, pngBuffer)
 
-    catalog.push({
+    const entry: CatalogEntry = {
       id: asset.id,
       name: asset.name,
       label: asset.label,
@@ -166,7 +176,22 @@ for (const asset of assets) {
       footprintH: asset.footprintH,
       isDesk: asset.isDesk,
       colorEditable: asset.colorEditable,
-    })
+    }
+
+    // Rotation group: use explicit orientation if present, otherwise derive from name suffix
+    if (asset.groupId) {
+      entry.groupId = asset.groupId
+      if (asset.orientation) {
+        entry.orientation = asset.orientation
+      } else {
+        const suffix = asset.name.split('_').pop()?.toLowerCase()
+        if (suffix && ['front', 'back', 'left', 'right'].includes(suffix)) {
+          entry.orientation = suffix
+        }
+      }
+    }
+
+    catalog.push(entry)
 
     console.log(
       `  ✓ ${asset.category}/${filename.padEnd(30)} (${asset.paddedWidth}×${asset.paddedHeight}px)`,
