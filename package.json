@@ -1,7 +1,7 @@
 {
-  "name": "arcadia",
-  "displayName": "Arcadia",
-  "description": "Arcadia VS Code Extension",
+  "name": "pixel-agents",
+  "displayName": "Pixel Agents",
+  "description": "Pixel Agents VS Code Extension",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.109.0"
@@ -14,29 +14,29 @@
   "contributes": {
     "commands": [
       {
-        "command": "arcadia.showPanel",
-        "title": "Arcadia: Show Panel"
+        "command": "pixel-agents.showPanel",
+        "title": "Pixel Agents: Show Panel"
       },
       {
-        "command": "arcadia.exportDefaultLayout",
-        "title": "Arcadia: Export Layout as Default"
+        "command": "pixel-agents.exportDefaultLayout",
+        "title": "Pixel Agents: Export Layout as Default"
       }
     ],
     "viewsContainers": {
       "panel": [
         {
-          "id": "arcadia-panel",
-          "title": "Arcadia",
+          "id": "pixel-agents-panel",
+          "title": "Pixel Agents",
           "icon": "$(window)"
         }
       ]
     },
     "views": {
-      "arcadia-panel": [
+      "pixel-agents-panel": [
         {
           "type": "webview",
-          "id": "arcadia.panelView",
-          "name": "Arcadia"
+          "id": "pixel-agents.panelView",
+          "name": "Pixel Agents"
         }
       ]
     }

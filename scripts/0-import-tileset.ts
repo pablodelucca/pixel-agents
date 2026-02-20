@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Arcadia Tileset Import Skill - Complete CLI wrapper for 7-stage asset extraction pipeline
+ * Pixel Agents Tileset Import Skill - Complete CLI wrapper for 7-stage asset extraction pipeline
  *
  * Usage:
  *   npx ts-node scripts/import-tileset-cli.ts
  *
  * This script guides you through the complete process of extracting furniture assets
- * from a tileset PNG file and integrating them into the Arcadia extension.
+ * from a tileset PNG file and integrating them into the Pixel Agents extension.
  */
 
 import * as fs from 'fs'
@@ -363,7 +363,7 @@ async function runPipeline() {
   console.log('🎉 PIPELINE COMPLETE!')
   console.log('═'.repeat(60))
   console.log()
-  console.log('✨ Your tileset assets are now integrated into Arcadia!')
+  console.log('✨ Your tileset assets are now integrated into Pixel Agents!')
   console.log()
   console.log('📝 Summary:')
   console.log('   Stage 1: ✅ Detection complete')

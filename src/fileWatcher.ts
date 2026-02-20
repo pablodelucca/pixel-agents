@@ -23,7 +23,7 @@ export function startFileWatching(
 		});
 		fileWatchers.set(agentId, watcher);
 	} catch (e) {
-		console.log(`[Arcadia] fs.watch failed for agent ${agentId}: ${e}`);
+		console.log(`[Pixel Agents] fs.watch failed for agent ${agentId}: ${e}`);
 	}
 
 	// Backup: poll every 2s
@@ -73,7 +73,7 @@ export function readNewLines(
 			processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
 		}
 	} catch (e) {
-		console.log(`[Arcadia] Read error for agent ${agentId}: ${e}`);
+		console.log(`[Pixel Agents] Read error for agent ${agentId}: ${e}`);
 	}
 }
 
@@ -136,7 +136,7 @@ function scanForNewJsonlFiles(
 			knownJsonlFiles.add(file);
 			if (activeAgentIdRef.current !== null) {
 				// Active agent focused → /clear reassignment
-				console.log(`[Arcadia] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`);
+				console.log(`[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`);
 				reassignAgentToFile(
 					activeAgentIdRef.current, file,
 					agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
@@ -203,7 +203,7 @@ function adoptTerminalForFile(
 	activeAgentIdRef.current = id;
 	persistAgents();
 
-	console.log(`[Arcadia] Agent ${id}: adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`);
+	console.log(`[Pixel Agents] Agent ${id}: adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`);
 	webview?.postMessage({ type: 'agentCreated', id });
 
 	startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);

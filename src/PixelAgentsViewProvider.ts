@@ -18,7 +18,7 @@ import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 
-export class ArcadiaViewProvider implements vscode.WebviewViewProvider {
+export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	nextAgentId = { current: 1 };
 	nextTerminalIndex = { current: 1 };
 	agents = new Map<number, AgentState>();
@@ -82,7 +82,7 @@ export class ArcadiaViewProvider implements vscode.WebviewViewProvider {
 				}
 			} else if (message.type === 'saveAgentSeats') {
 				// Store seat assignments in a separate key (never touched by persistAgents)
-				console.log(`[Arcadia] saveAgentSeats:`, JSON.stringify(message.seats));
+				console.log(`[Pixel Agents] saveAgentSeats:`, JSON.stringify(message.seats));
 				this.context.workspaceState.update(WORKSPACE_KEY_AGENT_SEATS, message.seats);
 			} else if (message.type === 'saveLayout') {
 				this.layoutWatcher?.markOwnWrite();
@@ -222,16 +222,16 @@ export class ArcadiaViewProvider implements vscode.WebviewViewProvider {
 			} else if (message.type === 'exportLayout') {
 				const layout = readLayoutFromFile();
 				if (!layout) {
-					vscode.window.showWarningMessage('Arcadia: No saved layout to export.');
+					vscode.window.showWarningMessage('Pixel Agents: No saved layout to export.');
 					return;
 				}
 				const uri = await vscode.window.showSaveDialog({
 					filters: { 'JSON Files': ['json'] },
-					defaultUri: vscode.Uri.file(path.join(os.homedir(), 'arcadia-layout.json')),
+					defaultUri: vscode.Uri.file(path.join(os.homedir(), 'pixel-agents-layout.json')),
 				});
 				if (uri) {
 					fs.writeFileSync(uri.fsPath, JSON.stringify(layout, null, 2), 'utf-8');
-					vscode.window.showInformationMessage('Arcadia: Layout exported successfully.');
+					vscode.window.showInformationMessage('Pixel Agents: Layout exported successfully.');
 				}
 			} else if (message.type === 'importLayout') {
 				const uris = await vscode.window.showOpenDialog({
@@ -243,15 +243,15 @@ export class ArcadiaViewProvider implements vscode.WebviewViewProvider {
 					const raw = fs.readFileSync(uris[0].fsPath, 'utf-8');
 					const imported = JSON.parse(raw) as Record<string, unknown>;
 					if (imported.version !== 1 || !Array.isArray(imported.tiles)) {
-						vscode.window.showErrorMessage('Arcadia: Invalid layout file.');
+						vscode.window.showErrorMessage('Pixel Agents: Invalid layout file.');
 						return;
 					}
 					this.layoutWatcher?.markOwnWrite();
 					writeLayoutToFile(imported);
 					this.webview?.postMessage({ type: 'layoutLoaded', layout: imported });
-					vscode.window.showInformationMessage('Arcadia: Layout imported successfully.');
+					vscode.window.showInformationMessage('Pixel Agents: Layout imported successfully.');
 				} catch {
-					vscode.window.showErrorMessage('Arcadia: Failed to read or parse layout file.');
+					vscode.window.showErrorMessage('Pixel Agents: Failed to read or parse layout file.');
 				}
 			}
 		});
@@ -289,24 +289,24 @@ export class ArcadiaViewProvider implements vscode.WebviewViewProvider {
 	exportDefaultLayout(): void {
 		const layout = readLayoutFromFile();
 		if (!layout) {
-			vscode.window.showWarningMessage('Arcadia: No saved layout found.');
+			vscode.window.showWarningMessage('Pixel Agents: No saved layout found.');
 			return;
 		}
 		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (!workspaceRoot) {
-			vscode.window.showErrorMessage('Arcadia: No workspace folder found.');
+			vscode.window.showErrorMessage('Pixel Agents: No workspace folder found.');
 			return;
 		}
 		const targetPath = path.join(workspaceRoot, 'webview-ui', 'public', 'assets', 'default-layout.json');
 		const json = JSON.stringify(layout, null, 2);
 		fs.writeFileSync(targetPath, json, 'utf-8');
-		vscode.window.showInformationMessage(`Arcadia: Default layout exported to ${targetPath}`);
+		vscode.window.showInformationMessage(`Pixel Agents: Default layout exported to ${targetPath}`);
 	}
 
 	private startLayoutWatcher(): void {
 		if (this.layoutWatcher) return;
 		this.layoutWatcher = watchLayoutFile((layout) => {
-			console.log('[Arcadia] External layout change — pushing to webview');
+			console.log('[Pixel Agents] External layout change — pushing to webview');
 			this.webview?.postMessage({ type: 'layoutLoaded', layout });
 		});
 	}

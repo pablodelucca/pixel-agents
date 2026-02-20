@@ -43,7 +43,7 @@ export function launchNewTerminal(
 
 	const projectDir = getProjectDirPath(cwd);
 	if (!projectDir) {
-		console.log(`[Arcadia] No project dir, cannot track agent`);
+		console.log(`[Pixel Agents] No project dir, cannot track agent`);
 		return;
 	}
 
@@ -73,7 +73,7 @@ export function launchNewTerminal(
 	agents.set(id, agent);
 	activeAgentIdRef.current = id;
 	persistAgents();
-	console.log(`[Arcadia] Agent ${id}: created for terminal ${terminal.name}`);
+	console.log(`[Pixel Agents] Agent ${id}: created for terminal ${terminal.name}`);
 	webview?.postMessage({ type: 'agentCreated', id });
 
 	ensureProjectScan(
@@ -86,7 +86,7 @@ export function launchNewTerminal(
 	const pollTimer = setInterval(() => {
 		try {
 			if (fs.existsSync(agent.jsonlFile)) {
-				console.log(`[Arcadia] Agent ${id}: found JSONL file ${path.basename(agent.jsonlFile)}`);
+				console.log(`[Pixel Agents] Agent ${id}: found JSONL file ${path.basename(agent.jsonlFile)}`);
 				clearInterval(pollTimer);
 				jsonlPollTimers.delete(id);
 				startFileWatching(id, agent.jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
@@ -194,7 +194,7 @@ export function restoreAgents(
 
 		agents.set(p.id, agent);
 		knownJsonlFiles.add(p.jsonlFile);
-		console.log(`[Arcadia] Restored agent ${p.id} → terminal "${p.terminalName}"`);
+		console.log(`[Pixel Agents] Restored agent ${p.id} → terminal "${p.terminalName}"`);
 
 		if (p.id > maxId) maxId = p.id;
 		// Extract terminal index from name like "Claude Code #3"
@@ -217,7 +217,7 @@ export function restoreAgents(
 				const pollTimer = setInterval(() => {
 					try {
 						if (fs.existsSync(agent.jsonlFile)) {
-							console.log(`[Arcadia] Restored agent ${p.id}: found JSONL file`);
+							console.log(`[Pixel Agents] Restored agent ${p.id}: found JSONL file`);
 							clearInterval(pollTimer);
 							jsonlPollTimers.delete(p.id);
 							const stat = fs.statSync(agent.jsonlFile);
@@ -266,7 +266,7 @@ export function sendExistingAgents(
 
 	// Include persisted palette/seatId from separate key
 	const agentMeta = context.workspaceState.get<Record<string, { palette?: number; seatId?: string }>>(WORKSPACE_KEY_AGENT_SEATS, {});
-	console.log(`[Arcadia] sendExistingAgents: agents=${JSON.stringify(agentIds)}, meta=${JSON.stringify(agentMeta)}`);
+	console.log(`[Pixel Agents] sendExistingAgents: agents=${JSON.stringify(agentIds)}, meta=${JSON.stringify(agentMeta)}`);
 
 	webview.postMessage({
 		type: 'existingAgents',

@@ -97,7 +97,7 @@ export function AgentLabels({
           >
             {dotColor !== 'transparent' && (
               <span
-                className={isActive && !isWaiting ? 'arcadia-pulse' : undefined}
+                className={isActive && !isWaiting ? 'pixel-agents-pulse' : undefined}
                 style={{
                   width: 6,
                   height: 6,

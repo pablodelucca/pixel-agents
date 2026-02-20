@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { ArcadiaViewProvider } from './ArcadiaViewProvider.js';
+import { PixelAgentsViewProvider } from './PixelAgentsViewProvider.js';
 import { VIEW_ID, COMMAND_SHOW_PANEL, COMMAND_EXPORT_DEFAULT_LAYOUT } from './constants.js';
 
-let providerInstance: ArcadiaViewProvider | undefined;
+let providerInstance: PixelAgentsViewProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
-	const provider = new ArcadiaViewProvider(context);
+	const provider = new PixelAgentsViewProvider(context);
 	providerInstance = provider;
 
 	context.subscriptions.push(
