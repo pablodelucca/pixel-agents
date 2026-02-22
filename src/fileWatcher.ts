@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import type { AgentState } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
-import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
+import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS, ACTIVE_SESSION_THRESHOLD_MS } from './constants.js';
 
 export function startFileWatching(
 	agentId: number,
@@ -77,9 +77,103 @@ export function readNewLines(
 	}
 }
 
+export function isClaudeTerminal(terminal: vscode.Terminal): boolean {
+	return terminal.name.toLowerCase().includes('claude');
+}
+
+function adoptExistingSessions(
+	projectDir: string,
+	knownJsonlFiles: Set<string>,
+	adoptableFiles: Set<string>,
+	nextAgentIdRef: { current: number },
+	agents: Map<number, AgentState>,
+	activeAgentIdRef: { current: number | null },
+	fileWatchers: Map<number, fs.FSWatcher>,
+	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	webview: vscode.Webview | undefined,
+	persistAgents: () => void,
+): void {
+	// 1. Find all JSONL files
+	let files: string[];
+	try {
+		files = fs.readdirSync(projectDir)
+			.filter(f => f.endsWith('.jsonl'))
+			.map(f => path.join(projectDir, f));
+	} catch { return; }
+
+	// 2. Filter to recently-active files not already owned by restored agents
+	const now = Date.now();
+	const ownedFiles = new Set<string>();
+	for (const agent of agents.values()) {
+		ownedFiles.add(agent.jsonlFile);
+	}
+
+	const activeFiles: Array<{ path: string; mtime: number }> = [];
+	for (const file of files) {
+		if (knownJsonlFiles.has(file) || ownedFiles.has(file)) continue;
+		try {
+			const stat = fs.statSync(file);
+			if (now - stat.mtimeMs < ACTIVE_SESSION_THRESHOLD_MS) {
+				activeFiles.push({ path: file, mtime: stat.mtimeMs });
+			}
+		} catch { continue; }
+	}
+
+	if (activeFiles.length === 0) return;
+
+	// Sort by most recently modified first
+	activeFiles.sort((a, b) => b.mtime - a.mtime);
+
+	// 3. Find unowned terminals, preferring Claude-named ones
+	const ownedTerminals = new Set<vscode.Terminal>();
+	for (const agent of agents.values()) {
+		ownedTerminals.add(agent.terminalRef);
+	}
+
+	const allUnowned = vscode.window.terminals.filter(t => !ownedTerminals.has(t));
+	// Sort: Claude-named terminals first, then others
+	const unownedTerminals = [
+		...allUnowned.filter(t => isClaudeTerminal(t)),
+		...allUnowned.filter(t => !isClaudeTerminal(t)),
+	];
+
+	if (unownedTerminals.length === 0) {
+		// No terminals to pair with — mark all active files as adoptable for later
+		for (const f of activeFiles) {
+			adoptableFiles.add(f.path);
+		}
+		console.log(`[Pixel Agents] Startup: ${activeFiles.length} active session(s) found but no unowned terminals`);
+		return;
+	}
+
+	// 4. Pair terminals with active files
+	const pairCount = Math.min(unownedTerminals.length, activeFiles.length);
+	for (let i = 0; i < pairCount; i++) {
+		const terminal = unownedTerminals[i];
+		const file = activeFiles[i];
+
+		knownJsonlFiles.add(file.path);
+		adoptTerminalForFile(
+			terminal, file.path, projectDir,
+			nextAgentIdRef, agents, activeAgentIdRef,
+			fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+			webview, persistAgents,
+		);
+		console.log(`[Pixel Agents] Startup: adopted terminal "${terminal.name}" for active session ${path.basename(file.path)}`);
+	}
+
+	// Any remaining active files become adoptable for later
+	for (let i = pairCount; i < activeFiles.length; i++) {
+		adoptableFiles.add(activeFiles[i].path);
+	}
+}
+
 export function ensureProjectScan(
 	projectDir: string,
 	knownJsonlFiles: Set<string>,
+	adoptableFiles: Set<string>,
 	projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
 	activeAgentIdRef: { current: number | null },
 	nextAgentIdRef: { current: number },
@@ -92,19 +186,31 @@ export function ensureProjectScan(
 	persistAgents: () => void,
 ): void {
 	if (projectScanTimerRef.current) return;
+
+	// Attempt to adopt active pre-existing sessions before seeding knownJsonlFiles
+	adoptExistingSessions(
+		projectDir, knownJsonlFiles, adoptableFiles,
+		nextAgentIdRef, agents, activeAgentIdRef,
+		fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+		webview, persistAgents,
+	);
+
 	// Seed with all existing JSONL files so we only react to truly new ones
+	// (skip files in adoptableFiles — they should remain adoptable, not "known")
 	try {
 		const files = fs.readdirSync(projectDir)
 			.filter(f => f.endsWith('.jsonl'))
 			.map(f => path.join(projectDir, f));
 		for (const f of files) {
-			knownJsonlFiles.add(f);
+			if (!adoptableFiles.has(f)) {
+				knownJsonlFiles.add(f);
+			}
 		}
 	} catch { /* dir may not exist yet */ }
 
 	projectScanTimerRef.current = setInterval(() => {
 		scanForNewJsonlFiles(
-			projectDir, knownJsonlFiles, activeAgentIdRef, nextAgentIdRef,
+			projectDir, knownJsonlFiles, adoptableFiles, activeAgentIdRef, nextAgentIdRef,
 			agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
 			webview, persistAgents,
 		);
@@ -114,6 +220,7 @@ export function ensureProjectScan(
 function scanForNewJsonlFiles(
 	projectDir: string,
 	knownJsonlFiles: Set<string>,
+	adoptableFiles: Set<string>,
 	activeAgentIdRef: { current: number | null },
 	nextAgentIdRef: { current: number },
 	agents: Map<number, AgentState>,
@@ -132,7 +239,7 @@ function scanForNewJsonlFiles(
 	} catch { return; }
 
 	for (const file of files) {
-		if (!knownJsonlFiles.has(file)) {
+		if (!knownJsonlFiles.has(file) && !adoptableFiles.has(file)) {
 			knownJsonlFiles.add(file);
 			if (activeAgentIdRef.current !== null) {
 				// Active agent focused → /clear reassignment
@@ -161,6 +268,46 @@ function scanForNewJsonlFiles(
 							webview, persistAgents,
 						);
 					}
+				}
+			}
+		}
+	}
+
+	// Check adoptable files — when an unowned terminal is focused, adopt the most recent one
+	if (adoptableFiles.size > 0) {
+		const activeTerminal = vscode.window.activeTerminal;
+		if (activeTerminal) {
+			let owned = false;
+			for (const agent of agents.values()) {
+				if (agent.terminalRef === activeTerminal) {
+					owned = true;
+					break;
+				}
+			}
+			if (!owned) {
+				// Pick the most recently modified adoptable file
+				let bestFile: string | null = null;
+				let bestMtime = 0;
+				for (const file of adoptableFiles) {
+					try {
+						const stat = fs.statSync(file);
+						if (stat.mtimeMs > bestMtime) {
+							bestMtime = stat.mtimeMs;
+							bestFile = file;
+						}
+					} catch {
+						adoptableFiles.delete(file);
+					}
+				}
+				if (bestFile) {
+					adoptableFiles.delete(bestFile);
+					knownJsonlFiles.add(bestFile);
+					adoptTerminalForFile(
+						activeTerminal, bestFile, projectDir,
+						nextAgentIdRef, agents, activeAgentIdRef,
+						fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+						webview, persistAgents,
+					);
 				}
 			}
 		}
