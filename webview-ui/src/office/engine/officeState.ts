@@ -25,6 +25,7 @@ import {
   getBlockedTiles,
 } from '../layout/layoutSerializer.js'
 import { getCatalogEntry, getOnStateType } from '../layout/furnitureCatalog.js'
+import { FoosballManager } from './foosball.js'
 
 export class OfficeState {
   layout: OfficeLayout
@@ -42,6 +43,7 @@ export class OfficeState {
   subagentIdMap: Map<string, number> = new Map()
   /** Reverse lookup: sub-agent character ID → parent info */
   subagentMeta: Map<number, { parentAgentId: number; parentToolId: string }> = new Map()
+  foosballManager = new FoosballManager()
   private nextSubagentId = -1
 
   constructor(layout?: OfficeLayout) {
@@ -495,6 +497,15 @@ export class OfficeState {
     const ch = this.characters.get(id)
     if (ch) {
       ch.isActive = active
+      if (active) {
+        // If agent was playing foosball, pull them out immediately
+        if (ch.state === CharacterState.FOOSBALL || this.foosballManager.isInGame(id)) {
+          ch.state = CharacterState.IDLE
+          ch.frame = 0
+          ch.frameTimer = 0
+          ch.wanderTimer = 0
+        }
+      }
       if (!active) {
         // Sentinel -1: signals turn just ended, skip next seat rest timer.
         // Prevents the WALK handler from setting a 2-4 min rest on arrival.
@@ -630,6 +641,19 @@ export class OfficeState {
         continue // skip normal FSM while effect is active
       }
 
+      // Skip normal FSM for characters in foosball state (managed by FoosballManager)
+      // But still update WALK state for foosball characters walking to table
+      if (ch.state === CharacterState.FOOSBALL) continue
+
+      // If character is walking to foosball table, let normal walk logic handle movement
+      // but skip wander/idle logic (FoosballManager will transition them)
+      if (this.foosballManager.isInGame(ch.id) && ch.state === CharacterState.WALK) {
+        this.withOwnSeatUnblocked(ch, () =>
+          updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles)
+        )
+        continue
+      }
+
       // Temporarily unblock own seat so character can pathfind to it
       this.withOwnSeatUnblocked(ch, () =>
         updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles)
@@ -648,6 +672,9 @@ export class OfficeState {
     for (const id of toDelete) {
       this.characters.delete(id)
     }
+
+    // Update foosball games
+    this.foosballManager.update(dt, this)
   }
 
   getCharacters(): Character[] {
