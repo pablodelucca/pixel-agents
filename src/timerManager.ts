@@ -12,6 +12,7 @@ export function clearAgentActivity(
 	agent.activeToolIds.clear();
 	agent.activeToolStatuses.clear();
 	agent.activeToolNames.clear();
+	agent.activeToolCallToName.clear();
 	agent.activeSubagentToolIds.clear();
 	agent.activeSubagentToolNames.clear();
 	agent.isWaiting = false;

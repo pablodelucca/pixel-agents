@@ -7,6 +7,8 @@ interface SettingsModalProps {
   onClose: () => void
   isDebugMode: boolean
   onToggleDebugMode: () => void
+  defaultRuntime: 'claude' | 'codex'
+  onSetDefaultRuntime: (runtime: 'claude' | 'codex') => void
 }
 
 const menuItemBase: React.CSSProperties = {
@@ -14,6 +16,7 @@ const menuItemBase: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'space-between',
   width: '100%',
+  boxSizing: 'border-box',
   padding: '6px 10px',
   fontSize: '24px',
   color: 'rgba(255, 255, 255, 0.8)',
@@ -24,7 +27,24 @@ const menuItemBase: React.CSSProperties = {
   textAlign: 'left',
 }
 
-export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode }: SettingsModalProps) {
+const runtimeBtnBase: React.CSSProperties = {
+  border: '2px solid rgba(255, 255, 255, 0.4)',
+  borderRadius: 0,
+  background: 'transparent',
+  color: 'rgba(255, 255, 255, 0.8)',
+  fontSize: '20px',
+  padding: '3px 8px',
+  cursor: 'pointer',
+}
+
+export function SettingsModal({
+  isOpen,
+  onClose,
+  isDebugMode,
+  onToggleDebugMode,
+  defaultRuntime,
+  onSetDefaultRuntime,
+}: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled)
 
@@ -58,7 +78,7 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
           borderRadius: 0,
           padding: '4px',
           boxShadow: 'var(--pixel-shadow)',
-          minWidth: 200,
+          minWidth: 300,
         }}
       >
         {/* Header with title and X button */}
@@ -94,7 +114,7 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
         {/* Menu items */}
         <button
           onClick={() => {
-            vscode.postMessage({ type: 'openSessionsFolder' })
+            vscode.postMessage({ type: 'openSessionsFolder', runtime: defaultRuntime })
             onClose()
           }}
           onMouseEnter={() => setHovered('sessions')}
@@ -134,6 +154,59 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
         >
           Import Layout
         </button>
+        <div
+          onMouseEnter={() => setHovered('runtime')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...menuItemBase,
+            cursor: 'default',
+            background: hovered === 'runtime' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          }}
+        >
+          <span>Default Runtime</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              style={{
+                ...runtimeBtnBase,
+                borderColor: defaultRuntime === 'claude' ? 'var(--pixel-accent)' : runtimeBtnBase.borderColor,
+                background:
+                  defaultRuntime === 'claude'
+                    ? 'rgba(90, 140, 255, 0.3)'
+                    : hovered === 'runtime-claude'
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : runtimeBtnBase.background,
+              }}
+              onMouseEnter={() => setHovered('runtime-claude')}
+              onMouseLeave={() => setHovered('runtime')}
+              onClick={() => {
+                onSetDefaultRuntime('claude')
+                vscode.postMessage({ type: 'setDefaultRuntime', runtime: 'claude' })
+              }}
+            >
+              Claude
+            </button>
+            <button
+              style={{
+                ...runtimeBtnBase,
+                borderColor: defaultRuntime === 'codex' ? 'var(--pixel-accent)' : runtimeBtnBase.borderColor,
+                background:
+                  defaultRuntime === 'codex'
+                    ? 'rgba(90, 140, 255, 0.3)'
+                    : hovered === 'runtime-codex'
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : runtimeBtnBase.background,
+              }}
+              onMouseEnter={() => setHovered('runtime-codex')}
+              onMouseLeave={() => setHovered('runtime')}
+              onClick={() => {
+                onSetDefaultRuntime('codex')
+                vscode.postMessage({ type: 'setDefaultRuntime', runtime: 'codex' })
+              }}
+            >
+              Codex
+            </button>
+          </div>
+        </div>
         <button
           onClick={() => {
             const newVal = !isSoundEnabled()
