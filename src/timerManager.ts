@@ -1,5 +1,5 @@
-import type * as vscode from 'vscode';
 import type { AgentState } from './types.js';
+import type { MessageSink } from './messages.js';
 import { PERMISSION_TIMER_DELAY_MS } from './constants.js';
 import { postToWebview } from './messages.js';
 
@@ -7,7 +7,7 @@ export function clearAgentActivity(
 	agent: AgentState | undefined,
 	agentId: number,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 ): void {
 	if (!agent) return;
 	agent.activeToolIds.clear();
@@ -38,7 +38,7 @@ export function startWaitingTimer(
 	delayMs: number,
 	agents: Map<number, AgentState>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 ): void {
 	cancelWaitingTimer(agentId, waitingTimers);
 	const timer = setTimeout(() => {
@@ -72,7 +72,7 @@ export function startPermissionTimer(
 	agents: Map<number, AgentState>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionExemptTools: Set<string>,
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 ): void {
 	cancelPermissionTimer(agentId, permissionTimers);
 	const timer = setTimeout(() => {
