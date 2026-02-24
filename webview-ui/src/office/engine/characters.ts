@@ -93,9 +93,16 @@ export function updateCharacter(
 
   switch (ch.state) {
     case CharacterState.TYPE: {
-      if (ch.frameTimer >= TYPE_FRAME_DURATION_SEC) {
-        ch.frameTimer -= TYPE_FRAME_DURATION_SEC
-        ch.frame = (ch.frame + 1) % 2
+      // Only animate typing when active — pause animation when waiting for user
+      if (ch.isActive) {
+        if (ch.frameTimer >= TYPE_FRAME_DURATION_SEC) {
+          ch.frameTimer -= TYPE_FRAME_DURATION_SEC
+          ch.frame = (ch.frame + 1) % 2
+        }
+      } else {
+        // Not active — freeze on first frame (hands down, not typing)
+        ch.frame = 0
+        ch.frameTimer = 0
       }
       // If no longer active, stand up and start wandering (after seatTimer expires)
       if (!ch.isActive) {
