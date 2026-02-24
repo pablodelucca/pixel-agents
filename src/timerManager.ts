@@ -1,10 +1,10 @@
-import type { AgentState } from './types.js';
+import type { BaseAgentState } from './types.js';
 import type { MessageSink } from './messages.js';
 import { PERMISSION_TIMER_DELAY_MS } from './constants.js';
 import { postToWebview } from './messages.js';
 
 export function clearAgentActivity(
-	agent: AgentState | undefined,
+	agent: BaseAgentState | undefined,
 	agentId: number,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: MessageSink | undefined,
@@ -36,7 +36,7 @@ export function cancelWaitingTimer(
 export function startWaitingTimer(
 	agentId: number,
 	delayMs: number,
-	agents: Map<number, AgentState>,
+	agents: Map<number, BaseAgentState>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: MessageSink | undefined,
 ): void {
@@ -69,7 +69,7 @@ export function cancelPermissionTimer(
 
 export function startPermissionTimer(
 	agentId: number,
-	agents: Map<number, AgentState>,
+	agents: Map<number, BaseAgentState>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionExemptTools: Set<string>,
 	webview: MessageSink | undefined,

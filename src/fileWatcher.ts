@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { AgentState } from './types.js';
+import type { AgentState, BaseAgentState } from './types.js';
 import type { MessageSink } from './messages.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
@@ -11,7 +11,7 @@ import { postToWebview } from './messages.js';
 export function startFileWatching(
 	agentId: number,
 	filePath: string,
-	agents: Map<number, AgentState>,
+	agents: Map<number, BaseAgentState>,
 	fileWatchers: Map<number, fs.FSWatcher>,
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
@@ -38,7 +38,7 @@ export function startFileWatching(
 
 export function readNewLines(
 	agentId: number,
-	agents: Map<number, AgentState>,
+	agents: Map<number, BaseAgentState>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: MessageSink | undefined,
@@ -215,7 +215,7 @@ function adoptTerminalForFile(
 export function reassignAgentToFile(
 	agentId: number,
 	newFilePath: string,
-	agents: Map<number, AgentState>,
+	agents: Map<number, BaseAgentState>,
 	fileWatchers: Map<number, fs.FSWatcher>,
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
