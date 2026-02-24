@@ -1,5 +1,5 @@
 import * as path from 'path';
-import type { AgentState } from './types.js';
+import type { BaseAgentState } from './types.js';
 import type { MessageSink } from './messages.js';
 import {
 	cancelWaitingTimer,
@@ -46,7 +46,7 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
 export function processTranscriptLine(
 	agentId: number,
 	line: string,
-	agents: Map<number, AgentState>,
+	agents: Map<number, BaseAgentState>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: MessageSink | undefined,
@@ -180,7 +180,7 @@ export function processTranscriptLine(
 function processProgressRecord(
 	agentId: number,
 	record: Record<string, unknown>,
-	agents: Map<number, AgentState>,
+	agents: Map<number, BaseAgentState>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: MessageSink | undefined,
