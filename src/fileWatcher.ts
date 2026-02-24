@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { AgentState } from './types.js';
+import type { MessageSink } from './messages.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
@@ -15,7 +16,7 @@ export function startFileWatching(
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 ): void {
 	// Primary: fs.watch
 	try {
@@ -40,7 +41,7 @@ export function readNewLines(
 	agents: Map<number, AgentState>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 ): void {
 	const agent = agents.get(agentId);
 	if (!agent) return;
@@ -89,7 +90,7 @@ export function ensureProjectScan(
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 	persistAgents: () => void,
 ): void {
 	if (projectScanTimerRef.current) return;
@@ -122,7 +123,7 @@ function scanForNewJsonlFiles(
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 	persistAgents: () => void,
 ): void {
 	let files: string[];
@@ -179,7 +180,7 @@ function adoptTerminalForFile(
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 	persistAgents: () => void,
 ): void {
 	const id = nextAgentIdRef.current++;
@@ -219,7 +220,7 @@ export function reassignAgentToFile(
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 	persistAgents: () => void,
 ): void {
 	const agent = agents.get(agentId);

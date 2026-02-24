@@ -8,7 +8,7 @@ import { startFileWatching, readNewLines, ensureProjectScan } from './fileWatche
 import { JSONL_POLL_INTERVAL_MS, TERMINAL_NAME_PREFIX, WORKSPACE_KEY_AGENTS, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
 import { migrateAndLoadLayout } from './layoutPersistence.js';
 import { postToWebview } from './messages.js';
-import type { AgentSeatMeta } from './messages.js';
+import type { AgentSeatMeta, MessageSink } from './messages.js';
 
 export function getProjectDirPath(cwd?: string): string | null {
 	const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -29,7 +29,7 @@ export function launchNewTerminal(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
 	projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 	persistAgents: () => void,
 ): void {
 	const idx = nextTerminalIndexRef.current++;
@@ -162,7 +162,7 @@ export function restoreAgents(
 	jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
 	projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
 	activeAgentIdRef: { current: number | null },
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 	doPersist: () => void,
 ): void {
 	const persisted = context.workspaceState.get<PersistedAgent[]>(WORKSPACE_KEY_AGENTS, []);
@@ -257,7 +257,7 @@ export function restoreAgents(
 export function sendExistingAgents(
 	agents: Map<number, AgentState>,
 	context: vscode.ExtensionContext,
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 ): void {
 	if (!webview) return;
 	const agentIds: number[] = [];
@@ -281,7 +281,7 @@ export function sendExistingAgents(
 
 export function sendCurrentAgentStatuses(
 	agents: Map<number, AgentState>,
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 ): void {
 	if (!webview) return;
 	for (const [agentId, agent] of agents) {
@@ -307,7 +307,7 @@ export function sendCurrentAgentStatuses(
 
 export function sendLayout(
 	context: vscode.ExtensionContext,
-	webview: vscode.Webview | undefined,
+	webview: MessageSink | undefined,
 	defaultLayout?: Record<string, unknown> | null,
 ): void {
 	if (!webview) return;
