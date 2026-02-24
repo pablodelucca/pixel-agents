@@ -1,8 +1,9 @@
 import type * as vscode from 'vscode';
 
-export interface AgentState {
+/** Common agent fields used by transcript parsing, file watching, and timer logic.
+ * Shared between the VS Code extension (AgentState) and standalone server. */
+export interface BaseAgentState {
 	id: number;
-	terminalRef: vscode.Terminal;
 	projectDir: string;
 	jsonlFile: string;
 	fileOffset: number;
@@ -15,6 +16,10 @@ export interface AgentState {
 	isWaiting: boolean;
 	permissionSent: boolean;
 	hadToolsInTurn: boolean;
+}
+
+export interface AgentState extends BaseAgentState {
+	terminalRef: vscode.Terminal;
 }
 
 export interface PersistedAgent {
