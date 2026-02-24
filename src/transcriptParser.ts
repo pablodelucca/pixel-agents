@@ -14,6 +14,7 @@ import {
 	BASH_COMMAND_DISPLAY_MAX_LENGTH,
 	TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
 } from './constants.js';
+import { postToWebview } from './messages.js';
 
 export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'AskUserQuestion']);
 
@@ -65,7 +66,7 @@ export function processTranscriptLine(
 				cancelWaitingTimer(agentId, waitingTimers);
 				agent.isWaiting = false;
 				agent.hadToolsInTurn = true;
-				webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+				postToWebview(webview, { type: 'agentStatus', id: agentId, status: 'active' });
 				let hasNonExemptTool = false;
 				for (const block of blocks) {
 					if (block.type === 'tool_use' && block.id) {
@@ -78,7 +79,7 @@ export function processTranscriptLine(
 						if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
 							hasNonExemptTool = true;
 						}
-						webview?.postMessage({
+						postToWebview(webview, {
 							type: 'agentToolStart',
 							id: agentId,
 							toolId: block.id,
@@ -112,7 +113,7 @@ export function processTranscriptLine(
 							if (agent.activeToolNames.get(completedToolId) === 'Task') {
 								agent.activeSubagentToolIds.delete(completedToolId);
 								agent.activeSubagentToolNames.delete(completedToolId);
-								webview?.postMessage({
+								postToWebview(webview, {
 									type: 'subagentClear',
 									id: agentId,
 									parentToolId: completedToolId,
@@ -123,7 +124,7 @@ export function processTranscriptLine(
 							agent.activeToolNames.delete(completedToolId);
 							const toolId = completedToolId;
 							setTimeout(() => {
-								webview?.postMessage({
+								postToWebview(webview, {
 									type: 'agentToolDone',
 									id: agentId,
 									toolId,
@@ -159,13 +160,13 @@ export function processTranscriptLine(
 				agent.activeToolNames.clear();
 				agent.activeSubagentToolIds.clear();
 				agent.activeSubagentToolNames.clear();
-				webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+				postToWebview(webview, { type: 'agentToolsClear', id: agentId });
 			}
 
 			agent.isWaiting = true;
 			agent.permissionSent = false;
 			agent.hadToolsInTurn = false;
-			webview?.postMessage({
+			postToWebview(webview, {
 				type: 'agentStatus',
 				id: agentId,
 				status: 'waiting',
@@ -242,7 +243,7 @@ function processProgressRecord(
 					hasNonExemptSubTool = true;
 				}
 
-				webview?.postMessage({
+				postToWebview(webview, {
 					type: 'subagentToolStart',
 					id: agentId,
 					parentToolId,
@@ -271,7 +272,7 @@ function processProgressRecord(
 
 				const toolId = block.tool_use_id;
 				setTimeout(() => {
-					webview?.postMessage({
+					postToWebview(webview, {
 						type: 'subagentToolDone',
 						id: agentId,
 						parentToolId,

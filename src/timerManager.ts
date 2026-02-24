@@ -1,6 +1,7 @@
 import type * as vscode from 'vscode';
 import type { AgentState } from './types.js';
 import { PERMISSION_TIMER_DELAY_MS } from './constants.js';
+import { postToWebview } from './messages.js';
 
 export function clearAgentActivity(
 	agent: AgentState | undefined,
@@ -17,8 +18,8 @@ export function clearAgentActivity(
 	agent.isWaiting = false;
 	agent.permissionSent = false;
 	cancelPermissionTimer(agentId, permissionTimers);
-	webview?.postMessage({ type: 'agentToolsClear', id: agentId });
-	webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+	postToWebview(webview, { type: 'agentToolsClear', id: agentId });
+	postToWebview(webview, { type: 'agentStatus', id: agentId, status: 'active' });
 }
 
 export function cancelWaitingTimer(
@@ -46,7 +47,7 @@ export function startWaitingTimer(
 		if (agent) {
 			agent.isWaiting = true;
 		}
-		webview?.postMessage({
+		postToWebview(webview, {
 			type: 'agentStatus',
 			id: agentId,
 			status: 'waiting',
@@ -104,13 +105,13 @@ export function startPermissionTimer(
 		if (hasNonExempt) {
 			agent.permissionSent = true;
 			console.log(`[Pixel Agents] Agent ${agentId}: possible permission wait detected`);
-			webview?.postMessage({
+			postToWebview(webview, {
 				type: 'agentToolPermission',
 				id: agentId,
 			});
 			// Also notify stuck sub-agents
 			for (const parentToolId of stuckSubagentParentToolIds) {
-				webview?.postMessage({
+				postToWebview(webview, {
 					type: 'subagentToolPermission',
 					id: agentId,
 					parentToolId,

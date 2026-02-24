@@ -5,6 +5,7 @@ import type { AgentState } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
+import { postToWebview } from './messages.js';
 
 export function startFileWatching(
 	agentId: number,
@@ -64,7 +65,7 @@ export function readNewLines(
 			cancelPermissionTimer(agentId, permissionTimers);
 			if (agent.permissionSent) {
 				agent.permissionSent = false;
-				webview?.postMessage({ type: 'agentToolPermissionClear', id: agentId });
+				postToWebview(webview, { type: 'agentToolPermissionClear', id: agentId });
 			}
 		}
 
@@ -204,7 +205,7 @@ function adoptTerminalForFile(
 	persistAgents();
 
 	console.log(`[Pixel Agents] Agent ${id}: adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`);
-	webview?.postMessage({ type: 'agentCreated', id });
+	postToWebview(webview, { type: 'agentCreated', id });
 
 	startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
 	readNewLines(id, agents, waitingTimers, permissionTimers, webview);

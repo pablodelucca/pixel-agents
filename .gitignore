@@ -6,4 +6,4 @@ node_modules
 .claude/
 /logs
 /sprites-export
-.env
+.envcoverage/

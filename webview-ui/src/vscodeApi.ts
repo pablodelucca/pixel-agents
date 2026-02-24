@@ -1,3 +1,11 @@
+import type { WebviewToExtensionMessage } from './messages.js'
+
 declare function acquireVsCodeApi(): { postMessage(msg: unknown): void }
 
-export const vscode = acquireVsCodeApi()
+const vsCodeApi = acquireVsCodeApi()
+
+export const vscode = {
+  postMessage(message: WebviewToExtensionMessage): void {
+    vsCodeApi.postMessage(message)
+  },
+}

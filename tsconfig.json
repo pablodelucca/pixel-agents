@@ -7,13 +7,15 @@
 		],
 		"sourceMap": true,
 		"rootDir": "src",
-		"strict": true
+		"strict": true,
+		"skipLibCheck": true
 	},
 	"exclude": [
 		"node_modules",
 		"webview-ui",
 		"dist",
 		"out",
-		"scripts"
+		"scripts",
+		"vitest.config.ts"
 	]
 }

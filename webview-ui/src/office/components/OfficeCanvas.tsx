@@ -585,10 +585,10 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
                   officeState.selectedAgentId = null
                   officeState.cameraFollowId = null
                   // Persist seat assignments (exclude sub-agents)
-                  const seats: Record<number, { palette: number; seatId: string | null }> = {}
+                  const seats: Record<number, { palette: number; hueShift: number; seatId: string | null }> = {}
                   for (const ch of officeState.characters.values()) {
                     if (ch.isSubagent) continue
-                    seats[ch.id] = { palette: ch.palette, seatId: ch.seatId }
+                    seats[ch.id] = { palette: ch.palette, hueShift: ch.hueShift, seatId: ch.seatId }
                   }
                   vscode.postMessage({ type: 'saveAgentSeats', seats })
                   return

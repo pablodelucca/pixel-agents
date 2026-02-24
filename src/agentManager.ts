@@ -7,6 +7,8 @@ import { cancelWaitingTimer, cancelPermissionTimer } from './timerManager.js';
 import { startFileWatching, readNewLines, ensureProjectScan } from './fileWatcher.js';
 import { JSONL_POLL_INTERVAL_MS, TERMINAL_NAME_PREFIX, WORKSPACE_KEY_AGENTS, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
 import { migrateAndLoadLayout } from './layoutPersistence.js';
+import { postToWebview } from './messages.js';
+import type { AgentSeatMeta } from './messages.js';
 
 export function getProjectDirPath(cwd?: string): string | null {
 	const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -74,7 +76,7 @@ export function launchNewTerminal(
 	activeAgentIdRef.current = id;
 	persistAgents();
 	console.log(`[Pixel Agents] Agent ${id}: created for terminal ${terminal.name}`);
-	webview?.postMessage({ type: 'agentCreated', id });
+	postToWebview(webview, { type: 'agentCreated', id });
 
 	ensureProjectScan(
 		projectDir, knownJsonlFiles, projectScanTimerRef, activeAgentIdRef,
@@ -265,10 +267,10 @@ export function sendExistingAgents(
 	agentIds.sort((a, b) => a - b);
 
 	// Include persisted palette/seatId from separate key
-	const agentMeta = context.workspaceState.get<Record<string, { palette?: number; seatId?: string }>>(WORKSPACE_KEY_AGENT_SEATS, {});
+	const agentMeta = context.workspaceState.get<Record<string, AgentSeatMeta>>(WORKSPACE_KEY_AGENT_SEATS, {});
 	console.log(`[Pixel Agents] sendExistingAgents: agents=${JSON.stringify(agentIds)}, meta=${JSON.stringify(agentMeta)}`);
 
-	webview.postMessage({
+	postToWebview(webview, {
 		type: 'existingAgents',
 		agents: agentIds,
 		agentMeta,
@@ -285,7 +287,7 @@ export function sendCurrentAgentStatuses(
 	for (const [agentId, agent] of agents) {
 		// Re-send active tools
 		for (const [toolId, status] of agent.activeToolStatuses) {
-			webview.postMessage({
+			postToWebview(webview, {
 				type: 'agentToolStart',
 				id: agentId,
 				toolId,
@@ -294,7 +296,7 @@ export function sendCurrentAgentStatuses(
 		}
 		// Re-send waiting status
 		if (agent.isWaiting) {
-			webview.postMessage({
+			postToWebview(webview, {
 				type: 'agentStatus',
 				id: agentId,
 				status: 'waiting',
@@ -310,7 +312,7 @@ export function sendLayout(
 ): void {
 	if (!webview) return;
 	const layout = migrateAndLoadLayout(context, defaultLayout);
-	webview.postMessage({
+	postToWebview(webview, {
 		type: 'layoutLoaded',
 		layout,
 	});

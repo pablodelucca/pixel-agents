@@ -23,6 +23,7 @@ import {
   CHAR_FRAMES_PER_ROW,
   CHAR_COUNT,
 } from './constants.js'
+import { postToWebview } from './messages.js'
 
 export interface FurnitureAsset {
   id: string
@@ -248,7 +249,7 @@ export function sendWallTilesToWebview(
   webview: vscode.Webview,
   wallTiles: LoadedWallTiles,
 ): void {
-  webview.postMessage({
+  postToWebview(webview, {
     type: 'wallTilesLoaded',
     sprites: wallTiles.sprites,
   })
@@ -313,7 +314,7 @@ export function sendFloorTilesToWebview(
   webview: vscode.Webview,
   floorTiles: LoadedFloorTiles,
 ): void {
-  webview.postMessage({
+  postToWebview(webview, {
     type: 'floorTilesLoaded',
     sprites: floorTiles.sprites,
   })
@@ -404,7 +405,7 @@ export function sendCharacterSpritesToWebview(
   webview: vscode.Webview,
   charSprites: LoadedCharacterSprites,
 ): void {
-  webview.postMessage({
+  postToWebview(webview, {
     type: 'characterSpritesLoaded',
     characters: charSprites.characters,
   })
@@ -431,7 +432,7 @@ export function sendAssetsToWebview(
   }
 
   console.log(`[AssetLoader] Posting furnitureAssetsLoaded message with ${assets.catalog.length} assets`)
-  webview.postMessage({
+  postToWebview(webview, {
     type: 'furnitureAssetsLoaded',
     catalog: assets.catalog,
     sprites: spritesObj,
