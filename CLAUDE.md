@@ -1,6 +1,6 @@
 # Pixel Agents — Compressed Reference
 
-VS Code extension with embedded React webview: pixel art office where AI agents (Claude Code terminals) are animated characters.
+VS Code extension with embedded React webview: pixel art office where AI agents (Claude Code or Codex terminals) are animated characters.
 
 ## Architecture
 
@@ -71,17 +71,30 @@ scripts/                      — 7-stage asset extraction pipeline
 
 ## Core Concepts
 
-**Vocabulary**: Terminal = VS Code terminal running Claude. Session = JSONL conversation file. Agent = webview character bound 1:1 to a terminal.
+**Vocabulary**: Terminal = VS Code terminal running the selected CLI provider. Session = JSONL conversation file. Agent = webview character bound 1:1 to a terminal.
 
-**Extension ↔ Webview**: `postMessage` protocol. Key messages: `openClaude`, `agentCreated/Closed`, `focusAgent`, `agentToolStart/Done/Clear`, `agentStatus`, `existingAgents`, `layoutLoaded`, `furnitureAssetsLoaded`, `floorTilesLoaded`, `wallTilesLoaded`, `saveLayout`, `saveAgentSeats`, `exportLayout`, `importLayout`, `settingsLoaded`, `setSoundEnabled`.
+**Extension ↔ Webview**: `postMessage` protocol. Key messages: `openAgent` (with `openClaude` still accepted as backward-compatible alias), `agentCreated/Closed`, `focusAgent`, `agentToolStart/Done/Clear`, `agentStatus`, `existingAgents`, `layoutLoaded`, `furnitureAssetsLoaded`, `floorTilesLoaded`, `wallTilesLoaded`, `saveLayout`, `saveAgentSeats`, `exportLayout`, `importLayout`, `settingsLoaded`, `setSoundEnabled`.
 
-**One-agent-per-terminal**: Each "+ Agent" click → new terminal (`claude --session-id <uuid>`) → immediate agent creation → 1s poll for `<uuid>.jsonl` → file watching starts.
+**Provider selection**: `pixel-agents.cliProvider` selects `claude` or `codex` (default `claude`). `pixel-agents.claudeCommand` is explicit (default `claude`, optionally `cc`), with no implicit fallback.
+
+**One-agent-per-terminal**:
+- Claude: each "+ Agent" click launches `<claudeCommand> --session-id <uuid>` → immediate agent creation → 1s poll for `<uuid>.jsonl`.
+- Codex: each "+ Agent" click launches `codex` → session JSONL is adopted by provider scan when a matching workspace transcript appears.
 
 **Terminal adoption**: Project-level 1s scan detects unknown JSONL files. If active terminal has no agent → adopt. If focused agent exists → reassign (`/clear` handling).
 
 ## Agent Status Tracking
 
-JSONL transcripts at `~/.claude/projects/<project-hash>/<session-id>.jsonl`. Project hash = workspace path with `:`/`\`/`/` → `-`.
+JSONL transcript roots:
+- Claude: `~/.claude/projects/<project-hash>/<session-id>.jsonl` (project hash = workspace path with `:`/`\`/`/` → `-`)
+- Codex: `${CODEX_HOME:-~/.codex}/sessions/YYYY/MM/DD/*.jsonl` (scanner checks current day plus adjacent days and matches `session_meta.payload.cwd` to workspace root)
+
+Codex schema tracked:
+- `response_item` `function_call` / `custom_tool_call` → tool start
+- `response_item` `function_call_output` / `custom_tool_call_output` → tool done
+- `event_msg.task_started` / `event_msg.user_message` → mark active and clear stale waiting
+- `event_msg.task_complete` → definitive waiting-state transition and stale tool cleanup
+- `event_msg.turn_aborted` → safe active-tool cleanup
 
 **JSONL record types**: `assistant` (tool_use blocks or thinking), `user` (tool_result or text prompt), `system` with `subtype: "turn_duration"` (reliable turn-end signal), `progress` with `data.type`: `agent_progress` (sub-agent tool_use/tool_result forwarded to webview, non-exempt tools trigger permission timers), `bash_progress` (long-running Bash output — restarts permission timer to confirm tool is executing), `mcp_progress` (MCP tool status — same timer restart logic). Also observed but not tracked: `file-history-snapshot`, `queue-operation`.
 
