@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { AgentState } from './types.js';
+import type { AgentRuntime, AgentState } from './types.js';
 import {
 	launchNewTerminal,
 	removeAgent,
@@ -13,8 +13,10 @@ import {
 	getProjectDirPath,
 } from './agentManager.js';
 import { ensureProjectScan } from './fileWatcher.js';
+import type { ProjectScanState } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
-import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
+import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED, GLOBAL_KEY_DEFAULT_RUNTIME } from './constants.js';
+import { DEFAULT_AGENT_RUNTIME, normalizeAgentRuntime } from './runtime.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 
@@ -31,16 +33,31 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	jsonlPollTimers = new Map<number, ReturnType<typeof setInterval>>();
 	permissionTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
-	// /clear detection: project-level scan for new JSONL files
+	// /clear / codex new-session detection
 	activeAgentId = { current: null as number | null };
-	knownJsonlFiles = new Set<string>();
-	projectScanTimer = { current: null as ReturnType<typeof setInterval> | null };
+	knownJsonlFilesByRuntime: Record<AgentRuntime, Set<string>> = {
+		claude: new Set<string>(),
+		codex: new Set<string>(),
+	};
+	projectScanStates: Record<AgentRuntime, ProjectScanState> = {
+		claude: {
+			current: null,
+			runtime: 'claude',
+			projectDir: null,
+		},
+		codex: {
+			current: null,
+			runtime: 'codex',
+			projectDir: null,
+		},
+	};
 
 	// Bundled default layout (loaded from assets/default-layout.json)
 	defaultLayout: Record<string, unknown> | null = null;
 
 	// Cross-window layout sync
 	layoutWatcher: LayoutWatcher | null = null;
+	defaultRuntime: AgentRuntime = DEFAULT_AGENT_RUNTIME;
 
 	constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -62,12 +79,16 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
 
 		webviewView.webview.onDidReceiveMessage(async (message) => {
-			if (message.type === 'openClaude') {
+			if (message.type === 'openAgent' || message.type === 'openClaude') {
+				const requestedRuntime = message.type === 'openClaude'
+					? 'claude'
+					: normalizeAgentRuntime(message.runtime ?? this.defaultRuntime);
 				launchNewTerminal(
+					requestedRuntime,
 					this.nextAgentId, this.nextTerminalIndex,
-					this.agents, this.activeAgentId, this.knownJsonlFiles,
+					this.agents, this.activeAgentId, this.knownJsonlFilesByRuntime[requestedRuntime],
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
-					this.jsonlPollTimers, this.projectScanTimer,
+					this.jsonlPollTimers, this.projectScanStates[requestedRuntime],
 					this.webview, this.persistAgents,
 				);
 			} else if (message.type === 'focusAgent') {
@@ -89,27 +110,37 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				writeLayoutToFile(message.layout as Record<string, unknown>);
 			} else if (message.type === 'setSoundEnabled') {
 				this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
+			} else if (message.type === 'setDefaultRuntime') {
+				this.defaultRuntime = normalizeAgentRuntime(message.runtime);
+				this.context.globalState.update(GLOBAL_KEY_DEFAULT_RUNTIME, this.defaultRuntime);
 			} else if (message.type === 'webviewReady') {
+				this.defaultRuntime = normalizeAgentRuntime(
+					this.context.globalState.get<string>(GLOBAL_KEY_DEFAULT_RUNTIME, DEFAULT_AGENT_RUNTIME),
+				);
 				restoreAgents(
 					this.context,
 					this.nextAgentId, this.nextTerminalIndex,
-					this.agents, this.knownJsonlFiles,
+					this.agents, this.knownJsonlFilesByRuntime,
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
-					this.jsonlPollTimers, this.projectScanTimer, this.activeAgentId,
+					this.jsonlPollTimers, this.projectScanStates, this.activeAgentId,
 					this.webview, this.persistAgents,
 				);
 				// Send persisted settings to webview
 				const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
-				this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled });
+				this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled, defaultRuntime: this.defaultRuntime });
 
 				// Ensure project scan runs even with no restored agents (to adopt external terminals)
-				const projectDir = getProjectDirPath();
+				const projectDir = getProjectDirPath(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath, this.defaultRuntime);
 				const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 				console.log('[Extension] workspaceRoot:', workspaceRoot);
 				console.log('[Extension] projectDir:', projectDir);
 				if (projectDir) {
 					ensureProjectScan(
-						projectDir, this.knownJsonlFiles, this.projectScanTimer, this.activeAgentId,
+						this.defaultRuntime,
+						projectDir,
+						this.knownJsonlFilesByRuntime[this.defaultRuntime],
+						this.projectScanStates[this.defaultRuntime],
+						this.activeAgentId,
 						this.nextAgentId, this.agents,
 						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 						this.webview, this.persistAgents,
@@ -215,7 +246,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				}
 				sendExistingAgents(this.agents, this.context, this.webview);
 			} else if (message.type === 'openSessionsFolder') {
-				const projectDir = getProjectDirPath();
+				const runtime = normalizeAgentRuntime(message.runtime ?? this.defaultRuntime);
+				const projectDir = getProjectDirPath(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath, runtime);
 				if (projectDir && fs.existsSync(projectDir)) {
 					vscode.env.openExternal(vscode.Uri.file(projectDir));
 				}
@@ -321,9 +353,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				this.jsonlPollTimers, this.persistAgents,
 			);
 		}
-		if (this.projectScanTimer.current) {
-			clearInterval(this.projectScanTimer.current);
-			this.projectScanTimer.current = null;
+		for (const runtime of Object.keys(this.projectScanStates) as AgentRuntime[]) {
+			const state = this.projectScanStates[runtime];
+			if (!state.current) continue;
+			clearInterval(state.current);
+			state.current = null;
+			state.projectDir = null;
 		}
 	}
 }
