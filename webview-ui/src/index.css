@@ -42,6 +42,10 @@
   /* Vignette */
   --pixel-vignette: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.6) 100%);
 
+  /* VS Code theme fallbacks (used when running standalone outside VS Code) */
+  --vscode-foreground: rgba(255, 255, 255, 0.8);
+  --vscode-editor-background: #1e1e2e;
+
   /* Status dot colors */
   --pixel-status-permission: var(--vscode-charts-yellow, #cca700);
   --pixel-status-active: var(--vscode-charts-blue, #3794ff);
