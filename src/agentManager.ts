@@ -11,8 +11,25 @@ import { migrateAndLoadLayout } from './layoutPersistence.js';
 export function getProjectDirPath(cwd?: string): string | null {
 	const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	if (!workspacePath) return null;
-	const dirName = workspacePath.replace(/[:\\/]/g, '-');
-	return path.join(os.homedir(), '.claude', 'projects', dirName);
+
+	const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+
+	// Try exact match first (Windows style: only : \ / converted)
+	const dirNameExact = workspacePath.replace(/[:\\/]/g, '-');
+	const exactPath = path.join(projectsDir, dirNameExact);
+	if (fs.existsSync(exactPath)) {
+		return exactPath;
+	}
+
+	// Try with underscores also converted (macOS style)
+	const dirNameMac = workspacePath.replace(/[:\\_/\\\\]/g, '-');
+	const macPath = path.join(projectsDir, dirNameMac);
+	if (fs.existsSync(macPath)) {
+		return macPath;
+	}
+
+	// Fallback: create using exact match pattern (for new projects)
+	return exactPath;
 }
 
 export function launchNewTerminal(
