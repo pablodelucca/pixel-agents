@@ -1,7 +1,7 @@
 import { TileType, TILE_SIZE, CharacterState } from '../types.js'
 import type { TileType as TileTypeVal, FurnitureInstance, Character, SpriteData, Seat, FloorColor } from '../types.js'
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js'
-import { getCharacterSprites, BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE } from '../sprites/spriteData.js'
+import { getCharacterSprites, BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE, BUBBLE_DETACHED_SPRITE } from '../sprites/spriteData.js'
 import { getCharacterSprite } from './characters.js'
 import { renderMatrixEffect } from './matrixEffect.js'
 import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js'
@@ -38,6 +38,7 @@ import {
   SELECTION_HIGHLIGHT_COLOR,
   DELETE_BUTTON_BG,
   ROTATE_BUTTON_BG,
+  DETACHED_CHARACTER_ALPHA,
 } from '../../constants.js'
 
 // ── Render functions ────────────────────────────────────────────
@@ -170,12 +171,24 @@ export function renderScene(
       })
     }
 
-    drawables.push({
-      zY: charZY,
-      draw: (c) => {
-        c.drawImage(cached, drawX, drawY)
-      },
-    })
+    if (ch.isDetached) {
+      drawables.push({
+        zY: charZY,
+        draw: (c) => {
+          c.save()
+          c.globalAlpha = DETACHED_CHARACTER_ALPHA
+          c.drawImage(cached, drawX, drawY)
+          c.restore()
+        },
+      })
+    } else {
+      drawables.push({
+        zY: charZY,
+        draw: (c) => {
+          c.drawImage(cached, drawX, drawY)
+        },
+      })
+    }
   }
 
   // Sort by Y (lower = in front = drawn later)
@@ -457,11 +470,16 @@ export function renderBubbles(
   for (const ch of characters) {
     if (!ch.bubbleType) continue
 
-    const sprite = ch.bubbleType === 'permission'
-      ? BUBBLE_PERMISSION_SPRITE
-      : BUBBLE_WAITING_SPRITE
+    let sprite: SpriteData
+    if (ch.bubbleType === 'permission') {
+      sprite = BUBBLE_PERMISSION_SPRITE
+    } else if (ch.bubbleType === 'detached') {
+      sprite = BUBBLE_DETACHED_SPRITE
+    } else {
+      sprite = BUBBLE_WAITING_SPRITE
+    }
 
-    // Compute opacity: permission = full, waiting = fade in last 0.5s
+    // Compute opacity: permission/detached = full, waiting = fade in last 0.5s
     let alpha = 1.0
     if (ch.bubbleType === 'waiting' && ch.bubbleTimer < BUBBLE_FADE_DURATION_SEC) {
       alpha = ch.bubbleTimer / BUBBLE_FADE_DURATION_SEC

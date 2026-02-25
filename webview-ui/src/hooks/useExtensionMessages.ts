@@ -155,6 +155,18 @@ export function useExtensionMessages(
           }
           return merged.sort((a, b) => a - b)
         })
+      } else if (msg.type === 'agentDetached') {
+        const id = msg.id as number
+        os.setAgentDetached(id, true)
+      } else if (msg.type === 'agentReattached') {
+        const id = msg.id as number
+        os.setAgentDetached(id, false)
+        setAgentStatuses((prev) => {
+          if (!(id in prev)) return prev
+          const next = { ...prev }
+          delete next[id]
+          return next
+        })
       } else if (msg.type === 'agentToolStart') {
         const id = msg.id as number
         const toolId = msg.toolId as string

@@ -318,6 +318,28 @@ export const BUBBLE_WAITING_SPRITE: SpriteData = (() => {
   ]
 })()
 
+/** Detached bubble: gray square with X symbol, and a tail pointer (11x13) */
+export const BUBBLE_DETACHED_SPRITE: SpriteData = (() => {
+  const B = '#555566' // border
+  const F = '#DDDDE8' // fill (slightly muted)
+  const X = '#7888A0' // gray-blue X symbol
+  return [
+    [_, B, B, B, B, B, B, B, B, B, _],
+    [B, F, F, F, F, F, F, F, F, F, B],
+    [B, F, F, F, F, F, F, F, F, F, B],
+    [B, F, F, X, F, F, F, X, F, F, B],
+    [B, F, F, F, X, F, X, F, F, F, B],
+    [B, F, F, F, F, X, F, F, F, F, B],
+    [B, F, F, F, X, F, X, F, F, F, B],
+    [B, F, F, X, F, F, F, X, F, F, B],
+    [B, F, F, F, F, F, F, F, F, F, B],
+    [_, B, B, B, B, B, B, B, B, B, _],
+    [_, _, _, _, B, B, B, _, _, _, _],
+    [_, _, _, _, _, B, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _],
+  ]
+})()
+
 // ── Character Sprites ───────────────────────────────────────────
 // 16x24 characters with palette substitution
 
