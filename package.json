@@ -19,6 +19,24 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixel-agents.agentType": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "copilot"
+          ],
+          "default": "claude",
+          "description": "Choose the AI agent type to use (Claude Code or GitHub Copilot CLI)",
+          "enumDescriptions": [
+            "Use Claude Code CLI (claude command)",
+            "Use GitHub Copilot CLI (gh copilot command)"
+          ]
+        }
+      }
+    },
     "commands": [
       {
         "command": "pixel-agents.showPanel",

@@ -10,13 +10,13 @@ import {
 	persistAgents,
 	sendExistingAgents,
 	sendLayout,
-	getProjectDirPath,
 } from './agentManager.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
 import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
+import { getAgentType, getProjectDirPath, type AgentType } from './configManager.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	nextAgentId = { current: 1 };
@@ -89,6 +89,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				writeLayoutToFile(message.layout as Record<string, unknown>);
 			} else if (message.type === 'setSoundEnabled') {
 				this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
+			} else if (message.type === 'setAgentType') {
+				// Update configuration when user changes agent type in settings
+				const config = vscode.workspace.getConfiguration();
+				await config.update('pixel-agents.agentType', message.agentType, vscode.ConfigurationTarget.Global);
+				vscode.window.showInformationMessage(`Pixel Agents: Agent type changed to ${message.agentType}. Please reload the window for changes to take effect.`, 'Reload Window').then(selection => {
+					if (selection === 'Reload Window') {
+						vscode.commands.executeCommand('workbench.action.reloadWindow');
+					}
+				});
 			} else if (message.type === 'webviewReady') {
 				restoreAgents(
 					this.context,
@@ -98,12 +107,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					this.jsonlPollTimers, this.projectScanTimer, this.activeAgentId,
 					this.webview, this.persistAgents,
 				);
-				// Send persisted settings to webview
+				// Send persisted settings to webview (including agent type)
 				const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
-				this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled });
+				const agentType = getAgentType();
+				this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled, agentType });
 
 				// Ensure project scan runs even with no restored agents (to adopt external terminals)
-				const projectDir = getProjectDirPath();
+				const projectDir = getProjectDirPath(agentType);
 				const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 				console.log('[Extension] workspaceRoot:', workspaceRoot);
 				console.log('[Extension] projectDir:', projectDir);
@@ -215,7 +225,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				}
 				sendExistingAgents(this.agents, this.context, this.webview);
 			} else if (message.type === 'openSessionsFolder') {
-				const projectDir = getProjectDirPath();
+				const agentType = getAgentType();
+				const projectDir = getProjectDirPath(agentType);
 				if (projectDir && fs.existsSync(projectDir)) {
 					vscode.env.openExternal(vscode.Uri.file(projectDir));
 				}

@@ -7,6 +7,7 @@ interface BottomToolbarProps {
   onToggleEditMode: () => void
   isDebugMode: boolean
   onToggleDebugMode: () => void
+  agentType: 'claude' | 'copilot'
 }
 
 const panelStyle: React.CSSProperties = {
@@ -47,6 +48,7 @@ export function BottomToolbar({
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
+  agentType,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -108,6 +110,7 @@ export function BottomToolbar({
           onClose={() => setIsSettingsOpen(false)}
           isDebugMode={isDebugMode}
           onToggleDebugMode={onToggleDebugMode}
+          agentType={agentType}
         />
       </div>
     </div>

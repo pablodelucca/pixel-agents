@@ -5,10 +5,12 @@ import * as vscode from 'vscode';
 import type { AgentState, PersistedAgent } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer } from './timerManager.js';
 import { startFileWatching, readNewLines, ensureProjectScan } from './fileWatcher.js';
-import { JSONL_POLL_INTERVAL_MS, TERMINAL_NAME_PREFIX, WORKSPACE_KEY_AGENTS, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
+import { JSONL_POLL_INTERVAL_MS, WORKSPACE_KEY_AGENTS, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
 import { migrateAndLoadLayout } from './layoutPersistence.js';
+import { getAgentType, getProjectDirPath, getAgentCommand, getTerminalNamePrefix, getSessionFilePath } from './configManager.js';
 
-export function getProjectDirPath(cwd?: string): string | null {
+// Deprecated: Use getProjectDirPath from configManager instead
+export function getProjectDirPath_DEPRECATED(cwd?: string): string | null {
 	const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	if (!workspacePath) return null;
 	const dirName = workspacePath.replace(/[:\\/]/g, '-');
@@ -32,23 +34,29 @@ export function launchNewTerminal(
 ): void {
 	const idx = nextTerminalIndexRef.current++;
 	const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	
+	// Get current agent configuration
+	const agentType = getAgentType();
+	const terminalNamePrefix = getTerminalNamePrefix(agentType);
+	
 	const terminal = vscode.window.createTerminal({
-		name: `${TERMINAL_NAME_PREFIX} #${idx}`,
+		name: `${terminalNamePrefix} #${idx}`,
 		cwd,
 	});
 	terminal.show();
 
 	const sessionId = crypto.randomUUID();
-	terminal.sendText(`claude --session-id ${sessionId}`);
+	const agentCommand = getAgentCommand(agentType, sessionId);
+	terminal.sendText(agentCommand);
 
-	const projectDir = getProjectDirPath(cwd);
+	const projectDir = getProjectDirPath(agentType, cwd);
 	if (!projectDir) {
 		console.log(`[Pixel Agents] No project dir, cannot track agent`);
 		return;
 	}
 
 	// Pre-register expected JSONL file so project scan won't treat it as a /clear file
-	const expectedFile = path.join(projectDir, `${sessionId}.jsonl`);
+	const expectedFile = getSessionFilePath(agentType, sessionId, projectDir);
 	knownJsonlFiles.add(expectedFile);
 
 	// Create agent immediately (before JSONL file exists)
@@ -68,6 +76,7 @@ export function launchNewTerminal(
 		isWaiting: false,
 		permissionSent: false,
 		hadToolsInTurn: false,
+		agentType, // Store agent type for format detection
 	};
 
 	agents.set(id, agent);
@@ -142,6 +151,7 @@ export function persistAgents(
 			terminalName: agent.terminalRef.name,
 			jsonlFile: agent.jsonlFile,
 			projectDir: agent.projectDir,
+			agentType: agent.agentType,
 		});
 	}
 	context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
@@ -175,6 +185,9 @@ export function restoreAgents(
 		const terminal = liveTerminals.find(t => t.name === p.terminalName);
 		if (!terminal) continue;
 
+		// Use stored agentType, fallback to current setting
+		const agentType = p.agentType || getAgentType();
+
 		const agent: AgentState = {
 			id: p.id,
 			terminalRef: terminal,
@@ -190,6 +203,7 @@ export function restoreAgents(
 			isWaiting: false,
 			permissionSent: false,
 			hadToolsInTurn: false,
+			agentType,
 		};
 
 		agents.set(p.id, agent);

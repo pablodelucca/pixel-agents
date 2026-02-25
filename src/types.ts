@@ -1,4 +1,5 @@
 import type * as vscode from 'vscode';
+import type { AgentType } from './configManager.js';
 
 export interface AgentState {
 	id: number;
@@ -15,6 +16,7 @@ export interface AgentState {
 	isWaiting: boolean;
 	permissionSent: boolean;
 	hadToolsInTurn: boolean;
+	agentType: AgentType; // NEW: track which format to parse
 }
 
 export interface PersistedAgent {
@@ -22,4 +24,5 @@ export interface PersistedAgent {
 	terminalName: string;
 	jsonlFile: string;
 	projectDir: string;
+	agentType: AgentType; // NEW: persist agent type
 }
