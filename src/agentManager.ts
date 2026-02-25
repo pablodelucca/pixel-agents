@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import type { AgentState, PersistedAgent } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer } from './timerManager.js';
 import { startFileWatching, readNewLines, ensureProjectScan } from './fileWatcher.js';
-import { JSONL_POLL_INTERVAL_MS, TERMINAL_NAME_PREFIX, WORKSPACE_KEY_AGENTS, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
+import { JSONL_POLL_INTERVAL_MS, TERMINAL_NAME_PREFIX, WORKSPACE_KEY_AGENTS, WORKSPACE_KEY_AGENT_SEATS, WORKSPACE_KEY_AGENT_ROLES } from './constants.js';
 import { migrateAndLoadLayout } from './layoutPersistence.js';
 
 export function getProjectDirPath(cwd?: string): string | null {
@@ -266,12 +266,14 @@ export function sendExistingAgents(
 
 	// Include persisted palette/seatId from separate key
 	const agentMeta = context.workspaceState.get<Record<string, { palette?: number; seatId?: string }>>(WORKSPACE_KEY_AGENT_SEATS, {});
+	const agentRoles = context.workspaceState.get<Record<string, { role?: string; taskNote?: string; isBlocked?: boolean }>>(WORKSPACE_KEY_AGENT_ROLES, {});
 	console.log(`[Pixel Agents] sendExistingAgents: agents=${JSON.stringify(agentIds)}, meta=${JSON.stringify(agentMeta)}`);
 
 	webview.postMessage({
 		type: 'existingAgents',
 		agents: agentIds,
 		agentMeta,
+		agentRoles,
 	});
 
 	sendCurrentAgentStatuses(agents, webview);
