@@ -1,0 +1,40 @@
+name: Publish Extension
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install webview dependencies
+        run: npm ci
+        working-directory: webview-ui
+
+      - name: Publish to VS Code Marketplace
+        uses: HaaLeo/publish-vscode-extension@v2
+        with:
+          pat: ${{ secrets.VSCE_PAT }}
+          registryUrl: https://marketplace.visualstudio.com
+
+      - name: Publish to Open VSX
+        uses: HaaLeo/publish-vscode-extension@v2
+        with:
+          pat: ${{ secrets.OPEN_VSX_TOKEN }}
+          registryUrl: https://open-vsx.org
