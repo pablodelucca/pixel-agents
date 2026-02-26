@@ -172,14 +172,89 @@ export class OpenClawEventSource {
 	}
 
 	private processLine(line: string): void {
-		let entry: OpenClawLogEntry;
+		let raw: OpenClawLogEntry;
 		try {
-			entry = JSON.parse(line) as OpenClawLogEntry;
+			raw = JSON.parse(line) as OpenClawLogEntry;
 		} catch {
 			// Non-JSON line (e.g. startup banner) — ignore silently.
 			return;
 		}
 
+		// ── Priority 1: native `pa` envelope emitted by the Pixel Agents skill ──
+		// Format: { "type": "pa", "agentId": "...", "tool": "read", ... }
+		// or:     { "type": "pa", "pa": { "agentId": "...", ... } }
+		if (raw.type === 'pa') {
+			const payload: OpenClawLogEntry = raw.pa
+				? { ...raw.pa as OpenClawLogEntry }
+				: raw;
+			this.dispatchEntry(payload);
+			return;
+		}
+
+		// ── Priority 2: native OpenClaw log envelope (type: "log") ─────────────
+		// Format: { "type": "log", "subsystem": "agent", "message": "...", "sessionKey": "agent:main:session:abc" }
+		// We extract agentId from sessionKey and look for tool info in message.
+		if (raw.type === 'log' && typeof raw.sessionKey === 'string') {
+			const nativeEntry = this.extractFromNativeLog(raw);
+			if (nativeEntry) { this.dispatchEntry(nativeEntry); }
+			return;
+		}
+
+		// ── Priority 3: compact flat format (direct emit, no envelope) ─────────
+		// Format: { "agentId": "...", "tool": "read", "status": "start" }
+		this.dispatchEntry(raw);
+	}
+
+	/**
+	 * Extracts a Pixel Agents event from a native OpenClaw log envelope.
+	 * Parses the `sessionKey` for the agentId and the `message` for tool hints.
+	 */
+	private extractFromNativeLog(raw: OpenClawLogEntry): OpenClawLogEntry | null {
+		// sessionKey format: "agent:<agentName>:session:<sessionId>" or similar
+		const sessionKey = raw.sessionKey as string;
+		const keyParts = sessionKey.split(':');
+		// Heuristic: last segment is the session/run ID used as agentId
+		const openclawId = raw.agentId as string | undefined
+			?? keyParts[keyParts.length - 1]
+			?? undefined;
+
+		if (!openclawId) { return null; }
+
+		const msg = (typeof raw.message === 'string' ? raw.message : '').toLowerCase();
+		const subsystem = (typeof raw.subsystem === 'string' ? raw.subsystem : '').toLowerCase();
+
+		// Heuristic mapping from native log messages to PA events
+		// "Tool call: read" / "Invoking tool read" / "exec: npm test"
+		const toolMatch = msg.match(/\b(?:tool[^:]*:\s*|invoking\s+tool\s+)(\w+)/i)
+			?? msg.match(/^(read|write|edit|exec|web_fetch)\b/i);
+		if (toolMatch) {
+			return {
+				agentId: openclawId,
+				tool: toolMatch[1].toLowerCase(),
+				status: msg.includes('complet') || msg.includes('done') || msg.includes('finish') ? 'end' : 'start',
+			};
+		}
+
+		// Lifecycle events from subsystem messages
+		if (subsystem === 'agent' || subsystem === 'session') {
+			if (msg.includes('start') || msg.includes('register') || msg.includes('init')) {
+				return { agentId: openclawId, event: 'run_registered' };
+			}
+			if (msg.includes('end') || msg.includes('done') || msg.includes('complete') || msg.includes('clear')) {
+				return { agentId: openclawId, event: 'run_cleared' };
+			}
+			if (msg.includes('error') || msg.includes('fail') || msg.includes('timeout')) {
+				return { agentId: openclawId, event: 'error' };
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Dispatches a normalised entry (from any format) to the appropriate handler.
+	 */
+	private dispatchEntry(entry: OpenClawLogEntry): void {
 		// Resolve agentId — accept both `agentId` and `run_id` keys.
 		const openclawId =
 			typeof entry.agentId === 'string' ? entry.agentId :
