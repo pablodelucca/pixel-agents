@@ -193,7 +193,7 @@ export class OfficeState {
     return { palette, hueShift }
   }
 
-  addAgent(id: number, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean): void {
+  addAgent(id: number, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean, isExternal?: boolean): void {
     if (this.characters.has(id)) return
 
     let palette: number
@@ -236,6 +236,9 @@ export class OfficeState {
       ch.tileRow = spawn.row
     }
 
+    if (isExternal) {
+      ch.isExternal = true
+    }
     if (!skipSpawnEffect) {
       ch.matrixEffect = 'spawn'
       ch.matrixEffectTimer = 0

@@ -7,6 +7,10 @@ interface BottomToolbarProps {
   onToggleEditMode: () => void
   isDebugMode: boolean
   onToggleDebugMode: () => void
+  externalAgentsEnabled: boolean
+  onToggleExternalAgents: () => void
+  useTmux: boolean
+  onToggleUseTmux: () => void
 }
 
 const panelStyle: React.CSSProperties = {
@@ -47,6 +51,10 @@ export function BottomToolbar({
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
+  externalAgentsEnabled,
+  onToggleExternalAgents,
+  useTmux,
+  onToggleUseTmux,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -108,6 +116,10 @@ export function BottomToolbar({
           onClose={() => setIsSettingsOpen(false)}
           isDebugMode={isDebugMode}
           onToggleDebugMode={onToggleDebugMode}
+          externalAgentsEnabled={externalAgentsEnabled}
+          onToggleExternalAgents={onToggleExternalAgents}
+          useTmux={useTmux}
+          onToggleUseTmux={onToggleUseTmux}
         />
       </div>
     </div>

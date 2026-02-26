@@ -14,6 +14,7 @@ import { unlockAudio } from '../../notificationSound.js'
 interface OfficeCanvasProps {
   officeState: OfficeState
   onClick: (agentId: number) => void
+  onAgentContextMenu: (agentId: number, screenX: number, screenY: number) => void
   isEditMode: boolean
   editorState: EditorState
   onEditorTileAction: (col: number, row: number) => void
@@ -28,7 +29,7 @@ interface OfficeCanvasProps {
   panRef: React.MutableRefObject<{ x: number; y: number }>
 }
 
-export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, onEditorTileAction, onEditorEraseAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, onDragMove, editorTick: _editorTick, zoom, onZoomChange, panRef }: OfficeCanvasProps) {
+export function OfficeCanvas({ officeState, onClick, onAgentContextMenu, isEditMode, editorState, onEditorTileAction, onEditorEraseAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, onDragMove, editorTick: _editorTick, zoom, onZoomChange, panRef }: OfficeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const offsetRef = useRef({ x: 0, y: 0 })
@@ -620,6 +621,19 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     if (isEditMode) return
+
+    // Check if right-clicked on a character
+    const pos = screenToWorld(e.clientX, e.clientY)
+    if (pos) {
+      const hitId = officeState.getCharacterAt(pos.worldX, pos.worldY)
+      if (hitId !== null) {
+        officeState.selectedAgentId = hitId
+        officeState.cameraFollowId = hitId
+        onAgentContextMenu(hitId, e.clientX, e.clientY)
+        return
+      }
+    }
+
     // Right-click to walk selected agent to tile
     if (officeState.selectedAgentId !== null) {
       const tile = screenToTile(e.clientX, e.clientY)
@@ -627,7 +641,7 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
         officeState.walkToTile(officeState.selectedAgentId, tile.col, tile.row)
       }
     }
-  }, [isEditMode, officeState, screenToTile])
+  }, [isEditMode, officeState, screenToWorld, screenToTile, onAgentContextMenu])
 
   // Wheel: Ctrl+wheel to zoom, plain wheel/trackpad to pan
   const handleWheel = useCallback(

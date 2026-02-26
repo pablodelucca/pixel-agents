@@ -59,6 +59,7 @@ export function readNewLines(
 
 		const hasLines = lines.some(l => l.trim());
 		if (hasLines) {
+			agent.lastDataTimestamp = Date.now();
 			// New data arriving — cancel timers (data flowing means agent is still active)
 			cancelWaitingTimer(agentId, waitingTimers);
 			cancelPermissionTimer(agentId, permissionTimers);
@@ -197,6 +198,11 @@ function adoptTerminalForFile(
 		isWaiting: false,
 		permissionSent: false,
 		hadToolsInTurn: false,
+		isExternal: false,
+		isTmux: false,
+		tmuxSessionName: null,
+		tmuxWindowName: null,
+		lastDataTimestamp: Date.now(),
 	};
 
 	agents.set(id, agent);

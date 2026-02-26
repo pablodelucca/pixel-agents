@@ -68,6 +68,11 @@ export function launchNewTerminal(
 		isWaiting: false,
 		permissionSent: false,
 		hadToolsInTurn: false,
+		isExternal: false,
+		isTmux: false,
+		tmuxSessionName: null,
+		tmuxWindowName: null,
+		lastDataTimestamp: Date.now(),
 	};
 
 	agents.set(id, agent);
@@ -139,9 +144,13 @@ export function persistAgents(
 	for (const agent of agents.values()) {
 		persisted.push({
 			id: agent.id,
-			terminalName: agent.terminalRef.name,
+			terminalName: agent.terminalRef?.name ?? '',
 			jsonlFile: agent.jsonlFile,
 			projectDir: agent.projectDir,
+			isExternal: agent.isExternal || undefined,
+			isTmux: agent.isTmux || undefined,
+			tmuxSessionName: agent.tmuxSessionName ?? undefined,
+			tmuxWindowName: agent.tmuxWindowName ?? undefined,
 		});
 	}
 	context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
@@ -172,8 +181,16 @@ export function restoreAgents(
 	let restoredProjectDir: string | null = null;
 
 	for (const p of persisted) {
-		const terminal = liveTerminals.find(t => t.name === p.terminalName);
-		if (!terminal) continue;
+		let terminal: vscode.Terminal | null = null;
+		if (p.isExternal) {
+			// External agents don't need a terminal — check if JSONL is still active
+			try {
+				if (!fs.existsSync(p.jsonlFile)) continue;
+			} catch { continue; }
+		} else {
+			terminal = liveTerminals.find(t => t.name === p.terminalName) ?? null;
+			if (!terminal) continue;
+		}
 
 		const agent: AgentState = {
 			id: p.id,
@@ -190,11 +207,16 @@ export function restoreAgents(
 			isWaiting: false,
 			permissionSent: false,
 			hadToolsInTurn: false,
+			isExternal: p.isExternal ?? false,
+			isTmux: p.isTmux ?? false,
+			tmuxSessionName: p.tmuxSessionName ?? null,
+			tmuxWindowName: p.tmuxWindowName ?? null,
+			lastDataTimestamp: Date.now(),
 		};
 
 		agents.set(p.id, agent);
 		knownJsonlFiles.add(p.jsonlFile);
-		console.log(`[Pixel Agents] Restored agent ${p.id} → terminal "${p.terminalName}"`);
+		console.log(`[Pixel Agents] Restored agent ${p.id} → ${p.isExternal ? 'external' : `terminal "${p.terminalName}"`}`);
 
 		if (p.id > maxId) maxId = p.id;
 		// Extract terminal index from name like "Claude Code #3"
@@ -259,18 +281,21 @@ export function sendExistingAgents(
 ): void {
 	if (!webview) return;
 	const agentIds: number[] = [];
-	for (const id of agents.keys()) {
+	const externalIds: number[] = [];
+	for (const [id, agent] of agents) {
 		agentIds.push(id);
+		if (agent.isExternal) externalIds.push(id);
 	}
 	agentIds.sort((a, b) => a - b);
 
 	// Include persisted palette/seatId from separate key
 	const agentMeta = context.workspaceState.get<Record<string, { palette?: number; seatId?: string }>>(WORKSPACE_KEY_AGENT_SEATS, {});
-	console.log(`[Pixel Agents] sendExistingAgents: agents=${JSON.stringify(agentIds)}, meta=${JSON.stringify(agentMeta)}`);
+	console.log(`[Pixel Agents] sendExistingAgents: agents=${JSON.stringify(agentIds)}, externalIds=${JSON.stringify(externalIds)}, meta=${JSON.stringify(agentMeta)}`);
 
 	webview.postMessage({
 		type: 'existingAgents',
 		agents: agentIds,
+		externalIds,
 		agentMeta,
 	});
 

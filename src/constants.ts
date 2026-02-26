@@ -29,8 +29,15 @@ export const LAYOUT_FILE_DIR = '.pixel-agents';
 export const LAYOUT_FILE_NAME = 'layout.json';
 export const LAYOUT_FILE_POLL_INTERVAL_MS = 2000;
 
+// ── External Agent Scanning ─────────────────────────────────
+export const EXTERNAL_SCAN_INTERVAL_MS = 5000;
+export const EXTERNAL_STALE_TIMEOUT_MS = 120_000;
+export const EXTERNAL_ACTIVE_THRESHOLD_MS = 30_000;
+export const EXTERNAL_STALE_CHECK_INTERVAL_MS = 15_000;
+
 // ── Settings Persistence ────────────────────────────────────
 export const GLOBAL_KEY_SOUND_ENABLED = 'pixel-agents.soundEnabled';
+export const GLOBAL_KEY_EXTERNAL_AGENTS_ENABLED = 'pixel-agents.externalAgentsEnabled';
 
 // ── VS Code Identifiers ─────────────────────────────────────
 export const VIEW_ID = 'pixel-agents.panelView';
@@ -40,3 +47,9 @@ export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';
 export const WORKSPACE_KEY_AGENT_SEATS = 'pixel-agents.agentSeats';
 export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
 export const TERMINAL_NAME_PREFIX = 'Claude Code';
+export const TMUX_TERMINAL_NAME_PREFIX = 'Claude (tmux)';
+export const TMUX_SESSION_NAME = 'pixel-agents';
+
+// ── Settings Persistence ────────────────────────────────────
+// (additional keys)
+export const GLOBAL_KEY_USE_TMUX = 'pixel-agents.useTmux';
