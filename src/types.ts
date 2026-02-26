@@ -2,7 +2,16 @@ import type * as vscode from 'vscode';
 
 export interface AgentState {
 	id: number;
-	terminalRef: vscode.Terminal;
+	/**
+	 * VS Code terminal that owns this agent.
+	 * Present for Claude agents; `undefined` for synthetic OpenClaw agents.
+	 */
+	terminalRef?: vscode.Terminal;
+	/**
+	 * OpenClaw run / session ID.
+	 * Present only for synthetic agents created by the OpenClaw event source.
+	 */
+	openclawAgentId?: string;
 	projectDir: string;
 	jsonlFile: string;
 	fileOffset: number;

@@ -137,6 +137,9 @@ export function persistAgents(
 ): void {
 	const persisted: PersistedAgent[] = [];
 	for (const agent of agents.values()) {
+		// Synthetic OpenClaw agents have no terminal and are not persisted
+		// across sessions (they are re-created from the live log stream).
+		if (!agent.terminalRef) { continue; }
 		persisted.push({
 			id: agent.id,
 			terminalName: agent.terminalRef.name,
