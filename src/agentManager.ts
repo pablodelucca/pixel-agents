@@ -29,19 +29,11 @@ export async function launchNewTerminal(
 	projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
+	folderPath?: string,
 ): Promise<void> {
 	const folders = vscode.workspace.workspaceFolders;
-	let cwd: string | undefined;
-	if (folders && folders.length > 1) {
-		const picked = await vscode.window.showQuickPick(
-			folders.map(f => ({ label: f.name, description: f.uri.fsPath, folder: f })),
-			{ placeHolder: 'Select workspace folder for Claude Code' },
-		);
-		if (!picked) return;
-		cwd = picked.folder.uri.fsPath;
-	} else {
-		cwd = folders?.[0]?.uri.fsPath;
-	}
+	const cwd = folderPath || folders?.[0]?.uri.fsPath;
+	const isMultiRoot = !!(folders && folders.length > 1);
 	const idx = nextTerminalIndexRef.current++;
 	const terminal = vscode.window.createTerminal({
 		name: `${TERMINAL_NAME_PREFIX} #${idx}`,
@@ -64,6 +56,7 @@ export async function launchNewTerminal(
 
 	// Create agent immediately (before JSONL file exists)
 	const id = nextAgentIdRef.current++;
+	const folderName = isMultiRoot && cwd ? path.basename(cwd) : undefined;
 	const agent: AgentState = {
 		id,
 		terminalRef: terminal,
@@ -79,13 +72,14 @@ export async function launchNewTerminal(
 		isWaiting: false,
 		permissionSent: false,
 		hadToolsInTurn: false,
+		folderName,
 	};
 
 	agents.set(id, agent);
 	activeAgentIdRef.current = id;
 	persistAgents();
 	console.log(`[Pixel Agents] Agent ${id}: created for terminal ${terminal.name}`);
-	webview?.postMessage({ type: 'agentCreated', id });
+	webview?.postMessage({ type: 'agentCreated', id, folderName });
 
 	ensureProjectScan(
 		projectDir, knownJsonlFiles, projectScanTimerRef, activeAgentIdRef,
@@ -153,6 +147,7 @@ export function persistAgents(
 			terminalName: agent.terminalRef.name,
 			jsonlFile: agent.jsonlFile,
 			projectDir: agent.projectDir,
+			folderName: agent.folderName,
 		});
 	}
 	context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
@@ -201,6 +196,7 @@ export function restoreAgents(
 			isWaiting: false,
 			permissionSent: false,
 			hadToolsInTurn: false,
+			folderName: p.folderName,
 		};
 
 		agents.set(p.id, agent);
@@ -277,12 +273,21 @@ export function sendExistingAgents(
 
 	// Include persisted palette/seatId from separate key
 	const agentMeta = context.workspaceState.get<Record<string, { palette?: number; seatId?: string }>>(WORKSPACE_KEY_AGENT_SEATS, {});
+
+	// Include folderName per agent
+	const folderNames: Record<number, string> = {};
+	for (const [id, agent] of agents) {
+		if (agent.folderName) {
+			folderNames[id] = agent.folderName;
+		}
+	}
 	console.log(`[Pixel Agents] sendExistingAgents: agents=${JSON.stringify(agentIds)}, meta=${JSON.stringify(agentMeta)}`);
 
 	webview.postMessage({
 		type: 'existingAgents',
 		agents: agentIds,
 		agentMeta,
+		folderNames,
 	});
 
 	sendCurrentAgentStatuses(agents, webview);

@@ -167,17 +167,33 @@ export function ToolOverlay({
                   }}
                 />
               )}
-              <span
-                style={{
-                  fontSize: isSub ? '20px' : '22px',
-                  fontStyle: isSub ? 'italic' : undefined,
-                  color: 'var(--vscode-foreground)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {activityText}
-              </span>
+              <div style={{ overflow: 'hidden' }}>
+                <span
+                  style={{
+                    fontSize: isSub ? '20px' : '22px',
+                    fontStyle: isSub ? 'italic' : undefined,
+                    color: 'var(--vscode-foreground)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    display: 'block',
+                  }}
+                >
+                  {activityText}
+                </span>
+                {ch.folderName && (
+                  <span
+                    style={{
+                      fontSize: '16px',
+                      color: 'var(--pixel-text-dim)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: 'block',
+                    }}
+                  >
+                    {ch.folderName}
+                  </span>
+                )}
+              </div>
               {isSelected && !isSub && (
                 <button
                   onClick={(e) => {

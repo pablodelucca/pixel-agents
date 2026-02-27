@@ -15,6 +15,8 @@ export interface AgentState {
 	isWaiting: boolean;
 	permissionSent: boolean;
 	hadToolsInTurn: boolean;
+	/** Workspace folder name (only set for multi-root workspaces) */
+	folderName?: string;
 }
 
 export interface PersistedAgent {
@@ -22,4 +24,6 @@ export interface PersistedAgent {
 	terminalName: string;
 	jsonlFile: string;
 	projectDir: string;
+	/** Workspace folder name (only set for multi-root workspaces) */
+	folderName?: string;
 }

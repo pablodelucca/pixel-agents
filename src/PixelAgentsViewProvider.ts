@@ -69,6 +69,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 					this.jsonlPollTimers, this.projectScanTimer,
 					this.webview, this.persistAgents,
+					message.folderPath as string | undefined,
 				);
 			} else if (message.type === 'focusAgent') {
 				const agent = this.agents.get(message.id);
@@ -101,6 +102,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				// Send persisted settings to webview
 				const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
 				this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled });
+
+				// Send workspace folders to webview (only when multi-root)
+				const wsFolders = vscode.workspace.workspaceFolders;
+				if (wsFolders && wsFolders.length > 1) {
+					this.webview?.postMessage({
+						type: 'workspaceFolders',
+						folders: wsFolders.map(f => ({ name: f.name, path: f.uri.fsPath })),
+					});
+				}
 
 				// Ensure project scan runs even with no restored agents (to adopt external terminals)
 				const projectDir = getProjectDirPath();
