@@ -9,6 +9,7 @@ import {
   CHAIR_SPRITE,
   PC_SPRITE,
   LAMP_SPRITE,
+  FOOSBALL_TABLE_SPRITE,
 } from '../sprites/spriteData.js'
 
 export interface LoadedAssetData {
@@ -47,6 +48,7 @@ export const FURNITURE_CATALOG: CatalogEntryWithCategory[] = [
   { type: FurnitureType.CHAIR,      label: 'Chair',      footprintW: 1, footprintH: 1, sprite: CHAIR_SPRITE,        isDesk: false, category: 'chairs' },
   { type: FurnitureType.PC,         label: 'PC',         footprintW: 1, footprintH: 1, sprite: PC_SPRITE,           isDesk: false, category: 'electronics' },
   { type: FurnitureType.LAMP,       label: 'Lamp',       footprintW: 1, footprintH: 1, sprite: LAMP_SPRITE,         isDesk: false, category: 'decor' },
+  { type: FurnitureType.FOOSBALL,   label: 'Foosball',   footprintW: 2, footprintH: 1, sprite: FOOSBALL_TABLE_SPRITE, isDesk: false, category: 'decor' },
 
 ]
 

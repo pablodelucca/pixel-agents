@@ -38,6 +38,7 @@ export const CharacterState = {
   IDLE: 'idle',
   WALK: 'walk',
   TYPE: 'type',
+  FOOSBALL: 'foosball',
 } as const
 export type CharacterState = (typeof CharacterState)[keyof typeof CharacterState]
 
@@ -91,6 +92,7 @@ export const FurnitureType = {
   CHAIR: 'chair',
   PC: 'pc',
   LAMP: 'lamp',
+  FOOSBALL: 'foosball',
 } as const
 export type FurnitureType = (typeof FurnitureType)[keyof typeof FurnitureType]
 

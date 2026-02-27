@@ -114,6 +114,11 @@ export function updateCharacter(
       break
     }
 
+    case CharacterState.FOOSBALL: {
+      // Foosball state: subtle idle animation, managed by FoosballManager
+      break
+    }
+
     case CharacterState.IDLE: {
       // No idle animation — static pose
       ch.frame = 0
@@ -287,6 +292,8 @@ export function getCharacterSprite(ch: Character, sprites: CharacterSprites): Sp
       return sprites.typing[ch.dir][ch.frame % 2]
     case CharacterState.WALK:
       return sprites.walk[ch.dir][ch.frame % 4]
+    case CharacterState.FOOSBALL:
+      return sprites.walk[ch.dir][ch.frame % 2 === 0 ? 1 : 2]
     case CharacterState.IDLE:
       return sprites.walk[ch.dir][1]
     default:
