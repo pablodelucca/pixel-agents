@@ -2,7 +2,7 @@ import type * as vscode from 'vscode';
 
 export interface AgentState {
 	id: number;
-	terminalRef: vscode.Terminal;
+	terminalRef: vscode.Terminal | null;
 	projectDir: string;
 	jsonlFile: string;
 	fileOffset: number;
@@ -15,6 +15,11 @@ export interface AgentState {
 	isWaiting: boolean;
 	permissionSent: boolean;
 	hadToolsInTurn: boolean;
+	isExternal: boolean;
+	isTmux: boolean;
+	tmuxSessionName: string | null;
+	tmuxWindowName: string | null;
+	lastDataTimestamp: number;
 }
 
 export interface PersistedAgent {
@@ -22,4 +27,8 @@ export interface PersistedAgent {
 	terminalName: string;
 	jsonlFile: string;
 	projectDir: string;
+	isExternal?: boolean;
+	isTmux?: boolean;
+	tmuxSessionName?: string;
+	tmuxWindowName?: string;
 }

@@ -14,6 +14,8 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard.js'
 import { ZoomControls } from './components/ZoomControls.js'
 import { BottomToolbar } from './components/BottomToolbar.js'
 import { DebugView } from './components/DebugView.js'
+import { AgentContextMenu } from './components/AgentContextMenu.js'
+import type { ContextMenuAction } from './components/AgentContextMenu.js'
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null }
@@ -121,11 +123,23 @@ function App() {
 
   const isEditDirty = useCallback(() => editor.isEditMode && editor.isDirty, [editor.isEditMode, editor.isDirty])
 
-  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
+  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, externalAgentIds, externalAgentsEnabled, setExternalAgentsEnabled, useTmux, setUseTmux, layoutReady, loadedAssets } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
 
   const [isDebugMode, setIsDebugMode] = useState(false)
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
+
+  const handleToggleExternalAgents = useCallback(() => {
+    const newVal = !externalAgentsEnabled
+    setExternalAgentsEnabled(newVal)
+    vscode.postMessage({ type: 'setExternalAgentsEnabled', enabled: newVal })
+  }, [externalAgentsEnabled, setExternalAgentsEnabled])
+
+  const handleToggleUseTmux = useCallback(() => {
+    const newVal = !useTmux
+    setUseTmux(newVal)
+    vscode.postMessage({ type: 'setUseTmux', enabled: newVal })
+  }, [useTmux, setUseTmux])
 
   const handleSelectAgent = useCallback((id: number) => {
     vscode.postMessage({ type: 'focusAgent', id })
@@ -146,16 +160,34 @@ function App() {
     editor.handleToggleEditMode,
   )
 
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{ agentId: number; x: number; y: number } | null>(null)
+
   const handleCloseAgent = useCallback((id: number) => {
     vscode.postMessage({ type: 'closeAgent', id })
   }, [])
 
   const handleClick = useCallback((agentId: number) => {
-    // If clicked agent is a sub-agent, focus the parent's terminal instead
+    setContextMenu(null)
     const os = getOfficeState()
+    const ch = os.characters.get(agentId)
+    if (ch?.isExternal) {
+      // Send focusAgent so extension can auto-attach tmux session
+      vscode.postMessage({ type: 'focusAgent', id: agentId })
+      return
+    }
+    // If clicked agent is a sub-agent, focus the parent's terminal instead
     const meta = os.subagentMeta.get(agentId)
     const focusId = meta ? meta.parentAgentId : agentId
     vscode.postMessage({ type: 'focusAgent', id: focusId })
+  }, [])
+
+  const handleAgentContextMenu = useCallback((agentId: number, screenX: number, screenY: number) => {
+    setContextMenu({ agentId, x: screenX, y: screenY })
+  }, [externalAgentIds])
+
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenu(null)
   }, [])
 
   const officeState = getOfficeState()
@@ -196,6 +228,7 @@ function App() {
       <OfficeCanvas
         officeState={officeState}
         onClick={handleClick}
+        onAgentContextMenu={handleAgentContextMenu}
         isEditMode={editor.isEditMode}
         editorState={editorState}
         onEditorTileAction={editor.handleEditorTileAction}
@@ -229,6 +262,10 @@ function App() {
         onToggleEditMode={editor.handleToggleEditMode}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
+        externalAgentsEnabled={externalAgentsEnabled}
+        onToggleExternalAgents={handleToggleExternalAgents}
+        useTmux={useTmux}
+        onToggleUseTmux={handleToggleUseTmux}
       />
 
       {editor.isEditMode && editor.isDirty && (
@@ -289,6 +326,7 @@ function App() {
         agents={agents}
         agentTools={agentTools}
         subagentCharacters={subagentCharacters}
+        externalAgentIds={externalAgentIds}
         containerRef={containerRef}
         zoom={editor.zoom}
         panRef={editor.panRef}
@@ -305,6 +343,48 @@ function App() {
           onSelectAgent={handleSelectAgent}
         />
       )}
+
+      {contextMenu && (() => {
+        const isExt = externalAgentIds.has(contextMenu.agentId)
+        const ch = officeState.characters.get(contextMenu.agentId)
+        const isSub = ch?.isSubagent ?? false
+        const actions: ContextMenuAction[] = []
+
+        if (isExt) {
+          actions.push({
+            label: 'Attach tmux',
+            onClick: () => vscode.postMessage({ type: 'focusAgent', id: contextMenu.agentId }),
+          })
+          actions.push({
+            label: 'Kill session',
+            onClick: () => vscode.postMessage({ type: 'closeAgent', id: contextMenu.agentId }),
+          })
+        } else if (!isSub) {
+          actions.push({
+            label: 'Focus terminal',
+            onClick: () => vscode.postMessage({ type: 'focusAgent', id: contextMenu.agentId }),
+          })
+          actions.push({
+            label: 'Close agent',
+            onClick: () => vscode.postMessage({ type: 'closeAgent', id: contextMenu.agentId }),
+          })
+        } else {
+          const meta = officeState.subagentMeta.get(contextMenu.agentId)
+          actions.push({
+            label: 'Focus parent',
+            onClick: () => vscode.postMessage({ type: 'focusAgent', id: meta?.parentAgentId ?? contextMenu.agentId }),
+          })
+        }
+
+        return (
+          <AgentContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            actions={actions}
+            onClose={handleCloseContextMenu}
+          />
+        )
+      })()}
     </div>
   )
 }

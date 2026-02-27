@@ -3,13 +3,14 @@ import type { ToolActivity } from '../types.js'
 import type { OfficeState } from '../engine/officeState.js'
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js'
 import { TILE_SIZE, CharacterState } from '../types.js'
-import { TOOL_OVERLAY_VERTICAL_OFFSET, CHARACTER_SITTING_OFFSET_PX } from '../../constants.js'
+import { TOOL_OVERLAY_VERTICAL_OFFSET, CHARACTER_SITTING_OFFSET_PX, EXTERNAL_AGENT_LABEL_PREFIX } from '../../constants.js'
 
 interface ToolOverlayProps {
   officeState: OfficeState
   agents: number[]
   agentTools: Record<number, ToolActivity[]>
   subagentCharacters: SubagentCharacter[]
+  externalAgentIds: Set<number>
   containerRef: React.RefObject<HTMLDivElement | null>
   zoom: number
   panRef: React.RefObject<{ x: number; y: number }>
@@ -45,6 +46,7 @@ export function ToolOverlay({
   agents,
   agentTools,
   subagentCharacters,
+  externalAgentIds,
   containerRef,
   zoom,
   panRef,
@@ -88,6 +90,7 @@ export function ToolOverlay({
         const isSelected = selectedId === id
         const isHovered = hoveredId === id
         const isSub = ch.isSubagent
+        const isExt = externalAgentIds.has(id)
 
         // Only show for hovered or selected agents
         if (!isSelected && !isHovered) return null
@@ -109,6 +112,9 @@ export function ToolOverlay({
           }
         } else {
           activityText = getActivityText(id, agentTools, ch.isActive)
+        }
+        if (isExt) {
+          activityText = EXTERNAL_AGENT_LABEL_PREFIX + activityText
         }
 
         // Determine dot color

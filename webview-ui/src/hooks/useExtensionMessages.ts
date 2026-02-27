@@ -42,6 +42,11 @@ export interface ExtensionMessageState {
   agentStatuses: Record<number, string>
   subagentTools: Record<number, Record<string, ToolActivity[]>>
   subagentCharacters: SubagentCharacter[]
+  externalAgentIds: Set<number>
+  externalAgentsEnabled: boolean
+  setExternalAgentsEnabled: (enabled: boolean) => void
+  useTmux: boolean
+  setUseTmux: (enabled: boolean) => void
   layoutReady: boolean
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> }
 }
@@ -66,6 +71,9 @@ export function useExtensionMessages(
   const [agentStatuses, setAgentStatuses] = useState<Record<number, string>>({})
   const [subagentTools, setSubagentTools] = useState<Record<number, Record<string, ToolActivity[]>>>({})
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([])
+  const [externalAgentIds, setExternalAgentIds] = useState<Set<number>>(new Set())
+  const [externalAgentsEnabled, setExternalAgentsEnabled] = useState(true)
+  const [useTmux, setUseTmux] = useState(false)
   const [layoutReady, setLayoutReady] = useState(false)
   const [loadedAssets, setLoadedAssets] = useState<{ catalog: FurnitureAsset[]; sprites: Record<string, string[][]> } | undefined>()
 
@@ -74,7 +82,7 @@ export function useExtensionMessages(
 
   useEffect(() => {
     // Buffer agents from existingAgents until layout is loaded
-    let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string }> = []
+    let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string; isExternal?: boolean }> = []
 
     const handler = (e: MessageEvent) => {
       const msg = e.data
@@ -97,7 +105,7 @@ export function useExtensionMessages(
         }
         // Add buffered agents now that layout (and seats) are correct
         for (const p of pendingAgents) {
-          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true)
+          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.isExternal)
         }
         pendingAgents = []
         layoutReadyRef.current = true
@@ -107,14 +115,30 @@ export function useExtensionMessages(
         }
       } else if (msg.type === 'agentCreated') {
         const id = msg.id as number
+        const isExternal = (msg.isExternal as boolean) || false
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]))
-        setSelectedAgent(id)
-        os.addAgent(id)
+        if (isExternal) {
+          setExternalAgentIds((prev) => {
+            if (prev.has(id)) return prev
+            const next = new Set(prev)
+            next.add(id)
+            return next
+          })
+        } else {
+          setSelectedAgent(id)
+        }
+        os.addAgent(id, undefined, undefined, undefined, undefined, isExternal)
         saveAgentSeats(os)
       } else if (msg.type === 'agentClosed') {
         const id = msg.id as number
         setAgents((prev) => prev.filter((a) => a !== id))
         setSelectedAgent((prev) => (prev === id ? null : prev))
+        setExternalAgentIds((prev) => {
+          if (!prev.has(id)) return prev
+          const next = new Set(prev)
+          next.delete(id)
+          return next
+        })
         setAgentTools((prev) => {
           if (!(id in prev)) return prev
           const next = { ...prev }
@@ -139,11 +163,13 @@ export function useExtensionMessages(
         os.removeAgent(id)
       } else if (msg.type === 'existingAgents') {
         const incoming = msg.agents as number[]
+        const extIds = (msg.externalIds || []) as number[]
         const meta = (msg.agentMeta || {}) as Record<number, { palette?: number; hueShift?: number; seatId?: string }>
+        const extIdSet = new Set(extIds)
         // Buffer agents — they'll be added in layoutLoaded after seats are built
         for (const id of incoming) {
           const m = meta[id]
-          pendingAgents.push({ id, palette: m?.palette, hueShift: m?.hueShift, seatId: m?.seatId })
+          pendingAgents.push({ id, palette: m?.palette, hueShift: m?.hueShift, seatId: m?.seatId, isExternal: extIdSet.has(id) })
         }
         setAgents((prev) => {
           const ids = new Set(prev)
@@ -155,6 +181,13 @@ export function useExtensionMessages(
           }
           return merged.sort((a, b) => a - b)
         })
+        if (extIds.length > 0) {
+          setExternalAgentIds((prev) => {
+            const next = new Set(prev)
+            for (const id of extIds) next.add(id)
+            return next
+          })
+        }
       } else if (msg.type === 'agentToolStart') {
         const id = msg.id as number
         const toolId = msg.toolId as string
@@ -330,6 +363,12 @@ export function useExtensionMessages(
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean
         setSoundEnabled(soundOn)
+        if (msg.externalAgentsEnabled !== undefined) {
+          setExternalAgentsEnabled(msg.externalAgentsEnabled as boolean)
+        }
+        if (msg.useTmux !== undefined) {
+          setUseTmux(msg.useTmux as boolean)
+        }
       } else if (msg.type === 'furnitureAssetsLoaded') {
         try {
           const catalog = msg.catalog as FurnitureAsset[]
@@ -348,5 +387,5 @@ export function useExtensionMessages(
     return () => window.removeEventListener('message', handler)
   }, [getOfficeState])
 
-  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets }
+  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, externalAgentIds, externalAgentsEnabled, setExternalAgentsEnabled, useTmux, setUseTmux, layoutReady, loadedAssets }
 }
