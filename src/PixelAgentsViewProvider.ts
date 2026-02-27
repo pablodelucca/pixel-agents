@@ -11,12 +11,14 @@ import {
 	sendExistingAgents,
 	sendLayout,
 	getProjectDirPath,
+	discoverOrphanedTmuxSessions,
 } from './agentManager.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
-import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
+import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED, TMUX_HEALTH_CHECK_INTERVAL_MS } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
+import { isTmuxAvailable, isTmuxSessionAlive, killTmuxSession, buildAttachCommand } from './tmuxManager.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	nextAgentId = { current: 1 };
@@ -35,6 +37,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	activeAgentId = { current: null as number | null };
 	knownJsonlFiles = new Set<string>();
 	projectScanTimer = { current: null as ReturnType<typeof setInterval> | null };
+
+	// Periodic tmux health check timer
+	tmuxHealthTimer: ReturnType<typeof setInterval> | null = null;
 
 	// Bundled default layout (loaded from assets/default-layout.json)
 	defaultLayout: Record<string, unknown> | null = null;
@@ -73,12 +78,51 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			} else if (message.type === 'focusAgent') {
 				const agent = this.agents.get(message.id);
 				if (agent) {
-					agent.terminalRef.show();
+					if (agent.isDetached && agent.tmuxSessionName) {
+						// Reattach to tmux session
+						if (!isTmuxSessionAlive(agent.tmuxSessionName)) {
+							// tmux session died — remove agent
+							removeAgent(
+								message.id, this.agents,
+								this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+								this.jsonlPollTimers, this.persistAgents,
+							);
+							webviewView.webview.postMessage({ type: 'agentClosed', id: message.id });
+							return;
+						}
+						const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+						const terminal = vscode.window.createTerminal({
+							name: `${agent.terminalRef?.name ?? 'Claude Code'} (reattached)`,
+							cwd,
+						});
+						terminal.show();
+						terminal.sendText(buildAttachCommand(agent.tmuxSessionName));
+						agent.terminalRef = terminal;
+						agent.isDetached = false;
+						this.persistAgents();
+						webviewView.webview.postMessage({ type: 'agentReattached', id: message.id });
+					} else if (agent.terminalRef) {
+						agent.terminalRef.show();
+					}
 				}
 			} else if (message.type === 'closeAgent') {
 				const agent = this.agents.get(message.id);
 				if (agent) {
-					agent.terminalRef.dispose();
+					// Kill tmux session first (so onDidCloseTerminal sees it as dead)
+					if (agent.tmuxSessionName) {
+						killTmuxSession(agent.tmuxSessionName);
+					}
+					if (agent.terminalRef) {
+						agent.terminalRef.dispose();
+					} else {
+						// Detached (no terminal) — remove directly
+						removeAgent(
+							message.id, this.agents,
+							this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+							this.jsonlPollTimers, this.persistAgents,
+						);
+						webviewView.webview.postMessage({ type: 'agentClosed', id: message.id });
+					}
 				}
 			} else if (message.type === 'saveAgentSeats') {
 				// Store seat assignments in a separate key (never touched by persistAgents)
@@ -214,6 +258,16 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					})();
 				}
 				sendExistingAgents(this.agents, this.context, this.webview);
+
+				// Discover orphaned tmux sessions from previous VS Code windows
+				discoverOrphanedTmuxSessions(
+					this.nextAgentId, this.agents, this.knownJsonlFiles,
+					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+					this.webview, this.persistAgents,
+				);
+
+				// Start periodic tmux health check
+				this.startTmuxHealthCheck(webviewView);
 			} else if (message.type === 'openSessionsFolder') {
 				const projectDir = getProjectDirPath();
 				if (projectDir && fs.existsSync(projectDir)) {
@@ -260,7 +314,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			this.activeAgentId.current = null;
 			if (!terminal) return;
 			for (const [id, agent] of this.agents) {
-				if (agent.terminalRef === terminal) {
+				if (agent.terminalRef && agent.terminalRef === terminal) {
 					this.activeAgentId.current = id;
 					webviewView.webview.postMessage({ type: 'agentSelected', id });
 					break;
@@ -270,16 +324,25 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
 		vscode.window.onDidCloseTerminal((closed) => {
 			for (const [id, agent] of this.agents) {
-				if (agent.terminalRef === closed) {
+				if (agent.terminalRef && agent.terminalRef === closed) {
 					if (this.activeAgentId.current === id) {
 						this.activeAgentId.current = null;
 					}
-					removeAgent(
-						id, this.agents,
-						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
-						this.jsonlPollTimers, this.persistAgents,
-					);
-					webviewView.webview.postMessage({ type: 'agentClosed', id });
+					// If tmux session is still alive, detach instead of removing
+					if (agent.tmuxSessionName && isTmuxSessionAlive(agent.tmuxSessionName)) {
+						agent.terminalRef = null;
+						agent.isDetached = true;
+						this.persistAgents();
+						webviewView.webview.postMessage({ type: 'agentDetached', id });
+						console.log(`[Pixel Agents] Agent ${id}: terminal closed, detached (tmux alive)`);
+					} else {
+						removeAgent(
+							id, this.agents,
+							this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+							this.jsonlPollTimers, this.persistAgents,
+						);
+						webviewView.webview.postMessage({ type: 'agentClosed', id });
+					}
 				}
 			}
 		});
@@ -303,6 +366,26 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		vscode.window.showInformationMessage(`Pixel Agents: Default layout exported to ${targetPath}`);
 	}
 
+	private startTmuxHealthCheck(webviewView: vscode.WebviewView): void {
+		if (this.tmuxHealthTimer) return;
+		if (!isTmuxAvailable()) return;
+		this.tmuxHealthTimer = setInterval(() => {
+			for (const [id, agent] of this.agents) {
+				if (agent.isDetached && agent.tmuxSessionName) {
+					if (!isTmuxSessionAlive(agent.tmuxSessionName)) {
+						console.log(`[Pixel Agents] Agent ${id}: tmux session died while detached, removing`);
+						removeAgent(
+							id, this.agents,
+							this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+							this.jsonlPollTimers, this.persistAgents,
+						);
+						webviewView.webview.postMessage({ type: 'agentClosed', id });
+					}
+				}
+			}
+		}, TMUX_HEALTH_CHECK_INTERVAL_MS);
+	}
+
 	private startLayoutWatcher(): void {
 		if (this.layoutWatcher) return;
 		this.layoutWatcher = watchLayoutFile((layout) => {
@@ -314,6 +397,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	dispose() {
 		this.layoutWatcher?.dispose();
 		this.layoutWatcher = null;
+		if (this.tmuxHealthTimer) {
+			clearInterval(this.tmuxHealthTimer);
+			this.tmuxHealthTimer = null;
+		}
 		for (const id of [...this.agents.keys()]) {
 			removeAgent(
 				id, this.agents,

@@ -7,6 +7,14 @@ import { cancelWaitingTimer, cancelPermissionTimer } from './timerManager.js';
 import { startFileWatching, readNewLines, ensureProjectScan } from './fileWatcher.js';
 import { JSONL_POLL_INTERVAL_MS, TERMINAL_NAME_PREFIX, WORKSPACE_KEY_AGENTS, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
 import { migrateAndLoadLayout } from './layoutPersistence.js';
+import {
+	isTmuxAvailable,
+	buildTmuxSessionName,
+	buildNewSessionCommand,
+	isTmuxSessionAlive,
+	listPixelAgentsSessions,
+	parseSessionUuidFromName,
+} from './tmuxManager.js';
 
 export function getProjectDirPath(cwd?: string): string | null {
 	const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -39,7 +47,14 @@ export function launchNewTerminal(
 	terminal.show();
 
 	const sessionId = crypto.randomUUID();
-	terminal.sendText(`claude --session-id ${sessionId}`);
+	const useTmux = isTmuxAvailable();
+	let tmuxSessionName: string | null = null;
+	if (useTmux) {
+		tmuxSessionName = buildTmuxSessionName(idx, sessionId);
+		terminal.sendText(buildNewSessionCommand(tmuxSessionName, sessionId));
+	} else {
+		terminal.sendText(`claude --session-id ${sessionId}`);
+	}
 
 	const projectDir = getProjectDirPath(cwd);
 	if (!projectDir) {
@@ -68,6 +83,8 @@ export function launchNewTerminal(
 		isWaiting: false,
 		permissionSent: false,
 		hadToolsInTurn: false,
+		tmuxSessionName,
+		isDetached: false,
 	};
 
 	agents.set(id, agent);
@@ -137,12 +154,16 @@ export function persistAgents(
 ): void {
 	const persisted: PersistedAgent[] = [];
 	for (const agent of agents.values()) {
-		persisted.push({
+		const entry: PersistedAgent = {
 			id: agent.id,
-			terminalName: agent.terminalRef.name,
+			terminalName: agent.terminalRef?.name ?? '',
 			jsonlFile: agent.jsonlFile,
 			projectDir: agent.projectDir,
-		});
+		};
+		if (agent.tmuxSessionName) {
+			entry.tmuxSessionName = agent.tmuxSessionName;
+		}
+		persisted.push(entry);
 	}
 	context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
 }
@@ -173,7 +194,44 @@ export function restoreAgents(
 
 	for (const p of persisted) {
 		const terminal = liveTerminals.find(t => t.name === p.terminalName);
-		if (!terminal) continue;
+
+		// If no matching terminal but has a live tmux session, restore as detached
+		if (!terminal) {
+			if (p.tmuxSessionName && isTmuxSessionAlive(p.tmuxSessionName)) {
+				const agent: AgentState = {
+					id: p.id,
+					terminalRef: null,
+					projectDir: p.projectDir,
+					jsonlFile: p.jsonlFile,
+					fileOffset: 0,
+					lineBuffer: '',
+					activeToolIds: new Set(),
+					activeToolStatuses: new Map(),
+					activeToolNames: new Map(),
+					activeSubagentToolIds: new Map(),
+					activeSubagentToolNames: new Map(),
+					isWaiting: false,
+					permissionSent: false,
+					hadToolsInTurn: false,
+					tmuxSessionName: p.tmuxSessionName,
+					isDetached: true,
+				};
+				agents.set(p.id, agent);
+				knownJsonlFiles.add(p.jsonlFile);
+				console.log(`[Pixel Agents] Restored agent ${p.id} as detached (tmux session "${p.tmuxSessionName}" alive)`);
+				if (p.id > maxId) maxId = p.id;
+				restoredProjectDir = p.projectDir;
+				// Start file watching — Claude is still running in tmux
+				try {
+					if (fs.existsSync(p.jsonlFile)) {
+						const stat = fs.statSync(p.jsonlFile);
+						agent.fileOffset = stat.size;
+						startFileWatching(p.id, p.jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
+					}
+				} catch { /* ignore */ }
+			}
+			continue;
+		}
 
 		const agent: AgentState = {
 			id: p.id,
@@ -190,6 +248,8 @@ export function restoreAgents(
 			isWaiting: false,
 			permissionSent: false,
 			hadToolsInTurn: false,
+			tmuxSessionName: p.tmuxSessionName ?? null,
+			isDetached: false,
 		};
 
 		agents.set(p.id, agent);
@@ -275,6 +335,13 @@ export function sendExistingAgents(
 	});
 
 	sendCurrentAgentStatuses(agents, webview);
+
+	// Notify webview about detached agents
+	for (const [agentId, agent] of agents) {
+		if (agent.isDetached) {
+			webview.postMessage({ type: 'agentDetached', id: agentId });
+		}
+	}
 }
 
 export function sendCurrentAgentStatuses(
@@ -300,6 +367,77 @@ export function sendCurrentAgentStatuses(
 				status: 'waiting',
 			});
 		}
+	}
+}
+
+export function discoverOrphanedTmuxSessions(
+	nextAgentIdRef: { current: number },
+	agents: Map<number, AgentState>,
+	knownJsonlFiles: Set<string>,
+	fileWatchers: Map<number, fs.FSWatcher>,
+	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	webview: vscode.Webview | undefined,
+	persistAgents: () => void,
+): void {
+	if (!isTmuxAvailable()) return;
+
+	const currentProjectDir = getProjectDirPath();
+	if (!currentProjectDir) return;
+
+	// Collect tmux session names already tracked by existing agents
+	const trackedSessions = new Set<string>();
+	for (const agent of agents.values()) {
+		if (agent.tmuxSessionName) trackedSessions.add(agent.tmuxSessionName);
+	}
+
+	const allSessions = listPixelAgentsSessions();
+	for (const sessionName of allSessions) {
+		if (trackedSessions.has(sessionName)) continue;
+
+		const uuid = parseSessionUuidFromName(sessionName);
+		if (!uuid) continue;
+
+		// Check if the JSONL file belongs to this workspace
+		const expectedFile = path.join(currentProjectDir, `${uuid}.jsonl`);
+		if (!fs.existsSync(expectedFile)) continue;
+
+		// Adopt as detached agent
+		const id = nextAgentIdRef.current++;
+		const agent: AgentState = {
+			id,
+			terminalRef: null,
+			projectDir: currentProjectDir,
+			jsonlFile: expectedFile,
+			fileOffset: 0,
+			lineBuffer: '',
+			activeToolIds: new Set(),
+			activeToolStatuses: new Map(),
+			activeToolNames: new Map(),
+			activeSubagentToolIds: new Map(),
+			activeSubagentToolNames: new Map(),
+			isWaiting: false,
+			permissionSent: false,
+			hadToolsInTurn: false,
+			tmuxSessionName: sessionName,
+			isDetached: true,
+		};
+
+		agents.set(id, agent);
+		knownJsonlFiles.add(expectedFile);
+		persistAgents();
+
+		console.log(`[Pixel Agents] Discovered orphaned tmux session "${sessionName}" → agent ${id}`);
+		webview?.postMessage({ type: 'agentCreated', id });
+		webview?.postMessage({ type: 'agentDetached', id });
+
+		// Start file watching — skip to end of file since Claude is already running
+		try {
+			const stat = fs.statSync(expectedFile);
+			agent.fileOffset = stat.size;
+			startFileWatching(id, expectedFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
+		} catch { /* ignore */ }
 	}
 }
 

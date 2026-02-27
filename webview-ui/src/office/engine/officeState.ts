@@ -491,6 +491,19 @@ export class OfficeState {
     return this.subagentIdMap.get(`${parentAgentId}:${parentToolId}`) ?? null
   }
 
+  setAgentDetached(id: number, detached: boolean): void {
+    const ch = this.characters.get(id)
+    if (!ch) return
+    ch.isDetached = detached
+    if (detached) {
+      ch.isActive = false
+      ch.bubbleType = 'detached'
+      ch.bubbleTimer = 0
+    } else {
+      ch.bubbleType = null
+    }
+  }
+
   setAgentActive(id: number, active: boolean): void {
     const ch = this.characters.get(id)
     if (ch) {

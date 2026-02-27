@@ -5,6 +5,7 @@ import { VIEW_ID, COMMAND_SHOW_PANEL, COMMAND_EXPORT_DEFAULT_LAYOUT } from './co
 let providerInstance: PixelAgentsViewProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
+	console.log('[Pixel Agents] ✅ DEV BUILD activated (tmux support)');
 	const provider = new PixelAgentsViewProvider(context);
 	providerInstance = provider;
 

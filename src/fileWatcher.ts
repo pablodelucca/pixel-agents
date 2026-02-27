@@ -148,7 +148,7 @@ function scanForNewJsonlFiles(
 				if (activeTerminal) {
 					let owned = false;
 					for (const agent of agents.values()) {
-						if (agent.terminalRef === activeTerminal) {
+						if (agent.terminalRef && agent.terminalRef === activeTerminal) {
 							owned = true;
 							break;
 						}
@@ -197,6 +197,8 @@ function adoptTerminalForFile(
 		isWaiting: false,
 		permissionSent: false,
 		hadToolsInTurn: false,
+		tmuxSessionName: null,
+		isDetached: false,
 	};
 
 	agents.set(id, agent);

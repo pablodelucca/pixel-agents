@@ -177,8 +177,10 @@ export interface Character {
   isActive: boolean
   /** Assigned seat uid, or null if no seat */
   seatId: string | null
+  /** Whether this agent's terminal is detached (tmux session still alive) */
+  isDetached: boolean
   /** Active speech bubble type, or null if none showing */
-  bubbleType: 'permission' | 'waiting' | null
+  bubbleType: 'permission' | 'waiting' | 'detached' | null
   /** Countdown timer for bubble (waiting: 2→0, permission: unused) */
   bubbleTimer: number
   /** Timer to stay seated while inactive after seat reassignment (counts down to 0) */

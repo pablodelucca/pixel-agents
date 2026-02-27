@@ -45,6 +45,7 @@
   /* Status dot colors */
   --pixel-status-permission: var(--vscode-charts-yellow, #cca700);
   --pixel-status-active: var(--vscode-charts-blue, #3794ff);
+  --pixel-status-detached: rgba(120, 130, 160, 0.8);
 
   /* ToolOverlay z-index layers */
   --pixel-overlay-z: 100;
