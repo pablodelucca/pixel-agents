@@ -46,6 +46,31 @@
           "name": "Pixel Agents"
         }
       ]
+    },
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixelAgents.source": {
+          "type": "string",
+          "default": "claude",
+          "enum": [
+            "claude",
+            "openclaw"
+          ],
+          "enumDescriptions": [
+            "Track Claude Code agents via JSONL transcript files (default).",
+            "Track OpenClaw agents via the `openclaw logs --follow --json` stream."
+          ],
+          "description": "Event source for agent activity tracking. Requires a window reload when changed.",
+          "order": 1
+        },
+        "pixelAgents.openclaw.agentIdFilter": {
+          "type": "string",
+          "default": "",
+          "description": "OpenClaw source only: when non-empty, only display activity for this specific OpenClaw agent ID. Leave empty to display all agents.",
+          "order": 2
+        }
+      }
     }
   },
   "scripts": {

@@ -17,6 +17,8 @@ import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTile
 import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
+import { getConfiguredSourceType, getOpenClawAgentIdFilter } from './event-sources/registry.js';
+import { OpenClawEventSource } from './event-sources/openclaw.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	nextAgentId = { current: 1 };
@@ -42,6 +44,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	// Cross-window layout sync
 	layoutWatcher: LayoutWatcher | null = null;
 
+	// OpenClaw event source (null when running in Claude mode)
+	openclawSource: OpenClawEventSource | null = null;
+
 	constructor(private readonly context: vscode.ExtensionContext) {}
 
 	private get extensionUri(): vscode.Uri {
@@ -63,6 +68,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
 		webviewView.webview.onDidReceiveMessage(async (message) => {
 			if (message.type === 'openClaude') {
+				// In OpenClaw mode, agent creation is driven by the log stream —
+				// the "+ Agent" button is a no-op to avoid confusion.
+				if (this.openclawSource) { return; }
 				launchNewTerminal(
 					this.nextAgentId, this.nextTerminalIndex,
 					this.agents, this.activeAgentId, this.knownJsonlFiles,
@@ -71,13 +79,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					this.webview, this.persistAgents,
 				);
 			} else if (message.type === 'focusAgent') {
-				const agent = this.agents.get(message.id);
-				if (agent) {
+				const agent = this.agents.get(message.id as number);
+				if (agent?.terminalRef) {
 					agent.terminalRef.show();
 				}
 			} else if (message.type === 'closeAgent') {
-				const agent = this.agents.get(message.id);
-				if (agent) {
+				const agent = this.agents.get(message.id as number);
+				if (agent?.terminalRef) {
 					agent.terminalRef.dispose();
 				}
 			} else if (message.type === 'saveAgentSeats') {
@@ -90,14 +98,41 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			} else if (message.type === 'setSoundEnabled') {
 				this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
 			} else if (message.type === 'webviewReady') {
-				restoreAgents(
-					this.context,
-					this.nextAgentId, this.nextTerminalIndex,
-					this.agents, this.knownJsonlFiles,
-					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
-					this.jsonlPollTimers, this.projectScanTimer, this.activeAgentId,
-					this.webview, this.persistAgents,
-				);
+				const sourceType = getConfiguredSourceType();
+				console.log(`[Extension] Event source: ${sourceType}`);
+
+				if (sourceType === 'openclaw') {
+					// ── OpenClaw mode ────────────────────────────────────────────
+					// Synthetic agents are created on demand from the log stream;
+					// no JSONL file scanning or terminal management is needed.
+					if (!this.openclawSource) {
+						const agentIdFilter = getOpenClawAgentIdFilter();
+						this.openclawSource = new OpenClawEventSource(
+							this.nextAgentId,
+							this.agents,
+							this.waitingTimers,
+							this.permissionTimers,
+							this.webview,
+							agentIdFilter,
+							(_pixelId) => { /* agent already posted via webview inside getOrCreateRun */ },
+						);
+						this.openclawSource.start();
+					} else {
+						// Webview was recreated — update the webview reference.
+						this.openclawSource.setWebview(this.webview);
+					}
+				} else {
+					// ── Claude mode (default) ────────────────────────────────────
+					restoreAgents(
+						this.context,
+						this.nextAgentId, this.nextTerminalIndex,
+						this.agents, this.knownJsonlFiles,
+						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+						this.jsonlPollTimers, this.projectScanTimer, this.activeAgentId,
+						this.webview, this.persistAgents,
+					);
+				}
+
 				// Send persisted settings to webview
 				const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
 				this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled });
@@ -108,12 +143,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				console.log('[Extension] workspaceRoot:', workspaceRoot);
 				console.log('[Extension] projectDir:', projectDir);
 				if (projectDir) {
-					ensureProjectScan(
-						projectDir, this.knownJsonlFiles, this.projectScanTimer, this.activeAgentId,
-						this.nextAgentId, this.agents,
-						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
-						this.webview, this.persistAgents,
-					);
+					// Claude mode only: scan for new JSONL files (agent/clear detection).
+					if (sourceType !== 'openclaw') {
+						ensureProjectScan(
+							projectDir, this.knownJsonlFiles, this.projectScanTimer, this.activeAgentId,
+							this.nextAgentId, this.agents,
+							this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+							this.webview, this.persistAgents,
+						);
+					}
 
 					// Load furniture assets BEFORE sending layout
 					(async () => {
@@ -258,9 +296,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
 		vscode.window.onDidChangeActiveTerminal((terminal) => {
 			this.activeAgentId.current = null;
-			if (!terminal) return;
+			if (!terminal) { return; }
 			for (const [id, agent] of this.agents) {
-				if (agent.terminalRef === terminal) {
+				if (agent.terminalRef && agent.terminalRef === terminal) {
 					this.activeAgentId.current = id;
 					webviewView.webview.postMessage({ type: 'agentSelected', id });
 					break;
@@ -270,7 +308,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
 		vscode.window.onDidCloseTerminal((closed) => {
 			for (const [id, agent] of this.agents) {
-				if (agent.terminalRef === closed) {
+				if (agent.terminalRef && agent.terminalRef === closed) {
 					if (this.activeAgentId.current === id) {
 						this.activeAgentId.current = null;
 					}
@@ -314,6 +352,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	dispose() {
 		this.layoutWatcher?.dispose();
 		this.layoutWatcher = null;
+		this.openclawSource?.dispose();
+		this.openclawSource = null;
 		for (const id of [...this.agents.keys()]) {
 			removeAgent(
 				id, this.agents,

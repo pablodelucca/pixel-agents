@@ -79,6 +79,57 @@ Fair warning: the import pipeline is not exactly straightforward — the out-of-
 
 The extension will still work without the tileset — you'll get the default characters and basic layout, but the full furniture catalog requires the imported assets.
 
+## OpenClaw source mode
+
+By default Pixel Agents watches Claude Code's JSONL transcripts. You can switch it to track **OpenClaw** agents instead.
+
+### 1. Set the source in VS Code settings
+
+```json
+// .vscode/settings.json  (or User / Workspace settings)
+{
+  "pixelAgents.source": "openclaw"
+}
+```
+
+Reload the window (`Ctrl+Shift+P → Developer: Reload Window`) after changing this setting.
+
+### 2. Optionally filter by agent ID
+
+```json
+{
+  "pixelAgents.source": "openclaw",
+  "pixelAgents.openclaw.agentIdFilter": "my-agent-id"
+}
+```
+
+When `agentIdFilter` is set only events matching that agent ID are shown. Leave it empty to display all running agents.
+
+### 3. Start OpenClaw with JSON log output
+
+```bash
+openclaw logs --follow --json
+```
+
+Pixel Agents spawns this command automatically in the background as soon as the panel opens in OpenClaw mode. Each run/session that appears in the stream gets its own animated character, driven by the following event mapping:
+
+| OpenClaw event | Visual state |
+|---|---|
+| `tool=read` / `web_fetch` | Reading (character looks at files) |
+| `tool=write` / `edit` | Typing (character at keyboard) |
+| `tool=exec` | Running (command execution) |
+| `run_registered` | Active (character starts walking) |
+| `run_cleared` | Idle (character waits at desk) |
+| `error` / `timeout` | Needs attention (speech bubble) |
+
+> **Note** — the `+ Agent` button is intentionally disabled in OpenClaw mode; new characters appear automatically as OpenClaw registers new runs.
+
+### Fallback
+
+If the `openclaw` binary is not found in `PATH`, a VS Code warning is shown and you can retry after installation.
+
+---
+
 ## How It Works
 
 Pixel Agents watches Claude Code's JSONL transcript files to track what each agent is doing. When an agent uses a tool (like writing a file or running a command), the extension detects it and updates the character's animation accordingly. No modifications to Claude Code are needed — it's purely observational.
