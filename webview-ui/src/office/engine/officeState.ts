@@ -193,7 +193,7 @@ export class OfficeState {
     return { palette, hueShift }
   }
 
-  addAgent(id: number, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean): void {
+  addAgent(id: number, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean, role?: string, taskNote?: string, isBlocked?: boolean): void {
     if (this.characters.has(id)) return
 
     let palette: number
@@ -241,7 +241,19 @@ export class OfficeState {
       ch.matrixEffectTimer = 0
       ch.matrixEffectSeeds = matrixEffectSeeds()
     }
+    if (role !== undefined) ch.role = role
+    if (taskNote !== undefined) ch.taskNote = taskNote
+    if (isBlocked !== undefined) ch.isBlocked = isBlocked
     this.characters.set(id, ch)
+  }
+
+  setAgentRole(id: number, role: string, taskNote: string, isBlocked: boolean): void {
+    const ch = this.characters.get(id)
+    if (ch) {
+      ch.role = role
+      ch.taskNote = taskNote
+      ch.isBlocked = isBlocked
+    }
   }
 
   removeAgent(id: number): void {

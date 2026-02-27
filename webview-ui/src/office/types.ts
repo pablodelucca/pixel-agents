@@ -183,6 +183,12 @@ export interface Character {
   bubbleTimer: number
   /** Timer to stay seated while inactive after seat reassignment (counts down to 0) */
   seatTimer: number
+  /** Custom role label for this agent (e.g. "Codex Engineer") */
+  role?: string
+  /** One-line task description */
+  taskNote?: string
+  /** Manual blocked status (coexists with JSONL status) */
+  isBlocked?: boolean
   /** Whether this character represents a sub-agent (spawned by Task tool) */
   isSubagent: boolean
   /** Parent agent ID if this is a sub-agent, null otherwise */

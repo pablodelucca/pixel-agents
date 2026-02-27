@@ -14,6 +14,8 @@ interface ToolOverlayProps {
   zoom: number
   panRef: React.RefObject<{ x: number; y: number }>
   onCloseAgent: (id: number) => void
+  onFocusAgent: (id: number) => void
+  onUpdateAgentRole: (id: number, role: string, taskNote: string, isBlocked: boolean) => void
 }
 
 /** Derive a short human-readable activity string from tools/status */
@@ -40,6 +42,184 @@ function getActivityText(
   return 'Idle'
 }
 
+interface RoleEditSectionProps {
+  id: number
+  role: string
+  taskNote: string
+  isBlocked: boolean
+  onUpdateAgentRole: (id: number, role: string, taskNote: string, isBlocked: boolean) => void
+}
+
+function RoleEditSection({ id, role, taskNote, isBlocked, onUpdateAgentRole }: RoleEditSectionProps) {
+  const [editingField, setEditingField] = useState<'role' | 'note' | null>(null)
+  const [draftRole, setDraftRole] = useState(role)
+  const [draftNote, setDraftNote] = useState(taskNote)
+
+  // Sync drafts when props change (e.g. restored from persistence)
+  useEffect(() => { setDraftRole(role) }, [role])
+  useEffect(() => { setDraftNote(taskNote) }, [taskNote])
+
+  const commitRole = () => {
+    setEditingField(null)
+    onUpdateAgentRole(id, draftRole, taskNote, isBlocked)
+  }
+
+  const commitNote = () => {
+    setEditingField(null)
+    onUpdateAgentRole(id, role, draftNote, isBlocked)
+  }
+
+  const toggleBlocked = () => {
+    onUpdateAgentRole(id, role, taskNote, !isBlocked)
+  }
+
+  const inputStyle: React.CSSProperties = {
+    background: 'var(--pixel-bg)',
+    color: 'var(--vscode-foreground)',
+    border: '2px solid var(--pixel-accent)',
+    borderRadius: 0,
+    fontSize: '20px',
+    padding: '2px 4px',
+    outline: 'none',
+    width: 140,
+    fontFamily: 'inherit',
+  }
+
+  const iconBtnStyle: React.CSSProperties = {
+    background: 'none',
+    border: 'none',
+    color: 'var(--pixel-text-dim)',
+    cursor: 'pointer',
+    padding: '0 2px',
+    fontSize: '18px',
+    lineHeight: 1,
+    flexShrink: 0,
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        background: 'var(--pixel-bg)',
+        border: '2px solid var(--pixel-border)',
+        borderTop: 'none',
+        padding: '4px 6px',
+        gap: 3,
+        minWidth: 160,
+        boxShadow: 'var(--pixel-shadow)',
+      }}
+    >
+      {/* Role row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        {editingField === 'role' ? (
+          <>
+            <input
+              autoFocus
+              value={draftRole}
+              onChange={(e) => setDraftRole(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRole()
+                if (e.key === 'Escape') { setDraftRole(role); setEditingField(null) }
+              }}
+              onBlur={commitRole}
+              placeholder="Role name…"
+              style={inputStyle}
+            />
+            <button style={iconBtnStyle} onMouseDown={(e) => { e.preventDefault(); commitRole() }} title="Confirm">✓</button>
+          </>
+        ) : (
+          <>
+            <span
+              style={{
+                fontSize: '20px',
+                color: role ? 'var(--pixel-accent)' : 'var(--pixel-text-dim)',
+                flex: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {role || 'Set role…'}
+            </span>
+            <button
+              style={iconBtnStyle}
+              onClick={() => { setDraftRole(role); setEditingField('role') }}
+              title="Edit role"
+            >
+              ✏
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Task note row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        {editingField === 'note' ? (
+          <>
+            <input
+              autoFocus
+              value={draftNote}
+              onChange={(e) => setDraftNote(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitNote()
+                if (e.key === 'Escape') { setDraftNote(taskNote); setEditingField(null) }
+              }}
+              onBlur={commitNote}
+              placeholder="Task note…"
+              style={inputStyle}
+            />
+            <button style={iconBtnStyle} onMouseDown={(e) => { e.preventDefault(); commitNote() }} title="Confirm">✓</button>
+          </>
+        ) : (
+          <>
+            <span
+              style={{
+                fontSize: '18px',
+                color: 'var(--pixel-text-dim)',
+                flex: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                fontStyle: 'italic',
+              }}
+            >
+              {taskNote || 'Add note…'}
+            </span>
+            <button
+              style={iconBtnStyle}
+              onClick={() => { setDraftNote(taskNote); setEditingField('note') }}
+              title="Edit task note"
+            >
+              ✏
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Blocked toggle */}
+      <button
+        onClick={toggleBlocked}
+        title={isBlocked ? 'Clear blocked status' : 'Mark as blocked'}
+        style={{
+          background: isBlocked ? 'rgba(255, 160, 50, 0.15)' : 'none',
+          border: isBlocked ? '2px solid rgba(255, 160, 50, 0.6)' : '2px solid transparent',
+          borderRadius: 0,
+          color: isBlocked ? '#ffa032' : 'var(--pixel-text-dim)',
+          cursor: 'pointer',
+          fontSize: '18px',
+          padding: '2px 6px',
+          textAlign: 'left',
+          fontFamily: 'inherit',
+        }}
+      >
+        {isBlocked ? '⊗ Blocked' : '○ Blocked'}
+      </button>
+    </div>
+  )
+}
+
 export function ToolOverlay({
   officeState,
   agents,
@@ -49,6 +229,8 @@ export function ToolOverlay({
   zoom,
   panRef,
   onCloseAgent,
+  onFocusAgent,
+  onUpdateAgentRole,
 }: ToolOverlayProps) {
   const [, setTick] = useState(0)
   useEffect(() => {
@@ -124,6 +306,8 @@ export function ToolOverlay({
           dotColor = 'var(--pixel-status-active)'
         }
 
+        const isBlocked = ch.isBlocked ?? false
+
         return (
           <div
             key={id}
@@ -155,7 +339,10 @@ export function ToolOverlay({
                 maxWidth: 220,
               }}
             >
-              {dotColor && (
+              {isBlocked && (
+                <span style={{ fontSize: '20px', color: '#ffa032', flexShrink: 0 }}>⊗</span>
+              )}
+              {dotColor && !isBlocked && (
                 <span
                   className={isActive && !hasPermission ? 'pixel-agents-pulse' : undefined}
                   style={{
@@ -171,42 +358,81 @@ export function ToolOverlay({
                 style={{
                   fontSize: isSub ? '20px' : '22px',
                   fontStyle: isSub ? 'italic' : undefined,
-                  color: 'var(--vscode-foreground)',
+                  color: isBlocked ? '#ffa032' : 'var(--vscode-foreground)',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                 }}
               >
-                {activityText}
+                {isBlocked ? `Blocked · ${activityText}` : activityText}
               </span>
               {isSelected && !isSub && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onCloseAgent(id)
-                  }}
-                  title="Close agent"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--pixel-close-text)',
-                    cursor: 'pointer',
-                    padding: '0 2px',
-                    fontSize: '26px',
-                    lineHeight: 1,
-                    marginLeft: 2,
-                    flexShrink: 0,
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.color = 'var(--pixel-close-hover)'
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.color = 'var(--pixel-close-text)'
-                  }}
-                >
-                  ×
-                </button>
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onFocusAgent(id)
+                    }}
+                    title="Focus terminal"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--pixel-text-dim)',
+                      cursor: 'pointer',
+                      padding: '0 2px',
+                      fontSize: '18px',
+                      lineHeight: 1,
+                      marginLeft: 2,
+                      flexShrink: 0,
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.color = 'var(--vscode-foreground)'
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.color = 'var(--pixel-text-dim)'
+                    }}
+                  >
+                    ⌨
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onCloseAgent(id)
+                    }}
+                    title="Close agent"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--pixel-close-text)',
+                      cursor: 'pointer',
+                      padding: '0 2px',
+                      fontSize: '26px',
+                      lineHeight: 1,
+                      marginLeft: 2,
+                      flexShrink: 0,
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.color = 'var(--pixel-close-hover)'
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.color = 'var(--pixel-close-text)'
+                    }}
+                  >
+                    ×
+                  </button>
+                </>
               )}
             </div>
+
+            {/* Role/note/blocked edit section — only when selected, non-subagent */}
+            {isSelected && !isSub && (
+              <RoleEditSection
+                id={id}
+                role={ch.role ?? ''}
+                taskNote={ch.taskNote ?? ''}
+                isBlocked={isBlocked}
+                onUpdateAgentRole={onUpdateAgentRole}
+              />
+            )}
           </div>
         )
       })}

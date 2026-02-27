@@ -44,6 +44,7 @@ export interface ExtensionMessageState {
   subagentCharacters: SubagentCharacter[]
   layoutReady: boolean
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> }
+  onUpdateAgentRole: (id: number, role: string, taskNote: string, isBlocked: boolean) => void
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -53,6 +54,15 @@ function saveAgentSeats(os: OfficeState): void {
     seats[ch.id] = { palette: ch.palette, hueShift: ch.hueShift, seatId: ch.seatId }
   }
   vscode.postMessage({ type: 'saveAgentSeats', seats })
+}
+
+function saveAgentRoles(os: OfficeState): void {
+  const roles: Record<number, { role: string; taskNote: string; isBlocked: boolean }> = {}
+  for (const ch of os.characters.values()) {
+    if (ch.isSubagent) continue
+    roles[ch.id] = { role: ch.role ?? '', taskNote: ch.taskNote ?? '', isBlocked: ch.isBlocked ?? false }
+  }
+  vscode.postMessage({ type: 'saveAgentRoles', roles })
 }
 
 export function useExtensionMessages(
@@ -74,7 +84,7 @@ export function useExtensionMessages(
 
   useEffect(() => {
     // Buffer agents from existingAgents until layout is loaded
-    let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string }> = []
+    let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string; role?: string; taskNote?: string; isBlocked?: boolean }> = []
 
     const handler = (e: MessageEvent) => {
       const msg = e.data
@@ -97,7 +107,7 @@ export function useExtensionMessages(
         }
         // Add buffered agents now that layout (and seats) are correct
         for (const p of pendingAgents) {
-          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true)
+          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.role, p.taskNote, p.isBlocked)
         }
         pendingAgents = []
         layoutReadyRef.current = true
@@ -140,10 +150,12 @@ export function useExtensionMessages(
       } else if (msg.type === 'existingAgents') {
         const incoming = msg.agents as number[]
         const meta = (msg.agentMeta || {}) as Record<number, { palette?: number; hueShift?: number; seatId?: string }>
+        const roles = (msg.agentRoles || {}) as Record<number, { role?: string; taskNote?: string; isBlocked?: boolean }>
         // Buffer agents — they'll be added in layoutLoaded after seats are built
         for (const id of incoming) {
           const m = meta[id]
-          pendingAgents.push({ id, palette: m?.palette, hueShift: m?.hueShift, seatId: m?.seatId })
+          const r = roles[id]
+          pendingAgents.push({ id, palette: m?.palette, hueShift: m?.hueShift, seatId: m?.seatId, role: r?.role, taskNote: r?.taskNote, isBlocked: r?.isBlocked })
         }
         setAgents((prev) => {
           const ids = new Set(prev)
@@ -348,5 +360,11 @@ export function useExtensionMessages(
     return () => window.removeEventListener('message', handler)
   }, [getOfficeState])
 
-  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets }
+  const onUpdateAgentRole = (id: number, role: string, taskNote: string, isBlocked: boolean): void => {
+    const os = getOfficeState()
+    os.setAgentRole(id, role, taskNote, isBlocked)
+    saveAgentRoles(os)
+  }
+
+  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, onUpdateAgentRole }
 }
