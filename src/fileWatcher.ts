@@ -16,7 +16,7 @@ export function startFileWatching(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 ): void {
-	// Primary: fs.watch
+	// Primary: fs.watch (unreliable on macOS — may miss events)
 	try {
 		const watcher = fs.watch(filePath, () => {
 			readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
@@ -26,9 +26,22 @@ export function startFileWatching(
 		console.log(`[Pixel Agents] fs.watch failed for agent ${agentId}: ${e}`);
 	}
 
-	// Backup: poll every 2s
+	// Secondary: fs.watchFile (stat-based polling, reliable on macOS)
+	try {
+		fs.watchFile(filePath, { interval: FILE_WATCHER_POLL_INTERVAL_MS }, () => {
+			readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
+		});
+	} catch (e) {
+		console.log(`[Pixel Agents] fs.watchFile failed for agent ${agentId}: ${e}`);
+	}
+
+	// Tertiary: manual poll as last resort
 	const interval = setInterval(() => {
-		if (!agents.has(agentId)) { clearInterval(interval); return; }
+		if (!agents.has(agentId)) {
+			clearInterval(interval);
+			try { fs.unwatchFile(filePath); } catch { /* ignore */ }
+			return;
+		}
 		readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
 	}, FILE_WATCHER_POLL_INTERVAL_MS);
 	pollingTimers.set(agentId, interval);
@@ -230,6 +243,7 @@ export function reassignAgentToFile(
 	const pt = pollingTimers.get(agentId);
 	if (pt) { clearInterval(pt); }
 	pollingTimers.delete(agentId);
+	try { fs.unwatchFile(agent.jsonlFile); } catch { /* ignore */ }
 
 	// Clear activity
 	cancelWaitingTimer(agentId, waitingTimers);

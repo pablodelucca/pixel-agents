@@ -11,8 +11,10 @@ import { migrateAndLoadLayout } from './layoutPersistence.js';
 export function getProjectDirPath(cwd?: string): string | null {
 	const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	if (!workspacePath) return null;
-	const dirName = workspacePath.replace(/[:\\/]/g, '-');
-	return path.join(os.homedir(), '.claude', 'projects', dirName);
+	const dirName = workspacePath.replace(/[^a-zA-Z0-9-]/g, '-');
+	const projectDir = path.join(os.homedir(), '.claude', 'projects', dirName);
+	console.log(`[Pixel Agents] Project dir: ${workspacePath} → ${dirName}`);
+	return projectDir;
 }
 
 export async function launchNewTerminal(
@@ -126,6 +128,7 @@ export function removeAgent(
 	const pt = pollingTimers.get(agentId);
 	if (pt) { clearInterval(pt); }
 	pollingTimers.delete(agentId);
+	try { fs.unwatchFile(agent.jsonlFile); } catch { /* ignore */ }
 
 	// Cancel timers
 	cancelWaitingTimer(agentId, waitingTimers);
