@@ -21,6 +21,7 @@ export function launchNewTerminal(
 	agents: Map<number, AgentState>,
 	activeAgentIdRef: { current: number | null },
 	knownJsonlFiles: Set<string>,
+	adoptableFiles: Set<string>,
 	fileWatchers: Map<number, fs.FSWatcher>,
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
@@ -77,7 +78,7 @@ export function launchNewTerminal(
 	webview?.postMessage({ type: 'agentCreated', id });
 
 	ensureProjectScan(
-		projectDir, knownJsonlFiles, projectScanTimerRef, activeAgentIdRef,
+		projectDir, knownJsonlFiles, adoptableFiles, projectScanTimerRef, activeAgentIdRef,
 		nextAgentIdRef, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
 		webview, persistAgents,
 	);
@@ -153,6 +154,7 @@ export function restoreAgents(
 	nextTerminalIndexRef: { current: number },
 	agents: Map<number, AgentState>,
 	knownJsonlFiles: Set<string>,
+	adoptableFiles: Set<string>,
 	fileWatchers: Map<number, fs.FSWatcher>,
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
@@ -245,7 +247,7 @@ export function restoreAgents(
 	// Start project scan for /clear detection
 	if (restoredProjectDir) {
 		ensureProjectScan(
-			restoredProjectDir, knownJsonlFiles, projectScanTimerRef, activeAgentIdRef,
+			restoredProjectDir, knownJsonlFiles, adoptableFiles, projectScanTimerRef, activeAgentIdRef,
 			nextAgentIdRef, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
 			webview, doPersist,
 		);

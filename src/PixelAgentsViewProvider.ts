@@ -34,6 +34,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	// /clear detection: project-level scan for new JSONL files
 	activeAgentId = { current: null as number | null };
 	knownJsonlFiles = new Set<string>();
+	adoptableFiles = new Set<string>();
 	projectScanTimer = { current: null as ReturnType<typeof setInterval> | null };
 
 	// Bundled default layout (loaded from assets/default-layout.json)
@@ -65,7 +66,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			if (message.type === 'openClaude') {
 				launchNewTerminal(
 					this.nextAgentId, this.nextTerminalIndex,
-					this.agents, this.activeAgentId, this.knownJsonlFiles,
+					this.agents, this.activeAgentId, this.knownJsonlFiles, this.adoptableFiles,
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 					this.jsonlPollTimers, this.projectScanTimer,
 					this.webview, this.persistAgents,
@@ -93,7 +94,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				restoreAgents(
 					this.context,
 					this.nextAgentId, this.nextTerminalIndex,
-					this.agents, this.knownJsonlFiles,
+					this.agents, this.knownJsonlFiles, this.adoptableFiles,
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 					this.jsonlPollTimers, this.projectScanTimer, this.activeAgentId,
 					this.webview, this.persistAgents,
@@ -109,7 +110,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				console.log('[Extension] projectDir:', projectDir);
 				if (projectDir) {
 					ensureProjectScan(
-						projectDir, this.knownJsonlFiles, this.projectScanTimer, this.activeAgentId,
+						projectDir, this.knownJsonlFiles, this.adoptableFiles, this.projectScanTimer, this.activeAgentId,
 						this.nextAgentId, this.agents,
 						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 						this.webview, this.persistAgents,
