@@ -72,6 +72,7 @@ export function startPermissionTimer(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionExemptTools: Set<string>,
 	webview: vscode.Webview | undefined,
+	delayMs = PERMISSION_TIMER_DELAY_MS,
 ): void {
 	cancelPermissionTimer(agentId, permissionTimers);
 	const timer = setTimeout(() => {
@@ -117,6 +118,6 @@ export function startPermissionTimer(
 				});
 			}
 		}
-	}, PERMISSION_TIMER_DELAY_MS);
+	}, delayMs);
 	permissionTimers.set(agentId, timer);
 }

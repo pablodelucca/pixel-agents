@@ -1,7 +1,10 @@
 import type * as vscode from 'vscode';
 
+export type CliProvider = 'claude' | 'codex';
+
 export interface AgentState {
 	id: number;
+	provider: CliProvider;
 	terminalRef: vscode.Terminal;
 	projectDir: string;
 	jsonlFile: string;
@@ -19,6 +22,7 @@ export interface AgentState {
 
 export interface PersistedAgent {
 	id: number;
+	provider: CliProvider;
 	terminalName: string;
 	jsonlFile: string;
 	projectDir: string;

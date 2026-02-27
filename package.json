@@ -46,6 +46,25 @@
           "name": "Pixel Agents"
         }
       ]
+    },
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixel-agents.cliProvider": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "default": "claude",
+          "description": "CLI transcript provider used by Pixel Agents. Claude remains the default for backward compatibility."
+        },
+        "pixel-agents.claudeCommand": {
+          "type": "string",
+          "default": "claude",
+          "description": "Command used to launch Claude sessions (for example: claude or cc). Pixel Agents uses this value exactly and does not auto-fallback."
+        }
+      }
     }
   },
   "scripts": {

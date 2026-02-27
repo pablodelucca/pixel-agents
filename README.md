@@ -2,7 +2,7 @@
 
 A VS Code extension that turns your AI coding agents into animated pixel art characters in a virtual office.
 
-Each Claude Code terminal you open spawns a character that walks around, sits at desks, and visually reflects what the agent is doing — typing when writing code, reading when searching files, waiting when it needs your attention.
+Each agent terminal you open spawns a character that walks around, sits at desks, and visually reflects what the agent is doing — typing when writing code, reading when searching files, waiting when it needs your attention.
 
 This is the source code for the free [Pixel Agents extension for VS Code](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents) — you can install it directly from the marketplace with the full furniture catalog included.
 
@@ -11,7 +11,7 @@ This is the source code for the free [Pixel Agents extension for VS Code](https:
 
 ## Features
 
-- **One agent, one character** — every Claude Code terminal gets its own animated character
+- **One agent, one character** — every launched agent terminal gets its own animated character
 - **Live activity tracking** — characters animate based on what the agent is actually doing (writing, reading, running commands)
 - **Office layout editor** — design your office with floors, walls, and furniture using a built-in editor
 - **Speech bubbles** — visual indicators when an agent is waiting for input or needs permission
@@ -27,7 +27,7 @@ This is the source code for the free [Pixel Agents extension for VS Code](https:
 ## Requirements
 
 - VS Code 1.109.0 or later
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
+- Either [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) or Codex CLI installed and configured
 
 ## Getting Started
 
@@ -48,10 +48,17 @@ Then press **F5** in VS Code to launch the Extension Development Host.
 ### Usage
 
 1. Open the **Pixel Agents** panel (it appears in the bottom panel area alongside your terminal)
-2. Click **+ Agent** to spawn a new Claude Code terminal and its character
-3. Start coding with Claude — watch the character react in real time
+2. Click **+ Agent** to spawn a terminal for the configured CLI provider and its character
+3. Start coding with your selected provider — watch the character react in real time
 4. Click a character to select it, then click a seat to reassign it
 5. Click **Layout** to open the office editor and customize your space
+
+### CLI Provider Settings
+
+- `pixel-agents.cliProvider` — selects transcript/launch provider: `claude` (default) or `codex`
+- `pixel-agents.claudeCommand` — explicit Claude launch command (default `claude`), can be set to `cc`
+
+Pixel Agents does not auto-fallback from `claude` to `cc`, so macOS users avoid accidentally invoking system `cc` (`clang`) unless explicitly configured.
 
 ## Layout Editor
 
@@ -81,7 +88,10 @@ The extension will still work without the tileset — you'll get the default cha
 
 ## How It Works
 
-Pixel Agents watches Claude Code's JSONL transcript files to track what each agent is doing. When an agent uses a tool (like writing a file or running a command), the extension detects it and updates the character's animation accordingly. No modifications to Claude Code are needed — it's purely observational.
+Pixel Agents watches CLI JSONL transcript files to track what each agent is doing. When an agent uses a tool (like writing a file or running a command), the extension detects it and updates the character's animation accordingly. No modifications to Claude Code or Codex are needed — it's purely observational.
+
+- Claude transcripts: `~/.claude/projects/<workspace-hash>/*.jsonl`
+- Codex transcripts: `${CODEX_HOME:-~/.codex}/sessions/YYYY/MM/DD/*.jsonl` (workspace-matched by `session_meta.payload.cwd`)
 
 The webview runs a lightweight game loop with canvas rendering, BFS pathfinding, and a character state machine (idle → walk → type/read). Everything is pixel-perfect at integer zoom levels.
 

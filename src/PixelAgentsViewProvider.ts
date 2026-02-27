@@ -10,13 +10,13 @@ import {
 	persistAgents,
 	sendExistingAgents,
 	sendLayout,
-	getProjectDirPath,
 } from './agentManager.js';
-import { ensureProjectScan } from './fileWatcher.js';
+import { ensureProjectScan, type ProjectScanConfig } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
 import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
+import { getActiveProvider, getTranscriptRoot, getWorkspaceRoot } from './providerConfig.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	nextAgentId = { current: 1 };
@@ -52,6 +52,18 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		return this.webviewView?.webview;
 	}
 
+	private getScanConfig(): ProjectScanConfig | null {
+		const provider = getActiveProvider();
+		const workspaceRoot = getWorkspaceRoot();
+		const transcriptRoot = getTranscriptRoot(provider, workspaceRoot || undefined);
+		if (!transcriptRoot) return null;
+		return {
+			provider,
+			transcriptRoot,
+			workspaceRoot,
+		};
+	}
+
 	private persistAgents = (): void => {
 		persistAgents(this.agents, this.context);
 	};
@@ -62,8 +74,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
 
 		webviewView.webview.onDidReceiveMessage(async (message) => {
-			if (message.type === 'openClaude') {
+			if (message.type === 'openAgent' || message.type === 'openClaude') {
+				const provider = getActiveProvider();
 				launchNewTerminal(
+					provider,
 					this.nextAgentId, this.nextTerminalIndex,
 					this.agents, this.activeAgentId, this.knownJsonlFiles,
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
@@ -90,7 +104,11 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			} else if (message.type === 'setSoundEnabled') {
 				this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
 			} else if (message.type === 'webviewReady') {
+				const provider = getActiveProvider();
+				const workspaceRoot = getWorkspaceRoot();
 				restoreAgents(
+					provider,
+					workspaceRoot,
 					this.context,
 					this.nextAgentId, this.nextTerminalIndex,
 					this.agents, this.knownJsonlFiles,
@@ -102,14 +120,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
 				this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled });
 
-				// Ensure project scan runs even with no restored agents (to adopt external terminals)
-				const projectDir = getProjectDirPath();
-				const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+				// Ensure transcript scan runs even with no restored agents (to adopt external terminals)
+				const scanConfig = this.getScanConfig();
 				console.log('[Extension] workspaceRoot:', workspaceRoot);
-				console.log('[Extension] projectDir:', projectDir);
-				if (projectDir) {
+				console.log('[Extension] scanConfig:', scanConfig);
+				if (scanConfig) {
 					ensureProjectScan(
-						projectDir, this.knownJsonlFiles, this.projectScanTimer, this.activeAgentId,
+						scanConfig,
+						this.knownJsonlFiles, this.projectScanTimer, this.activeAgentId,
 						this.nextAgentId, this.agents,
 						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 						this.webview, this.persistAgents,
@@ -215,9 +233,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				}
 				sendExistingAgents(this.agents, this.context, this.webview);
 			} else if (message.type === 'openSessionsFolder') {
-				const projectDir = getProjectDirPath();
-				if (projectDir && fs.existsSync(projectDir)) {
-					vscode.env.openExternal(vscode.Uri.file(projectDir));
+				const scanConfig = this.getScanConfig();
+				if (scanConfig && fs.existsSync(scanConfig.transcriptRoot)) {
+					vscode.env.openExternal(vscode.Uri.file(scanConfig.transcriptRoot));
 				}
 			} else if (message.type === 'exportLayout') {
 				const layout = readLayoutFromFile();
