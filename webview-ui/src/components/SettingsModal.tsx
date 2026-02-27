@@ -2,11 +2,14 @@ import { useState } from 'react'
 import { vscode } from '../vscodeApi.js'
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js'
 
+type AgentType = 'claude' | 'copilot'
+
 interface SettingsModalProps {
   isOpen: boolean
   onClose: () => void
   isDebugMode: boolean
   onToggleDebugMode: () => void
+  agentType: AgentType
 }
 
 const menuItemBase: React.CSSProperties = {
@@ -24,9 +27,10 @@ const menuItemBase: React.CSSProperties = {
   textAlign: 'left',
 }
 
-export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode, agentType }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled)
+  const [agentTypeLocal, setAgentTypeLocal] = useState<AgentType>(agentType)
 
   if (!isOpen) return null
 
@@ -92,6 +96,39 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
           </button>
         </div>
         {/* Menu items */}
+        <div
+          style={{
+            padding: '6px 10px',
+            fontSize: '24px',
+            color: 'rgba(255, 255, 255, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>Agent Type</span>
+          <select
+            value={agentTypeLocal}
+            onChange={(e) => {
+              const newType = e.target.value as AgentType
+              setAgentTypeLocal(newType)
+              vscode.postMessage({ type: 'setAgentType', agentType: newType })
+            }}
+            style={{
+              background: 'var(--pixel-bg)',
+              border: '2px solid var(--pixel-border)',
+              borderRadius: 0,
+              color: 'rgba(255, 255, 255, 0.9)',
+              fontSize: '24px',
+              padding: '2px 6px',
+              cursor: 'pointer',
+              fontFamily: 'FS Pixel Sans, monospace',
+            }}
+          >
+            <option value="claude">Claude Code</option>
+            <option value="copilot">GitHub Copilot</option>
+          </select>
+        </div>
         <button
           onClick={() => {
             vscode.postMessage({ type: 'openSessionsFolder' })

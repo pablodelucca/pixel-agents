@@ -32,6 +32,11 @@ export const LAYOUT_FILE_POLL_INTERVAL_MS = 2000;
 // ── Settings Persistence ────────────────────────────────────
 export const GLOBAL_KEY_SOUND_ENABLED = 'pixel-agents.soundEnabled';
 
+// ── Agent Configuration ────────────────────────────────────
+export const CONFIGURATION_KEY_AGENT_TYPE = 'pixel-agents.agentType';
+export const AGENT_TYPE_CLAUDE = 'claude';
+export const AGENT_TYPE_COPILOT = 'copilot';
+
 // ── VS Code Identifiers ─────────────────────────────────────
 export const VIEW_ID = 'pixel-agents.panelView';
 export const COMMAND_SHOW_PANEL = 'pixel-agents.showPanel';

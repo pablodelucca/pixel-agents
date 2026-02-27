@@ -3,7 +3,8 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { AgentState } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
-import { processTranscriptLine } from './transcriptParser.js';
+import { processTranscriptLineWithFormat } from './transcriptParser.js';
+import { inferAgentTypeFromPath } from './configManager.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
 
 export function startFileWatching(
@@ -70,7 +71,7 @@ export function readNewLines(
 
 		for (const line of lines) {
 			if (!line.trim()) continue;
-			processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
+			processTranscriptLineWithFormat(agentId, line, agent.agentType, agents, waitingTimers, permissionTimers, webview);
 		}
 	} catch (e) {
 		console.log(`[Pixel Agents] Read error for agent ${agentId}: ${e}`);
@@ -182,6 +183,7 @@ function adoptTerminalForFile(
 	persistAgents: () => void,
 ): void {
 	const id = nextAgentIdRef.current++;
+	const agentType = inferAgentTypeFromPath(jsonlFile);
 	const agent: AgentState = {
 		id,
 		terminalRef: terminal,
@@ -197,6 +199,7 @@ function adoptTerminalForFile(
 		isWaiting: false,
 		permissionSent: false,
 		hadToolsInTurn: false,
+		agentType,
 	};
 
 	agents.set(id, agent);

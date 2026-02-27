@@ -1,6 +1,8 @@
 import * as path from 'path';
 import type * as vscode from 'vscode';
 import type { AgentState } from './types.js';
+import type { AgentType } from './configManager.js';
+import { AGENT_TYPE_COPILOT } from './constants.js';
 import {
 	cancelWaitingTimer,
 	startWaitingTimer,
@@ -295,5 +297,171 @@ function processProgressRecord(
 		if (stillHasNonExempt) {
 			startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
 		}
+	}
+}
+
+/**
+ * Process Copilot CLI event (from events.jsonl)
+ * Maps Copilot events to internal tool tracking
+ */
+function processCopilotEvent(
+	agentId: number,
+	record: Record<string, unknown>,
+	agents: Map<number, AgentState>,
+	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	webview: vscode.Webview | undefined,
+): void {
+	const agent = agents.get(agentId);
+	if (!agent) return;
+
+	const eventType = record.type as string;
+	const data = record.data as Record<string, unknown> | undefined;
+
+	switch (eventType) {
+		case 'tool.execution_start': {
+			if (!data) break;
+			const toolCallId = data.toolCallId as string | undefined;
+			const toolName = data.toolName as string | undefined;
+			if (!toolCallId || !toolName) break;
+
+			cancelWaitingTimer(agentId, waitingTimers);
+			agent.isWaiting = false;
+			agent.hadToolsInTurn = true;
+			webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+
+			const status = formatToolStatus(toolName, {});
+			console.log(`[Pixel Agents] Agent ${agentId} Copilot tool start: ${toolCallId} ${status}`);
+			agent.activeToolIds.add(toolCallId);
+			agent.activeToolStatuses.set(toolCallId, status);
+			agent.activeToolNames.set(toolCallId, toolName);
+
+			webview?.postMessage({
+				type: 'agentToolStart',
+				id: agentId,
+				toolId: toolCallId,
+				status,
+			});
+
+			if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
+				startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
+			}
+			break;
+		}
+
+		case 'tool.execution_complete': {
+			if (!data) break;
+			const toolCallId = data.toolCallId as string | undefined;
+			if (!toolCallId) break;
+
+			console.log(`[Pixel Agents] Agent ${agentId} Copilot tool done: ${toolCallId}`);
+			const completedToolName = agent.activeToolNames.get(toolCallId);
+			
+			// Clear Task sub-agents if applicable
+			if (completedToolName === 'Task') {
+				agent.activeSubagentToolIds.delete(toolCallId);
+				agent.activeSubagentToolNames.delete(toolCallId);
+				webview?.postMessage({
+					type: 'subagentClear',
+					id: agentId,
+					parentToolId: toolCallId,
+				});
+			}
+
+			agent.activeToolIds.delete(toolCallId);
+			agent.activeToolStatuses.delete(toolCallId);
+			agent.activeToolNames.delete(toolCallId);
+
+			setTimeout(() => {
+				webview?.postMessage({
+					type: 'agentToolDone',
+					id: agentId,
+					toolId: toolCallId,
+				});
+			}, TOOL_DONE_DELAY_MS);
+
+			if (agent.activeToolIds.size === 0) {
+				agent.hadToolsInTurn = false;
+			}
+			break;
+		}
+
+		case 'assistant.turn_end': {
+			// Copilot's equivalent to Claude's turn_duration
+			cancelWaitingTimer(agentId, waitingTimers);
+			cancelPermissionTimer(agentId, permissionTimers);
+
+			// Clean up any stale tool state
+			if (agent.activeToolIds.size > 0) {
+				agent.activeToolIds.clear();
+				agent.activeToolStatuses.clear();
+				agent.activeToolNames.clear();
+				agent.activeSubagentToolIds.clear();
+				agent.activeSubagentToolNames.clear();
+				webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+			}
+
+			agent.isWaiting = true;
+			agent.permissionSent = false;
+			agent.hadToolsInTurn = false;
+			webview?.postMessage({
+				type: 'agentStatus',
+				id: agentId,
+				status: 'waiting',
+			});
+			break;
+		}
+
+		case 'assistant.turn_start': {
+			// New turn starting
+			cancelWaitingTimer(agentId, waitingTimers);
+			clearAgentActivity(agent, agentId, permissionTimers, webview);
+			agent.hadToolsInTurn = false;
+			break;
+		}
+
+		case 'user.message': {
+			// User sent a message — new turn
+			cancelWaitingTimer(agentId, waitingTimers);
+			clearAgentActivity(agent, agentId, permissionTimers, webview);
+			agent.hadToolsInTurn = false;
+			break;
+		}
+
+		case 'tool.user_requested': {
+			// Tool waiting for user approval (permission prompt)
+			// For now, we don't need special handling since our permission
+			// timer already handles detection of stuck tools
+			break;
+		}
+	}
+}
+
+/**
+ * Main entry point: detects format and routes to appropriate parser
+ */
+export function processTranscriptLineWithFormat(
+	agentId: number,
+	line: string,
+	agentType: AgentType,
+	agents: Map<number, AgentState>,
+	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	webview: vscode.Webview | undefined,
+): void {
+	const agent = agents.get(agentId);
+	if (!agent) return;
+	try {
+		const record = JSON.parse(line);
+		
+		if (agentType === AGENT_TYPE_COPILOT) {
+			// Copilot format: has top-level "type" field with event names
+			processCopilotEvent(agentId, record, agents, waitingTimers, permissionTimers, webview);
+		} else {
+			// Claude format: existing logic
+			processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
+		}
+	} catch {
+		// Ignore malformed lines
 	}
 }
