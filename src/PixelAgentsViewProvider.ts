@@ -11,6 +11,7 @@ import {
 	sendExistingAgents,
 	sendLayout,
 	getProjectDirPath,
+	getSessionsFolderPathForProvider,
 } from './agentManager.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
@@ -225,9 +226,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				}
 				sendExistingAgents(this.agents, this.context, this.webview);
 			} else if (message.type === 'openSessionsFolder') {
-				const projectDir = getProjectDirPath();
-				if (projectDir && fs.existsSync(projectDir)) {
-					vscode.env.openExternal(vscode.Uri.file(projectDir));
+				const sessionsDir = getSessionsFolderPathForProvider();
+				if (sessionsDir && fs.existsSync(sessionsDir)) {
+					vscode.env.openExternal(vscode.Uri.file(sessionsDir));
 				}
 			} else if (message.type === 'exportLayout') {
 				const layout = readLayoutFromFile();

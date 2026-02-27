@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added first-class Codex CLI support with configurable provider selection (`pixel-agents.cliProvider`), command overrides, and Codex session tracking from `~/.codex/sessions`.
+- Added dual transcript parsing paths (Claude + Codex) so tool activity, waiting status, and terminal sync work across both runtimes.
+- Lowered VS Code engine floor to `^1.99.0` for better Cursor compatibility.
+
 ## v1.0.2
 
 ### Bug Fixes

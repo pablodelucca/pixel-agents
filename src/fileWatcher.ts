@@ -105,15 +105,28 @@ export function ensureProjectScan(
 	persistAgents: () => void,
 ): void {
 	if (projectScanTimerRef.current) return;
-	// Seed with all existing JSONL files so we only react to truly new ones
-	try {
-		const files = fs.readdirSync(projectDir)
-			.filter(f => f.endsWith('.jsonl'))
-			.map(f => path.join(projectDir, f));
-		for (const f of files) {
-			knownJsonlFiles.add(f);
+
+	// For Codex launches, we intentionally do not seed when the active agent is still waiting
+	// for its first transcript file. This prevents missing a just-created session log.
+	let shouldSeedExisting = true;
+	if (activeAgentIdRef.current !== null) {
+		const activeAgent = agents.get(activeAgentIdRef.current);
+		if (activeAgent?.provider === 'codex' && !activeAgent.jsonlFile) {
+			shouldSeedExisting = false;
 		}
-	} catch { /* dir may not exist yet */ }
+	}
+
+	if (shouldSeedExisting) {
+		// Seed with all existing JSONL files so we only react to truly new ones
+		try {
+			const files = fs.readdirSync(projectDir)
+				.filter(f => f.endsWith('.jsonl'))
+				.map(f => path.join(projectDir, f));
+			for (const f of files) {
+				knownJsonlFiles.add(f);
+			}
+		} catch { /* dir may not exist yet */ }
+	}
 
 	projectScanTimerRef.current = setInterval(() => {
 		scanForNewJsonlFiles(
@@ -149,6 +162,9 @@ function scanForNewJsonlFiles(
 			knownJsonlFiles.add(file);
 			if (activeAgentIdRef.current !== null) {
 				// Active agent focused → /clear reassignment
+				const activeAgent = agents.get(activeAgentIdRef.current);
+				if (!activeAgent) continue;
+				if (!isTranscriptMatchForAgent(file, activeAgent)) continue;
 				console.log(`[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`);
 				reassignAgentToFile(
 					activeAgentIdRef.current, file,
@@ -167,6 +183,9 @@ function scanForNewJsonlFiles(
 						}
 					}
 					if (!owned) {
+						const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+						const codexCwd = readCodexSessionCwd(file);
+						if (codexCwd && workspacePath && path.resolve(codexCwd) !== path.resolve(workspacePath)) continue;
 						adoptTerminalForFile(
 							activeTerminal, file, projectDir,
 							nextAgentIdRef, agents, activeAgentIdRef,
@@ -194,12 +213,19 @@ function adoptTerminalForFile(
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
 ): void {
+	const codexCwd = readCodexSessionCwd(jsonlFile);
+	const provider = codexCwd ? 'codex' : 'claude';
+	const workspacePath = codexCwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+
 	const id = nextAgentIdRef.current++;
 	const agent: AgentState = {
 		id,
 		terminalRef: terminal,
+		provider,
 		projectDir,
+		workspacePath,
 		jsonlFile,
+		launchTimestampMs: undefined,
 		fileOffset: 0,
 		lineBuffer: '',
 		activeToolIds: new Set(),
@@ -252,6 +278,7 @@ export function reassignAgentToFile(
 
 	// Swap to new file
 	agent.jsonlFile = newFilePath;
+	agent.launchTimestampMs = undefined;
 	agent.fileOffset = 0;
 	agent.lineBuffer = '';
 	persistAgents();
@@ -259,4 +286,53 @@ export function reassignAgentToFile(
 	// Start watching new file
 	startFileWatching(agentId, newFilePath, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
 	readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
+}
+
+function isTranscriptMatchForAgent(jsonlFile: string, agent: AgentState): boolean {
+	if (agent.provider !== 'codex') return true;
+	if (!agent.workspacePath) return true;
+	const sessionCwd = readCodexSessionCwd(jsonlFile);
+	if (!sessionCwd) return false;
+	if (path.resolve(sessionCwd) !== path.resolve(agent.workspacePath)) return false;
+	if (agent.launchTimestampMs) {
+		try {
+			const stat = fs.statSync(jsonlFile);
+			// Small skew tolerance to avoid dropping freshly-created files.
+			if (stat.mtimeMs + 2000 < agent.launchTimestampMs) return false;
+		} catch {
+			return false;
+		}
+	}
+	return true;
+}
+
+function readCodexSessionCwd(jsonlFile: string): string | null {
+	try {
+		const fd = fs.openSync(jsonlFile, 'r');
+		const stat = fs.fstatSync(fd);
+		const readLen = Math.min(stat.size, 8192);
+		if (readLen <= 0) {
+			fs.closeSync(fd);
+			return null;
+		}
+		const buf = Buffer.alloc(readLen);
+		fs.readSync(fd, buf, 0, readLen, 0);
+		fs.closeSync(fd);
+
+		const lines = buf.toString('utf-8').split('\n');
+		for (const line of lines) {
+			if (!line.trim()) continue;
+			try {
+				const record = JSON.parse(line) as { type?: string; payload?: { cwd?: string } };
+				if (record.type === 'session_meta' && typeof record.payload?.cwd === 'string') {
+					return record.payload.cwd;
+				}
+			} catch {
+				// Ignore malformed line fragments near chunk boundaries.
+			}
+		}
+	} catch {
+		// Ignore read/parsing failures.
+	}
+	return null;
 }
