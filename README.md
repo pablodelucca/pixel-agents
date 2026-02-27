@@ -4,7 +4,7 @@ A VS Code extension that turns your AI coding agents into animated pixel art cha
 
 Each Claude Code terminal you open spawns a character that walks around, sits at desks, and visually reflects what the agent is doing — typing when writing code, reading when searching files, waiting when it needs your attention.
 
-This is the source code for the free [Pixel Agents extension for VS Code](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents) — you can install it directly from the marketplace with the full furniture catalog included.
+This is the source code for the free Pixel Agents extension for VS Code — install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents) or [Open VSX](https://open-vsx.org/extension/pablodelucca/pixel-agents) with the full furniture catalog included.
 
 
 ![Pixel Agents screenshot](webview-ui/public/Screenshot.jpg)
@@ -110,6 +110,17 @@ There are several areas where contributions would be very welcome:
 - **Support for other agentic frameworks** — [OpenCode](https://github.com/nichochar/opencode), or really any kind of agentic experiment you'd want to run inside a pixel art interface (see [simile.ai](https://simile.ai/) for inspiration)
 
 If any of these interest you, feel free to open an issue or submit a PR.
+
+## Publishing
+
+Releases are published via GitHub Actions to both VS Code Marketplace and Open VSX.
+
+Required repository secrets:
+
+- `VSCE_PAT` — Personal Access Token for VS Code Marketplace publishing
+- `OPEN_VSX_TOKEN` — Access token for Open VSX publishing
+
+Publishing triggers on a GitHub release (`published`) or manually via workflow dispatch.
 
 ## Contributions
 
