@@ -1,7 +1,7 @@
 {
   "name": "pixel-agents",
   "displayName": "Pixel Agents",
-  "description": "Pixel art office where your Claude Code agents come to life as animated characters",
+  "description": "Pixel art office where your Codex or Claude agents come to life as animated characters",
   "version": "1.0.2",
   "publisher": "pablodelucca",
   "repository": {
@@ -11,7 +11,7 @@
   "icon": "icon.png",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.107.0"
+    "vscode": "^1.99.0"
   },
   "categories": [
     "Other"
@@ -46,6 +46,30 @@
           "name": "Pixel Agents"
         }
       ]
+    },
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixel-agents.cliProvider": {
+          "type": "string",
+          "enum": [
+            "codex",
+            "claude"
+          ],
+          "default": "codex",
+          "description": "Select which CLI runtime Pixel Agents launches and tracks."
+        },
+        "pixel-agents.codexCommand": {
+          "type": "string",
+          "default": "codex",
+          "description": "Command used to start Codex sessions."
+        },
+        "pixel-agents.claudeCommand": {
+          "type": "string",
+          "default": "claude",
+          "description": "Command used to start Claude Code sessions."
+        }
+      }
     }
   },
   "scripts": {
@@ -57,6 +81,7 @@
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "package": "npm run check-types && npm run lint && node esbuild.js --production && npm run build:webview",
+    "package:codex": "./scripts/build-codex-vsix.sh",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
     "import-tileset": "tsx scripts/import-tileset-cli.ts"
@@ -65,7 +90,7 @@
     "@anthropic-ai/sdk": "^0.74.0",
     "@types/node": "22.x",
     "@types/pngjs": "^6.0.5",
-    "@types/vscode": "^1.107.0",
+    "@types/vscode": "^1.99.0",
     "esbuild": "^0.27.2",
     "eslint": "^9.39.2",
     "npm-run-all": "^4.1.5",

@@ -54,6 +54,10 @@ export function processTranscriptLine(
 	if (!agent) return;
 	try {
 		const record = JSON.parse(line);
+		if (isCodexRecord(record)) {
+			processCodexRecord(agentId, record as Record<string, unknown>, agents, waitingTimers, permissionTimers, webview);
+			return;
+		}
 
 		if (record.type === 'assistant' && Array.isArray(record.message?.content)) {
 			const blocks = record.message.content as Array<{
@@ -174,6 +178,132 @@ export function processTranscriptLine(
 	} catch {
 		// Ignore malformed lines
 	}
+}
+
+function isCodexRecord(record: unknown): boolean {
+	if (!record || typeof record !== 'object') return false;
+	const type = (record as { type?: unknown }).type;
+	return type === 'response_item' || type === 'event_msg' || type === 'session_meta' || type === 'turn_context';
+}
+
+function processCodexRecord(
+	agentId: number,
+	record: Record<string, unknown>,
+	agents: Map<number, AgentState>,
+	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	webview: vscode.Webview | undefined,
+): void {
+	const agent = agents.get(agentId);
+	if (!agent) return;
+
+	const type = record.type as string | undefined;
+	if (type === 'event_msg') {
+		const payload = record.payload as Record<string, unknown> | undefined;
+		const payloadType = payload?.type as string | undefined;
+		if (payloadType === 'user_message' || payloadType === 'task_started') {
+			cancelWaitingTimer(agentId, waitingTimers);
+			clearAgentActivity(agent, agentId, permissionTimers, webview);
+			agent.hadToolsInTurn = false;
+			return;
+		}
+		if (payloadType === 'turn_aborted' || payloadType === 'task_finished' || payloadType === 'task_completed') {
+			cancelWaitingTimer(agentId, waitingTimers);
+			cancelPermissionTimer(agentId, permissionTimers);
+			agent.isWaiting = true;
+			webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'waiting' });
+			return;
+		}
+		if (payloadType === 'agent_message' && agent.activeToolIds.size === 0) {
+			startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
+		}
+		return;
+	}
+
+	if (type !== 'response_item') return;
+	const payload = record.payload as Record<string, unknown> | undefined;
+	if (!payload) return;
+
+	const itemType = payload.type as string | undefined;
+	if (itemType === 'function_call') {
+		const toolId = (payload.call_id as string | undefined) || (payload.id as string | undefined);
+		const toolName = (payload.name as string | undefined) || 'tool';
+		if (!toolId) return;
+		const status = formatCodexToolStatus(toolName, payload.arguments);
+
+		cancelWaitingTimer(agentId, waitingTimers);
+		agent.isWaiting = false;
+		webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+
+		agent.activeToolIds.add(toolId);
+		agent.activeToolStatuses.set(toolId, status);
+		agent.activeToolNames.set(toolId, toolName);
+		agent.hadToolsInTurn = true;
+
+		webview?.postMessage({
+			type: 'agentToolStart',
+			id: agentId,
+			toolId,
+			status,
+		});
+
+		if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
+			startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
+		}
+		return;
+	}
+
+	if (itemType === 'function_call_output') {
+		const toolId = (payload.call_id as string | undefined) || '';
+		if (!toolId) return;
+		if (!agent.activeToolIds.has(toolId)) return;
+
+		agent.activeToolIds.delete(toolId);
+		agent.activeToolStatuses.delete(toolId);
+		agent.activeToolNames.delete(toolId);
+		const doneId = toolId;
+		setTimeout(() => {
+			webview?.postMessage({ type: 'agentToolDone', id: agentId, toolId: doneId });
+		}, TOOL_DONE_DELAY_MS);
+
+		if (agent.activeToolIds.size === 0) {
+			agent.hadToolsInTurn = false;
+			startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
+		}
+		return;
+	}
+
+	if (itemType === 'message' && payload.role === 'assistant' && agent.activeToolIds.size === 0) {
+		startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
+	}
+}
+
+function formatCodexToolStatus(toolName: string, args: unknown): string {
+	if (toolName === 'exec_command') {
+		let cmd = '';
+		if (typeof args === 'string') {
+			try {
+				const parsed = JSON.parse(args) as { cmd?: string };
+				if (typeof parsed.cmd === 'string') cmd = parsed.cmd;
+			} catch {
+				// Ignore invalid argument payloads.
+			}
+		} else if (args && typeof args === 'object' && typeof (args as { cmd?: unknown }).cmd === 'string') {
+			cmd = (args as { cmd: string }).cmd;
+		}
+		if (cmd) {
+			return `Running: ${cmd.length > BASH_COMMAND_DISPLAY_MAX_LENGTH ? cmd.slice(0, BASH_COMMAND_DISPLAY_MAX_LENGTH) + '\u2026' : cmd}`;
+		}
+		return 'Running shell command';
+	}
+	if (toolName === 'apply_patch') return 'Applying file patch';
+	if (toolName === 'write_stdin') return 'Interacting with terminal';
+	if (toolName === 'parallel') return 'Running parallel tool calls';
+	if (toolName.startsWith('mcp__')) {
+		const compact = toolName.replace(/^mcp__/, '');
+		return `Using ${compact}`;
+	}
+	return `Using ${toolName}`;
 }
 
 function processProgressRecord(
