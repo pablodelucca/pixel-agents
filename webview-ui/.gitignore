@@ -28,3 +28,6 @@ dist-ssr
 !*/assets/characters/
 !*/assets/default-layout.json
 !*/assets/walls.png
+!*/assets/tilesets/
+!*/assets/tilesets/*/
+!*/assets/tilesets/*/tileset.json

@@ -9,24 +9,30 @@ const COLS = 40
 const ROWS = 30
 
 // G = grass, P = path, B = building (wall)
+// W = water, F = fence, T = tree top, R = tree trunk (root), L = flowers
 const G = TileType.FLOOR_1
 const P = TileType.FLOOR_2
 const B = TileType.WALL
+const W = TileType.FLOOR_3   // Water (pond)
+const F = TileType.FLOOR_4   // Fence
+const T = TileType.FLOOR_5   // Tree canopy (top)
+const R = TileType.FLOOR_6   // Tree trunk (bottom)
+const L = TileType.FLOOR_7   // Flowers / decoration
 
 // prettier-ignore
 const tileGrid: number[][] = [
   //         0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39
-  /* 0 */ [G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G],
-  /* 1 */ [G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G],
+  /* 0 */ [T, T, G, G, G, G, G, G, G, G, G, G, T, T, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G, G, G, T, T, G, G, T, T],
+  /* 1 */ [R, R, G, G, L, G, G, G, G, G, G, G, R, R, G, G, G, G, G, P, G, G, G, G, G, L, G, G, G, G, G, G, G, G, R, R, G, G, R, R],
   /* 2 */ [G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G],
   /* 3 */ [G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, P, G, P, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G],
   /* 4 */ [G, G, G, G, G, B, B, B, B, G, G, G, G, G, G, G, B, B, B, P, G, G, G, G, G, G, G, G, B, B, B, B, B, G, G, G, G, G, G, G],
-  /* 5 */ [G, G, G, G, G, B, B, B, B, G, G, G, G, G, G, G, B, B, B, P, G, G, G, G, G, G, G, G, B, B, B, B, B, G, G, G, G, G, G, G],
-  /* 6 */ [G, G, G, G, G, B, B, B, B, G, G, G, G, G, G, G, B, B, B, P, G, G, G, G, G, G, G, G, B, B, B, B, B, G, G, G, G, G, G, G],
-  /* 7 */ [G, G, G, G, G, B, B, B, B, G, G, G, G, G, G, G, G, P, G, P, G, G, G, G, G, G, G, G, B, B, B, B, B, G, G, G, G, G, G, G],
+  /* 5 */ [G, G, G, G, G, B, B, B, B, G, G, L, G, G, G, G, B, B, B, P, G, G, G, G, G, G, G, G, B, B, B, B, B, G, G, G, G, G, G, G],
+  /* 6 */ [G, G, G, G, G, B, B, B, B, G, G, G, G, G, G, G, B, B, B, P, G, G, G, G, G, G, G, G, B, B, B, B, B, G, G, T, G, G, G, G],
+  /* 7 */ [G, G, G, G, G, B, B, B, B, G, G, G, G, G, G, G, G, P, G, P, G, G, G, G, G, G, G, G, B, B, B, B, B, G, G, R, G, G, G, G],
   /* 8 */ [G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, B, B, B, B, B, G, G, G, G, G, G, G],
-  /* 9 */ [G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, B, B, B, B, B, G, G, G, G, G, G, G],
-  /*10 */ [G, G, G, G, G, B, B, B, B, G, G, G, G, G, P, P, P, P, P, P, P, P, P, P, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G],
+  /* 9 */ [G, G, T, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, B, B, B, B, B, G, G, G, G, G, G, G],
+  /*10 */ [G, G, R, G, G, B, B, B, B, G, G, G, G, F, P, P, P, P, P, P, P, P, P, P, F, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G],
   /*11 */ [G, G, G, G, G, B, B, B, B, G, G, G, G, G, P, G, G, G, G, P, G, G, G, P, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G],
   /*12 */ [G, G, G, G, G, B, B, B, B, G, G, G, G, G, P, G, B, B, B, B, B, B, G, P, G, G, G, G, B, B, B, B, G, G, G, G, G, G, G, G],
   /*13 */ [G, G, G, G, G, B, B, B, B, G, G, G, G, G, P, G, B, B, B, B, B, B, G, P, G, G, G, G, B, B, B, B, G, G, G, G, G, G, G, G],
@@ -41,10 +47,10 @@ const tileGrid: number[][] = [
   /*22 */ [G, G, G, G, G, B, B, B, G, G, B, B, B, B, P, G, B, B, B, P, G, B, B, B, G, B, B, B, B, G, G, G, G, G, G, G, G, G, G, G],
   /*23 */ [G, G, G, G, G, G, P, G, G, G, G, G, P, G, G, G, G, P, G, P, G, G, P, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G],
   /*24 */ [G, G, G, G, G, G, P, G, G, G, G, G, P, G, G, G, G, P, G, P, G, G, P, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G],
-  /*25 */ [G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G],
-  /*26 */ [G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G],
-  /*27 */ [G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G],
-  /*28 */ [G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G],
+  /*25 */ [G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G, G, T, T, G, G, G, G, G],
+  /*26 */ [G, G, L, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G, G, R, R, G, G, W, W, G],
+  /*27 */ [G, G, G, G, T, T, G, G, G, G, G, G, L, G, G, G, G, G, G, P, G, G, G, G, G, L, G, G, G, G, G, G, G, G, G, G, G, W, W, G],
+  /*28 */ [G, G, G, G, R, R, G, G, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G],
   /*29 */ [G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, P, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G],
 ]
 

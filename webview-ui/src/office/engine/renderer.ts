@@ -4,7 +4,7 @@ import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js'
 import { getCharacterSprites, BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE } from '../sprites/spriteData.js'
 import { getCharacterSprite } from './characters.js'
 import { renderMatrixEffect } from './matrixEffect.js'
-import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js'
+import { getColorizedFloorSprite, hasFloorSprites, isTilesetActive, getTilesetFloorSprite, WALL_COLOR } from '../floorTiles.js'
 import { hasWallSprites, getWallInstances, wallColorToHex } from '../wallTiles.js'
 import {
   CHARACTER_SITTING_OFFSET_PX,
@@ -82,12 +82,18 @@ export function renderTileGrid(
         continue
       }
 
-      // Floor tile: get colorized sprite
-      const colorIdx = r * layoutCols + c
-      const color = tileColors?.[colorIdx] ?? { h: 0, s: 0, b: 0, c: 0 }
-      const sprite = getColorizedFloorSprite(tile, color)
-      const cached = getCachedSprite(sprite, zoom)
-      ctx.drawImage(cached, offsetX + c * s, offsetY + r * s)
+      // Floor tile: try tileset first, fall back to colorized grayscale
+      const tilesetSprite = isTilesetActive() ? getTilesetFloorSprite(tile, c, r) : null
+      if (tilesetSprite) {
+        const cached = getCachedSprite(tilesetSprite, zoom)
+        ctx.drawImage(cached, offsetX + c * s, offsetY + r * s)
+      } else {
+        const colorIdx = r * layoutCols + c
+        const color = tileColors?.[colorIdx] ?? { h: 0, s: 0, b: 0, c: 0 }
+        const sprite = getColorizedFloorSprite(tile, color)
+        const cached = getCachedSprite(sprite, zoom)
+        ctx.drawImage(cached, offsetX + c * s, offsetY + r * s)
+      }
     }
   }
 

@@ -1,0 +1,29 @@
+{
+  "name": "Pixelwood Valley",
+  "tileSize": 16,
+  "sheets": {
+    "terrain": { "file": "terrain.png", "cols": 16, "rows": 16 }
+  },
+  "tiles": {
+    "grass_1":     { "sheet": "terrain", "col": 0, "row": 0 },
+    "grass_2":     { "sheet": "terrain", "col": 1, "row": 0 },
+    "grass_3":     { "sheet": "terrain", "col": 2, "row": 0 },
+    "path_1":      { "sheet": "terrain", "col": 3, "row": 0 },
+    "path_2":      { "sheet": "terrain", "col": 4, "row": 0 },
+    "water_1":     { "sheet": "terrain", "col": 5, "row": 0 },
+    "tree_top":    { "sheet": "terrain", "col": 6, "row": 0 },
+    "tree_trunk":  { "sheet": "terrain", "col": 7, "row": 0 },
+    "fence_h":     { "sheet": "terrain", "col": 8, "row": 0 },
+    "flowers_1":   { "sheet": "terrain", "col": 9, "row": 0 }
+  },
+  "mapping": {
+    "FLOOR_1": ["grass_1", "grass_2", "grass_3"],
+    "FLOOR_2": ["path_1", "path_2"],
+    "FLOOR_3": ["water_1"],
+    "FLOOR_4": ["fence_h"],
+    "FLOOR_5": ["tree_top"],
+    "FLOOR_6": ["tree_trunk"],
+    "FLOOR_7": ["flowers_1"]
+  },
+  "_comment": "Coordinates are placeholders — update col/row to match actual Pixelwood Valley sprite sheet layout after purchase. Each tile is 16x16. Sheet coords are 0-indexed grid positions."
+}
