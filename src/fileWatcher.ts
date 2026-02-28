@@ -173,7 +173,16 @@ function scanForNewJsonlFiles(
 		});
 	}
 
-	let unknownFiles = files.filter(file => !knownJsonlFiles.has(file));
+	let unknownFiles = files
+		.filter(file => !knownJsonlFiles.has(file))
+		.filter(file => {
+			for (const agent of agents.values()) {
+				if (agent.jsonlFile === file) {
+					return false;
+				}
+			}
+			return true;
+		});
 	if (unknownFiles.length === 0) return;
 
 	// First observer scan: adopt only the newest session and ignore historical backlog.
