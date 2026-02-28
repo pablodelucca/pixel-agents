@@ -76,9 +76,11 @@ export function readNewLines(
 
 		const hasLines = lines.some(l => l.trim());
 		if (hasLines) {
-			// New data arriving — cancel timers (data flowing means agent is still active)
+			// New data arriving — treat as live activity unless overridden by a later waiting event.
 			cancelWaitingTimer(agentId, waitingTimers);
 			cancelPermissionTimer(agentId, permissionTimers);
+			agent.isWaiting = false;
+			webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
 			if (agent.permissionSent) {
 				agent.permissionSent = false;
 				webview?.postMessage({ type: 'agentToolPermissionClear', id: agentId });
