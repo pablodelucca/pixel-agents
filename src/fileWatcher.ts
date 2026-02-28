@@ -415,6 +415,9 @@ export function reassignAgentToFile(
 	agent.jsonlFile = newFilePath;
 	agent.fileOffset = 0;
 	agent.lineBuffer = '';
+	if (activityProvider.mode === 'session-observer') {
+		agent.folderName = detectOpenClawObserverLabel(newFilePath);
+	}
 	persistAgents();
 
 	// Start watching new file
