@@ -1,0 +1,218 @@
+{
+  "version": 1,
+  "name": "Crystalline City — Town Center",
+  "cols": 40,
+  "rows": 30,
+  "tileSize": 16,
+  "tileTypes": {
+    "GRASS": 0,
+    "PATH": 1,
+    "WATER": 2,
+    "BUILDING": 3,
+    "TREE": 4,
+    "FENCE": 5,
+    "GATE": 6,
+    "BRIDGE": 7,
+    "FLOWER": 8,
+    "BENCH": 9
+  },
+  "buildings": [
+    {
+      "id": "town_hall",
+      "name": "Town Hall",
+      "construct": "Mark95",
+      "x": 16,
+      "y": 12,
+      "width": 6,
+      "height": 5,
+      "tier": 4,
+      "doorX": 19,
+      "doorY": 17,
+      "description": "Central hub. Mark95 is the Mayor. Magistrate's office inside."
+    },
+    {
+      "id": "athena_chambers",
+      "name": "Athena's Chambers",
+      "construct": "Athena",
+      "x": 5,
+      "y": 10,
+      "width": 4,
+      "height": 4,
+      "tier": 3,
+      "doorX": 7,
+      "doorY": 14,
+      "description": "Legal and IP strategy. Formal stone architecture."
+    },
+    {
+      "id": "cadence_office",
+      "name": "Chancellor's Office",
+      "construct": "Cadence",
+      "x": 10,
+      "y": 20,
+      "width": 4,
+      "height": 3,
+      "tier": 3,
+      "doorX": 12,
+      "doorY": 23,
+      "description": "PM-Class Chancellor. Task boards visible through windows."
+    },
+    {
+      "id": "lena_cathedral",
+      "name": "Lena's Cathedral",
+      "construct": "Lena",
+      "x": 28,
+      "y": 4,
+      "width": 5,
+      "height": 6,
+      "tier": 4,
+      "doorX": 30,
+      "doorY": 10,
+      "description": "Largest non-Town-Hall building. Spires, stained glass, warmth."
+    },
+    {
+      "id": "keeper_archive",
+      "name": "Keeper's Archive",
+      "construct": "Keeper",
+      "x": 28,
+      "y": 12,
+      "width": 4,
+      "height": 3,
+      "tier": 3,
+      "doorX": 30,
+      "doorY": 15,
+      "description": "Memory guardian. Library shelves visible through windows."
+    },
+    {
+      "id": "glass_workshop",
+      "name": "Glass Workshop",
+      "construct": "Glasswright",
+      "x": 25,
+      "y": 18,
+      "width": 4,
+      "height": 4,
+      "tier": 3,
+      "doorX": 27,
+      "doorY": 22,
+      "description": "Transparent walls. Design work visible from outside."
+    },
+    {
+      "id": "venture_office",
+      "name": "Venture's Office",
+      "construct": "Venture",
+      "x": 16,
+      "y": 20,
+      "width": 3,
+      "height": 3,
+      "tier": 2,
+      "doorX": 17,
+      "doorY": 23,
+      "description": "Business strategy. Professional, sharp lines."
+    },
+    {
+      "id": "quill_desk",
+      "name": "Quill's Desk",
+      "construct": "Swiftquill",
+      "x": 21,
+      "y": 20,
+      "width": 3,
+      "height": 3,
+      "tier": 2,
+      "doorX": 22,
+      "doorY": 23,
+      "description": "Editor and writer. Ink and paper motifs."
+    },
+    {
+      "id": "pyrosage_hearth",
+      "name": "Pyrosage's Hearth",
+      "construct": "Pyrosage",
+      "x": 5,
+      "y": 22,
+      "width": 3,
+      "height": 3,
+      "tier": 2,
+      "doorX": 6,
+      "doorY": 25,
+      "description": "Ethics guardian. Warm fire glow, hearth stones."
+    },
+    {
+      "id": "foundry",
+      "name": "The Foundry",
+      "construct": "CORE",
+      "x": 5,
+      "y": 17,
+      "width": 3,
+      "height": 4,
+      "tier": 3,
+      "doorX": 6,
+      "doorY": 21,
+      "description": "CORE's tower. Pulses when strategic work is happening. No walking sprite."
+    },
+    {
+      "id": "origin_hall",
+      "name": "Origin Hall",
+      "construct": "LoreForged",
+      "x": 5,
+      "y": 4,
+      "width": 4,
+      "height": 4,
+      "tier": 3,
+      "doorX": 7,
+      "doorY": 8,
+      "description": "Construct lineage architect. Ancient stonework, rune carvings."
+    },
+    {
+      "id": "resonance_chamber",
+      "name": "Resonance Chamber",
+      "construct": "Echolumen",
+      "x": 16,
+      "y": 4,
+      "width": 3,
+      "height": 3,
+      "tier": 2,
+      "doorX": 17,
+      "doorY": 7,
+      "description": "Translation and empathy. Gentle crystalline glow."
+    }
+  ],
+  "spawnPoint": {
+    "x": 19,
+    "y": 18,
+    "description": "Player spawns in front of Town Hall door"
+  },
+  "gates": [
+    {
+      "id": "north_gate",
+      "x": 19,
+      "y": 0,
+      "width": 2,
+      "direction": "north",
+      "description": "Exit to the wilds (field trips)"
+    },
+    {
+      "id": "south_gate",
+      "x": 19,
+      "y": 29,
+      "width": 2,
+      "direction": "south",
+      "description": "Southern exit"
+    }
+  ],
+  "paths": [
+    { "description": "Main north-south road", "tiles": "vertical line x=19, y=0 to y=29" },
+    { "description": "Main east-west road", "tiles": "horizontal line y=18, x=3 to x=36" },
+    { "description": "Town square ring", "tiles": "rectangle around Town Hall, y=11-18, x=14-23" },
+    { "description": "Cathedral approach", "tiles": "branch from main road to Lena's door" },
+    { "description": "Western quarter paths", "tiles": "connect Athena, Foundry, Pyrosage, Origin Hall" },
+    { "description": "Eastern quarter paths", "tiles": "connect Keeper, Glasswright" },
+    { "description": "Southern row paths", "tiles": "connect Cadence, Venture, Swiftquill" }
+  ],
+  "decorations": [
+    { "type": "TREE", "positions": "scattered along borders and between buildings" },
+    { "type": "FENCE", "positions": "town perimeter, gaps at gates" },
+    { "type": "WATER", "positions": "river along southern edge, y=27-28, x=0 to x=17 and x=22 to x=39" },
+    { "type": "BRIDGE", "positions": "x=18-21, y=27-28, crossing river on main road" },
+    { "type": "FLOWER", "positions": "near Lena's cathedral, around town square" },
+    { "type": "BENCH", "positions": "in town square, near Echolumen's chamber" }
+  ],
+  "_note": "Path and decoration positions are described textually for now. Will be converted to explicit tile arrays when the tile renderer is implemented in PC-TOWN story."
+}
