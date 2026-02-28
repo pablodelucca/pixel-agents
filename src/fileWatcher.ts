@@ -159,6 +159,18 @@ function scanForNewJsonlFiles(
 			.map(f => path.join(projectDir, f));
 	} catch { return; }
 
+	if (activityProvider.mode === 'session-observer') {
+		const maxAgeMinutes = activityProvider.maxSessionAgeMinutes ?? 30;
+		const cutoffMs = Date.now() - (maxAgeMinutes * 60 * 1000);
+		files = files.filter(file => {
+			try {
+				return fs.statSync(file).mtimeMs >= cutoffMs;
+			} catch {
+				return false;
+			}
+		});
+	}
+
 	let unknownFiles = files.filter(file => !knownJsonlFiles.has(file));
 	if (unknownFiles.length === 0) return;
 

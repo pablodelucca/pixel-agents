@@ -20,6 +20,7 @@ export interface ActivityProvider {
 	displayName: string;
 	mode: 'terminal' | 'session-observer';
 	maxObservedAgents?: number;
+	maxSessionAgeMinutes?: number;
 	getProjectDirPath(cwd?: string): string | null;
 	getLaunchCommand(sessionId: string): string | null;
 	processLine(line: string, ctx: ActivityProviderContext): void;
@@ -168,6 +169,7 @@ export function getActivityProvider(config: vscode.WorkspaceConfiguration): Acti
 		return {
 			...openclawProvider,
 			maxObservedAgents: Math.max(1, config.get<number>('openclaw.maxObservedAgents', 1)),
+			maxSessionAgeMinutes: Math.max(1, config.get<number>('openclaw.maxSessionAgeMinutes', 30)),
 		};
 	}
 	return claudeProvider;

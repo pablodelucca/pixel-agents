@@ -61,6 +61,12 @@
           "default": 1,
           "minimum": 1,
           "description": "Maximum number of OpenClaw observer agents to show at once in openclaw-session mode."
+        },
+        "pixelAgents.openclaw.maxSessionAgeMinutes": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "description": "Only observe OpenClaw session files updated within this many minutes (reduces old-session noise)."
         }
       }
     }
