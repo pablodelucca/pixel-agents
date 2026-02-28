@@ -34,6 +34,15 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
 		case 'webfetch': return 'Fetching web content';
 		case 'web_search':
 		case 'websearch': return 'Searching the web';
+		case 'memory_search': return 'Searching memory';
+		case 'memory_get': return 'Reading memory';
+		case 'sessions_list': return 'Listing sessions';
+		case 'sessions_history': return 'Reading session history';
+		case 'sessions_send': return 'Sending session message';
+		case 'sessions_spawn': return 'Spawning sub-session';
+		case 'session_status': return 'Checking session status';
+		case 'message': return 'Sending message';
+		case 'browser': return 'Using browser tool';
 		case 'task': {
 			const desc = typeof input.description === 'string' ? input.description : '';
 			return desc ? `Subtask: ${desc.length > TASK_DESCRIPTION_DISPLAY_MAX_LENGTH ? desc.slice(0, TASK_DESCRIPTION_DISPLAY_MAX_LENGTH) + '\u2026' : desc}` : 'Running subtask';
