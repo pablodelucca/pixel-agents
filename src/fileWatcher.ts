@@ -228,12 +228,21 @@ function adoptTerminalForFile(
 	activityProvider: ActivityProvider,
 ): void {
 	const id = nextAgentIdRef.current++;
+	let initialOffset = 0;
+	if (activityProvider.mode === 'session-observer') {
+		try {
+			initialOffset = fs.statSync(jsonlFile).size;
+		} catch {
+			initialOffset = 0;
+		}
+	}
+
 	const agent: AgentState = {
 		id,
 		terminalRef: terminal,
 		projectDir,
 		jsonlFile,
-		fileOffset: 0,
+		fileOffset: initialOffset,
 		lineBuffer: '',
 		activeToolIds: new Set(),
 		activeToolStatuses: new Map(),
