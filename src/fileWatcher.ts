@@ -5,6 +5,7 @@ import type { AgentState } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
+import { createAgentState } from './agentFactory.js';
 
 export function startFileWatching(
 	agentId: number,
@@ -180,7 +181,7 @@ function scanForNewJsonlFiles(
 	}
 }
 
-function adoptTerminalForFile(
+export function adoptTerminalForFile(
 	terminal: vscode.Terminal,
 	jsonlFile: string,
 	projectDir: string,
@@ -193,24 +194,17 @@ function adoptTerminalForFile(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
-): void {
+): number | null {
+	// Guard: prevent double-adoption of the same terminal
+	for (const agent of agents.values()) {
+		if (agent.terminalRef === terminal) {
+			console.log(`[Pixel Agents] Terminal "${terminal.name}" already owned, skipping adoption`);
+			return null;
+		}
+	}
+
 	const id = nextAgentIdRef.current++;
-	const agent: AgentState = {
-		id,
-		terminalRef: terminal,
-		projectDir,
-		jsonlFile,
-		fileOffset: 0,
-		lineBuffer: '',
-		activeToolIds: new Set(),
-		activeToolStatuses: new Map(),
-		activeToolNames: new Map(),
-		activeSubagentToolIds: new Map(),
-		activeSubagentToolNames: new Map(),
-		isWaiting: false,
-		permissionSent: false,
-		hadToolsInTurn: false,
-	};
+	const agent = createAgentState(id, terminal, projectDir, jsonlFile);
 
 	agents.set(id, agent);
 	activeAgentIdRef.current = id;
@@ -221,6 +215,8 @@ function adoptTerminalForFile(
 
 	startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
 	readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+
+	return id;
 }
 
 export function reassignAgentToFile(
