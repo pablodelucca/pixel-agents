@@ -54,6 +54,9 @@ export function useTownInit(
       // NPCs start inactive so they wander (not sit and type)
       ch.isActive = false
 
+      // Link character back to construct registry for dialogue lookup
+      ch.folderName = npc.constructName
+
       os.characters.set(npcId, ch)
     }
 

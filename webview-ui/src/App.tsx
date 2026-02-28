@@ -3,9 +3,11 @@ import { OfficeState } from './office/engine/officeState.js'
 import { OfficeCanvas } from './office/components/OfficeCanvas.js'
 import { EditorState } from './office/editor/editorState.js'
 import { ZoomControls } from './components/ZoomControls.js'
+import { DialogueBox } from './components/DialogueBox.js'
 import { useTownInit } from './hooks/useTownInit.js'
 import { usePlayerInput } from './hooks/usePlayerInput.js'
 import { defaultTownLayout } from './data/defaultTownLayout.js'
+import { TOWN_NPCS } from './data/townNpcs.js'
 
 // Game state lives outside React — updated imperatively
 const officeStateRef = { current: null as OfficeState | null }
@@ -20,7 +22,19 @@ function getOfficeState(): OfficeState {
 
 function App() {
   const { layoutReady } = useTownInit(getOfficeState)
-  usePlayerInput(getOfficeState, layoutReady)
+
+  const [dialogueNpcId, setDialogueNpcId] = useState<number | null>(null)
+  const [nearbyNpcId, setNearbyNpcId] = useState<number | null>(null)
+
+  const handleInteract = useCallback((npcId: number | null) => {
+    setDialogueNpcId(npcId)
+  }, [])
+
+  const handleNearbyChange = useCallback((npcId: number | null) => {
+    setNearbyNpcId(npcId)
+  }, [])
+
+  usePlayerInput(getOfficeState, layoutReady, handleInteract, handleNearbyChange)
 
   const [zoom, setZoom] = useState(() => Math.round(3 * (window.devicePixelRatio || 1)))
   const panRef = useRef({ x: 0, y: 0 })
@@ -28,14 +42,18 @@ function App() {
   const handleZoomChange = useCallback((z: number) => setZoom(z), [])
 
   const handleClick = useCallback((_agentId: number) => {
-    // In town mode, clicking an NPC will eventually open dialogue
-    // For now, no-op
+    // In town mode, clicking an NPC could also open dialogue
+    // For now, no-op (E key is the primary interaction)
   }, [])
 
   // No-op editor callbacks (editor mode disabled)
   const noop = useCallback(() => {}, [])
   const noopTile = useCallback((_c: number, _r: number) => {}, [])
   const noopDrag = useCallback((_u: string, _c: number, _r: number) => {}, [])
+
+  // Look up dialogue NPC data
+  const dialogueNpc = dialogueNpcId !== null ? TOWN_NPCS[dialogueNpcId - 1] ?? null : null
+  const nearbyNpc = nearbyNpcId !== null && dialogueNpcId === null ? TOWN_NPCS[nearbyNpcId - 1] ?? null : null
 
   if (!layoutReady) {
     return (
@@ -77,7 +95,7 @@ function App() {
         }}
       />
 
-      {/* Town HUD — title */}
+      {/* Town HUD — title + controls hint */}
       <div
         style={{
           position: 'absolute',
@@ -90,8 +108,33 @@ function App() {
           zIndex: 50,
         }}
       >
-        Crystalline City — WASD / Arrow Keys to move
+        Crystalline City — WASD to move, E to talk
       </div>
+
+      {/* Proximity hint — shown when near an NPC but not in dialogue */}
+      {nearbyNpc && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 32,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            color: '#8af',
+            fontSize: '13px',
+            fontFamily: 'monospace',
+            pointerEvents: 'none',
+            zIndex: 45,
+            background: 'rgba(20, 20, 35, 0.8)',
+            padding: '6px 16px',
+            border: '1px solid #444',
+          }}
+        >
+          Press E to talk to {nearbyNpc.constructName}
+        </div>
+      )}
+
+      {/* Dialogue box — shown when talking to an NPC */}
+      {dialogueNpc && <DialogueBox npc={dialogueNpc} />}
     </div>
   )
 }
