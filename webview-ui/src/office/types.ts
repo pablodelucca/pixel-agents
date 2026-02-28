@@ -195,4 +195,6 @@ export interface Character {
   matrixEffectSeeds: number[]
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string
+  /** Whether this character is the player (controlled by keyboard, not AI) */
+  isPlayer: boolean
 }

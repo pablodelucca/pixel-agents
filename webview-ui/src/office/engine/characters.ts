@@ -46,13 +46,14 @@ export function createCharacter(
   seatId: string | null,
   seat: Seat | null,
   hueShift = 0,
+  isPlayer = false,
 ): Character {
   const col = seat ? seat.seatCol : 1
   const row = seat ? seat.seatRow : 1
   const center = tileCenter(col, row)
   return {
     id,
-    state: CharacterState.TYPE,
+    state: isPlayer ? CharacterState.IDLE : CharacterState.TYPE,
     dir: seat ? seat.facingDir : Direction.DOWN,
     x: center.x,
     y: center.y,
@@ -68,7 +69,7 @@ export function createCharacter(
     wanderTimer: 0,
     wanderCount: 0,
     wanderLimit: randomInt(WANDER_MOVES_BEFORE_REST_MIN, WANDER_MOVES_BEFORE_REST_MAX),
-    isActive: true,
+    isActive: !isPlayer,
     seatId,
     bubbleType: null,
     bubbleTimer: 0,
@@ -78,6 +79,7 @@ export function createCharacter(
     matrixEffect: null,
     matrixEffectTimer: 0,
     matrixEffectSeeds: [],
+    isPlayer,
   }
 }
 
@@ -90,6 +92,47 @@ export function updateCharacter(
   blockedTiles: Set<string>,
 ): void {
   ch.frameTimer += dt
+
+  // Player characters only process WALK state — no wander AI, no seat logic
+  if (ch.isPlayer) {
+    if (ch.state === CharacterState.WALK) {
+      // Walk animation
+      if (ch.frameTimer >= WALK_FRAME_DURATION_SEC) {
+        ch.frameTimer -= WALK_FRAME_DURATION_SEC
+        ch.frame = (ch.frame + 1) % 4
+      }
+
+      if (ch.path.length === 0) {
+        const center = tileCenter(ch.tileCol, ch.tileRow)
+        ch.x = center.x
+        ch.y = center.y
+        ch.state = CharacterState.IDLE
+        ch.frame = 0
+        ch.frameTimer = 0
+        return
+      }
+
+      const nextTile = ch.path[0]
+      ch.dir = directionBetween(ch.tileCol, ch.tileRow, nextTile.col, nextTile.row)
+      ch.moveProgress += (WALK_SPEED_PX_PER_SEC / TILE_SIZE) * dt
+      const fromCenter = tileCenter(ch.tileCol, ch.tileRow)
+      const toCenter = tileCenter(nextTile.col, nextTile.row)
+      const t = Math.min(ch.moveProgress, 1)
+      ch.x = fromCenter.x + (toCenter.x - fromCenter.x) * t
+      ch.y = fromCenter.y + (toCenter.y - fromCenter.y) * t
+
+      if (ch.moveProgress >= 1) {
+        ch.tileCol = nextTile.col
+        ch.tileRow = nextTile.row
+        ch.x = toCenter.x
+        ch.y = toCenter.y
+        ch.path.shift()
+        ch.moveProgress = 0
+      }
+    }
+    // IDLE: just static, wait for keyboard input
+    return
+  }
 
   switch (ch.state) {
     case CharacterState.TYPE: {
