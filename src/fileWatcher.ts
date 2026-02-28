@@ -114,15 +114,18 @@ export function ensureProjectScan(
 	activityProvider: ActivityProvider,
 ): void {
 	if (projectScanTimerRef.current) return;
-	// Seed with all existing JSONL files so we only react to truly new ones
-	try {
-		const files = fs.readdirSync(projectDir)
-			.filter(f => f.endsWith('.jsonl'))
-			.map(f => path.join(projectDir, f));
-		for (const f of files) {
-			knownJsonlFiles.add(f);
-		}
-	} catch { /* dir may not exist yet */ }
+	// In terminal mode (Claude), seed existing files and react only to truly new ones.
+	// In session-observer mode (OpenClaw), do not seed so existing sessions can be adopted.
+	if (activityProvider.mode === 'terminal') {
+		try {
+			const files = fs.readdirSync(projectDir)
+				.filter(f => f.endsWith('.jsonl'))
+				.map(f => path.join(projectDir, f));
+			for (const f of files) {
+				knownJsonlFiles.add(f);
+			}
+		} catch { /* dir may not exist yet */ }
+	}
 
 	projectScanTimerRef.current = setInterval(() => {
 		scanForNewJsonlFiles(
@@ -154,39 +157,58 @@ function scanForNewJsonlFiles(
 			.map(f => path.join(projectDir, f));
 	} catch { return; }
 
-	for (const file of files) {
-		if (!knownJsonlFiles.has(file)) {
-			knownJsonlFiles.add(file);
-			if (activeAgentIdRef.current !== null) {
-				// Active agent focused → /clear reassignment
-				console.log(`[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`);
-				reassignAgentToFile(
-					activeAgentIdRef.current, file,
-					agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-					webview, persistAgents, activityProvider,
-				);
-			} else {
-				// No active agent → try to adopt the focused terminal
-				const activeTerminal = vscode.window.activeTerminal;
-				if (activeTerminal) {
-					let owned = false;
-					for (const agent of agents.values()) {
-						if (agent.terminalRef === activeTerminal) {
-							owned = true;
-							break;
-						}
-					}
-					if (!owned) {
-						adoptTerminalForFile(
-							activeTerminal, file, projectDir,
-							nextAgentIdRef, agents, activeAgentIdRef,
-							fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-							webview, persistAgents, activityProvider,
-						);
-					}
+	const unknownFiles = files.filter(file => !knownJsonlFiles.has(file));
+	if (unknownFiles.length === 0) return;
+
+	// In observer mode adopt newest first, one file per scan to avoid terminal storms.
+	const candidates = activityProvider.mode === 'session-observer'
+		? [...unknownFiles]
+			.sort((a, b) => {
+				try {
+					return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs;
+				} catch {
+					return 0;
+				}
+			})
+			.slice(0, 1)
+		: unknownFiles;
+
+	for (const file of candidates) {
+		knownJsonlFiles.add(file);
+		if (activeAgentIdRef.current !== null && activityProvider.mode === 'terminal') {
+			// Active agent focused → /clear reassignment
+			console.log(`[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`);
+			reassignAgentToFile(
+				activeAgentIdRef.current, file,
+				agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+				webview, persistAgents, activityProvider,
+			);
+			continue;
+		}
+
+		let terminal = vscode.window.activeTerminal;
+		let owned = false;
+		if (terminal) {
+			for (const existingAgent of agents.values()) {
+				if (existingAgent.terminalRef === terminal) {
+					owned = true;
+					break;
 				}
 			}
 		}
+
+		if (!terminal || owned || activityProvider.mode === 'session-observer') {
+			terminal = vscode.window.createTerminal({
+				name: `OpenClaw Session #${nextAgentIdRef.current}`,
+			});
+		}
+
+		adoptTerminalForFile(
+			terminal, file, projectDir,
+			nextAgentIdRef, agents, activeAgentIdRef,
+			fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+			webview, persistAgents, activityProvider,
+		);
 	}
 }
 

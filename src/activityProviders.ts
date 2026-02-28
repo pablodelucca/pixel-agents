@@ -18,6 +18,7 @@ export interface ActivityProviderContext {
 export interface ActivityProvider {
 	id: ProviderId;
 	displayName: string;
+	mode: 'terminal' | 'session-observer';
 	getProjectDirPath(cwd?: string): string | null;
 	getLaunchCommand(sessionId: string): string | null;
 	processLine(line: string, ctx: ActivityProviderContext): void;
@@ -26,6 +27,7 @@ export interface ActivityProvider {
 const claudeProvider: ActivityProvider = {
 	id: 'claude-jsonl',
 	displayName: 'Claude JSONL',
+	mode: 'terminal',
 	getProjectDirPath(cwd?: string): string | null {
 		const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (!workspacePath) return null;
@@ -50,6 +52,7 @@ const claudeProvider: ActivityProvider = {
 const openclawProvider: ActivityProvider = {
 	id: 'openclaw-session',
 	displayName: 'OpenClaw Session (phase-2 adapter)',
+	mode: 'session-observer',
 	getProjectDirPath(): string | null {
 		return path.join(os.homedir(), '.openclaw', 'agents', 'main', 'sessions');
 	},
