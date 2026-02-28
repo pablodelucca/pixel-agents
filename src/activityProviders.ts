@@ -79,11 +79,18 @@ const openclawProvider: ActivityProvider = {
 			}
 
 			const role = record.message.role;
+			if (!role) {
+				return;
+			}
 
 			if (role === 'assistant' && Array.isArray(record.message.content)) {
 				let sawToolCall = false;
 				let hasNonExemptTool = false;
+				let hasVisibleAssistantText = false;
 				for (const block of record.message.content) {
+					if (block.type === 'text') {
+						hasVisibleAssistantText = true;
+					}
 					if (block.type !== 'toolCall') continue;
 					sawToolCall = true;
 					const toolId = typeof block.id === 'string' ? block.id : '';
@@ -116,11 +123,13 @@ const openclawProvider: ActivityProvider = {
 					return;
 				}
 
-				// Assistant text without tool calls means turn likely done and waiting for user.
-				cancelPermissionTimer(ctx.agentId, ctx.permissionTimers);
-				agent.isWaiting = true;
-				agent.hadToolsInTurn = false;
-				ctx.webview?.postMessage({ type: 'agentStatus', id: ctx.agentId, status: 'waiting' });
+				if (hasVisibleAssistantText && agent.activeToolIds.size === 0) {
+					// Final assistant text response with no active tool work => waiting for next user action.
+					cancelPermissionTimer(ctx.agentId, ctx.permissionTimers);
+					agent.isWaiting = true;
+					agent.hadToolsInTurn = false;
+					ctx.webview?.postMessage({ type: 'agentStatus', id: ctx.agentId, status: 'waiting' });
+				}
 				return;
 			}
 
