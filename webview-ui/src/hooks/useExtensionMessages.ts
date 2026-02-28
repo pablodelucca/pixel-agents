@@ -71,14 +71,25 @@ function normalizeTradingTeamLabels(os: OfficeState, agentIds: number[]): void {
 
   if (chars.length !== 4) return
 
-  const labels = chars.map((ch) => (ch.folderName || '').trim())
-  const hasEmpty = labels.some((name) => !name)
-  const hasDuplicate = new Set(labels.filter(Boolean)).size !== labels.filter(Boolean).length
+  const used = new Set<string>()
 
-  if (!hasEmpty && !hasDuplicate) return
+  // Keep valid unique labels if already present.
+  for (const ch of chars) {
+    const current = (ch.folderName || '').trim()
+    if (teamNames.includes(current) && !used.has(current)) {
+      used.add(current)
+    } else {
+      ch.folderName = ''
+    }
+  }
 
-  for (let i = 0; i < chars.length; i += 1) {
-    chars[i].folderName = teamNames[i]
+  // Fill missing labels deterministically.
+  const remaining = teamNames.filter((name) => !used.has(name))
+  let idx = 0
+  for (const ch of chars) {
+    if ((ch.folderName || '').trim()) continue
+    ch.folderName = remaining[idx] || `Agent ${ch.id}`
+    idx += 1
   }
 }
 
