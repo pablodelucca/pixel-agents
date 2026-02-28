@@ -6,6 +6,8 @@ import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from '.
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
 import type { ActivityProvider } from './activityProviders.js';
 
+const OPENCLAW_OBSERVER_TERMINAL_NAME = 'OpenClaw Observer';
+
 export function startFileWatching(
 	agentId: number,
 	filePath: string,
@@ -198,9 +200,9 @@ function scanForNewJsonlFiles(
 		}
 
 		if (!terminal || owned || activityProvider.mode === 'session-observer') {
-			terminal = vscode.window.createTerminal({
-				name: `OpenClaw Session #${nextAgentIdRef.current}`,
-			});
+			terminal = activityProvider.mode === 'session-observer'
+				? getObserverTerminal()
+				: vscode.window.createTerminal({ name: `OpenClaw Session #${nextAgentIdRef.current}` });
 		}
 
 		adoptTerminalForFile(
@@ -263,6 +265,14 @@ function adoptTerminalForFile(
 
 	startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview, activityProvider);
 	readNewLines(id, agents, waitingTimers, permissionTimers, webview, activityProvider);
+}
+
+function getObserverTerminal(): vscode.Terminal {
+	const existing = vscode.window.terminals.find(t => t.name === OPENCLAW_OBSERVER_TERMINAL_NAME);
+	if (existing) {
+		return existing;
+	}
+	return vscode.window.createTerminal({ name: OPENCLAW_OBSERVER_TERMINAL_NAME });
 }
 
 export function reassignAgentToFile(
