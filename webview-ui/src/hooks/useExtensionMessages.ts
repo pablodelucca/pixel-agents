@@ -61,6 +61,27 @@ function saveAgentSeats(os: OfficeState): void {
   vscode.postMessage({ type: 'saveAgentSeats', seats })
 }
 
+function normalizeTradingTeamLabels(os: OfficeState, agentIds: number[]): void {
+  if (agentIds.length !== 4) return
+  const teamNames = ['Sam', 'Trading Exec', 'Trading Radar', 'Trading Risk']
+  const chars = agentIds
+    .map((id) => os.characters.get(id))
+    .filter((ch): ch is NonNullable<typeof ch> => !!ch && !ch.isSubagent)
+    .sort((a, b) => a.id - b.id)
+
+  if (chars.length !== 4) return
+
+  const labels = chars.map((ch) => (ch.folderName || '').trim())
+  const hasEmpty = labels.some((name) => !name)
+  const hasDuplicate = new Set(labels.filter(Boolean)).size !== labels.filter(Boolean).length
+
+  if (!hasEmpty && !hasDuplicate) return
+
+  for (let i = 0; i < chars.length; i += 1) {
+    chars[i].folderName = teamNames[i]
+  }
+}
+
 export function useExtensionMessages(
   getOfficeState: () => OfficeState,
   onLayoutLoaded?: (layout: OfficeLayout) => void,
@@ -106,6 +127,8 @@ export function useExtensionMessages(
         for (const p of pendingAgents) {
           os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName)
         }
+        const pendingIds = pendingAgents.map((p) => p.id)
+        normalizeTradingTeamLabels(os, pendingIds)
         pendingAgents = []
         layoutReadyRef.current = true
         setLayoutReady(true)
@@ -118,6 +141,8 @@ export function useExtensionMessages(
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]))
         setSelectedAgent(id)
         os.addAgent(id, undefined, undefined, undefined, undefined, folderName)
+        const currentIds = [...os.characters.values()].filter((ch) => !ch.isSubagent).map((ch) => ch.id)
+        normalizeTradingTeamLabels(os, currentIds)
         saveAgentSeats(os)
       } else if (msg.type === 'agentClosed') {
         const id = msg.id as number
