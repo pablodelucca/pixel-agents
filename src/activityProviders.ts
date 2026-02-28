@@ -2,7 +2,8 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { AgentState } from './types.js';
-import { processTranscriptLine } from './transcriptParser.js';
+import { processTranscriptLine, formatToolStatus, PERMISSION_EXEMPT_TOOLS } from './transcriptParser.js';
+import { startPermissionTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
 
 export type ProviderId = 'claude-jsonl' | 'openclaw-session';
 
@@ -48,56 +49,102 @@ const claudeProvider: ActivityProvider = {
 
 const openclawProvider: ActivityProvider = {
 	id: 'openclaw-session',
-	displayName: 'OpenClaw Session (MVP skeleton)',
+	displayName: 'OpenClaw Session (phase-2 adapter)',
 	getProjectDirPath(): string | null {
-		// Placeholder path strategy for phase 1.
-		// Real OpenClaw source mapping comes in phase 2.
 		return path.join(os.homedir(), '.openclaw', 'agents', 'main', 'sessions');
 	},
 	getLaunchCommand(): string | null {
-		// No terminal launch command yet (phase 2 decides source strategy).
+		// OpenClaw sessions are observed from session JSONL files (no terminal launch).
 		return null;
 	},
 	processLine(line: string, ctx: ActivityProviderContext): void {
-		// Skeleton parser so architecture can be exercised before full adapter lands.
-		// Accepts simple normalized JSON lines if provided by a future bridge:
-		// {"event":"tool_start","toolId":"x","status":"Reading file"}
-		// {"event":"tool_done","toolId":"x"}
-		// {"event":"waiting"}
-		// {"event":"active"}
+		const agent = ctx.agents.get(ctx.agentId);
+		if (!agent) return;
 		try {
-			const evt = JSON.parse(line) as {
-				event?: string;
-				toolId?: string;
-				status?: string;
+			const record = JSON.parse(line) as {
+				type?: string;
+				message?: {
+					role?: string;
+					toolCallId?: string;
+					toolName?: string;
+					content?: Array<Record<string, unknown>> | string;
+				};
 			};
-			if (evt.event === 'tool_start' && evt.toolId && evt.status) {
-				ctx.webview?.postMessage({
-					type: 'agentToolStart',
-					id: ctx.agentId,
-					toolId: evt.toolId,
-					status: evt.status,
-				});
-				ctx.webview?.postMessage({ type: 'agentStatus', id: ctx.agentId, status: 'active' });
+
+			if (record.type !== 'message' || !record.message) {
 				return;
 			}
-			if (evt.event === 'tool_done' && evt.toolId) {
-				ctx.webview?.postMessage({
-					type: 'agentToolDone',
-					id: ctx.agentId,
-					toolId: evt.toolId,
-				});
-				return;
-			}
-			if (evt.event === 'waiting') {
+
+			const role = record.message.role;
+
+			if (role === 'assistant' && Array.isArray(record.message.content)) {
+				let sawToolCall = false;
+				let hasNonExemptTool = false;
+				for (const block of record.message.content) {
+					if (block.type !== 'toolCall') continue;
+					sawToolCall = true;
+					const toolId = typeof block.id === 'string' ? block.id : '';
+					const toolName = typeof block.name === 'string' ? block.name : '';
+					const args = (block.arguments && typeof block.arguments === 'object')
+						? (block.arguments as Record<string, unknown>)
+						: {};
+					if (!toolId) continue;
+					const status = formatToolStatus(toolName, args);
+					agent.activeToolIds.add(toolId);
+					agent.activeToolStatuses.set(toolId, status);
+					agent.activeToolNames.set(toolId, toolName);
+					if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
+						hasNonExemptTool = true;
+					}
+					ctx.webview?.postMessage({
+						type: 'agentToolStart',
+						id: ctx.agentId,
+						toolId,
+						status,
+					});
+				}
+				if (sawToolCall) {
+					agent.isWaiting = false;
+					agent.hadToolsInTurn = true;
+					ctx.webview?.postMessage({ type: 'agentStatus', id: ctx.agentId, status: 'active' });
+					if (hasNonExemptTool) {
+						startPermissionTimer(ctx.agentId, ctx.agents, ctx.permissionTimers, PERMISSION_EXEMPT_TOOLS, ctx.webview);
+					}
+					return;
+				}
+
+				// Assistant text without tool calls means turn likely done and waiting for user.
+				cancelPermissionTimer(ctx.agentId, ctx.permissionTimers);
+				agent.isWaiting = true;
+				agent.hadToolsInTurn = false;
 				ctx.webview?.postMessage({ type: 'agentStatus', id: ctx.agentId, status: 'waiting' });
 				return;
 			}
-			if (evt.event === 'active') {
+
+			if (role === 'toolResult') {
+				const toolCallId = record.message.toolCallId;
+				if (toolCallId) {
+					agent.activeToolIds.delete(toolCallId);
+					agent.activeToolStatuses.delete(toolCallId);
+					agent.activeToolNames.delete(toolCallId);
+					ctx.webview?.postMessage({ type: 'agentToolDone', id: ctx.agentId, toolId: toolCallId });
+				}
+				if (agent.activeToolIds.size === 0) {
+					agent.hadToolsInTurn = false;
+					cancelPermissionTimer(ctx.agentId, ctx.permissionTimers);
+				}
+				return;
+			}
+
+			if (role === 'user') {
+				// New user turn: clear previous activity markers.
+				clearAgentActivity(agent, ctx.agentId, ctx.permissionTimers, ctx.webview);
+				agent.isWaiting = false;
+				agent.hadToolsInTurn = false;
 				ctx.webview?.postMessage({ type: 'agentStatus', id: ctx.agentId, status: 'active' });
 			}
 		} catch {
-			// Ignore malformed lines in skeleton mode.
+			// Ignore malformed lines.
 		}
 	},
 };
