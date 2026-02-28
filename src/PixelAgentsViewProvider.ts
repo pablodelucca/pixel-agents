@@ -10,13 +10,14 @@ import {
 	persistAgents,
 	sendExistingAgents,
 	sendLayout,
-	getProjectDirPath,
 } from './agentManager.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
 import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
+import { getActivityProvider } from './activityProviders.js';
+import type { ActivityProvider } from './activityProviders.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	nextAgentId = { current: 1 };
@@ -41,8 +42,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
 	// Cross-window layout sync
 	layoutWatcher: LayoutWatcher | null = null;
+	private readonly activityProvider: ActivityProvider;
 
-	constructor(private readonly context: vscode.ExtensionContext) {}
+	constructor(private readonly context: vscode.ExtensionContext) {
+		this.activityProvider = getActivityProvider(vscode.workspace.getConfiguration('pixelAgents'));
+		console.log(`[Pixel Agents] Activity provider: ${this.activityProvider.id}`);
+	}
 
 	private get extensionUri(): vscode.Uri {
 		return this.context.extensionUri;
@@ -69,6 +74,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 					this.jsonlPollTimers, this.projectScanTimer,
 					this.webview, this.persistAgents,
+					this.activityProvider,
 					message.folderPath as string | undefined,
 				);
 			} else if (message.type === 'focusAgent') {
@@ -98,6 +104,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 					this.jsonlPollTimers, this.projectScanTimer, this.activeAgentId,
 					this.webview, this.persistAgents,
+					this.activityProvider,
 				);
 				// Send persisted settings to webview
 				const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
@@ -113,7 +120,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				}
 
 				// Ensure project scan runs even with no restored agents (to adopt external terminals)
-				const projectDir = getProjectDirPath();
+				const projectDir = this.activityProvider.getProjectDirPath();
 				const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 				console.log('[Extension] workspaceRoot:', workspaceRoot);
 				console.log('[Extension] projectDir:', projectDir);
@@ -122,7 +129,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 						projectDir, this.knownJsonlFiles, this.projectScanTimer, this.activeAgentId,
 						this.nextAgentId, this.agents,
 						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
-						this.webview, this.persistAgents,
+						this.webview, this.persistAgents, this.activityProvider,
 					);
 
 					// Load furniture assets BEFORE sending layout
@@ -225,7 +232,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				}
 				sendExistingAgents(this.agents, this.context, this.webview);
 			} else if (message.type === 'openSessionsFolder') {
-				const projectDir = getProjectDirPath();
+				const projectDir = this.activityProvider.getProjectDirPath();
 				if (projectDir && fs.existsSync(projectDir)) {
 					vscode.env.openExternal(vscode.Uri.file(projectDir));
 				}

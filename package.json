@@ -46,6 +46,17 @@
           "name": "Pixel Agents"
         }
       ]
+    },
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixelAgents.provider": {
+          "type": "string",
+          "enum": ["claude-jsonl", "openclaw-session"],
+          "default": "claude-jsonl",
+          "description": "Activity source provider. Use claude-jsonl for original behavior. openclaw-session is phase-1 scaffold for OpenClaw integration."
+        }
+      }
     }
   },
   "scripts": {

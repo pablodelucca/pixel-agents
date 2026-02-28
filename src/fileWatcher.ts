@@ -3,8 +3,8 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { AgentState } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
-import { processTranscriptLine } from './transcriptParser.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
+import type { ActivityProvider } from './activityProviders.js';
 
 export function startFileWatching(
 	agentId: number,
@@ -15,11 +15,12 @@ export function startFileWatching(
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
+	activityProvider: ActivityProvider,
 ): void {
 	// Primary: fs.watch (unreliable on macOS — may miss events)
 	try {
 		const watcher = fs.watch(filePath, () => {
-			readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
+			readNewLines(agentId, agents, waitingTimers, permissionTimers, webview, activityProvider);
 		});
 		fileWatchers.set(agentId, watcher);
 	} catch (e) {
@@ -29,7 +30,7 @@ export function startFileWatching(
 	// Secondary: fs.watchFile (stat-based polling, reliable on macOS)
 	try {
 		fs.watchFile(filePath, { interval: FILE_WATCHER_POLL_INTERVAL_MS }, () => {
-			readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
+			readNewLines(agentId, agents, waitingTimers, permissionTimers, webview, activityProvider);
 		});
 	} catch (e) {
 		console.log(`[Pixel Agents] fs.watchFile failed for agent ${agentId}: ${e}`);
@@ -42,7 +43,7 @@ export function startFileWatching(
 			try { fs.unwatchFile(filePath); } catch { /* ignore */ }
 			return;
 		}
-		readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
+		readNewLines(agentId, agents, waitingTimers, permissionTimers, webview, activityProvider);
 	}, FILE_WATCHER_POLL_INTERVAL_MS);
 	pollingTimers.set(agentId, interval);
 }
@@ -53,6 +54,7 @@ export function readNewLines(
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
+	activityProvider: ActivityProvider,
 ): void {
 	const agent = agents.get(agentId);
 	if (!agent) return;
@@ -83,7 +85,13 @@ export function readNewLines(
 
 		for (const line of lines) {
 			if (!line.trim()) continue;
-			processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
+			activityProvider.processLine(line, {
+				agentId,
+				agents,
+				waitingTimers,
+				permissionTimers,
+				webview,
+			});
 		}
 	} catch (e) {
 		console.log(`[Pixel Agents] Read error for agent ${agentId}: ${e}`);
@@ -103,6 +111,7 @@ export function ensureProjectScan(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
+	activityProvider: ActivityProvider,
 ): void {
 	if (projectScanTimerRef.current) return;
 	// Seed with all existing JSONL files so we only react to truly new ones
@@ -119,7 +128,7 @@ export function ensureProjectScan(
 		scanForNewJsonlFiles(
 			projectDir, knownJsonlFiles, activeAgentIdRef, nextAgentIdRef,
 			agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-			webview, persistAgents,
+			webview, persistAgents, activityProvider,
 		);
 	}, PROJECT_SCAN_INTERVAL_MS);
 }
@@ -136,6 +145,7 @@ function scanForNewJsonlFiles(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
+	activityProvider: ActivityProvider,
 ): void {
 	let files: string[];
 	try {
@@ -153,7 +163,7 @@ function scanForNewJsonlFiles(
 				reassignAgentToFile(
 					activeAgentIdRef.current, file,
 					agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-					webview, persistAgents,
+					webview, persistAgents, activityProvider,
 				);
 			} else {
 				// No active agent → try to adopt the focused terminal
@@ -171,7 +181,7 @@ function scanForNewJsonlFiles(
 							activeTerminal, file, projectDir,
 							nextAgentIdRef, agents, activeAgentIdRef,
 							fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-							webview, persistAgents,
+							webview, persistAgents, activityProvider,
 						);
 					}
 				}
@@ -193,6 +203,7 @@ function adoptTerminalForFile(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
+	activityProvider: ActivityProvider,
 ): void {
 	const id = nextAgentIdRef.current++;
 	const agent: AgentState = {
@@ -219,8 +230,8 @@ function adoptTerminalForFile(
 	console.log(`[Pixel Agents] Agent ${id}: adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`);
 	webview?.postMessage({ type: 'agentCreated', id });
 
-	startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
-	readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+	startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview, activityProvider);
+	readNewLines(id, agents, waitingTimers, permissionTimers, webview, activityProvider);
 }
 
 export function reassignAgentToFile(
@@ -233,6 +244,7 @@ export function reassignAgentToFile(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
+	activityProvider: ActivityProvider,
 ): void {
 	const agent = agents.get(agentId);
 	if (!agent) return;
@@ -257,6 +269,6 @@ export function reassignAgentToFile(
 	persistAgents();
 
 	// Start watching new file
-	startFileWatching(agentId, newFilePath, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
-	readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
+	startFileWatching(agentId, newFilePath, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview, activityProvider);
+	readNewLines(agentId, agents, waitingTimers, permissionTimers, webview, activityProvider);
 }

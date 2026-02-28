@@ -27,7 +27,16 @@ This is the source code for the free [Pixel Agents extension for VS Code](https:
 ## Requirements
 
 - VS Code 1.109.0 or later
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
+- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured (for current default provider)
+
+## Provider Mode (new)
+
+Pixel Agents now has a provider setting:
+
+- `pixelAgents.provider = "claude-jsonl"` (default, existing behavior)
+- `pixelAgents.provider = "openclaw-session"` (phase-1 scaffold for OpenClaw integration)
+
+OpenClaw provider support is being implemented incrementally. In the current phase, it sets up the architecture but is not yet a full activity adapter.
 
 ## Getting Started
 
