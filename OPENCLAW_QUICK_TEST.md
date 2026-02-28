@@ -19,7 +19,9 @@ Expected:
 - Status changes when tool activity appears (active / waiting)
 
 Tip:
-- Keep `pixelAgents.openclaw.maxObservedAgents = 1` for a clean beginner setup.
+- For Ronald's trading team view, use:
+  - `pixelAgents.openclaw.maxObservedAgents = 4`
+  - `pixelAgents.openclaw.maxSessionAgeMinutes = 120`
 
 If something looks wrong, note:
 - what you did

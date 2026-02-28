@@ -168,8 +168,8 @@ export function getActivityProvider(config: vscode.WorkspaceConfiguration): Acti
 	if (selected === 'openclaw-session') {
 		return {
 			...openclawProvider,
-			maxObservedAgents: Math.max(1, config.get<number>('openclaw.maxObservedAgents', 1)),
-			maxSessionAgeMinutes: Math.max(1, config.get<number>('openclaw.maxSessionAgeMinutes', 30)),
+			maxObservedAgents: Math.max(1, config.get<number>('openclaw.maxObservedAgents', 4)),
+			maxSessionAgeMinutes: Math.max(1, config.get<number>('openclaw.maxSessionAgeMinutes', 120)),
 		};
 	}
 	return claudeProvider;

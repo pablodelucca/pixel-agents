@@ -287,6 +287,10 @@ function adoptTerminalForFile(
 		}
 	}
 
+	const observerLabel = activityProvider.mode === 'session-observer'
+		? detectOpenClawObserverLabel(jsonlFile)
+		: undefined;
+
 	const agent: AgentState = {
 		id,
 		terminalRef: terminal,
@@ -302,7 +306,7 @@ function adoptTerminalForFile(
 		isWaiting: false,
 		permissionSent: false,
 		hadToolsInTurn: false,
-		folderName: activityProvider.mode === 'session-observer' ? path.basename(jsonlFile, '.jsonl') : undefined,
+		folderName: observerLabel,
 	};
 
 	agents.set(id, agent);
@@ -340,6 +344,29 @@ function pickObserverAgentToRotate(agents: Map<number, AgentState>): number | nu
 		}
 	}
 	return candidateId;
+}
+
+function detectOpenClawObserverLabel(jsonlFile: string): string {
+	const fallback = path.basename(jsonlFile, '.jsonl').slice(0, 8);
+	try {
+		const content = fs.readFileSync(jsonlFile, 'utf-8');
+		const head = content.slice(0, 8000).toLowerCase();
+		if (head.includes('trading:news-radar') || head.includes('trading-radar')) {
+			return 'Trading Radar';
+		}
+		if (head.includes('trading:risk') || head.includes('trading-risk')) {
+			return 'Trading Risk';
+		}
+		if (head.includes('trading:exec') || head.includes('trading-exec')) {
+			return 'Trading Exec';
+		}
+		if (head.includes('agent:main:main') || head.includes('channel":"webchat')) {
+			return 'Sam';
+		}
+	} catch {
+		// ignore read errors, use fallback
+	}
+	return `Session ${fallback}`;
 }
 
 export function reassignAgentToFile(
