@@ -5,6 +5,7 @@ import type { AgentState } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
+import { createAgentState } from './agentFactory.js';
 
 export function startFileWatching(
 	agentId: number,
@@ -156,17 +157,25 @@ function scanForNewJsonlFiles(
 					webview, persistAgents,
 				);
 			} else {
-				// No active agent → try to adopt the focused terminal
-				const activeTerminal = vscode.window.activeTerminal;
-				if (activeTerminal) {
-					let owned = false;
-					for (const agent of agents.values()) {
-						if (agent.terminalRef === activeTerminal) {
-							owned = true;
-							break;
-						}
-					}
-					if (!owned) {
+				// No active agent → try to adopt an unowned terminal
+				const ownedTerminals = new Set<vscode.Terminal>();
+				for (const agent of agents.values()) {
+					ownedTerminals.add(agent.terminalRef);
+				}
+				const unowned = vscode.window.terminals.filter(t => !ownedTerminals.has(t));
+
+				if (unowned.length === 1) {
+					// Exactly 1 unowned terminal → auto-adopt
+					adoptTerminalForFile(
+						unowned[0], file, projectDir,
+						nextAgentIdRef, agents, activeAgentIdRef,
+						fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+						webview, persistAgents,
+					);
+				} else {
+					// Multiple unowned → try focused terminal (original behavior)
+					const activeTerminal = vscode.window.activeTerminal;
+					if (activeTerminal && !ownedTerminals.has(activeTerminal)) {
 						adoptTerminalForFile(
 							activeTerminal, file, projectDir,
 							nextAgentIdRef, agents, activeAgentIdRef,
@@ -180,7 +189,7 @@ function scanForNewJsonlFiles(
 	}
 }
 
-function adoptTerminalForFile(
+export function adoptTerminalForFile(
 	terminal: vscode.Terminal,
 	jsonlFile: string,
 	projectDir: string,
@@ -193,24 +202,17 @@ function adoptTerminalForFile(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
-): void {
+): number | null {
+	// Guard: prevent double-adoption of the same terminal
+	for (const agent of agents.values()) {
+		if (agent.terminalRef === terminal) {
+			console.log(`[Pixel Agents] Terminal "${terminal.name}" already owned, skipping adoption`);
+			return null;
+		}
+	}
+
 	const id = nextAgentIdRef.current++;
-	const agent: AgentState = {
-		id,
-		terminalRef: terminal,
-		projectDir,
-		jsonlFile,
-		fileOffset: 0,
-		lineBuffer: '',
-		activeToolIds: new Set(),
-		activeToolStatuses: new Map(),
-		activeToolNames: new Map(),
-		activeSubagentToolIds: new Map(),
-		activeSubagentToolNames: new Map(),
-		isWaiting: false,
-		permissionSent: false,
-		hadToolsInTurn: false,
-	};
+	const agent = createAgentState(id, terminal, projectDir, jsonlFile);
 
 	agents.set(id, agent);
 	activeAgentIdRef.current = id;
@@ -221,6 +223,8 @@ function adoptTerminalForFile(
 
 	startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
 	readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+
+	return id;
 }
 
 export function reassignAgentToFile(

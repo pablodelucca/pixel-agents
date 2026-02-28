@@ -6,6 +6,7 @@ import type { AgentState, PersistedAgent } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer } from './timerManager.js';
 import { startFileWatching, readNewLines, ensureProjectScan } from './fileWatcher.js';
 import { JSONL_POLL_INTERVAL_MS, TERMINAL_NAME_PREFIX, WORKSPACE_KEY_AGENTS, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
+import { createAgentState } from './agentFactory.js';
 import { migrateAndLoadLayout } from './layoutPersistence.js';
 
 export function getProjectDirPath(cwd?: string): string | null {
@@ -59,23 +60,7 @@ export async function launchNewTerminal(
 	// Create agent immediately (before JSONL file exists)
 	const id = nextAgentIdRef.current++;
 	const folderName = isMultiRoot && cwd ? path.basename(cwd) : undefined;
-	const agent: AgentState = {
-		id,
-		terminalRef: terminal,
-		projectDir,
-		jsonlFile: expectedFile,
-		fileOffset: 0,
-		lineBuffer: '',
-		activeToolIds: new Set(),
-		activeToolStatuses: new Map(),
-		activeToolNames: new Map(),
-		activeSubagentToolIds: new Map(),
-		activeSubagentToolNames: new Map(),
-		isWaiting: false,
-		permissionSent: false,
-		hadToolsInTurn: false,
-		folderName,
-	};
+	const agent = createAgentState(id, terminal, projectDir, expectedFile, { folderName });
 
 	agents.set(id, agent);
 	activeAgentIdRef.current = id;
@@ -184,23 +169,7 @@ export function restoreAgents(
 		const terminal = liveTerminals.find(t => t.name === p.terminalName);
 		if (!terminal) continue;
 
-		const agent: AgentState = {
-			id: p.id,
-			terminalRef: terminal,
-			projectDir: p.projectDir,
-			jsonlFile: p.jsonlFile,
-			fileOffset: 0,
-			lineBuffer: '',
-			activeToolIds: new Set(),
-			activeToolStatuses: new Map(),
-			activeToolNames: new Map(),
-			activeSubagentToolIds: new Map(),
-			activeSubagentToolNames: new Map(),
-			isWaiting: false,
-			permissionSent: false,
-			hadToolsInTurn: false,
-			folderName: p.folderName,
-		};
+		const agent = createAgentState(p.id, terminal, p.projectDir, p.jsonlFile, { folderName: p.folderName });
 
 		agents.set(p.id, agent);
 		knownJsonlFiles.add(p.jsonlFile);

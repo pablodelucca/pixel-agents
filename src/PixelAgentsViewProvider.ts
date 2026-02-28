@@ -12,7 +12,7 @@ import {
 	sendLayout,
 	getProjectDirPath,
 } from './agentManager.js';
-import { ensureProjectScan } from './fileWatcher.js';
+import { ensureProjectScan, adoptTerminalForFile } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
 import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
@@ -293,6 +293,118 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				}
 			}
 		});
+	}
+
+	/** Connect an existing terminal to Pixel Agents (terminal tab context menu) */
+	connectTerminal(terminal: vscode.Terminal): void {
+		// Already owned?
+		for (const agent of this.agents.values()) {
+			if (agent.terminalRef === terminal) {
+				vscode.window.showInformationMessage('Pixel Agents: This terminal is already connected.');
+				return;
+			}
+		}
+
+		const projectDir = this.resolveProjectDir(terminal);
+		if (!projectDir) {
+			vscode.window.showWarningMessage('Pixel Agents: Could not determine project directory for this terminal.');
+			return;
+		}
+
+		const jsonlFile = this.findBestJsonlFile(projectDir);
+		if (!jsonlFile) {
+			vscode.window.showWarningMessage('Pixel Agents: No active Claude session found for this terminal.');
+			return;
+		}
+
+		// Skip past existing content (we only care about future activity)
+		let fileOffset = 0;
+		try {
+			fileOffset = fs.statSync(jsonlFile).size;
+		} catch { /* start from 0 */ }
+
+		this.knownJsonlFiles.add(jsonlFile);
+
+		const id = adoptTerminalForFile(
+			terminal, jsonlFile, projectDir,
+			this.nextAgentId, this.agents, this.activeAgentId,
+			this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+			this.webview, this.persistAgents,
+		);
+
+		if (id !== null) {
+			// Apply fileOffset to skip past history
+			const agent = this.agents.get(id);
+			if (agent) {
+				agent.fileOffset = fileOffset;
+			}
+
+			// Ensure project scan is running for this directory
+			ensureProjectScan(
+				projectDir, this.knownJsonlFiles, this.projectScanTimer, this.activeAgentId,
+				this.nextAgentId, this.agents,
+				this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+				this.webview, this.persistAgents,
+			);
+		}
+	}
+
+	/** Resolve the project directory for a terminal (cwd → Claude project hash path) */
+	private resolveProjectDir(terminal: vscode.Terminal): string | null {
+		// 1. Shell Integration API (most reliable)
+		const shellCwd = (terminal as unknown as { shellIntegration?: { cwd?: vscode.Uri } }).shellIntegration?.cwd;
+		if (shellCwd) {
+			return getProjectDirPath(shellCwd.fsPath);
+		}
+
+		// 2. creationOptions.cwd
+		const opts = terminal.creationOptions as vscode.TerminalOptions;
+		if (opts?.cwd) {
+			const cwdStr = typeof opts.cwd === 'string' ? opts.cwd : opts.cwd.fsPath;
+			return getProjectDirPath(cwdStr);
+		}
+
+		// 3. Single-root workspace fallback
+		const folders = vscode.workspace.workspaceFolders;
+		if (folders?.length === 1) {
+			return getProjectDirPath(folders[0].uri.fsPath);
+		}
+
+		return null;
+	}
+
+	/** Find the best untracked JSONL file (most recently modified) in a project directory */
+	private findBestJsonlFile(projectDir: string): string | null {
+		let files: string[];
+		try {
+			files = fs.readdirSync(projectDir)
+				.filter(f => f.endsWith('.jsonl'))
+				.map(f => path.join(projectDir, f));
+		} catch { return null; }
+
+		// Filter out files already tracked by agents
+		const trackedFiles = new Set<string>();
+		for (const agent of this.agents.values()) {
+			trackedFiles.add(agent.jsonlFile);
+		}
+
+		const untracked = files.filter(f => !trackedFiles.has(f));
+		if (untracked.length === 0) return null;
+
+		// Pick most recently modified
+		let best: string | null = null;
+		let bestMtime = 0;
+		for (const f of untracked) {
+			try {
+				const mtime = fs.statSync(f).mtimeMs;
+				if (mtime > bestMtime) {
+					bestMtime = mtime;
+					best = f;
+				}
+			} catch { /* skip */ }
+		}
+
+		return best;
 	}
 
 	/** Export current saved layout to webview-ui/public/assets/default-layout.json (dev utility) */
