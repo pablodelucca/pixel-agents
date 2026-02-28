@@ -350,15 +350,18 @@ function pickObserverAgentToRotate(agents: Map<number, AgentState>): number | nu
 
 function detectOpenClawObserverLabel(jsonlFile: string): string {
 	const fallback = path.basename(jsonlFile, '.jsonl').slice(0, 8);
+	let fd: number | null = null;
 	try {
 		// Read only an initial window; enough to catch session header + early prompts.
-		const fd = fs.openSync(jsonlFile, 'r');
+		fd = fs.openSync(jsonlFile, 'r');
 		const maxBytes = 64 * 1024;
 		const stat = fs.fstatSync(fd);
 		const readBytes = Math.min(maxBytes, stat.size);
+		if (readBytes <= 0) {
+			return `Session ${fallback}`;
+		}
 		const buf = Buffer.alloc(readBytes);
 		fs.readSync(fd, buf, 0, readBytes, 0);
-		fs.closeSync(fd);
 
 		const head = buf.toString('utf-8').toLowerCase();
 
@@ -379,6 +382,14 @@ function detectOpenClawObserverLabel(jsonlFile: string): string {
 		}
 	} catch {
 		// ignore read errors, use fallback
+	} finally {
+		if (fd !== null) {
+			try {
+				fs.closeSync(fd);
+			} catch {
+				// ignore close failures
+			}
+		}
 	}
 	return `Session ${fallback}`;
 }
