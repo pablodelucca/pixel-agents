@@ -6,6 +6,7 @@ import { ZoomControls } from './components/ZoomControls.js'
 import { DialogueBox } from './components/DialogueBox.js'
 import { useTownInit } from './hooks/useTownInit.js'
 import { usePlayerInput } from './hooks/usePlayerInput.js'
+import { useTownMemory, type GreetingResult } from './hooks/useTownMemory.js'
 import { defaultTownLayout } from './data/defaultTownLayout.js'
 import { TOWN_NPCS } from './data/townNpcs.js'
 
@@ -22,13 +23,38 @@ function getOfficeState(): OfficeState {
 
 function App() {
   const { layoutReady } = useTownInit(getOfficeState)
+  const { getGreeting, logInteraction } = useTownMemory()
 
   const [dialogueNpcId, setDialogueNpcId] = useState<number | null>(null)
+  const [dialogueGreeting, setDialogueGreeting] = useState<GreetingResult | null>(null)
   const [nearbyNpcId, setNearbyNpcId] = useState<number | null>(null)
 
+  // Ref tracks the current greeting for use in the close callback (avoids stale closures)
+  const greetingRef = useRef<GreetingResult | null>(null)
+
+  // Track which NPC is in dialogue via ref (avoids stale closure in close handler)
+  const dialogueNpcIdRef = useRef<number | null>(null)
+
   const handleInteract = useCallback((npcId: number | null) => {
-    setDialogueNpcId(npcId)
-  }, [])
+    if (npcId !== null) {
+      // Opening dialogue — fetch memory and compute greeting
+      dialogueNpcIdRef.current = npcId
+      setDialogueNpcId(npcId)
+      getGreeting(npcId).then((result) => {
+        greetingRef.current = result
+        setDialogueGreeting(result)
+      })
+    } else {
+      // Closing dialogue — log the interaction if we had one
+      if (dialogueNpcIdRef.current !== null && greetingRef.current) {
+        logInteraction(dialogueNpcIdRef.current, greetingRef.current.tier, greetingRef.current.text)
+      }
+      dialogueNpcIdRef.current = null
+      greetingRef.current = null
+      setDialogueNpcId(null)
+      setDialogueGreeting(null)
+    }
+  }, [getGreeting, logInteraction])
 
   const handleNearbyChange = useCallback((npcId: number | null) => {
     setNearbyNpcId(npcId)
@@ -134,7 +160,13 @@ function App() {
       )}
 
       {/* Dialogue box — shown when talking to an NPC */}
-      {dialogueNpc && <DialogueBox npc={dialogueNpc} />}
+      {dialogueNpc && (
+        <DialogueBox
+          npc={dialogueNpc}
+          greeting={dialogueGreeting?.text}
+          visitCount={dialogueGreeting?.visitCount ?? 0}
+        />
+      )}
     </div>
   )
 }
