@@ -54,7 +54,13 @@
           "type": "string",
           "enum": ["claude-jsonl", "openclaw-session"],
           "default": "claude-jsonl",
-          "description": "Activity source provider. Use claude-jsonl for original behavior. openclaw-session is phase-1 scaffold for OpenClaw integration."
+          "description": "Activity source provider. Use claude-jsonl for original behavior. openclaw-session enables OpenClaw session observer mode."
+        },
+        "pixelAgents.openclaw.maxObservedAgents": {
+          "type": "number",
+          "default": 1,
+          "minimum": 1,
+          "description": "Maximum number of OpenClaw observer agents to show at once in openclaw-session mode."
         }
       }
     }

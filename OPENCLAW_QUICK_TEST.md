@@ -18,6 +18,9 @@ Expected:
 - Pixel characters appear from active OpenClaw session files
 - Status changes when tool activity appears (active / waiting)
 
+Tip:
+- Keep `pixelAgents.openclaw.maxObservedAgents = 1` for a clean beginner setup.
+
 If something looks wrong, note:
 - what you did
 - what you expected

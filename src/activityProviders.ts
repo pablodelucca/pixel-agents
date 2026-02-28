@@ -19,6 +19,7 @@ export interface ActivityProvider {
 	id: ProviderId;
 	displayName: string;
 	mode: 'terminal' | 'session-observer';
+	maxObservedAgents?: number;
 	getProjectDirPath(cwd?: string): string | null;
 	getLaunchCommand(sessionId: string): string | null;
 	processLine(line: string, ctx: ActivityProviderContext): void;
@@ -163,6 +164,11 @@ const openclawProvider: ActivityProvider = {
 
 export function getActivityProvider(config: vscode.WorkspaceConfiguration): ActivityProvider {
 	const selected = config.get<ProviderId>('provider', 'claude-jsonl');
-	if (selected === 'openclaw-session') return openclawProvider;
+	if (selected === 'openclaw-session') {
+		return {
+			...openclawProvider,
+			maxObservedAgents: Math.max(1, config.get<number>('openclaw.maxObservedAgents', 1)),
+		};
+	}
 	return claudeProvider;
 }

@@ -192,6 +192,12 @@ function scanForNewJsonlFiles(
 
 	for (const file of candidates) {
 		knownJsonlFiles.add(file);
+		if (activityProvider.mode === 'session-observer') {
+			const maxObserved = activityProvider.maxObservedAgents ?? 1;
+			if (agents.size >= maxObserved) {
+				continue;
+			}
+		}
 		if (activeAgentIdRef.current !== null && activityProvider.mode === 'terminal') {
 			// Active agent focused → /clear reassignment
 			console.log(`[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`);
