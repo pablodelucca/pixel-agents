@@ -287,6 +287,7 @@ function adoptTerminalForFile(
 		isWaiting: false,
 		permissionSent: false,
 		hadToolsInTurn: false,
+		folderName: activityProvider.mode === 'session-observer' ? path.basename(jsonlFile, '.jsonl') : undefined,
 	};
 
 	agents.set(id, agent);
