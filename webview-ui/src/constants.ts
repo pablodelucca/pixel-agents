@@ -67,6 +67,12 @@ export const SELECTION_HIGHLIGHT_COLOR = '#007fd4'
 export const DELETE_BUTTON_BG = 'rgba(200, 50, 50, 0.85)'
 export const ROTATE_BUTTON_BG = 'rgba(50, 120, 200, 0.85)'
 
+// ── Replay / Building Glow ────────────────────────────────────
+export const BUILDING_GLOW_COLOR = 'rgba(100, 160, 255, 0.18)'
+export const BUILDING_GLOW_PULSE_MIN = 0.12
+export const BUILDING_GLOW_PULSE_MAX = 0.25
+export const BUILDING_GLOW_PULSE_SPEED = 1.5 // cycles per second
+
 // ── Camera ───────────────────────────────────────────────────
 export const CAMERA_FOLLOW_LERP = 0.1
 export const CAMERA_FOLLOW_SNAP_THRESHOLD = 0.5

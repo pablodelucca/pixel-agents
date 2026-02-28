@@ -38,7 +38,11 @@ import {
   SELECTION_HIGHLIGHT_COLOR,
   DELETE_BUTTON_BG,
   ROTATE_BUTTON_BG,
+  BUILDING_GLOW_PULSE_MIN,
+  BUILDING_GLOW_PULSE_MAX,
+  BUILDING_GLOW_PULSE_SPEED,
 } from '../../constants.js'
+import { TOWN_BUILDINGS } from '../../data/defaultTownLayout.js'
 
 // ── Render functions ────────────────────────────────────────────
 
@@ -526,6 +530,45 @@ export interface SelectionRenderState {
   characters: Map<number, Character>
 }
 
+// ── Building Glow (Replay) ───────────────────────────────────
+
+/** Pulsing time counter — monotonically increases, used for glow animation */
+let glowTime = 0
+
+export function renderBuildingGlow(
+  ctx: CanvasRenderingContext2D,
+  glowingBuildings: Set<string>,
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+  dt: number,
+): void {
+  if (glowingBuildings.size === 0) return
+
+  glowTime += dt
+  // Sinusoidal pulse between min and max alpha
+  const pulse = BUILDING_GLOW_PULSE_MIN +
+    (BUILDING_GLOW_PULSE_MAX - BUILDING_GLOW_PULSE_MIN) *
+    (0.5 + 0.5 * Math.sin(glowTime * BUILDING_GLOW_PULSE_SPEED * Math.PI * 2))
+
+  const s = TILE_SIZE * zoom
+
+  ctx.save()
+  for (const building of TOWN_BUILDINGS) {
+    if (!glowingBuildings.has(building.id)) continue
+
+    const bx = offsetX + building.topLeft.col * s
+    const by = offsetY + building.topLeft.row * s
+    const bw = building.size.w * s
+    const bh = building.size.h * s
+
+    // Soft glow rectangle over the building footprint
+    ctx.fillStyle = `rgba(100, 160, 255, ${pulse.toFixed(3)})`
+    ctx.fillRect(bx, by, bw, bh)
+  }
+  ctx.restore()
+}
+
 export function renderFrame(
   ctx: CanvasRenderingContext2D,
   canvasWidth: number,
@@ -541,6 +584,8 @@ export function renderFrame(
   tileColors?: Array<FloorColor | null>,
   layoutCols?: number,
   layoutRows?: number,
+  glowingBuildings?: Set<string>,
+  dt?: number,
 ): { offsetX: number; offsetY: number } {
   // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
@@ -575,6 +620,11 @@ export function renderFrame(
   const selectedId = selection?.selectedAgentId ?? null
   const hoveredId = selection?.hoveredAgentId ?? null
   renderScene(ctx, allFurniture, characters, offsetX, offsetY, zoom, selectedId, hoveredId)
+
+  // Building glow overlay (replay mode)
+  if (glowingBuildings && glowingBuildings.size > 0) {
+    renderBuildingGlow(ctx, glowingBuildings, offsetX, offsetY, zoom, dt ?? 0)
+  }
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom)

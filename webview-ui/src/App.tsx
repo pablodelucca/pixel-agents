@@ -7,6 +7,8 @@ import { DialogueBox } from './components/DialogueBox.js'
 import { useTownInit } from './hooks/useTownInit.js'
 import { usePlayerInput } from './hooks/usePlayerInput.js'
 import { useTownMemory, type GreetingResult } from './hooks/useTownMemory.js'
+import { useReplay } from './hooks/useReplay.js'
+import { ReplayPanel } from './components/ReplayPanel.js'
 import { defaultTownLayout } from './data/defaultTownLayout.js'
 import { TOWN_NPCS } from './data/townNpcs.js'
 
@@ -24,6 +26,16 @@ function getOfficeState(): OfficeState {
 function App() {
   const { layoutReady } = useTownInit(getOfficeState)
   const { getGreeting, logInteraction } = useTownMemory()
+  const {
+    sessions: replaySessions,
+    activeReplay,
+    glowingBuildings,
+    startReplay,
+    stopReplay,
+    playbackSpeed,
+    setPlaybackSpeed,
+    fetchSessions,
+  } = useReplay(getOfficeState)
 
   const [dialogueNpcId, setDialogueNpcId] = useState<number | null>(null)
   const [dialogueGreeting, setDialogueGreeting] = useState<GreetingResult | null>(null)
@@ -106,9 +118,20 @@ function App() {
         zoom={zoom}
         onZoomChange={handleZoomChange}
         panRef={panRef}
+        glowingBuildings={glowingBuildings}
       />
 
       <ZoomControls zoom={zoom} onZoomChange={handleZoomChange} />
+
+      <ReplayPanel
+        sessions={replaySessions}
+        activeReplay={activeReplay}
+        playbackSpeed={playbackSpeed}
+        onPlay={startReplay}
+        onStop={stopReplay}
+        onSpeedChange={setPlaybackSpeed}
+        onRefresh={fetchSessions}
+      />
 
       {/* Vignette overlay */}
       <div

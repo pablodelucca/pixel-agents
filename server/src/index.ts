@@ -3,6 +3,7 @@ import { WebSocketServer } from 'ws'
 import { createServer } from 'http'
 import { townMemoryRouter } from './api/townMemory.js'
 import { townDataRouter } from './api/townData.js'
+import { replayRouter } from './api/replay.js'
 
 const PORT = 3001
 const app = express()
@@ -24,6 +25,7 @@ app.use((_req, res, next) => {
 // API routes
 app.use('/api/memory', townMemoryRouter)
 app.use('/api/town', townDataRouter)
+app.use('/api/replay', replayRouter)
 
 // Health check
 app.get('/api/health', (_req, res) => {
