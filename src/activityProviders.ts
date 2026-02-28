@@ -89,7 +89,11 @@ const openclawProvider: ActivityProvider = {
 				let sawToolCall = false;
 				let hasNonExemptTool = false;
 				let hasVisibleAssistantText = false;
+				let hasThinkingOnly = false;
 				for (const block of record.message.content) {
+					if (block.type === 'thinking') {
+						hasThinkingOnly = true;
+					}
 					if (block.type === 'text') {
 						hasVisibleAssistantText = true;
 					}
@@ -131,6 +135,12 @@ const openclawProvider: ActivityProvider = {
 					agent.isWaiting = true;
 					agent.hadToolsInTurn = false;
 					ctx.webview?.postMessage({ type: 'agentStatus', id: ctx.agentId, status: 'waiting' });
+					return;
+				}
+
+				if (hasThinkingOnly) {
+					// Keep active while assistant is still reasoning.
+					ctx.webview?.postMessage({ type: 'agentStatus', id: ctx.agentId, status: 'active' });
 				}
 				return;
 			}
