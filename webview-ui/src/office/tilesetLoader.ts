@@ -32,11 +32,13 @@ export interface TilesetConfig {
   sheets: Record<string, SheetDef>
   tiles: Record<string, TileRef>
   mapping: Record<string, string[]>
+  buildings?: Record<string, { file: string }>
 }
 
 export interface LoadedTileset {
   config: TilesetConfig
   sprites: Map<string, SpriteData>
+  buildingSprites: Map<string, SpriteData>
 }
 
 // ---------------------------------------------------------------------------
@@ -100,9 +102,31 @@ export async function loadTileset(name: string): Promise<LoadedTileset | null> {
     sprites.set(tileName, sprite)
   }
 
-  console.log(`[Tileset] Loaded "${config.name}" — ${sprites.size} tiles from ${sheetImages.size} sheet(s)`)
+  // Load building PNGs (standalone images, not from sheet grid)
+  const buildingSprites = new Map<string, SpriteData>()
+  if (config.buildings) {
+    for (const [buildingId, buildingDef] of Object.entries(config.buildings)) {
+      const img = await loadImage(`${basePath}/${buildingDef.file}`)
+      if (!img) {
+        console.log(`[Tileset] Building sprite not found: ${buildingDef.file} — will use fallback`)
+        continue
+      }
+      // Draw full image to offscreen canvas and extract as SpriteData
+      const bCanvas = document.createElement('canvas')
+      bCanvas.width = img.width
+      bCanvas.height = img.height
+      const bCtx = bCanvas.getContext('2d')!
+      bCtx.drawImage(img, 0, 0)
+      const bImageData = bCtx.getImageData(0, 0, img.width, img.height)
+      const bSprite = imageDataToSpriteData(bImageData, img.width, img.height)
+      buildingSprites.set(buildingId, bSprite)
+    }
+  }
 
-  return { config, sprites }
+  const buildingCount = buildingSprites.size > 0 ? `, ${buildingSprites.size} buildings` : ''
+  console.log(`[Tileset] Loaded "${config.name}" — ${sprites.size} tiles from ${sheetImages.size} sheet(s)${buildingCount}`)
+
+  return { config, sprites, buildingSprites }
 }
 
 // ---------------------------------------------------------------------------
@@ -114,6 +138,13 @@ export async function loadTileset(name: string): Promise<LoadedTileset | null> {
  */
 export function getTileSprite(tileset: LoadedTileset, tileName: string): SpriteData | null {
   return tileset.sprites.get(tileName) ?? null
+}
+
+/**
+ * Get a building sprite by building ID from a loaded tileset.
+ */
+export function getBuildingSprite(tileset: LoadedTileset, buildingId: string): SpriteData | null {
+  return tileset.buildingSprites.get(buildingId) ?? null
 }
 
 /**
@@ -150,13 +181,15 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 /**
  * Convert canvas ImageData to the SpriteData format (2D array of hex color strings).
  * Transparent pixels (alpha < 128) become empty string '' (rendered as transparent).
+ * Accepts width and height for arbitrary-sized images (buildings, etc.).
  */
-function imageDataToSpriteData(imageData: ImageData, tileSize: number): SpriteData {
+function imageDataToSpriteData(imageData: ImageData, width: number, height?: number): SpriteData {
+  const h = height ?? width
   const sprite: SpriteData = []
-  for (let row = 0; row < tileSize; row++) {
+  for (let row = 0; row < h; row++) {
     const rowData: string[] = []
-    for (let col = 0; col < tileSize; col++) {
-      const idx = (row * tileSize + col) * 4
+    for (let col = 0; col < width; col++) {
+      const idx = (row * width + col) * 4
       const r = imageData.data[idx]!
       const g = imageData.data[idx + 1]!
       const b = imageData.data[idx + 2]!

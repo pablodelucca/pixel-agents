@@ -25,5 +25,19 @@
     "FLOOR_6": ["tree_trunk"],
     "FLOOR_7": ["flowers_1"]
   },
-  "_comment": "Coordinates mapped to Tiles/Tile.png (15x12 grid, 16px tiles). Grass=textured green variants, Path=sandy tan + dirt brown, Water=solid blue, Tree top=dark forest green, Tree trunk=earthy brown, Fence=tan wood, Flowers=medium green (approximation — Pixelwood flowers are multi-tile sprites, not 16x16)."
+  "buildings": {
+    "town_hall":         { "file": "Town/Houses/4_1.png" },
+    "origin_hall":       { "file": "Town/Houses/12_1.png" },
+    "athena_chambers":   { "file": "Town/Houses/13_1.png" },
+    "lena_cathedral":    { "file": "Town/Houses/10_1.png" },
+    "keeper_archive":    { "file": "Village/Houses/3_1.png" },
+    "resonance_chamber": { "file": "Houses/Shops/1.png" },
+    "foundry":           { "file": "Village/BLACKSMITH_1_1.png" },
+    "pyrosage_hearth":   { "file": "Houses/Shops/2.png" },
+    "cadence_office":    { "file": "Village/Houses/1_1.png" },
+    "venture_office":    { "file": "Houses/Shops/3.png" },
+    "quill_desk":        { "file": "Houses/Shops/4.png" },
+    "glass_workshop":    { "file": "Village/Houses/2_1.png" }
+  },
+  "_comment": "Coordinates mapped to Tiles/Tile.png (15x12 grid, 16px tiles). Buildings are standalone PNGs of varying sizes — loaded individually, not from sheet grid."
 }

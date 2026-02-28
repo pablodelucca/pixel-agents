@@ -6,6 +6,7 @@ import { getCharacterSprite } from './characters.js'
 import { renderMatrixEffect } from './matrixEffect.js'
 import { getColorizedFloorSprite, hasFloorSprites, isTilesetActive, getTilesetFloorSprite, WALL_COLOR } from '../floorTiles.js'
 import { hasWallSprites, getWallInstances, wallColorToHex } from '../wallTiles.js'
+import { hasBuildingSprites, getBuildingInstances, isCoveredWallTile } from '../buildingSprites.js'
 import {
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_Z_SORT_OFFSET,
@@ -70,6 +71,18 @@ export function renderTileGrid(
       if (tile === TileType.VOID) continue
 
       if (tile === TileType.WALL || !useSpriteFloors) {
+        if (tile === TileType.WALL && isCoveredWallTile(c, r)) {
+          // Building sprite covers this tile — draw grass underneath instead
+          const tilesetSprite = isTilesetActive() ? getTilesetFloorSprite(TileType.FLOOR_1, c, r) : null
+          if (tilesetSprite) {
+            const cached = getCachedSprite(tilesetSprite, zoom)
+            ctx.drawImage(cached, offsetX + c * s, offsetY + r * s)
+          } else {
+            ctx.fillStyle = FALLBACK_FLOOR_COLOR
+            ctx.fillRect(offsetX + c * s, offsetY + r * s, s, s)
+          }
+          continue
+        }
         // Wall tiles or fallback: solid color
         if (tile === TileType.WALL) {
           const colorIdx = r * layoutCols + c
@@ -614,13 +627,20 @@ export function renderFrame(
     renderSeatIndicators(ctx, selection.seats, selection.characters, selection.selectedAgentId, selection.hoveredTile, offsetX, offsetY, zoom)
   }
 
+  // Building sprite instances (multi-tile, z-sorted with characters)
+  const buildingInstances = hasBuildingSprites() ? getBuildingInstances() : []
+
   // Build wall instances for z-sorting with furniture and characters
-  const wallInstances = hasWallSprites()
+  // Filter out wall instances for tiles covered by building sprites
+  const rawWallInstances = hasWallSprites()
     ? getWallInstances(tileMap, tileColors, layoutCols)
     : []
-  const allFurniture = wallInstances.length > 0
-    ? [...wallInstances, ...furniture]
-    : furniture
+  const wallInstances = hasBuildingSprites()
+    ? rawWallInstances.filter(w => !isCoveredWallTile(
+        Math.round(w.x / TILE_SIZE),
+        Math.round(w.zY / TILE_SIZE) - 1))
+    : rawWallInstances
+  const allFurniture = [...buildingInstances, ...wallInstances, ...furniture]
 
   // Draw walls + furniture + characters (z-sorted)
   const selectedId = selection?.selectedAgentId ?? null

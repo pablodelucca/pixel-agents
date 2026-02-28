@@ -6,6 +6,7 @@ import { TOWN_NPCS } from '../data/townNpcs.js'
 import { TILE_SIZE } from '../office/types.js'
 import { loadTileset } from '../office/tilesetLoader.js'
 import { setTilesetFloorSprites } from '../office/floorTiles.js'
+import { setBuildingTileset } from '../office/buildingSprites.js'
 
 const PLAYER_ID = 0
 const PLAYER_PALETTE = 0
@@ -69,6 +70,7 @@ export function useTownInit(
     loadTileset('pixelwood').then((tileset) => {
       if (tileset) {
         setTilesetFloorSprites(tileset)
+        setBuildingTileset(tileset)
         console.log('[TownInit] Tileset loaded — rendering with Pixelwood Valley sprites')
       } else {
         console.log('[TownInit] No tileset found — using default programmatic rendering')
