@@ -159,8 +159,23 @@ function scanForNewJsonlFiles(
 			.map(f => path.join(projectDir, f));
 	} catch { return; }
 
-	const unknownFiles = files.filter(file => !knownJsonlFiles.has(file));
+	let unknownFiles = files.filter(file => !knownJsonlFiles.has(file));
 	if (unknownFiles.length === 0) return;
+
+	// First observer scan: adopt only the newest session and ignore historical backlog.
+	if (activityProvider.mode === 'session-observer' && knownJsonlFiles.size === 0) {
+		unknownFiles = [...unknownFiles].sort((a, b) => {
+			try {
+				return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs;
+			} catch {
+				return 0;
+			}
+		});
+		for (const historical of unknownFiles.slice(1)) {
+			knownJsonlFiles.add(historical);
+		}
+		unknownFiles = unknownFiles.slice(0, 1);
+	}
 
 	// In observer mode adopt newest first, one file per scan to avoid terminal storms.
 	const candidates = activityProvider.mode === 'session-observer'
