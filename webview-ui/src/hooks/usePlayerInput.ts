@@ -1,20 +1,59 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { OfficeState } from '../office/engine/officeState.js'
 import { CharacterState, Direction } from '../office/types.js'
 import { isWalkable } from '../office/layout/tileMap.js'
 import { PLAYER_ID } from './useTownInit.js'
 
+/** Max tile distance for NPC interaction */
+const INTERACT_RANGE = 2
+
 /**
- * Keyboard input handler for player character movement.
+ * Find the nearest NPC within range of the player.
+ * Returns the NPC's character ID, or null if none nearby.
+ */
+function findNearbyNpc(os: OfficeState, playerCol: number, playerRow: number): number | null {
+  let bestId: number | null = null
+  let bestDist = Infinity
+
+  for (const ch of os.characters.values()) {
+    if (ch.isPlayer) continue
+    const dist = Math.abs(ch.tileCol - playerCol) + Math.abs(ch.tileRow - playerRow)
+    if (dist <= INTERACT_RANGE && dist < bestDist) {
+      bestDist = dist
+      bestId = ch.id
+    }
+  }
+  return bestId
+}
+
+/**
+ * Keyboard input handler for player character movement and NPC interaction.
  * Arrow keys and WASD move the player one tile at a time.
- * Tile-to-tile movement (like Stardew Valley) — not pathfinding.
+ * E key interacts with nearby NPCs. ESC closes dialogue.
  */
 export function usePlayerInput(
   getOfficeState: () => OfficeState,
   layoutReady: boolean,
+  onInteract: (npcId: number | null) => void,
+  onNearbyNpcChange: (npcId: number | null) => void,
 ): void {
+  const nearbyRef = useRef<number | null>(null)
+
   useEffect(() => {
     if (!layoutReady) return
+
+    // Poll for nearby NPC changes (check every 200ms)
+    const interval = setInterval(() => {
+      const os = getOfficeState()
+      const player = os.characters.get(PLAYER_ID)
+      if (!player) return
+
+      const nearby = findNearbyNpc(os, player.tileCol, player.tileRow)
+      if (nearby !== nearbyRef.current) {
+        nearbyRef.current = nearby
+        onNearbyNpcChange(nearby)
+      }
+    }, 200)
 
     function handleKeyDown(e: KeyboardEvent) {
       // Ignore if input is focused (text fields, etc.)
@@ -24,7 +63,24 @@ export function usePlayerInput(
       const player = os.characters.get(PLAYER_ID)
       if (!player) return
 
-      // Only accept input when player is idle (not mid-walk)
+      // ESC closes dialogue
+      if (e.key === 'Escape') {
+        onInteract(null)
+        return
+      }
+
+      // E key — interact with nearby NPC
+      if (e.key === 'e' || e.key === 'E') {
+        if (player.state === CharacterState.WALK) return
+        const nearby = findNearbyNpc(os, player.tileCol, player.tileRow)
+        if (nearby !== null) {
+          e.preventDefault()
+          onInteract(nearby)
+        }
+        return
+      }
+
+      // Only accept movement when player is idle (not mid-walk)
       if (player.state === CharacterState.WALK) return
 
       let dc = 0
@@ -62,6 +118,9 @@ export function usePlayerInput(
 
       e.preventDefault()
 
+      // Close dialogue on movement
+      onInteract(null)
+
       const targetCol = player.tileCol + dc
       const targetRow = player.tileRow + dr
 
@@ -87,6 +146,11 @@ export function usePlayerInput(
     }
 
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [getOfficeState, layoutReady])
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      clearInterval(interval)
+    }
+  }, [getOfficeState, layoutReady, onInteract, onNearbyNpcChange])
 }
+
+export { findNearbyNpc, INTERACT_RANGE }
