@@ -351,18 +351,30 @@ function pickObserverAgentToRotate(agents: Map<number, AgentState>): number | nu
 function detectOpenClawObserverLabel(jsonlFile: string): string {
 	const fallback = path.basename(jsonlFile, '.jsonl').slice(0, 8);
 	try {
-		const content = fs.readFileSync(jsonlFile, 'utf-8');
-		const head = content.slice(0, 8000).toLowerCase();
-		if (head.includes('trading:news-radar') || head.includes('trading-radar')) {
-			return 'Trading Radar';
+		// Read only an initial window; enough to catch session header + early prompts.
+		const fd = fs.openSync(jsonlFile, 'r');
+		const maxBytes = 64 * 1024;
+		const stat = fs.fstatSync(fd);
+		const readBytes = Math.min(maxBytes, stat.size);
+		const buf = Buffer.alloc(readBytes);
+		fs.readSync(fd, buf, 0, readBytes, 0);
+		fs.closeSync(fd);
+
+		const head = buf.toString('utf-8').toLowerCase();
+
+		// Exact routing first.
+		if (head.includes('trading:exec') || head.includes('trading-exec')) {
+			return 'Trading Exec';
 		}
 		if (head.includes('trading:risk') || head.includes('trading-risk')) {
 			return 'Trading Risk';
 		}
-		if (head.includes('trading:exec') || head.includes('trading-exec')) {
-			return 'Trading Exec';
+		if (head.includes('trading:news-radar') || head.includes('trading-radar')) {
+			return 'Trading Radar';
 		}
-		if (head.includes('agent:main:main') || head.includes('channel":"webchat')) {
+
+		// Main interactive session fallback.
+		if (head.includes('agent:main:main') || head.includes('"channel":"webchat"')) {
 			return 'Sam';
 		}
 	} catch {
