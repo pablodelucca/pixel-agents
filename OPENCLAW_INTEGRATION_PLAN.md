@@ -26,26 +26,31 @@ For Ronald's setup, we will:
 ## Implementation Phases
 
 ## Phase 1 — Foundation (safe)
-- [ ] Add a provider interface for activity data ("agent event source")
-- [ ] Keep existing Claude parser behind provider `claude-jsonl`
-- [ ] Add new provider skeleton `openclaw-session`
-- [ ] Add extension setting: `pixelAgents.provider` (`claude-jsonl` | `openclaw-session`)
+- [x] Add a provider interface for activity data ("agent event source")
+- [x] Keep existing Claude parser behind provider `claude-jsonl`
+- [x] Add new provider skeleton `openclaw-session`
+- [x] Add extension setting: `pixelAgents.provider` (`claude-jsonl` | `openclaw-session`)
 
-Result: no behavior break, but architecture ready.
+Result: no behavior break, architecture ready.
 
 ## Phase 2 — OpenClaw data adapter (MVP)
-- [ ] Read OpenClaw session activity (polling first, websocket later)
-- [ ] Map raw activity to normalized events:
+- [x] Read OpenClaw session activity (polling first)
+- [x] Map raw activity to normalized events:
   - tool_start
   - tool_done
   - waiting
-  - done
-- [ ] Feed events into existing character state machine
+  - done (via assistant text completion / idle)
+- [x] Feed events into existing character state machine
+- [x] Stabilize observer mode:
+  - single observer terminal
+  - EOF start (no stale replay)
+  - prevent historical mass-spawn on first scan
+  - configurable observed-agent cap (`pixelAgents.openclaw.maxObservedAgents`)
 
-Result: characters react to OpenClaw-based activity.
+Result: characters react to OpenClaw-based activity in a stable observer baseline.
 
 ## Phase 3 — UX polish
-- [ ] Better status confidence (reduce false waiting/done)
+- [x] Better status confidence (first pass; reduced false waiting transitions)
 - [ ] Sub-agent parent/child links (if available in source events)
 - [ ] Optional channel tags (discord/cron/main) in debug overlay
 
