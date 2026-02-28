@@ -11,6 +11,7 @@ src/                          — Extension backend (Node.js, VS Code API)
   PixelAgentsViewProvider.ts   — WebviewViewProvider, message dispatch, asset loading
   assetLoader.ts              — PNG parsing, sprite conversion, catalog building, default layout loading
   agentManager.ts             — Terminal lifecycle: launch, remove, restore, persist
+  agentFactory.ts             — createAgentState() factory, single source of truth for AgentState initialization
   layoutPersistence.ts        — User-level layout file I/O (~/.pixel-agents/layout.json), migration, cross-window watching
   fileWatcher.ts              — fs.watch + polling, readNewLines, /clear detection, terminal adoption
   transcriptParser.ts         — JSONL parsing: tool_use/tool_result → webview messages
@@ -77,7 +78,7 @@ scripts/                      — 7-stage asset extraction pipeline
 
 **One-agent-per-terminal**: Each "+ Agent" click → new terminal (`claude --session-id <uuid>`) → immediate agent creation → 1s poll for `<uuid>.jsonl` → file watching starts.
 
-**Terminal adoption**: Project-level 1s scan detects unknown JSONL files. If active terminal has no agent → adopt. If focused agent exists → reassign (`/clear` handling).
+**Terminal adoption**: Project-level 1s scan detects unknown JSONL files. If focused agent exists → reassign (`/clear` handling). If only 1 unowned terminal → auto-adopt. If multiple unowned → adopt focused terminal. **Manual connect**: Terminal tab right-click → "Connect to Pixel Agents" → resolves project dir (shellIntegration.cwd → creationOptions.cwd → single-root fallback) → finds best untracked JSONL by mtime → adopts with fileOffset=size (skips history).
 
 ## Agent Status Tracking
 

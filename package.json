@@ -27,8 +27,17 @@
       {
         "command": "pixel-agents.exportDefaultLayout",
         "title": "Pixel Agents: Export Layout as Default"
+      },
+      {
+        "command": "pixel-agents.connectTerminal",
+        "title": "Connect to Pixel Agents"
       }
     ],
+    "menus": {
+      "terminal/title/context": [
+        { "command": "pixel-agents.connectTerminal" }
+      ]
+    },
     "viewsContainers": {
       "panel": [
         {

@@ -157,17 +157,25 @@ function scanForNewJsonlFiles(
 					webview, persistAgents,
 				);
 			} else {
-				// No active agent → try to adopt the focused terminal
-				const activeTerminal = vscode.window.activeTerminal;
-				if (activeTerminal) {
-					let owned = false;
-					for (const agent of agents.values()) {
-						if (agent.terminalRef === activeTerminal) {
-							owned = true;
-							break;
-						}
-					}
-					if (!owned) {
+				// No active agent → try to adopt an unowned terminal
+				const ownedTerminals = new Set<vscode.Terminal>();
+				for (const agent of agents.values()) {
+					ownedTerminals.add(agent.terminalRef);
+				}
+				const unowned = vscode.window.terminals.filter(t => !ownedTerminals.has(t));
+
+				if (unowned.length === 1) {
+					// Exactly 1 unowned terminal → auto-adopt
+					adoptTerminalForFile(
+						unowned[0], file, projectDir,
+						nextAgentIdRef, agents, activeAgentIdRef,
+						fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+						webview, persistAgents,
+					);
+				} else {
+					// Multiple unowned → try focused terminal (original behavior)
+					const activeTerminal = vscode.window.activeTerminal;
+					if (activeTerminal && !ownedTerminals.has(activeTerminal)) {
 						adoptTerminalForFile(
 							activeTerminal, file, projectDir,
 							nextAgentIdRef, agents, activeAgentIdRef,

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { PixelAgentsViewProvider } from './PixelAgentsViewProvider.js';
-import { VIEW_ID, COMMAND_SHOW_PANEL, COMMAND_EXPORT_DEFAULT_LAYOUT } from './constants.js';
+import { VIEW_ID, COMMAND_SHOW_PANEL, COMMAND_EXPORT_DEFAULT_LAYOUT, COMMAND_CONNECT_TERMINAL } from './constants.js';
 
 let providerInstance: PixelAgentsViewProvider | undefined;
 
@@ -21,6 +21,12 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(COMMAND_EXPORT_DEFAULT_LAYOUT, () => {
 			provider.exportDefaultLayout();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(COMMAND_CONNECT_TERMINAL, (terminal: vscode.Terminal) => {
+			provider.connectTerminal(terminal);
 		})
 	);
 }
