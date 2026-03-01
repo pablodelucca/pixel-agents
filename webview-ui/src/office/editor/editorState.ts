@@ -73,8 +73,53 @@ export class EditorState {
     this.redoStack = []
   }
 
+  setEditMode(isEditMode: boolean): void {
+    this.isEditMode = isEditMode
+  }
+
+  setActiveTool(activeTool: EditTool): void {
+    this.activeTool = activeTool
+  }
+
+  setSelectedTileType(selectedTileType: TileTypeVal): void {
+    this.selectedTileType = selectedTileType
+  }
+
+  setSelectedFurnitureType(selectedFurnitureType: string): void {
+    this.selectedFurnitureType = selectedFurnitureType
+  }
+
+  setFloorColor(floorColor: FloorColor): void {
+    this.floorColor = floorColor
+  }
+
+  setWallColor(wallColor: FloorColor): void {
+    this.wallColor = wallColor
+  }
+
+  setWallDragAdding(wallDragAdding: boolean | null): void {
+    this.wallDragAdding = wallDragAdding
+  }
+
+  setPickedFurnitureColor(pickedFurnitureColor: FloorColor | null): void {
+    this.pickedFurnitureColor = pickedFurnitureColor
+  }
+
+  setGhostPosition(col: number, row: number): void {
+    this.ghostCol = col
+    this.ghostRow = row
+  }
+
+  setGhostValid(ghostValid: boolean): void {
+    this.ghostValid = ghostValid
+  }
+
   clearSelection(): void {
     this.selectedFurnitureUid = null
+  }
+
+  setSelectedFurnitureUid(selectedFurnitureUid: string | null): void {
+    this.selectedFurnitureUid = selectedFurnitureUid
   }
 
   clearGhost(): void {
@@ -95,6 +140,18 @@ export class EditorState {
   clearDrag(): void {
     this.dragUid = null
     this.isDragMoving = false
+  }
+
+  setDragging(isDragging: boolean): void {
+    this.isDragging = isDragging
+  }
+
+  setDragMoving(isDragMoving: boolean): void {
+    this.isDragMoving = isDragMoving
+  }
+
+  setDirty(isDirty: boolean): void {
+    this.isDirty = isDirty
   }
 
   reset(): void {

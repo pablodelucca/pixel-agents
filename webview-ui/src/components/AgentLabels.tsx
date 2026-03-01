@@ -13,6 +13,12 @@ interface AgentLabelsProps {
   subagentCharacters: SubagentCharacter[]
 }
 
+interface LabelViewportMetrics {
+  dpr: number
+  deviceOffsetX: number
+  deviceOffsetY: number
+}
+
 export function AgentLabels({
   officeState,
   agents,
@@ -22,29 +28,42 @@ export function AgentLabels({
   panRef,
   subagentCharacters,
 }: AgentLabelsProps) {
-  const [, setTick] = useState(0)
+  const [viewportMetrics, setViewportMetrics] = useState<LabelViewportMetrics | null>(null)
+
   useEffect(() => {
     let rafId = 0
-    const tick = () => {
-      setTick((n) => n + 1)
-      rafId = requestAnimationFrame(tick)
-    }
-    rafId = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(rafId)
-  }, [])
 
-  const el = containerRef.current
-  if (!el) return null
-  const rect = el.getBoundingClientRect()
-  const dpr = window.devicePixelRatio || 1
-  // Compute device pixel offset (same math as renderFrame, including pan)
-  const canvasW = Math.round(rect.width * dpr)
-  const canvasH = Math.round(rect.height * dpr)
-  const layout = officeState.getLayout()
-  const mapW = layout.cols * TILE_SIZE * zoom
-  const mapH = layout.rows * TILE_SIZE * zoom
-  const deviceOffsetX = Math.floor((canvasW - mapW) / 2) + Math.round(panRef.current.x)
-  const deviceOffsetY = Math.floor((canvasH - mapH) / 2) + Math.round(panRef.current.y)
+    const updateMetrics = () => {
+      const el = containerRef.current
+      if (el) {
+        const rect = el.getBoundingClientRect()
+        const dpr = window.devicePixelRatio || 1
+        const canvasW = Math.round(rect.width * dpr)
+        const canvasH = Math.round(rect.height * dpr)
+        const layout = officeState.getLayout()
+        const mapW = layout.cols * TILE_SIZE * zoom
+        const mapH = layout.rows * TILE_SIZE * zoom
+        const pan = panRef.current
+
+        setViewportMetrics({
+          dpr,
+          deviceOffsetX: Math.floor((canvasW - mapW) / 2) + Math.round(pan.x),
+          deviceOffsetY: Math.floor((canvasH - mapH) / 2) + Math.round(pan.y),
+        })
+      } else {
+        setViewportMetrics(null)
+      }
+
+      rafId = requestAnimationFrame(updateMetrics)
+    }
+
+    rafId = requestAnimationFrame(updateMetrics)
+    return () => cancelAnimationFrame(rafId)
+  }, [containerRef, officeState, panRef, zoom])
+
+  if (!viewportMetrics) return null
+
+  const { dpr, deviceOffsetX, deviceOffsetY } = viewportMetrics
 
   // Build sub-agent label lookup
   const subLabelMap = new Map<number, string>()

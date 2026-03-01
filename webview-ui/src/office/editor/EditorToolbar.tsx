@@ -168,15 +168,6 @@ export function EditorToolbar({
         const success = buildDynamicCatalog(loadedAssets)
         console.log(`[EditorToolbar] Catalog build result: ${success}`)
 
-        // Reset to first available category if current doesn't exist
-        const activeCategories = getActiveCategories()
-        if (activeCategories.length > 0) {
-          const firstCat = activeCategories[0]?.id
-          if (firstCat) {
-            console.log(`[EditorToolbar] Setting active category to: ${firstCat}`)
-            setActiveCategory(firstCat)
-          }
-        }
       } catch (err) {
         console.error(`[EditorToolbar] Error building dynamic catalog:`, err)
       }
@@ -197,7 +188,11 @@ export function EditorToolbar({
     onSelectedFurnitureColorChange({ ...effectiveColor, [key]: value })
   }, [effectiveColor, onSelectedFurnitureColorChange])
 
-  const categoryItems = getCatalogByCategory(activeCategory)
+  const activeCategories = getActiveCategories()
+  const resolvedActiveCategory = activeCategories.some((category) => category.id === activeCategory)
+    ? activeCategory
+    : (activeCategories[0]?.id ?? activeCategory)
+  const categoryItems = getCatalogByCategory(resolvedActiveCategory)
 
   const patternCount = getFloorPatternCount()
   // Wall is TileType 0, floor patterns are 1..patternCount
@@ -357,7 +352,7 @@ export function EditorToolbar({
             {getActiveCategories().map((cat) => (
               <button
                 key={cat.id}
-                style={activeCategory === cat.id ? activeTabStyle : tabStyle}
+                style={resolvedActiveCategory === cat.id ? activeTabStyle : tabStyle}
                 onClick={() => setActiveCategory(cat.id)}
               >
                 {cat.label}
