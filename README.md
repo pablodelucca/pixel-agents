@@ -66,7 +66,7 @@ This will launch a local server (usually at `http://localhost:5173`) with Hot Mo
 
 ### Local Models (LM Studio)
 
-Pixel Agents supports using local LLMs through [LM Studio](https://lmstudio.ai/). Instead of sending requests to Anthropic, you can run models entirely on your machine.
+Pixel Agents supports using local LLMs through [LM Studio](https://lmstudio.ai/) or any OpenAI-compatible endpoint (Ollama, vLLM, etc.). Instead of sending requests to Anthropic, you can run models entirely on your machine.
 
 There are two ways to configure this:
 
@@ -85,17 +85,22 @@ LM Studio 0.4.1+ ships a native Anthropic-compatible `/v1/messages` endpoint, so
    ```bash
    claude --model your-model-name
    ```
-5. Open the Pixel Agents panel — a character will appear and animate based on the CLI's activity.
+5. Open the Pixel Agents panel -- a character will appear and animate based on the CLI's activity.
 
-**Option B: LiteLLM Proxy (any OpenAI-compatible endpoint)**
+**Option B: Built-in Local Agent (any OpenAI-compatible endpoint)**
 
-For endpoints that only expose an OpenAI-compatible API (not Anthropic), Pixel Agents can auto-launch a [LiteLLM](https://docs.litellm.ai/) proxy to translate requests.
+- **Note:** For standalone webview development, copy `.env.example` to `.env` at the project root and configure `PIXEL_AGENTS_BASE_URL`, `PIXEL_AGENTS_API_KEY`, and `PIXEL_AGENTS_MODEL` instead. See [webview-ui/README.md](webview-ui/README.md) for details.
 
-1. In VS Code, open Settings and search for **Pixel Agents**.
-2. Check **Pixel Agents › Local: Enabled**.
-3. Set **Base Url** to your endpoint (e.g., `http://localhost:1234/v1`).
-4. Set **Model** to match your loaded model (e.g., `openai/my-local-model`).
-5. Click **+ Agent** — the extension will start a LiteLLM proxy in the background and launch Claude through it.
+- For endpoints that expose an OpenAI-compatible chat completions API, Pixel Agents includes a built-in local agent that connects directly -- no external proxy needed.
+
+  1. Open LM Studio (or your preferred local server) and start the server.
+  2. In VS Code, open Settings and search for **Pixel Agents**.
+  3. Check **Pixel Agents > Local: Enabled**.
+  4. Set **Base Url** to your endpoint (e.g., `http://localhost:1234/v1`).
+  5. Set **Api Key** (e.g., `lmstudio` -- LM Studio accepts any string).
+  6. Set **Model** to match your loaded model (e.g., `qwen2.5-coder-7b-instruct-mlx`).
+  7. Optionally adjust **Max Tokens** (default: 512, max: 32768).
+  8. Click **+ Agent** -- the extension will launch a local agent that talks to your endpoint using the OpenAI chat completions API.
 
 ## Layout Editor
 
