@@ -9,6 +9,7 @@ import { setWallSprites } from '../office/wallTiles.js'
 import { setCharacterTemplates } from '../office/sprites/spriteData.js'
 import { vscode } from '../vscodeApi.js'
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js'
+import { WAITING_STATUS_DEBOUNCE_MS } from '../constants.js'
 
 export interface SubagentCharacter {
   id: number
@@ -292,7 +293,7 @@ export function useExtensionMessages(
             os.showWaitingBubble(id)
             playDoneSound()
             delete waitingStatusTimersRef.current[id]
-          }, 1200)
+          }, WAITING_STATUS_DEBOUNCE_MS)
           return
         }
 
