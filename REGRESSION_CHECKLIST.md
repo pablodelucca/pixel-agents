@@ -29,9 +29,9 @@ Use this quick checklist after functional changes.
 - [ ] Thinking phases do not immediately drop to idle
 - [ ] Waiting transitions are smooth (no hard flicker)
 
-## Rotation / Session Handling
+## Session Handling
 - [ ] New sessions do not duplicate already assigned files
-- [ ] If cap is reached, observer rotates cleanly (label updates)
+- [ ] If cap is reached, roster stays stable (no automatic churn)
 - [ ] Historical backlog does not flood office on first scan
 
 ## Notes
