@@ -19,26 +19,38 @@ export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'AskUserQuestion']);
 
 export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
 	const base = (p: unknown) => typeof p === 'string' ? path.basename(p) : '';
-	switch (toolName) {
-		case 'Read': return `Reading ${base(input.file_path)}`;
-		case 'Edit': return `Editing ${base(input.file_path)}`;
-		case 'Write': return `Writing ${base(input.file_path)}`;
-		case 'Bash': {
+	const normalized = toolName.toLowerCase();
+	switch (normalized) {
+		case 'read': return `Reading ${base(input.file_path || input.path)}`;
+		case 'edit': return `Editing ${base(input.file_path || input.path)}`;
+		case 'write': return `Writing ${base(input.file_path || input.path)}`;
+		case 'bash':
+		case 'exec': {
 			const cmd = (input.command as string) || '';
 			return `Running: ${cmd.length > BASH_COMMAND_DISPLAY_MAX_LENGTH ? cmd.slice(0, BASH_COMMAND_DISPLAY_MAX_LENGTH) + '\u2026' : cmd}`;
 		}
-		case 'Glob': return 'Searching files';
-		case 'Grep': return 'Searching code';
-		case 'WebFetch': return 'Fetching web content';
-		case 'WebSearch': return 'Searching the web';
-		case 'Task': {
+		case 'glob': return 'Searching files';
+		case 'grep': return 'Searching code';
+		case 'webfetch': return 'Fetching web content';
+		case 'web_search':
+		case 'websearch': return 'Searching the web';
+		case 'memory_search': return 'Searching memory';
+		case 'memory_get': return 'Reading memory';
+		case 'sessions_list': return 'Listing sessions';
+		case 'sessions_history': return 'Reading session history';
+		case 'sessions_send': return 'Sending session message';
+		case 'sessions_spawn': return 'Spawning sub-session';
+		case 'session_status': return 'Checking session status';
+		case 'message': return 'Sending message';
+		case 'browser': return 'Using browser tool';
+		case 'task': {
 			const desc = typeof input.description === 'string' ? input.description : '';
 			return desc ? `Subtask: ${desc.length > TASK_DESCRIPTION_DISPLAY_MAX_LENGTH ? desc.slice(0, TASK_DESCRIPTION_DISPLAY_MAX_LENGTH) + '\u2026' : desc}` : 'Running subtask';
 		}
-		case 'AskUserQuestion': return 'Waiting for your answer';
-		case 'EnterPlanMode': return 'Planning';
-		case 'NotebookEdit': return `Editing notebook`;
-		default: return `Using ${toolName}`;
+		case 'askuserquestion': return 'Waiting for your answer';
+		case 'enterplanmode': return 'Planning';
+		case 'notebookedit': return 'Editing notebook';
+		default: return `Using ${normalized}`;
 	}
 }
 

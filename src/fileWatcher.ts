@@ -3,8 +3,10 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { AgentState } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
-import { processTranscriptLine } from './transcriptParser.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
+import type { ActivityProvider } from './activityProviders.js';
+
+const OPENCLAW_OBSERVER_TERMINAL_NAME = 'OpenClaw Observer';
 
 export function startFileWatching(
 	agentId: number,
@@ -15,11 +17,12 @@ export function startFileWatching(
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
+	activityProvider: ActivityProvider,
 ): void {
 	// Primary: fs.watch (unreliable on macOS — may miss events)
 	try {
 		const watcher = fs.watch(filePath, () => {
-			readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
+			readNewLines(agentId, agents, waitingTimers, permissionTimers, webview, activityProvider);
 		});
 		fileWatchers.set(agentId, watcher);
 	} catch (e) {
@@ -29,7 +32,7 @@ export function startFileWatching(
 	// Secondary: fs.watchFile (stat-based polling, reliable on macOS)
 	try {
 		fs.watchFile(filePath, { interval: FILE_WATCHER_POLL_INTERVAL_MS }, () => {
-			readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
+			readNewLines(agentId, agents, waitingTimers, permissionTimers, webview, activityProvider);
 		});
 	} catch (e) {
 		console.log(`[Pixel Agents] fs.watchFile failed for agent ${agentId}: ${e}`);
@@ -42,7 +45,7 @@ export function startFileWatching(
 			try { fs.unwatchFile(filePath); } catch { /* ignore */ }
 			return;
 		}
-		readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
+		readNewLines(agentId, agents, waitingTimers, permissionTimers, webview, activityProvider);
 	}, FILE_WATCHER_POLL_INTERVAL_MS);
 	pollingTimers.set(agentId, interval);
 }
@@ -53,6 +56,7 @@ export function readNewLines(
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
+	activityProvider: ActivityProvider,
 ): void {
 	const agent = agents.get(agentId);
 	if (!agent) return;
@@ -72,9 +76,11 @@ export function readNewLines(
 
 		const hasLines = lines.some(l => l.trim());
 		if (hasLines) {
-			// New data arriving — cancel timers (data flowing means agent is still active)
+			// New data arriving — treat as live activity unless overridden by a later waiting event.
 			cancelWaitingTimer(agentId, waitingTimers);
 			cancelPermissionTimer(agentId, permissionTimers);
+			agent.isWaiting = false;
+			webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
 			if (agent.permissionSent) {
 				agent.permissionSent = false;
 				webview?.postMessage({ type: 'agentToolPermissionClear', id: agentId });
@@ -83,7 +89,13 @@ export function readNewLines(
 
 		for (const line of lines) {
 			if (!line.trim()) continue;
-			processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
+			activityProvider.processLine(line, {
+				agentId,
+				agents,
+				waitingTimers,
+				permissionTimers,
+				webview,
+			});
 		}
 	} catch (e) {
 		console.log(`[Pixel Agents] Read error for agent ${agentId}: ${e}`);
@@ -103,23 +115,27 @@ export function ensureProjectScan(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
+	activityProvider: ActivityProvider,
 ): void {
 	if (projectScanTimerRef.current) return;
-	// Seed with all existing JSONL files so we only react to truly new ones
-	try {
-		const files = fs.readdirSync(projectDir)
-			.filter(f => f.endsWith('.jsonl'))
-			.map(f => path.join(projectDir, f));
-		for (const f of files) {
-			knownJsonlFiles.add(f);
-		}
-	} catch { /* dir may not exist yet */ }
+	// In terminal mode (Claude), seed existing files and react only to truly new ones.
+	// In session-observer mode (OpenClaw), do not seed so existing sessions can be adopted.
+	if (activityProvider.mode === 'terminal') {
+		try {
+			const files = fs.readdirSync(projectDir)
+				.filter(f => f.endsWith('.jsonl'))
+				.map(f => path.join(projectDir, f));
+			for (const f of files) {
+				knownJsonlFiles.add(f);
+			}
+		} catch { /* dir may not exist yet */ }
+	}
 
 	projectScanTimerRef.current = setInterval(() => {
 		scanForNewJsonlFiles(
 			projectDir, knownJsonlFiles, activeAgentIdRef, nextAgentIdRef,
 			agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-			webview, persistAgents,
+			webview, persistAgents, activityProvider,
 		);
 	}, PROJECT_SCAN_INTERVAL_MS);
 }
@@ -136,6 +152,7 @@ function scanForNewJsonlFiles(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
+	activityProvider: ActivityProvider,
 ): void {
 	let files: string[];
 	try {
@@ -144,39 +161,101 @@ function scanForNewJsonlFiles(
 			.map(f => path.join(projectDir, f));
 	} catch { return; }
 
-	for (const file of files) {
-		if (!knownJsonlFiles.has(file)) {
-			knownJsonlFiles.add(file);
-			if (activeAgentIdRef.current !== null) {
-				// Active agent focused → /clear reassignment
-				console.log(`[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`);
-				reassignAgentToFile(
-					activeAgentIdRef.current, file,
-					agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-					webview, persistAgents,
-				);
-			} else {
-				// No active agent → try to adopt the focused terminal
-				const activeTerminal = vscode.window.activeTerminal;
-				if (activeTerminal) {
-					let owned = false;
-					for (const agent of agents.values()) {
-						if (agent.terminalRef === activeTerminal) {
-							owned = true;
-							break;
-						}
-					}
-					if (!owned) {
-						adoptTerminalForFile(
-							activeTerminal, file, projectDir,
-							nextAgentIdRef, agents, activeAgentIdRef,
-							fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-							webview, persistAgents,
-						);
-					}
+	if (activityProvider.mode === 'session-observer') {
+		const maxAgeMinutes = activityProvider.maxSessionAgeMinutes ?? 30;
+		const cutoffMs = Date.now() - (maxAgeMinutes * 60 * 1000);
+		files = files.filter(file => {
+			try {
+				return fs.statSync(file).mtimeMs >= cutoffMs;
+			} catch {
+				return false;
+			}
+		});
+	}
+
+	let unknownFiles = files
+		.filter(file => !knownJsonlFiles.has(file))
+		.filter(file => {
+			for (const agent of agents.values()) {
+				if (agent.jsonlFile === file) {
+					return false;
+				}
+			}
+			return true;
+		});
+	if (unknownFiles.length === 0) return;
+
+	// First observer scan: adopt only the newest session and ignore historical backlog.
+	if (activityProvider.mode === 'session-observer' && knownJsonlFiles.size === 0) {
+		unknownFiles = [...unknownFiles].sort((a, b) => {
+			try {
+				return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs;
+			} catch {
+				return 0;
+			}
+		});
+		for (const historical of unknownFiles.slice(1)) {
+			knownJsonlFiles.add(historical);
+		}
+		unknownFiles = unknownFiles.slice(0, 1);
+	}
+
+	// In observer mode adopt newest first, one file per scan to avoid terminal storms.
+	const candidates = activityProvider.mode === 'session-observer'
+		? [...unknownFiles]
+			.sort((a, b) => {
+				try {
+					return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs;
+				} catch {
+					return 0;
+				}
+			})
+			.slice(0, 1)
+		: unknownFiles;
+
+	for (const file of candidates) {
+		knownJsonlFiles.add(file);
+		if (activityProvider.mode === 'session-observer') {
+			const maxObserved = activityProvider.maxObservedAgents ?? 1;
+			if (agents.size >= maxObserved) {
+				// Keep a stable roster once cap is reached (no automatic role churn).
+				continue;
+			}
+		}
+		if (activeAgentIdRef.current !== null && activityProvider.mode === 'terminal') {
+			// Active agent focused → /clear reassignment
+			console.log(`[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`);
+			reassignAgentToFile(
+				activeAgentIdRef.current, file,
+				agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+				webview, persistAgents, activityProvider,
+			);
+			continue;
+		}
+
+		let terminal = vscode.window.activeTerminal;
+		let owned = false;
+		if (terminal) {
+			for (const existingAgent of agents.values()) {
+				if (existingAgent.terminalRef === terminal) {
+					owned = true;
+					break;
 				}
 			}
 		}
+
+		if (!terminal || owned || activityProvider.mode === 'session-observer') {
+			terminal = activityProvider.mode === 'session-observer'
+				? getObserverTerminal()
+				: vscode.window.createTerminal({ name: `OpenClaw Session #${nextAgentIdRef.current}` });
+		}
+
+		adoptTerminalForFile(
+			terminal, file, projectDir,
+			nextAgentIdRef, agents, activeAgentIdRef,
+			fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+			webview, persistAgents, activityProvider,
+		);
 	}
 }
 
@@ -193,14 +272,28 @@ function adoptTerminalForFile(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
+	activityProvider: ActivityProvider,
 ): void {
 	const id = nextAgentIdRef.current++;
+	let initialOffset = 0;
+	if (activityProvider.mode === 'session-observer') {
+		try {
+			initialOffset = fs.statSync(jsonlFile).size;
+		} catch {
+			initialOffset = 0;
+		}
+	}
+
+	const observerLabel = activityProvider.mode === 'session-observer'
+		? detectOpenClawObserverLabel(jsonlFile)
+		: undefined;
+
 	const agent: AgentState = {
 		id,
 		terminalRef: terminal,
 		projectDir,
 		jsonlFile,
-		fileOffset: 0,
+		fileOffset: initialOffset,
 		lineBuffer: '',
 		activeToolIds: new Set(),
 		activeToolStatuses: new Map(),
@@ -210,6 +303,7 @@ function adoptTerminalForFile(
 		isWaiting: false,
 		permissionSent: false,
 		hadToolsInTurn: false,
+		folderName: observerLabel,
 	};
 
 	agents.set(id, agent);
@@ -219,8 +313,62 @@ function adoptTerminalForFile(
 	console.log(`[Pixel Agents] Agent ${id}: adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`);
 	webview?.postMessage({ type: 'agentCreated', id });
 
-	startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
-	readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+	startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview, activityProvider);
+	readNewLines(id, agents, waitingTimers, permissionTimers, webview, activityProvider);
+}
+
+function getObserverTerminal(): vscode.Terminal {
+	const existing = vscode.window.terminals.find(t => t.name === OPENCLAW_OBSERVER_TERMINAL_NAME);
+	if (existing) {
+		return existing;
+	}
+	return vscode.window.createTerminal({ name: OPENCLAW_OBSERVER_TERMINAL_NAME });
+}
+
+function detectOpenClawObserverLabel(jsonlFile: string): string {
+	const fallback = path.basename(jsonlFile, '.jsonl').slice(0, 8);
+	let fd: number | null = null;
+	try {
+		// Read only an initial window; enough to catch session header + early prompts.
+		fd = fs.openSync(jsonlFile, 'r');
+		const maxBytes = 64 * 1024;
+		const stat = fs.fstatSync(fd);
+		const readBytes = Math.min(maxBytes, stat.size);
+		if (readBytes <= 0) {
+			return `Session ${fallback}`;
+		}
+		const buf = Buffer.alloc(readBytes);
+		fs.readSync(fd, buf, 0, readBytes, 0);
+
+		const head = buf.toString('utf-8').toLowerCase();
+
+		// Exact routing first.
+		if (head.includes('trading:exec') || head.includes('trading-exec')) {
+			return 'Trading Exec';
+		}
+		if (head.includes('trading:risk') || head.includes('trading-risk')) {
+			return 'Trading Risk';
+		}
+		if (head.includes('trading:news-radar') || head.includes('trading-radar')) {
+			return 'Trading Radar';
+		}
+
+		// Main interactive session fallback.
+		if (head.includes('agent:main:main') || head.includes('"channel":"webchat"')) {
+			return 'Sam';
+		}
+	} catch {
+		// ignore read errors, use fallback
+	} finally {
+		if (fd !== null) {
+			try {
+				fs.closeSync(fd);
+			} catch {
+				// ignore close failures
+			}
+		}
+	}
+	return `Session ${fallback}`;
 }
 
 export function reassignAgentToFile(
@@ -233,6 +381,7 @@ export function reassignAgentToFile(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
+	activityProvider: ActivityProvider,
 ): void {
 	const agent = agents.get(agentId);
 	if (!agent) return;
@@ -254,9 +403,12 @@ export function reassignAgentToFile(
 	agent.jsonlFile = newFilePath;
 	agent.fileOffset = 0;
 	agent.lineBuffer = '';
+	if (activityProvider.mode === 'session-observer') {
+		agent.folderName = detectOpenClawObserverLabel(newFilePath);
+	}
 	persistAgents();
 
 	// Start watching new file
-	startFileWatching(agentId, newFilePath, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
-	readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
+	startFileWatching(agentId, newFilePath, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview, activityProvider);
+	readNewLines(agentId, agents, waitingTimers, permissionTimers, webview, activityProvider);
 }

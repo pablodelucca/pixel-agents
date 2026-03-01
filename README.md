@@ -27,7 +27,27 @@ This is the source code for the free [Pixel Agents extension for VS Code](https:
 ## Requirements
 
 - VS Code 1.109.0 or later
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
+- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured (for current default provider)
+
+## Provider Mode (new)
+
+Pixel Agents now has provider settings:
+
+- `pixelAgents.provider = "claude-jsonl"` (default, existing behavior)
+- `pixelAgents.provider = "openclaw-session"` (OpenClaw session observer mode)
+
+OpenClaw observer tuning:
+
+- `pixelAgents.openclaw.maxObservedAgents` (default: `4`)
+- `pixelAgents.openclaw.maxSessionAgeMinutes` (default: `120`)
+
+Recommended for Ronald's team view:
+
+- `provider = openclaw-session`
+- `maxObservedAgents = 4`
+- `maxSessionAgeMinutes = 120`
+
+This keeps a stable Sam/Trading Exec/Trading Radar/Trading Risk office view while reducing old-session noise.
 
 ## Getting Started
 

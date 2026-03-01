@@ -9,6 +9,7 @@ import { setWallSprites } from '../office/wallTiles.js'
 import { setCharacterTemplates } from '../office/sprites/spriteData.js'
 import { vscode } from '../vscodeApi.js'
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js'
+import { WAITING_STATUS_DEBOUNCE_MS } from '../constants.js'
 
 export interface SubagentCharacter {
   id: number
@@ -61,6 +62,38 @@ function saveAgentSeats(os: OfficeState): void {
   vscode.postMessage({ type: 'saveAgentSeats', seats })
 }
 
+function normalizeTradingTeamLabels(os: OfficeState, agentIds: number[]): void {
+  if (agentIds.length !== 4) return
+  const teamNames = ['Sam', 'Trading Exec', 'Trading Radar', 'Trading Risk']
+  const chars = agentIds
+    .map((id) => os.characters.get(id))
+    .filter((ch): ch is NonNullable<typeof ch> => !!ch && !ch.isSubagent)
+    .sort((a, b) => a.id - b.id)
+
+  if (chars.length !== 4) return
+
+  const used = new Set<string>()
+
+  // Keep valid unique labels if already present.
+  for (const ch of chars) {
+    const current = (ch.folderName || '').trim()
+    if (teamNames.includes(current) && !used.has(current)) {
+      used.add(current)
+    } else {
+      ch.folderName = ''
+    }
+  }
+
+  // Fill missing labels deterministically.
+  const remaining = teamNames.filter((name) => !used.has(name))
+  let idx = 0
+  for (const ch of chars) {
+    if ((ch.folderName || '').trim()) continue
+    ch.folderName = remaining[idx] || `Agent ${ch.id}`
+    idx += 1
+  }
+}
+
 export function useExtensionMessages(
   getOfficeState: () => OfficeState,
   onLayoutLoaded?: (layout: OfficeLayout) => void,
@@ -78,6 +111,7 @@ export function useExtensionMessages(
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false)
+  const waitingStatusTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
 
   useEffect(() => {
     // Buffer agents from existingAgents until layout is loaded
@@ -106,6 +140,8 @@ export function useExtensionMessages(
         for (const p of pendingAgents) {
           os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName)
         }
+        const pendingIds = pendingAgents.map((p) => p.id)
+        normalizeTradingTeamLabels(os, pendingIds)
         pendingAgents = []
         layoutReadyRef.current = true
         setLayoutReady(true)
@@ -118,9 +154,16 @@ export function useExtensionMessages(
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]))
         setSelectedAgent(id)
         os.addAgent(id, undefined, undefined, undefined, undefined, folderName)
+        const currentIds = [...os.characters.values()].filter((ch) => !ch.isSubagent).map((ch) => ch.id)
+        normalizeTradingTeamLabels(os, currentIds)
         saveAgentSeats(os)
       } else if (msg.type === 'agentClosed') {
         const id = msg.id as number
+        const waitingTimer = waitingStatusTimersRef.current[id]
+        if (waitingTimer) {
+          clearTimeout(waitingTimer)
+          delete waitingStatusTimersRef.current[id]
+        }
         setAgents((prev) => prev.filter((a) => a !== id))
         setSelectedAgent((prev) => (prev === id ? null : prev))
         setAgentTools((prev) => {
@@ -222,20 +265,39 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentStatus') {
         const id = msg.id as number
         const status = msg.status as string
-        setAgentStatuses((prev) => {
-          if (status === 'active') {
+
+        if (status === 'active') {
+          const waitingTimer = waitingStatusTimersRef.current[id]
+          if (waitingTimer) {
+            clearTimeout(waitingTimer)
+            delete waitingStatusTimersRef.current[id]
+          }
+          setAgentStatuses((prev) => {
             if (!(id in prev)) return prev
             const next = { ...prev }
             delete next[id]
             return next
-          }
-          return { ...prev, [id]: status }
-        })
-        os.setAgentActive(id, status === 'active')
-        if (status === 'waiting') {
-          os.showWaitingBubble(id)
-          playDoneSound()
+          })
+          os.setAgentActive(id, true)
+          return
         }
+
+        if (status === 'waiting') {
+          const existing = waitingStatusTimersRef.current[id]
+          if (existing) {
+            clearTimeout(existing)
+          }
+          waitingStatusTimersRef.current[id] = setTimeout(() => {
+            setAgentStatuses((prev) => ({ ...prev, [id]: 'waiting' }))
+            os.setAgentActive(id, false)
+            os.showWaitingBubble(id)
+            playDoneSound()
+            delete waitingStatusTimersRef.current[id]
+          }, WAITING_STATUS_DEBOUNCE_MS)
+          return
+        }
+
+        setAgentStatuses((prev) => ({ ...prev, [id]: status }))
       } else if (msg.type === 'agentToolPermission') {
         const id = msg.id as number
         setAgentTools((prev) => {
@@ -357,7 +419,13 @@ export function useExtensionMessages(
     }
     window.addEventListener('message', handler)
     vscode.postMessage({ type: 'webviewReady' })
-    return () => window.removeEventListener('message', handler)
+    return () => {
+      window.removeEventListener('message', handler)
+      for (const timer of Object.values(waitingStatusTimersRef.current)) {
+        clearTimeout(timer)
+      }
+      waitingStatusTimersRef.current = {}
+    }
   }, [getOfficeState])
 
   return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders }

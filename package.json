@@ -46,6 +46,29 @@
           "name": "Pixel Agents"
         }
       ]
+    },
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixelAgents.provider": {
+          "type": "string",
+          "enum": ["claude-jsonl", "openclaw-session"],
+          "default": "claude-jsonl",
+          "description": "Activity source provider. Use claude-jsonl for original behavior. openclaw-session enables OpenClaw session observer mode."
+        },
+        "pixelAgents.openclaw.maxObservedAgents": {
+          "type": "number",
+          "default": 4,
+          "minimum": 1,
+          "description": "Maximum number of OpenClaw observer agents to show at once in openclaw-session mode."
+        },
+        "pixelAgents.openclaw.maxSessionAgeMinutes": {
+          "type": "number",
+          "default": 120,
+          "minimum": 1,
+          "description": "Only observe OpenClaw session files updated within this many minutes (reduces old-session noise)."
+        }
+      }
     }
   },
   "scripts": {
