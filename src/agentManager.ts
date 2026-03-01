@@ -20,11 +20,41 @@ export function getProjectDirPath(cwd?: string): string | null {
 export function getCursorProjectDirPath(cwd?: string): string | null {
 	const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	if (!workspacePath) return null;
+
+	const cursorProjectsRoot = path.join(os.homedir(), '.cursor', 'projects');
+	if (!fs.existsSync(cursorProjectsRoot)) return null;
+
+	// Cursor's directory naming may differ from Claude Code's hashing.
+	// Try the exact same transform first, then scan for a matching directory.
 	const dirName = workspacePath.replace(/[^a-zA-Z0-9-]/g, '-');
-	const transcriptsDir = path.join(os.homedir(), '.cursor', 'projects', dirName, 'agent-transcripts');
-	if (!fs.existsSync(transcriptsDir)) return null;
-	console.log(`[Pixel Agents] Cursor transcripts dir: ${workspacePath} → ${transcriptsDir}`);
-	return transcriptsDir;
+	const candidates = [
+		dirName,
+		dirName.replace(/^-+/, ''),  // Cursor strips leading dashes
+	];
+
+	for (const candidate of candidates) {
+		const transcriptsDir = path.join(cursorProjectsRoot, candidate, 'agent-transcripts');
+		if (fs.existsSync(transcriptsDir)) {
+			console.log(`[Pixel Agents] Cursor transcripts dir: ${workspacePath} → ${transcriptsDir}`);
+			return transcriptsDir;
+		}
+	}
+
+	// Fallback: scan for any directory whose name contains the workspace basename
+	const wsBase = path.basename(workspacePath);
+	try {
+		const dirs = fs.readdirSync(cursorProjectsRoot, { withFileTypes: true });
+		for (const entry of dirs) {
+			if (!entry.isDirectory() || !entry.name.includes(wsBase)) continue;
+			const transcriptsDir = path.join(cursorProjectsRoot, entry.name, 'agent-transcripts');
+			if (fs.existsSync(transcriptsDir)) {
+				console.log(`[Pixel Agents] Cursor transcripts dir (fallback): ${workspacePath} → ${transcriptsDir}`);
+				return transcriptsDir;
+			}
+		}
+	} catch { /* ignore */ }
+
+	return null;
 }
 
 export async function launchNewTerminal(

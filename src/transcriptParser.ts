@@ -17,6 +17,23 @@ import {
 
 export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'AskUserQuestion']);
 
+export function inferCursorToolStatus(text: string): string | null {
+	const t = text.toLowerCase();
+	if (/\b(read|reading|check|look at|inspect|examin)\b/.test(t) && /\b(file|code|content|transcript|config|package)\b/.test(t))
+		return 'Reading file';
+	if (/\b(search|grep|find|glob|looking for|scan)\b/.test(t))
+		return 'Searching code';
+	if (/\b(ran command|run |running|\$ |shell|terminal|npm |git |install|build|test)\b/.test(t))
+		return 'Running command';
+	if (/\b(edit|updat|replac|modif|fix|chang|rewrit|add .* to)\b/.test(t) && /\b(file|code|function|component|line)\b/.test(t))
+		return 'Editing file';
+	if (/\b(web|fetch|url|browse|http)\b/.test(t))
+		return 'Fetching web content';
+	if (/\b(let me|now let me|i'll|going to|need to)\b/.test(t))
+		return 'Working';
+	return null;
+}
+
 export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
 	const base = (p: unknown) => typeof p === 'string' ? path.basename(p) : '';
 	switch (toolName) {
@@ -58,6 +75,40 @@ export function processTranscriptLine(
 		// Cursor transcripts use "role" instead of "type"
 		if (record.role && !record.type) {
 			record.type = record.role;
+		}
+
+		// Cursor transcripts only have text blocks, no tool_use/tool_result.
+		// Infer tool activity from short assistant messages that describe upcoming actions.
+		if (agent.isCursorAgent && record.type === 'assistant' && Array.isArray(record.message?.content)) {
+			const text = (record.message.content[0]?.text as string) || '';
+			if (text.length < 250 && text.length > 0) {
+				const status = inferCursorToolStatus(text);
+				if (status) {
+					cancelWaitingTimer(agentId, waitingTimers);
+					agent.isWaiting = false;
+					agent.hadToolsInTurn = true;
+					webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+					const fakeToolId = `cursor-${Date.now()}`;
+					agent.activeToolIds.add(fakeToolId);
+					agent.activeToolStatuses.set(fakeToolId, status);
+					webview?.postMessage({ type: 'agentToolStart', id: agentId, toolId: fakeToolId, status });
+					// Auto-clear after 3 seconds (we won't get a tool_result)
+					setTimeout(() => {
+						agent.activeToolIds.delete(fakeToolId);
+						agent.activeToolStatuses.delete(fakeToolId);
+						webview?.postMessage({ type: 'agentToolDone', id: agentId, toolId: fakeToolId });
+					}, 3000);
+					return;
+				}
+			}
+			// Long message = agent delivering results, use text-idle timer
+			if (text.length > 0) {
+				cancelWaitingTimer(agentId, waitingTimers);
+				agent.isWaiting = false;
+				webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+				startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
+				return;
+			}
 		}
 
 		if (record.type === 'assistant' && Array.isArray(record.message?.content)) {
