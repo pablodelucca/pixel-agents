@@ -11,6 +11,7 @@ import {
 	sendExistingAgents,
 	sendLayout,
 	getProjectDirPath,
+	getCursorProjectDirPath,
 } from './agentManager.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
@@ -73,13 +74,20 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				);
 			} else if (message.type === 'focusAgent') {
 				const agent = this.agents.get(message.id);
-				if (agent) {
+				if (agent?.terminalRef) {
 					agent.terminalRef.show();
 				}
 			} else if (message.type === 'closeAgent') {
 				const agent = this.agents.get(message.id);
-				if (agent) {
+				if (agent?.terminalRef) {
 					agent.terminalRef.dispose();
+				} else if (agent) {
+					removeAgent(
+						message.id, this.agents,
+						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+						this.jsonlPollTimers, this.persistAgents,
+					);
+					this.webview?.postMessage({ type: 'agentClosed', id: message.id });
 				}
 			} else if (message.type === 'saveAgentSeats') {
 				// Store seat assignments in a separate key (never touched by persistAgents)
@@ -112,12 +120,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					});
 				}
 
-				// Ensure project scan runs even with no restored agents (to adopt external terminals)
 				const projectDir = getProjectDirPath();
+				const cursorDir = getCursorProjectDirPath();
 				const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 				console.log('[Extension] workspaceRoot:', workspaceRoot);
 				console.log('[Extension] projectDir:', projectDir);
-				if (projectDir) {
+				console.log('[Extension] cursorDir:', cursorDir);
+				if (projectDir || cursorDir) {
 					ensureProjectScan(
 						projectDir, this.knownJsonlFiles, this.projectScanTimer, this.activeAgentId,
 						this.nextAgentId, this.agents,

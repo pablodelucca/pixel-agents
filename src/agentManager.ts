@@ -17,6 +17,16 @@ export function getProjectDirPath(cwd?: string): string | null {
 	return projectDir;
 }
 
+export function getCursorProjectDirPath(cwd?: string): string | null {
+	const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	if (!workspacePath) return null;
+	const dirName = workspacePath.replace(/[^a-zA-Z0-9-]/g, '-');
+	const transcriptsDir = path.join(os.homedir(), '.cursor', 'projects', dirName, 'agent-transcripts');
+	if (!fs.existsSync(transcriptsDir)) return null;
+	console.log(`[Pixel Agents] Cursor transcripts dir: ${workspacePath} → ${transcriptsDir}`);
+	return transcriptsDir;
+}
+
 export async function launchNewTerminal(
 	nextAgentIdRef: { current: number },
 	nextTerminalIndexRef: { current: number },
@@ -147,10 +157,11 @@ export function persistAgents(
 	for (const agent of agents.values()) {
 		persisted.push({
 			id: agent.id,
-			terminalName: agent.terminalRef.name,
+			terminalName: agent.terminalRef?.name ?? '',
 			jsonlFile: agent.jsonlFile,
 			projectDir: agent.projectDir,
 			folderName: agent.folderName,
+			isCursorAgent: agent.isCursorAgent,
 		});
 	}
 	context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);

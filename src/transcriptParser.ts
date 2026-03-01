@@ -55,6 +55,11 @@ export function processTranscriptLine(
 	try {
 		const record = JSON.parse(line);
 
+		// Cursor transcripts use "role" instead of "type"
+		if (record.role && !record.type) {
+			record.type = record.role;
+		}
+
 		if (record.type === 'assistant' && Array.isArray(record.message?.content)) {
 			const blocks = record.message.content as Array<{
 				type: string; id?: string; name?: string; input?: Record<string, unknown>;

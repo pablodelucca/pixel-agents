@@ -17,6 +17,8 @@ export interface AgentState {
 	hadToolsInTurn: boolean;
 	/** Workspace folder name (only set for multi-root workspaces) */
 	folderName?: string;
+	/** True when this agent was detected from Cursor's agent-transcripts */
+	isCursorAgent?: boolean;
 }
 
 export interface PersistedAgent {
@@ -26,4 +28,6 @@ export interface PersistedAgent {
 	projectDir: string;
 	/** Workspace folder name (only set for multi-root workspaces) */
 	folderName?: string;
+	/** True when persisted from a Cursor agent (no terminal to restore) */
+	isCursorAgent?: boolean;
 }

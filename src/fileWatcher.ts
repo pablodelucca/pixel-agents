@@ -5,6 +5,7 @@ import type { AgentState } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
+import { getCursorProjectDirPath } from './agentManager.js';
 
 export function startFileWatching(
 	agentId: number,
@@ -91,7 +92,7 @@ export function readNewLines(
 }
 
 export function ensureProjectScan(
-	projectDir: string,
+	projectDir: string | null,
 	knownJsonlFiles: Set<string>,
 	projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
 	activeAgentIdRef: { current: number | null },
@@ -105,23 +106,116 @@ export function ensureProjectScan(
 	persistAgents: () => void,
 ): void {
 	if (projectScanTimerRef.current) return;
-	// Seed with all existing JSONL files so we only react to truly new ones
-	try {
-		const files = fs.readdirSync(projectDir)
-			.filter(f => f.endsWith('.jsonl'))
-			.map(f => path.join(projectDir, f));
-		for (const f of files) {
-			knownJsonlFiles.add(f);
-		}
-	} catch { /* dir may not exist yet */ }
+
+	if (projectDir) {
+		try {
+			const files = fs.readdirSync(projectDir)
+				.filter(f => f.endsWith('.jsonl'))
+				.map(f => path.join(projectDir, f));
+			for (const f of files) {
+				knownJsonlFiles.add(f);
+			}
+		} catch { /* dir may not exist yet */ }
+	}
+
+	const cursorDir = getCursorProjectDirPath();
+	if (cursorDir) {
+		seedCursorJsonlFiles(cursorDir, knownJsonlFiles);
+	}
 
 	projectScanTimerRef.current = setInterval(() => {
-		scanForNewJsonlFiles(
-			projectDir, knownJsonlFiles, activeAgentIdRef, nextAgentIdRef,
-			agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-			webview, persistAgents,
-		);
+		if (projectDir) {
+			scanForNewJsonlFiles(
+				projectDir, knownJsonlFiles, activeAgentIdRef, nextAgentIdRef,
+				agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+				webview, persistAgents,
+			);
+		}
+		if (cursorDir) {
+			scanForNewCursorJsonlFiles(
+				cursorDir, knownJsonlFiles, nextAgentIdRef,
+				agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+				webview, persistAgents,
+			);
+		}
 	}, PROJECT_SCAN_INTERVAL_MS);
+}
+
+function seedCursorJsonlFiles(cursorDir: string, knownJsonlFiles: Set<string>): void {
+	try {
+		const entries = fs.readdirSync(cursorDir, { withFileTypes: true });
+		for (const entry of entries) {
+			if (!entry.isDirectory()) continue;
+			const jsonlPath = path.join(cursorDir, entry.name, `${entry.name}.jsonl`);
+			if (fs.existsSync(jsonlPath)) {
+				knownJsonlFiles.add(jsonlPath);
+			}
+		}
+	} catch { /* dir may not exist */ }
+}
+
+function scanForNewCursorJsonlFiles(
+	cursorDir: string,
+	knownJsonlFiles: Set<string>,
+	nextAgentIdRef: { current: number },
+	agents: Map<number, AgentState>,
+	fileWatchers: Map<number, fs.FSWatcher>,
+	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	webview: vscode.Webview | undefined,
+	persistAgents: () => void,
+): void {
+	let entries: fs.Dirent[];
+	try {
+		entries = fs.readdirSync(cursorDir, { withFileTypes: true });
+	} catch { return; }
+
+	for (const entry of entries) {
+		if (!entry.isDirectory()) continue;
+		const jsonlPath = path.join(cursorDir, entry.name, `${entry.name}.jsonl`);
+		if (knownJsonlFiles.has(jsonlPath)) continue;
+		if (!fs.existsSync(jsonlPath)) continue;
+
+		// Only pick up transcripts modified in the last 30 seconds (active sessions)
+		try {
+			const stat = fs.statSync(jsonlPath);
+			const ageMs = Date.now() - stat.mtimeMs;
+			if (ageMs > 30_000) {
+				knownJsonlFiles.add(jsonlPath);
+				continue;
+			}
+		} catch { continue; }
+
+		knownJsonlFiles.add(jsonlPath);
+		console.log(`[Pixel Agents] New Cursor transcript: ${entry.name}`);
+
+		const id = nextAgentIdRef.current++;
+		const agent: AgentState = {
+			id,
+			terminalRef: null as unknown as vscode.Terminal,
+			projectDir: cursorDir,
+			jsonlFile: jsonlPath,
+			fileOffset: 0,
+			lineBuffer: '',
+			activeToolIds: new Set(),
+			activeToolStatuses: new Map(),
+			activeToolNames: new Map(),
+			activeSubagentToolIds: new Map(),
+			activeSubagentToolNames: new Map(),
+			isWaiting: false,
+			permissionSent: false,
+			hadToolsInTurn: false,
+			isCursorAgent: true,
+		};
+
+		agents.set(id, agent);
+		persistAgents();
+		webview?.postMessage({ type: 'agentCreated', id });
+
+		startFileWatching(id, jsonlPath, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
+		readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+	}
 }
 
 function scanForNewJsonlFiles(
