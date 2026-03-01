@@ -78,6 +78,7 @@ export function createCharacter(
     matrixEffect: null,
     matrixEffectTimer: 0,
     matrixEffectSeeds: [],
+    autoModeTarget: null,
   }
 }
 
@@ -118,8 +119,12 @@ export function updateCharacter(
       // No idle animation — static pose
       ch.frame = 0
       if (ch.seatTimer < 0) ch.seatTimer = 0 // clear turn-end sentinel
-      // If became active, pathfind to seat
+      // If became active, pathfind to seat (unless in auto mode with target)
       if (ch.isActive) {
+        // Auto mode with target: walkToAgent will set the path directly
+        if (ch.autoModeTarget !== null) {
+          break
+        }
         if (!ch.seatId) {
           // No seat assigned — type in place
           ch.state = CharacterState.TYPE
@@ -258,8 +263,8 @@ export function updateCharacter(
         ch.moveProgress = 0
       }
 
-      // If became active while wandering, repath to seat
-      if (ch.isActive && ch.seatId) {
+      // If became active while wandering, repath to seat (unless in auto mode)
+      if (ch.isActive && ch.seatId && ch.autoModeTarget === null) {
         const seat = seats.get(ch.seatId)
         if (seat) {
           const lastStep = ch.path[ch.path.length - 1]

@@ -230,6 +230,7 @@ function handleAutoModeTurnEnd(completedAgent: AgentProcess): void {
     }
     
     autoMode.currentAgentIndex = nextIndex;
+    broadcast({ type: 'autoModeTurnChange', respondingAgentId: nextAgentId, otherAgentId: completedAgent.id });
 }
 
 // ── Spawn a local agent process ─────────────────────────────

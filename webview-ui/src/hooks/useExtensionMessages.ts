@@ -370,14 +370,37 @@ export function useExtensionMessages(
         } catch (err) {
           console.error(`❌ Webview: Error processing furnitureAssetsLoaded:`, err)
         }
+      } else if (msg.type === 'autoModeStarted') {
+        const agentIds = msg.agentIds as [number, number]
+        const respondingAgentId = agentIds[0]
+        const otherAgentId = agentIds[1]
+        const respondingCh = os.characters.get(respondingAgentId)
+        if (respondingCh) {
+          respondingCh.autoModeTarget = otherAgentId
+          os.walkToAgent(respondingAgentId, otherAgentId)
+        }
+      } else if (msg.type === 'autoModeTurnChange') {
+        const respondingAgentId = msg.respondingAgentId as number
+        const otherAgentId = msg.otherAgentId as number
+        const respondingCh = os.characters.get(respondingAgentId)
+        if (respondingCh) {
+          respondingCh.autoModeTarget = otherAgentId
+          os.walkToAgent(respondingAgentId, otherAgentId)
+        }
       } else if (msg.type === 'autoModeEnded') {
+        for (const ch of os.characters.values()) {
+          if (ch.autoModeTarget !== null) {
+            ch.autoModeTarget = null
+            os.sendToSeat(ch.id)
+          }
+        }
         onAutoModeEnded?.()
       }
     }
     window.addEventListener('message', handler)
     vscode.postMessage({ type: 'webviewReady' })
     return () => window.removeEventListener('message', handler)
-  }, [getOfficeState])
+  }, [getOfficeState, onLayoutLoaded, isEditDirty, onAutoModeEnded])
 
   return {
     agents,

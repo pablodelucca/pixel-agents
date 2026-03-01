@@ -195,4 +195,6 @@ export interface Character {
   matrixEffectSeeds: number[]
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string
+  /** Target agent ID for auto mode interaction, or null */
+  autoModeTarget: number | null
 }

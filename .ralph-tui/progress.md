@@ -63,4 +63,18 @@ after each iteration and it's included in prompts for context.
   - Pathfinding uses the existing `findPath()` function from tileMap.ts which returns an empty array if no path exists
   - Character state must be set to WALK and frame timers reset when starting movement
 ---
+## [2026-03-01] - US-007
+- Wired walk-to-agent behavior into character FSM and auto mode events
+- Added autoModeTarget field to Character interface for tracking interaction target
+- Updated updateCharacter() to skip seat return logic when autoModeTarget is set
+- Added autoModeTurnChange broadcast event in devServer to trigger walks on turn changes
+- Handled autoModeStarted, autoModeTurnChange, and autoModeEnded events in useExtensionMessages
+- Files changed: `webview-ui/src/office/types.ts`, `webview-ui/src/office/engine/characters.ts`, `webview-ui/devServer.ts`, `webview-ui/src/hooks/useExtensionMessages.ts`
+- **Learnings:**
+  - The Character FSM needs conditional logic to differentiate between normal seat-return behavior and auto mode interaction behavior
+  - Event-driven architecture: message handlers directly call OfficeState methods (walkToAgent, sendToSeat) rather than managing state in the handler
+  - The autoModeTarget field acts as a flag in the FSM to prevent unwanted seat-return pathfinding during auto mode
+  - Only the responding agent (whose turn is starting) should walk to avoid oscillation - the speaking agent stays put
+  - Clearing autoModeTarget and calling sendToSeat on autoModeEnded ensures agents return to normal behavior
+---
 
