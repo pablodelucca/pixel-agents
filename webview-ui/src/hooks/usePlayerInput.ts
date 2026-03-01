@@ -3,6 +3,8 @@ import type { OfficeState } from '../office/engine/officeState.js'
 import { CharacterState, Direction } from '../office/types.js'
 import { isWalkable } from '../office/layout/tileMap.js'
 import { PLAYER_ID } from './useTownInit.js'
+import { TOWN_BUILDINGS } from '../data/defaultTownLayout.js'
+import { INTERIOR_LAYOUTS } from '../data/interiorLayouts.js'
 
 /** Max tile distance for NPC interaction */
 const INTERACT_RANGE = 2
@@ -27,31 +29,78 @@ function findNearbyNpc(os: OfficeState, playerCol: number, playerRow: number): n
 }
 
 /**
- * Keyboard input handler for player character movement and NPC interaction.
- * Arrow keys and WASD move the player one tile at a time.
- * E key interacts with nearby NPCs. ESC closes dialogue.
+ * Find a building whose door the player is standing adjacent to (one tile south of door).
+ * Returns the building ID, or null if not near any door.
+ */
+function findNearbyBuilding(playerCol: number, playerRow: number, playerDir: Direction): string | null {
+  for (const building of TOWN_BUILDINGS) {
+    // Player must be one tile south of the door and facing up
+    if (playerCol === building.doorCol && playerRow === building.doorRow + 1 && playerDir === Direction.UP) {
+      return building.id
+    }
+  }
+  return null
+}
+
+/**
+ * Keyboard input handler for player character movement, NPC interaction,
+ * and building entry/exit.
  */
 export function usePlayerInput(
   getOfficeState: () => OfficeState,
   layoutReady: boolean,
   onInteract: (npcId: number | null) => void,
   onNearbyNpcChange: (npcId: number | null) => void,
+  scene: 'town' | 'interior',
+  onEnterBuilding: (buildingId: string) => void,
+  onExitBuilding: () => void,
+  onNearbyBuildingChange: (buildingId: string | null) => void,
+  currentBuildingId: string | null,
 ): void {
   const nearbyRef = useRef<number | null>(null)
+  const nearbyBuildingRef = useRef<string | null>(null)
+  const sceneRef = useRef(scene)
+  const currentBuildingIdRef = useRef(currentBuildingId)
+  sceneRef.current = scene
+  currentBuildingIdRef.current = currentBuildingId
 
   useEffect(() => {
     if (!layoutReady) return
 
-    // Poll for nearby NPC changes (check every 200ms)
+    // Poll for nearby NPC + building changes (check every 200ms)
     const interval = setInterval(() => {
       const os = getOfficeState()
       const player = os.characters.get(PLAYER_ID)
       if (!player) return
 
+      // NPC proximity (works in both town and interior)
       const nearby = findNearbyNpc(os, player.tileCol, player.tileRow)
       if (nearby !== nearbyRef.current) {
         nearbyRef.current = nearby
         onNearbyNpcChange(nearby)
+      }
+
+      if (sceneRef.current === 'town') {
+        // Building door proximity (town only)
+        const buildingId = findNearbyBuilding(player.tileCol, player.tileRow, player.dir)
+        if (buildingId !== nearbyBuildingRef.current) {
+          nearbyBuildingRef.current = buildingId
+          onNearbyBuildingChange(buildingId)
+        }
+      } else {
+        // Interior exit detection — player walks onto exit tile
+        const bid = currentBuildingIdRef.current
+        if (bid) {
+          const interior = INTERIOR_LAYOUTS[bid]
+          if (interior && player.tileCol === interior.exitCol && player.tileRow === interior.exitRow) {
+            onExitBuilding()
+          }
+        }
+        // Clear building proximity in interior
+        if (nearbyBuildingRef.current !== null) {
+          nearbyBuildingRef.current = null
+          onNearbyBuildingChange(null)
+        }
       }
     }, 200)
 
@@ -69,13 +118,26 @@ export function usePlayerInput(
         return
       }
 
-      // E key — interact with nearby NPC
+      // E key — interact with nearby NPC or enter building
       if (e.key === 'e' || e.key === 'E') {
         if (player.state === CharacterState.WALK) return
+
+        // NPC interaction takes priority
         const nearby = findNearbyNpc(os, player.tileCol, player.tileRow)
         if (nearby !== null) {
           e.preventDefault()
           onInteract(nearby)
+          return
+        }
+
+        // Building entry (town only)
+        if (sceneRef.current === 'town') {
+          const buildingId = findNearbyBuilding(player.tileCol, player.tileRow, player.dir)
+          if (buildingId) {
+            e.preventDefault()
+            onEnterBuilding(buildingId)
+            return
+          }
         }
         return
       }
@@ -150,7 +212,7 @@ export function usePlayerInput(
       window.removeEventListener('keydown', handleKeyDown)
       clearInterval(interval)
     }
-  }, [getOfficeState, layoutReady, onInteract, onNearbyNpcChange])
+  }, [getOfficeState, layoutReady, onInteract, onNearbyNpcChange, onEnterBuilding, onExitBuilding, onNearbyBuildingChange])
 }
 
 export { findNearbyNpc, INTERACT_RANGE }

@@ -8,6 +8,7 @@ import { getColorizedFloorSprite, hasFloorSprites, isTilesetActive, getTilesetFl
 import { hasWallSprites, getWallInstances, wallColorToHex } from '../wallTiles.js'
 import { hasBuildingSprites, getBuildingInstances, isCoveredWallTile } from '../buildingSprites.js'
 import { hasNatureSprites, getTreeInstances, getShadowInstances, getRockInstances, isCoveredNatureTile, getWaterDotSprite } from '../natureSprites.js'
+import { renderSmoke, renderDoorAnimation } from '../buildingAnimations.js'
 import {
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_Z_SORT_OFFSET,
@@ -611,6 +612,170 @@ export function renderBuildingGlow(
   ctx.restore()
 }
 
+// ── Day/Night Cycle ─────────────────────────────────────────────
+
+/** Day time counter: 0.0 → 1.0, cycles over DAY_CYCLE_DURATION seconds */
+let dayTime = 0
+const DAY_CYCLE_DURATION = 300 // 5 minutes real time
+
+/**
+ * Render a cosmetic day/night color tint over the map area.
+ * Phases: Day (0.0-0.4), Sunset (0.4-0.5), Night (0.5-0.8), Dawn (0.8-1.0)
+ */
+function renderDayNightTint(
+  ctx: CanvasRenderingContext2D,
+  mapX: number,
+  mapY: number,
+  mapW: number,
+  mapH: number,
+  dt: number,
+): void {
+  dayTime = (dayTime + dt / DAY_CYCLE_DURATION) % 1.0
+
+  let r = 0, g = 0, b = 0, alpha = 0
+
+  if (dayTime < 0.4) {
+    // Day — no tint
+    return
+  } else if (dayTime < 0.5) {
+    // Sunset — warm orange, fade in over 0.4→0.5
+    const t = (dayTime - 0.4) / 0.1
+    r = 255; g = 140; b = 50
+    alpha = t * 0.1
+  } else if (dayTime < 0.55) {
+    // Sunset→Night transition
+    const t = (dayTime - 0.5) / 0.05
+    r = Math.round(255 - t * 235)
+    g = Math.round(140 - t * 110)
+    b = Math.round(50 + t * 30)
+    alpha = 0.1 + t * 0.15
+  } else if (dayTime < 0.75) {
+    // Night — cool blue
+    r = 20; g = 30; b = 80
+    alpha = 0.25
+  } else if (dayTime < 0.8) {
+    // Night→Dawn transition
+    const t = (dayTime - 0.75) / 0.05
+    r = Math.round(20 + t * 235)
+    g = Math.round(30 + t * 130)
+    b = Math.round(80 + t * 40)
+    alpha = 0.25 - t * 0.17
+  } else if (dayTime < 0.95) {
+    // Dawn — warm pink
+    r = 255; g = 160; b = 120
+    alpha = 0.08
+  } else {
+    // Dawn→Day fade out
+    const t = (dayTime - 0.95) / 0.05
+    r = 255; g = 160; b = 120
+    alpha = 0.08 * (1 - t)
+  }
+
+  if (alpha < 0.005) return
+
+  ctx.save()
+  ctx.globalCompositeOperation = (dayTime >= 0.55 && dayTime < 0.75) ? 'multiply' : 'source-over'
+  ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`
+  ctx.fillRect(mapX, mapY, mapW, mapH)
+  ctx.restore()
+}
+
+// ── Minimap ─────────────────────────────────────────────────────
+
+const MINIMAP_SCALE = 3
+const MINIMAP_MARGIN = 8
+
+/**
+ * Render a small overview minimap in the bottom-right corner of the canvas.
+ * Shows tile types as colored pixels and a pulsing player dot.
+ */
+function renderMinimap(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  tileMap: TileTypeVal[][],
+  characters: Character[],
+  cols: number,
+  rows: number,
+): void {
+  const mw = cols * MINIMAP_SCALE
+  const mh = rows * MINIMAP_SCALE
+  const mx = canvasWidth - mw - MINIMAP_MARGIN
+  const my = canvasHeight - mh - MINIMAP_MARGIN
+
+  // Background + border
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+  ctx.fillRect(mx - 2, my - 2, mw + 4, mh + 4)
+  ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)'
+  ctx.lineWidth = 1
+  ctx.strokeRect(mx - 2, my - 2, mw + 4, mh + 4)
+
+  // Tile colors
+  for (let r = 0; r < rows; r++) {
+    if (!tileMap[r]) continue
+    for (let c = 0; c < cols; c++) {
+      const tile = tileMap[r][c]
+      let color: string
+      switch (tile) {
+        case TileType.WALL:
+          color = '#555'
+          break
+        case TileType.FLOOR_1: // grass
+          color = '#3a6b35'
+          break
+        case TileType.FLOOR_2: // path
+          color = '#8b7355'
+          break
+        case TileType.FLOOR_3: // water
+          color = '#3a6b9b'
+          break
+        case TileType.FLOOR_4: // fence
+          color = '#6b5b3a'
+          break
+        case TileType.FLOOR_5: // tree top
+        case TileType.FLOOR_6: // tree trunk
+          color = '#2d5a2d'
+          break
+        case TileType.FLOOR_7: // flowers
+          color = '#5a8a3a'
+          break
+        case TileType.VOID:
+          continue // skip
+        default:
+          color = '#333'
+      }
+      ctx.fillStyle = color
+      ctx.fillRect(mx + c * MINIMAP_SCALE, my + r * MINIMAP_SCALE, MINIMAP_SCALE, MINIMAP_SCALE)
+    }
+  }
+
+  // Player dot (white, pulsing)
+  const player = characters.find(ch => ch.isPlayer)
+  if (player) {
+    const pulse = 0.6 + 0.4 * Math.sin(glowTime * 4)
+    const dotSize = MINIMAP_SCALE + 1
+    ctx.fillStyle = `rgba(255, 255, 255, ${pulse.toFixed(2)})`
+    ctx.fillRect(
+      mx + player.tileCol * MINIMAP_SCALE - 1,
+      my + player.tileRow * MINIMAP_SCALE - 1,
+      dotSize + 1,
+      dotSize + 1,
+    )
+  }
+
+  // NPC dots (smaller, dimmer)
+  for (const ch of characters) {
+    if (ch.isPlayer) continue
+    ctx.fillStyle = 'rgba(180, 180, 255, 0.5)'
+    ctx.fillRect(
+      mx + ch.tileCol * MINIMAP_SCALE,
+      my + ch.tileRow * MINIMAP_SCALE,
+      MINIMAP_SCALE,
+      MINIMAP_SCALE,
+    )
+  }
+}
+
 export function renderFrame(
   ctx: CanvasRenderingContext2D,
   canvasWidth: number,
@@ -628,6 +793,7 @@ export function renderFrame(
   layoutRows?: number,
   glowingBuildings?: Set<string>,
   dt?: number,
+  isInterior?: boolean,
 ): { offsetX: number; offsetY: number } {
   // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
@@ -650,20 +816,20 @@ export function renderFrame(
     renderSeatIndicators(ctx, selection.seats, selection.characters, selection.selectedAgentId, selection.hoveredTile, offsetX, offsetY, zoom)
   }
 
-  // Building sprite instances (multi-tile, z-sorted with characters)
-  const buildingInstances = hasBuildingSprites() ? getBuildingInstances() : []
+  // Building sprite instances (multi-tile, z-sorted with characters) — town only
+  const buildingInstances = !isInterior && hasBuildingSprites() ? getBuildingInstances() : []
 
-  // Nature sprite instances (trees, shadows, rocks — z-sorted with characters)
-  const natureShadows = hasNatureSprites() ? getShadowInstances() : []
-  const natureTrees = hasNatureSprites() ? getTreeInstances() : []
-  const natureRocks = hasNatureSprites() ? getRockInstances() : []
+  // Nature sprite instances (trees, shadows, rocks — z-sorted with characters) — town only
+  const natureShadows = !isInterior && hasNatureSprites() ? getShadowInstances() : []
+  const natureTrees = !isInterior && hasNatureSprites() ? getTreeInstances() : []
+  const natureRocks = !isInterior && hasNatureSprites() ? getRockInstances() : []
 
   // Build wall instances for z-sorting with furniture and characters
-  // Filter out wall instances for tiles covered by building sprites
+  // In interior, don't filter walls by building coverage
   const rawWallInstances = hasWallSprites()
     ? getWallInstances(tileMap, tileColors, layoutCols)
     : []
-  const wallInstances = hasBuildingSprites()
+  const wallInstances = !isInterior && hasBuildingSprites()
     ? rawWallInstances.filter(w => !isCoveredWallTile(
         Math.round(w.x / TILE_SIZE),
         Math.round(w.zY / TILE_SIZE) - 1))
@@ -675,9 +841,24 @@ export function renderFrame(
   const hoveredId = selection?.hoveredAgentId ?? null
   renderScene(ctx, allFurniture, characters, offsetX, offsetY, zoom, selectedId, hoveredId)
 
-  // Building glow overlay (replay mode)
-  if (glowingBuildings && glowingBuildings.size > 0) {
+  // Smoke animation on chimney buildings — town only
+  if (!isInterior) {
+    renderSmoke(ctx, offsetX, offsetY, zoom)
+  }
+
+  // Door open animation — town only
+  if (!isInterior) {
+    renderDoorAnimation(ctx, offsetX, offsetY, zoom)
+  }
+
+  // Building glow overlay (replay mode) — town only
+  if (!isInterior && glowingBuildings && glowingBuildings.size > 0) {
     renderBuildingGlow(ctx, glowingBuildings, offsetX, offsetY, zoom, dt ?? 0)
+  }
+
+  // Day/night tint overlay — town only
+  if (!isInterior) {
+    renderDayNightTint(ctx, offsetX, offsetY, mapW, mapH, dt ?? 0)
   }
 
   // Speech bubbles (always on top of characters)
@@ -706,6 +887,11 @@ export function renderFrame(
       editor.deleteButtonBounds = null
       editor.rotateButtonBounds = null
     }
+  }
+
+  // Minimap — town only, drawn in screen space (after everything)
+  if (!isInterior) {
+    renderMinimap(ctx, canvasWidth, canvasHeight, tileMap, characters, cols, rows)
   }
 
   return { offsetX, offsetY }

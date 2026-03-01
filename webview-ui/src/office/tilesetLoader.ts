@@ -34,6 +34,8 @@ export interface TilesetConfig {
   mapping: Record<string, string[]>
   buildings?: Record<string, { file: string }>
   natureSprites?: Record<string, { file: string }>
+  interiorSprites?: Record<string, { file: string }>
+  animationSprites?: Record<string, { file: string }>
 }
 
 export interface LoadedTileset {
@@ -41,6 +43,8 @@ export interface LoadedTileset {
   sprites: Map<string, SpriteData>
   buildingSprites: Map<string, SpriteData>
   natureSprites: Map<string, SpriteData>
+  interiorSprites: Map<string, SpriteData>
+  animationSprites: Map<string, SpriteData>
 }
 
 // ---------------------------------------------------------------------------
@@ -145,11 +149,53 @@ export async function loadTileset(name: string): Promise<LoadedTileset | null> {
     }
   }
 
+  // Load interior sprite PNGs (furniture, decorations, etc.)
+  const interiorSprites = new Map<string, SpriteData>()
+  if (config.interiorSprites) {
+    for (const [spriteId, spriteDef] of Object.entries(config.interiorSprites)) {
+      const img = await loadImage(`${basePath}/${spriteDef.file}`)
+      if (!img) {
+        console.log(`[Tileset] Interior sprite not found: ${spriteDef.file} — will skip`)
+        continue
+      }
+      const iCanvas = document.createElement('canvas')
+      iCanvas.width = img.width
+      iCanvas.height = img.height
+      const iCtx = iCanvas.getContext('2d')!
+      iCtx.drawImage(img, 0, 0)
+      const iImageData = iCtx.getImageData(0, 0, img.width, img.height)
+      const iSprite = imageDataToSpriteData(iImageData, img.width, img.height)
+      interiorSprites.set(spriteId, iSprite)
+    }
+  }
+
+  // Load animation sprite PNGs (smoke, door frames)
+  const animationSprites = new Map<string, SpriteData>()
+  if (config.animationSprites) {
+    for (const [spriteId, spriteDef] of Object.entries(config.animationSprites)) {
+      const img = await loadImage(`${basePath}/${spriteDef.file}`)
+      if (!img) {
+        console.log(`[Tileset] Animation sprite not found: ${spriteDef.file} — will skip`)
+        continue
+      }
+      const aCanvas = document.createElement('canvas')
+      aCanvas.width = img.width
+      aCanvas.height = img.height
+      const aCtx = aCanvas.getContext('2d')!
+      aCtx.drawImage(img, 0, 0)
+      const aImageData = aCtx.getImageData(0, 0, img.width, img.height)
+      const aSprite = imageDataToSpriteData(aImageData, img.width, img.height)
+      animationSprites.set(spriteId, aSprite)
+    }
+  }
+
   const buildingCount = buildingSprites.size > 0 ? `, ${buildingSprites.size} buildings` : ''
   const natureCount = natureSprites.size > 0 ? `, ${natureSprites.size} nature` : ''
-  console.log(`[Tileset] Loaded "${config.name}" — ${sprites.size} tiles from ${sheetImages.size} sheet(s)${buildingCount}${natureCount}`)
+  const interiorCount = interiorSprites.size > 0 ? `, ${interiorSprites.size} interior` : ''
+  const animCount = animationSprites.size > 0 ? `, ${animationSprites.size} animations` : ''
+  console.log(`[Tileset] Loaded "${config.name}" — ${sprites.size} tiles from ${sheetImages.size} sheet(s)${buildingCount}${natureCount}${interiorCount}${animCount}`)
 
-  return { config, sprites, buildingSprites, natureSprites }
+  return { config, sprites, buildingSprites, natureSprites, interiorSprites, animationSprites }
 }
 
 // ---------------------------------------------------------------------------
