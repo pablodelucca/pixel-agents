@@ -189,7 +189,7 @@ export function getMappedSprites(tileset: LoadedTileset, tileTypeName: string): 
 // Helpers
 // ---------------------------------------------------------------------------
 
-function loadImage(src: string): Promise<HTMLImageElement | null> {
+export function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image()
     img.onload = () => resolve(img)
@@ -206,7 +206,7 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
  * Transparent pixels (alpha < 128) become empty string '' (rendered as transparent).
  * Accepts width and height for arbitrary-sized images (buildings, etc.).
  */
-function imageDataToSpriteData(imageData: ImageData, width: number, height?: number): SpriteData {
+export function imageDataToSpriteData(imageData: ImageData, width: number, height?: number): SpriteData {
   const h = height ?? width
   const sprite: SpriteData = []
   for (let row = 0; row < h; row++) {

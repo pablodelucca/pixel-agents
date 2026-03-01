@@ -5,6 +5,7 @@ import { defaultTownLayout, PLAYER_SPAWN_COL, PLAYER_SPAWN_ROW, TOWN_BUILDINGS }
 import { TOWN_NPCS } from '../data/townNpcs.js'
 import { TILE_SIZE } from '../office/types.js'
 import { loadTileset } from '../office/tilesetLoader.js'
+import { loadPixelwoodCharacters } from '../office/sprites/pixelwoodCharLoader.js'
 import { setTilesetFloorSprites } from '../office/floorTiles.js'
 import { setBuildingTileset } from '../office/buildingSprites.js'
 import { setNatureTileset } from '../office/natureSprites.js'
@@ -77,6 +78,15 @@ export function useTownInit(
         console.log('[TownInit] Tileset loaded — rendering with Pixelwood Valley sprites')
       } else {
         console.log('[TownInit] No tileset found — using default programmatic rendering')
+      }
+    })
+
+    // Load Pixelwood character sprites (non-blocking, graceful fallback)
+    loadPixelwoodCharacters('/assets/tilesets/pixelwood').then((ok) => {
+      if (ok) {
+        console.log('[TownInit] Pixelwood character sprites loaded')
+      } else {
+        console.log('[TownInit] Character sprites not found — using programmatic fallback')
       }
     })
 

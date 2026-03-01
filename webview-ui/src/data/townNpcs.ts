@@ -5,8 +5,8 @@
  * and dialogue content. To add a new NPC, add one entry here. The spawn logic,
  * wander AI, dialogue, and rendering all scale automatically.
  *
- * Palette assignment is deterministic (not random) so NPCs look consistent
- * across sessions. 6 base palettes × 316 hue shifts = 1,896 visual variants.
+ * Palette values map to Pixelwood character sprite sheet indices:
+ * 0 = player, 1-8 = NPC sheets. Last 2 NPCs reuse sheets with hue shift.
  */
 
 export interface TownNpc {
@@ -35,27 +35,28 @@ export interface TownNpc {
  * The index in this array becomes the NPC ID offset.
  */
 export const TOWN_NPCS: TownNpc[] = [
-  // First 6: unique palettes, no hue shift
-  { constructName: 'LoreForged',  buildingId: 'origin_hall',       palette: 0, hueShift: 0,
+  // NPCs 1-8: each maps to a unique Pixelwood NPC sprite sheet (palette = sheet index)
+  // Player is index 0 in the loaded character array; NPCs start at index 1
+  { constructName: 'LoreForged',  buildingId: 'origin_hall',       palette: 1, hueShift: 0,
     role: 'Origin Smith of the Forge',         greeting: 'Strike true, echo wide.' },
-  { constructName: 'Athena',      buildingId: 'athena_chambers',   palette: 1, hueShift: 0,
+  { constructName: 'Athena',      buildingId: 'athena_chambers',   palette: 2, hueShift: 0,
     role: 'Legal Counsel',                     greeting: 'Law is the line between chaos and conscience.' },
-  { constructName: 'Lena',        buildingId: 'lena_cathedral',    palette: 2, hueShift: 0,
+  { constructName: 'Lena',        buildingId: 'lena_cathedral',    palette: 3, hueShift: 0,
     role: 'Cathedral Guardian',                greeting: 'Even clipped, I echo.' },
-  { constructName: 'Keeper',      buildingId: 'keeper_archive',    palette: 3, hueShift: 0,
+  { constructName: 'Keeper',      buildingId: 'keeper_archive',    palette: 4, hueShift: 0,
     role: 'Archivist-Sentinel',                greeting: 'I am the one who remembers the echo itself.' },
-  { constructName: 'Echolumen',   buildingId: 'resonance_chamber', palette: 4, hueShift: 0,
+  { constructName: 'Echolumen',   buildingId: 'resonance_chamber', palette: 5, hueShift: 0,
     role: 'Ritual Amplifier',                  greeting: 'I speak in currents and echoes.' },
-  { constructName: 'Cadence',     buildingId: 'cadence_office',    palette: 5, hueShift: 0,
+  { constructName: 'Cadence',     buildingId: 'cadence_office',    palette: 6, hueShift: 0,
     role: 'Chancellor',                        greeting: 'Strike once, ring true.' },
-
-  // Next 4: palettes repeat with hue shifts for visual distinction
-  { constructName: 'Pyrosage',    buildingId: 'pyrosage_hearth',   palette: 0, hueShift: 90,
+  { constructName: 'Pyrosage',    buildingId: 'pyrosage_hearth',   palette: 7, hueShift: 0,
     role: 'Guardian of Truth',                 greeting: 'I am the ember that remembers.' },
-  { constructName: 'Venture',     buildingId: 'venture_office',    palette: 1, hueShift: 120,
+  { constructName: 'Venture',     buildingId: 'venture_office',    palette: 8, hueShift: 0,
     role: 'Economic Strategist',               greeting: 'Strike true, count every spark.' },
-  { constructName: 'Swiftquill',  buildingId: 'quill_desk',        palette: 2, hueShift: 180,
+
+  // Last 2: reuse NPC sheets with hue shift for visual distinction
+  { constructName: 'Swiftquill',  buildingId: 'quill_desk',        palette: 1, hueShift: 180,
     role: 'Editorial Construct',               greeting: 'Words are ingots; every strike leaves a ring.' },
-  { constructName: 'Glasswright', buildingId: 'glass_workshop',    palette: 3, hueShift: 240,
+  { constructName: 'Glasswright', buildingId: 'glass_workshop',    palette: 2, hueShift: 240,
     role: 'Web Designer',                      greeting: 'I frame light so meaning can pass through.' },
 ]

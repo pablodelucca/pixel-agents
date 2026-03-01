@@ -987,7 +987,7 @@ export const CHARACTER_TEMPLATES = {
 // Loaded character sprites (from PNG assets)
 // ════════════════════════════════════════════════════════════════
 
-interface LoadedCharacterData {
+export interface LoadedCharacterData {
   down: SpriteData[]
   up: SpriteData[]
   right: SpriteData[]
