@@ -34,4 +34,13 @@ after each iteration and it's included in prompts for context.
   - The system prompt references the termination keyword constant to keep instructions consistent
   - Template literal with embedded constant maintains single source of truth for the keyword
 ---
+## [2026-03-01] - US-004
+- Wired UI Auto button to stop auto mode and sync autoModeEnded state
+- Files changed: `webview-ui/src/App.tsx`, `webview-ui/src/hooks/useExtensionMessages.ts`
+- **Learnings:**
+  - React state must be declared before being used in callbacks passed to hooks (ESLint catches this as "accessed before declared")
+  - The `useExtensionMessages` hook accepts callback parameters for events that need to update parent state
+  - Message handlers in `useExtensionMessages` follow a simple if-else pattern for different message types
+  - The `autoModeEnded` broadcast from server triggers UI state reset via callback pattern
+---
 

@@ -121,10 +121,10 @@ function App() {
 
   const isEditDirty = useCallback(() => editor.isEditMode && editor.isDirty, [editor.isEditMode, editor.isDirty])
 
-  const { agents, selectedAgent, agentTools, agentStatuses, agentMessages, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, isDevMode } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
-
   const [isDebugMode, setIsDebugMode] = useState(false)
   const [isAutoMode, setIsAutoMode] = useState(false)
+
+  const { agents, selectedAgent, agentTools, agentStatuses, agentMessages, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, isDevMode } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty, () => setIsAutoMode(false))
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
 
@@ -133,6 +133,8 @@ function App() {
       const newValue = !prev
       if (newValue) {
         vscode.postMessage({ type: 'startAutoMode' })
+      } else {
+        vscode.postMessage({ type: 'stopAutoMode' })
       }
       return newValue
     })
