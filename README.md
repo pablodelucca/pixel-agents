@@ -45,6 +45,17 @@ npm run build
 
 Then press **F5** in VS Code to launch the Extension Development Host.
 
+### Webview UI Development
+
+If you want to work on the webview UI in your browser without launching the full VS Code extension host, you can run the Vite dev server:
+
+```bash
+cd webview-ui
+npm run dev
+```
+
+This will launch a local server (usually at `http://localhost:5173`) with Hot Module Replacement (HMR) for rapid UI development. To preview the production build of the webview, run `npm run preview` in the same directory.
+
 ### Usage
 
 1. Open the **Pixel Agents** panel (it appears in the bottom panel area alongside your terminal)
@@ -52,6 +63,39 @@ Then press **F5** in VS Code to launch the Extension Development Host.
 3. Start coding with Claude — watch the character react in real time
 4. Click a character to select it, then click a seat to reassign it
 5. Click **Layout** to open the office editor and customize your space
+
+### Local Models (LM Studio)
+
+Pixel Agents supports using local LLMs through [LM Studio](https://lmstudio.ai/). Instead of sending requests to Anthropic, you can run models entirely on your machine.
+
+There are two ways to configure this:
+
+**Option A: Direct Connection (LM Studio 0.4.1+ only)**
+
+LM Studio 0.4.1+ ships a native Anthropic-compatible `/v1/messages` endpoint, so the Claude CLI can talk to it directly.
+
+1. Open LM Studio, load your preferred model, and start the **Local Server** (port 1234 by default).
+2. If you have previously logged in to Claude, run `claude /logout` first to avoid auth conflicts.
+3. Set the environment variables in your terminal:
+   ```bash
+   export ANTHROPIC_BASE_URL="http://localhost:1234"
+   export ANTHROPIC_AUTH_TOKEN="lmstudio"
+   ```
+4. Run the Claude CLI with your model name:
+   ```bash
+   claude --model your-model-name
+   ```
+5. Open the Pixel Agents panel — a character will appear and animate based on the CLI's activity.
+
+**Option B: LiteLLM Proxy (any OpenAI-compatible endpoint)**
+
+For endpoints that only expose an OpenAI-compatible API (not Anthropic), Pixel Agents can auto-launch a [LiteLLM](https://docs.litellm.ai/) proxy to translate requests.
+
+1. In VS Code, open Settings and search for **Pixel Agents**.
+2. Check **Pixel Agents › Local: Enabled**.
+3. Set **Base Url** to your endpoint (e.g., `http://localhost:1234/v1`).
+4. Set **Model** to match your loaded model (e.g., `openai/my-local-model`).
+5. Click **+ Agent** — the extension will start a LiteLLM proxy in the background and launch Claude through it.
 
 ## Layout Editor
 

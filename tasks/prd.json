@@ -1,0 +1,162 @@
+{
+  "name": "Enhance Auto Mode",
+  "description": "Enhance Auto Mode with keyword-based termination, failsafe timer, diverse conversation prompts, UI stop/sync, and walk-to-agent interaction pattern. Refer to openspec/changes/enhance-auto-mode/ for detailed design decisions, spec requirements, and architecture rationale.",
+  "branchName": "ralph/enhance-auto-mode",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Define termination keyword constant and detection in transcript parser",
+      "description": "As a developer, I want the server to detect a termination keyword in agent output so that auto mode can stop when agents signal they are done.",
+      "acceptanceCriteria": [
+        "Define `AUTO_MODE_TERMINATION_KEYWORD` constant with default value `[CONVERSATION_END]` in `webview-ui/devServer.ts`",
+        "In `parseTranscriptLine()`, when an assistant text block contains the keyword, set a `terminationDetected` flag on the return value",
+        "Strip the keyword from the text before broadcasting `agentMessage` so it does not appear in UI bubbles",
+        "In `pollJsonl()`, after parsing, if `terminationDetected` is true, call `stopAutoMode()` instead of proceeding to `handleAutoModeTurnEnd()`",
+        "Refer to openspec/changes/enhance-auto-mode/design.md 'Termination keyword approach' for rationale",
+        "npm run check-types passes",
+        "npm run lint passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "",
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Write system prompt and expand diverse seed prompts",
+      "description": "As a user, I want agents to have diverse, sustained conversations so that auto mode produces substantive discussions instead of repetitive goodbyes.",
+      "acceptanceCriteria": [
+        "Write an `AUTO_MODE_SYSTEM_PROMPT` constant in `webview-ui/devServer.ts` instructing agents to: explore topics deeply, ask follow-up questions, debate constructively, and only emit `[CONVERSATION_END]` when the topic is genuinely exhausted",
+        "Expand `SEED_PROMPTS` array to at least 15 open-ended debate-style topics with phrasing that encourages extended discussion",
+        "When starting auto mode in `startAutoMode()`, prepend the system prompt to the seed prompt text written to Agent 1's stdin",
+        "Refer to openspec/changes/enhance-auto-mode/design.md 'System prompt injection' for format details",
+        "npm run check-types passes",
+        "npm run lint passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "dependsOn": [
+        "US-001"
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "Add stopAutoMode message handler in dev server",
+      "description": "As a developer, I want the dev server to handle a stopAutoMode message so that the UI can request auto mode termination.",
+      "acceptanceCriteria": [
+        "Add `stopAutoMode` case in `handleClientMessage()` in `webview-ui/devServer.ts` that calls the existing `stopAutoMode()` function",
+        "Verify that `stopAutoMode()` clears the duration timer, broadcasts `autoModeEnded`, and sets `autoMode = null`",
+        "npm run check-types passes",
+        "npm run lint passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-004",
+      "title": "Wire UI Auto button to stop auto mode and sync autoModeEnded state",
+      "description": "As a user, I want the Auto button to toggle auto mode off and stay in sync with server state so that the UI reflects the actual auto mode status.",
+      "acceptanceCriteria": [
+        "In `App.tsx`, update `handleToggleAutoMode` to send `{ type: 'stopAutoMode' }` when toggling off (when `isAutoMode` is currently true)",
+        "Add `autoModeEnded` listener in `webview-ui/src/hooks/useExtensionMessages.ts` that calls a callback to reset `isAutoMode` to false",
+        "Wire the `autoModeEnded` callback from `useExtensionMessages` into `App.tsx` state management",
+        "The Auto button returns to inactive visual state when server broadcasts `autoModeEnded` (from keyword, timer, or agent exit)",
+        "Refer to openspec/changes/enhance-auto-mode/design.md 'UI stop/sync' for decision rationale",
+        "npm run check-types passes",
+        "npm run lint passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "",
+      "dependsOn": [
+        "US-003"
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Define InteractionPattern type and extend AutoModeState",
+      "description": "As a developer, I want an InteractionPattern type architecture so that future interaction patterns can be added without refactoring existing code.",
+      "acceptanceCriteria": [
+        "Define `InteractionPattern` type as `'walk-to-agent' | 'stay-at-desk'` in a shared types file or alongside `AutoModeState` in `webview-ui/devServer.ts`",
+        "Add `interactionPattern: InteractionPattern` field to `AutoModeState` interface with default value `'walk-to-agent'`",
+        "Broadcast `autoModeStarted` event to webview clients containing both agent IDs and the interaction pattern when auto mode begins",
+        "Refer to openspec/changes/enhance-auto-mode/design.md 'InteractionPattern type' for rationale",
+        "npm run check-types passes",
+        "npm run lint passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-006",
+      "title": "Add walkToAgent method to OfficeState",
+      "description": "As a developer, I want a walkToAgent method on OfficeState so that agent characters can pathfind to each other's position during auto mode.",
+      "acceptanceCriteria": [
+        "Add `walkToAgent(agentId: number, targetAgentId: number)` method to `OfficeState` in `webview-ui/src/office/engine/officeState.ts`",
+        "The method pathfinds the agent to a tile adjacent to the target agent's current position using the existing `findPath()` function",
+        "If the target tile is occupied or unreachable, fall back to the nearest walkable tile adjacent to the target; if no path exists, the agent stays in place",
+        "Refer to openspec/changes/enhance-auto-mode/design.md 'Walk-to-agent interaction pattern' for design decisions",
+        "npm run check-types passes",
+        "npm run lint passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "",
+      "dependsOn": [
+        "US-005"
+      ]
+    },
+    {
+      "id": "US-007",
+      "title": "Wire walk-to-agent behavior into character FSM and auto mode events",
+      "description": "As a user, I want to see the responding agent walk toward the other agent during auto mode so that the simulation visually represents agents interacting.",
+      "acceptanceCriteria": [
+        "In `webview-ui/src/hooks/useExtensionMessages.ts`, handle `autoModeStarted` and `autoModeTurnChange` events to trigger `walkToAgent()` on the responding agent's character",
+        "Update `updateCharacter()` in `webview-ui/src/office/engine/characters.ts` to support an `autoModeTarget` override: when set, the agent walks to the target instead of returning to seat when active",
+        "Only the responding agent (whose turn is starting) walks to the other agent; the speaking agent stays put to avoid oscillation",
+        "On `autoModeEnded`, clear `autoModeTarget` for both agents and call `sendToSeat()` to return them to their assigned desks",
+        "Both agents resume normal idle/wander behavior after auto mode ends",
+        "Refer to openspec/changes/enhance-auto-mode/design.md for oscillation mitigation strategy",
+        "npm run check-types passes",
+        "npm run lint passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "",
+      "dependsOn": [
+        "US-006",
+        "US-004"
+      ]
+    },
+    {
+      "id": "US-008",
+      "title": "Manual verification and build check",
+      "description": "As a developer, I want to verify the full feature works end-to-end so that all requirements from the spec are met.",
+      "acceptanceCriteria": [
+        "Start auto mode and verify agents converse with diverse topics and one eventually emits the keyword to end the session",
+        "Verify the failsafe timer still terminates auto mode if the keyword is never emitted (set PIXEL_AGENTS_AUTO_MODE_DURATION_MS to 30000 for testing)",
+        "Click the Auto button while auto mode is active and verify it stops and the button returns to inactive state",
+        "Verify the responding agent visually walks toward the other agent during auto mode",
+        "Verify both agents return to their seats after auto mode ends",
+        "npm run check-types passes",
+        "npm run lint passes",
+        "make build completes without errors"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "",
+      "dependsOn": [
+        "US-007"
+      ]
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-03-01T03:33:50.489Z"
+  }
+}

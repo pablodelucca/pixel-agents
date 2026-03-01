@@ -9,11 +9,17 @@ interface ToolOverlayProps {
   officeState: OfficeState
   agents: number[]
   agentTools: Record<number, ToolActivity[]>
+  agentMessages: Record<number, string>
   subagentCharacters: SubagentCharacter[]
   containerRef: React.RefObject<HTMLDivElement | null>
   zoom: number
   panRef: React.RefObject<{ x: number; y: number }>
   onCloseAgent: (id: number) => void
+}
+
+function truncateText(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text
+  return text.slice(0, maxLen - 1) + '...'
 }
 
 /** Derive a short human-readable activity string from tools/status */
@@ -44,6 +50,7 @@ export function ToolOverlay({
   officeState,
   agents,
   agentTools,
+  agentMessages,
   subagentCharacters,
   containerRef,
   zoom,
@@ -191,6 +198,22 @@ export function ToolOverlay({
                     }}
                   >
                     {ch.folderName}
+                  </span>
+                )}
+                {!isSub && agentMessages[id] && (
+                  <span
+                    style={{
+                      fontSize: '18px',
+                      color: 'var(--pixel-text-dim)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: 'block',
+                      maxWidth: 180,
+                      fontStyle: 'italic',
+                    }}
+                    title={agentMessages[id]}
+                  >
+                    {truncateText(agentMessages[id], 100)}
                   </span>
                 )}
               </div>

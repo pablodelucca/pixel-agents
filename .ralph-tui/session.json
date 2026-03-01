@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "sessionId": "2cff1b31-32da-4884-bb86-6c25fccdb6ed",
+  "status": "running",
+  "startedAt": "2026-03-01T03:31:29.798Z",
+  "updatedAt": "2026-03-01T03:33:50.490Z",
+  "currentIteration": 0,
+  "maxIterations": 10,
+  "tasksCompleted": 0,
+  "isPaused": false,
+  "agentPlugin": "opencode",
+  "trackerState": {
+    "plugin": "json",
+    "prdPath": "./tasks/prd.json",
+    "totalTasks": 8,
+    "tasks": [
+      {
+        "id": "US-001",
+        "title": "Define termination keyword constant and detection in transcript parser",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-002",
+        "title": "Write system prompt and expand diverse seed prompts",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-003",
+        "title": "Add stopAutoMode message handler in dev server",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-004",
+        "title": "Wire UI Auto button to stop auto mode and sync autoModeEnded state",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-005",
+        "title": "Define InteractionPattern type and extend AutoModeState",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-006",
+        "title": "Add walkToAgent method to OfficeState",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-007",
+        "title": "Wire walk-to-agent behavior into character FSM and auto mode events",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-008",
+        "title": "Manual verification and build check",
+        "status": "open",
+        "completedInSession": false
+      }
+    ]
+  },
+  "iterations": [],
+  "skippedTaskIds": [],
+  "cwd": "/Users/laansdole/Projects/pixel-agents",
+  "activeTaskIds": [],
+  "subagentPanelVisible": false
+}

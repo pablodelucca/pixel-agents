@@ -8,7 +8,7 @@ export function clearAgentActivity(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 ): void {
-	if (!agent) return;
+	if (!agent) {return;}
 	agent.activeToolIds.clear();
 	agent.activeToolStatuses.clear();
 	agent.activeToolNames.clear();
@@ -77,7 +77,7 @@ export function startPermissionTimer(
 	const timer = setTimeout(() => {
 		permissionTimers.delete(agentId);
 		const agent = agents.get(agentId);
-		if (!agent) return;
+		if (!agent) {return;}
 
 		// Only flag if there are still active non-exempt tools (parent or sub-agent)
 		let hasNonExempt = false;

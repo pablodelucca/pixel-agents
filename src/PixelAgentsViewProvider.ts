@@ -42,7 +42,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	// Cross-window layout sync
 	layoutWatcher: LayoutWatcher | null = null;
 
-	constructor(private readonly context: vscode.ExtensionContext) {}
+	constructor(private readonly context: vscode.ExtensionContext) { }
 
 	private get extensionUri(): vscode.Uri {
 		return this.context.extensionUri;
@@ -70,6 +70,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					this.jsonlPollTimers, this.projectScanTimer,
 					this.webview, this.persistAgents,
 					message.folderPath as string | undefined,
+					this.extensionUri.fsPath,
 				);
 			} else if (message.type === 'focusAgent') {
 				const agent = this.agents.get(message.id);
@@ -248,7 +249,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					filters: { 'JSON Files': ['json'] },
 					canSelectMany: false,
 				});
-				if (!uris || uris.length === 0) return;
+				if (!uris || uris.length === 0) { return; }
 				try {
 					const raw = fs.readFileSync(uris[0].fsPath, 'utf-8');
 					const imported = JSON.parse(raw) as Record<string, unknown>;
@@ -268,7 +269,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
 		vscode.window.onDidChangeActiveTerminal((terminal) => {
 			this.activeAgentId.current = null;
-			if (!terminal) return;
+			if (!terminal) { return; }
 			for (const [id, agent] of this.agents) {
 				if (agent.terminalRef === terminal) {
 					this.activeAgentId.current = id;
@@ -314,7 +315,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	}
 
 	private startLayoutWatcher(): void {
-		if (this.layoutWatcher) return;
+		if (this.layoutWatcher) { return; }
 		this.layoutWatcher = watchLayoutFile((layout) => {
 			console.log('[Pixel Agents] External layout change — pushing to webview');
 			this.webview?.postMessage({ type: 'layoutLoaded', layout });

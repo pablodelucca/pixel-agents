@@ -121,11 +121,22 @@ function App() {
 
   const isEditDirty = useCallback(() => editor.isEditMode && editor.isDirty, [editor.isEditMode, editor.isDirty])
 
-  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
+  const { agents, selectedAgent, agentTools, agentStatuses, agentMessages, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, isDevMode } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
 
   const [isDebugMode, setIsDebugMode] = useState(false)
+  const [isAutoMode, setIsAutoMode] = useState(false)
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
+
+  const handleToggleAutoMode = useCallback(() => {
+    setIsAutoMode((prev) => {
+      const newValue = !prev
+      if (newValue) {
+        vscode.postMessage({ type: 'startAutoMode' })
+      }
+      return newValue
+    })
+  }, [])
 
   const handleSelectAgent = useCallback((id: number) => {
     vscode.postMessage({ type: 'focusAgent', id })
@@ -230,7 +241,57 @@ function App() {
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
         workspaceFolders={workspaceFolders}
+        isAutoMode={isAutoMode}
+        onToggleAutoMode={handleToggleAutoMode}
       />
+
+      {isDevMode && selectedAgent !== null && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '72px', // right above BottomToolbar
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 50,
+            background: 'var(--pixel-ui-bg)',
+            border: '2px solid var(--pixel-accent)',
+            boxShadow: 'var(--pixel-shadow)',
+            padding: '8px',
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center',
+            width: '400px',
+            maxWidth: '90vw',
+          }}
+        >
+          <span style={{ fontSize: '20px', color: 'var(--pixel-accent)' }}>🤖 #{selectedAgent}</span>
+          <input
+            type="text"
+            placeholder="Chat with agent..."
+            autoFocus
+            style={{
+              flex: 1,
+              background: 'var(--pixel-canvas-bg)',
+              color: 'var(--pixel-text)',
+              border: '2px solid var(--pixel-primary)',
+              padding: '4px 8px',
+              fontFamily: 'var(--pixel-font)',
+              fontSize: '18px',
+              outline: 'none',
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const target = e.target as HTMLInputElement;
+                const text = target.value.trim();
+                if (text) {
+                  vscode.postMessage({ type: 'stdinInput', id: selectedAgent, text });
+                  target.value = '';
+                }
+              }
+            }}
+          />
+        </div>
+      )}
 
       {editor.isEditMode && editor.isDirty && (
         <EditActionBar editor={editor} editorState={editorState} />
@@ -289,6 +350,7 @@ function App() {
         officeState={officeState}
         agents={agents}
         agentTools={agentTools}
+        agentMessages={agentMessages}
         subagentCharacters={subagentCharacters}
         containerRef={containerRef}
         zoom={editor.zoom}

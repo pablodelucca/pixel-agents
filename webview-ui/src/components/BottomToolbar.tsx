@@ -10,6 +10,8 @@ interface BottomToolbarProps {
   isDebugMode: boolean
   onToggleDebugMode: () => void
   workspaceFolders: WorkspaceFolder[]
+  isAutoMode: boolean
+  onToggleAutoMode: () => void
 }
 
 const panelStyle: React.CSSProperties = {
@@ -51,6 +53,8 @@ export function BottomToolbar({
   isDebugMode,
   onToggleDebugMode,
   workspaceFolders,
+  isAutoMode,
+  onToggleAutoMode,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -161,6 +165,22 @@ export function BottomToolbar({
         title="Edit office layout"
       >
         Layout
+      </button>
+      <button
+        onClick={onToggleAutoMode}
+        onMouseEnter={() => setHovered('auto')}
+        onMouseLeave={() => setHovered(null)}
+        style={
+          isAutoMode
+            ? { ...btnActive }
+            : {
+                ...btnBase,
+                background: hovered === 'auto' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+              }
+        }
+        title="Auto Mode - agents converse automatically"
+      >
+        Auto
       </button>
       <div style={{ position: 'relative' }}>
         <button

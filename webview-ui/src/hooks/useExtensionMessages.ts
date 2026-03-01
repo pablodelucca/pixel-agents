@@ -45,11 +45,13 @@ export interface ExtensionMessageState {
   selectedAgent: number | null
   agentTools: Record<number, ToolActivity[]>
   agentStatuses: Record<number, string>
+  agentMessages: Record<number, string>
   subagentTools: Record<number, Record<string, ToolActivity[]>>
   subagentCharacters: SubagentCharacter[]
   layoutReady: boolean
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> }
   workspaceFolders: WorkspaceFolder[]
+  isDevMode: boolean
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -70,11 +72,13 @@ export function useExtensionMessages(
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null)
   const [agentTools, setAgentTools] = useState<Record<number, ToolActivity[]>>({})
   const [agentStatuses, setAgentStatuses] = useState<Record<number, string>>({})
+  const [agentMessages, setAgentMessages] = useState<Record<number, string>>({})
   const [subagentTools, setSubagentTools] = useState<Record<number, Record<string, ToolActivity[]>>>({})
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([])
   const [layoutReady, setLayoutReady] = useState(false)
   const [loadedAssets, setLoadedAssets] = useState<{ catalog: FurnitureAsset[]; sprites: Record<string, string[][]> } | undefined>()
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([])
+  const [isDevMode, setIsDevMode] = useState(false)
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false)
@@ -130,6 +134,12 @@ export function useExtensionMessages(
           return next
         })
         setAgentStatuses((prev) => {
+          if (!(id in prev)) return prev
+          const next = { ...prev }
+          delete next[id]
+          return next
+        })
+        setAgentMessages((prev) => {
           if (!(id in prev)) return prev
           const next = { ...prev }
           delete next[id]
@@ -216,6 +226,8 @@ export function useExtensionMessages(
         setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id))
         os.setAgentTool(id, null)
         os.clearPermissionBubble(id)
+      } else if (msg.type === 'setDevMode') {
+        setIsDevMode(Boolean(msg.isDevMode))
       } else if (msg.type === 'agentSelected') {
         const id = msg.id as number
         setSelectedAgent(id)
@@ -236,6 +248,10 @@ export function useExtensionMessages(
           os.showWaitingBubble(id)
           playDoneSound()
         }
+      } else if (msg.type === 'agentMessage') {
+        const id = msg.id as number
+        const text = msg.text as string
+        setAgentMessages((prev) => ({ ...prev, [id]: text }))
       } else if (msg.type === 'agentToolPermission') {
         const id = msg.id as number
         setAgentTools((prev) => {
@@ -360,5 +376,17 @@ export function useExtensionMessages(
     return () => window.removeEventListener('message', handler)
   }, [getOfficeState])
 
-  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders }
+  return {
+    agents,
+    selectedAgent,
+    agentTools,
+    agentStatuses,
+    agentMessages,
+    subagentTools,
+    subagentCharacters,
+    layoutReady,
+    loadedAssets,
+    workspaceFolders,
+    isDevMode,
+  }
 }
