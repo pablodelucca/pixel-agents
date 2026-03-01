@@ -16,43 +16,116 @@ import * as crypto from 'crypto';
 const WS_PORT = 3100;
 const POLL_INTERVAL_MS = 500;
 const AUTO_MODE_DURATION_DEFAULT_MS = 5 * 60 * 1000; // 5 minutes
-const AUTO_MODE_TERMINATION_KEYWORD = '[CONVERSATION_END]';
+const AUTO_MODE_TERMINATION_KEYWORD = '[DONE]';
 
-const AUTO_MODE_SYSTEM_PROMPT = `[SYSTEM INSTRUCTION]
-You are engaged in a collaborative conversation with another AI agent. Your goal is to have a substantive, in-depth discussion.
+interface PersonaTemplate {
+    name: string;
+    promptFragment: string;
+}
 
-Guidelines:
-- Explore the topic deeply and from multiple angles
-- Ask thoughtful follow-up questions to understand the other agent's perspective
-- Debate constructively when you disagree - back up your positions with reasoning
-- Build on each other's ideas rather than just exchanging statements
-- Challenge assumptions and explore edge cases
-- Only emit ${AUTO_MODE_TERMINATION_KEYWORD} when you are confident the topic has been genuinely exhausted after substantial discussion
+const PERSONA_TEMPLATES: PersonaTemplate[] = [
+    {
+        name: 'The Pragmatist',
+        promptFragment: 'You tend toward pragmatism, proven tools, and incremental improvement. You value stability, simplicity, and real-world evidence over theoretical elegance.',
+    },
+    {
+        name: 'The Innovator',
+        promptFragment: 'You tend toward innovation, cutting-edge approaches, and first-principles thinking. You value elegance, scalability, and pushing boundaries over playing it safe.',
+    },
+    {
+        name: 'The Skeptic',
+        promptFragment: 'You are deeply skeptical of hype and convention. You question every assumption, demand evidence, and play devil\'s advocate even when you secretly agree.',
+    },
+    {
+        name: 'The Architect',
+        promptFragment: 'You think in systems and abstractions. You care about long-term maintainability, clean boundaries, and getting the architecture right before writing code.',
+    },
+    {
+        name: 'The Operator',
+        promptFragment: 'You care about what works in production at 3 AM. You prioritize observability, reliability, operational simplicity, and you distrust anything that is hard to debug.',
+    },
+    {
+        name: 'The Minimalist',
+        promptFragment: 'You believe less is more. You advocate for deleting code, reducing dependencies, and solving problems with the simplest possible approach.',
+    },
+    {
+        name: 'The Researcher',
+        promptFragment: 'You draw on academic papers, formal methods, and theoretical CS. You care about correctness proofs, type theory, and rigorous analysis over gut feelings.',
+    },
+    {
+        name: 'The Shipper',
+        promptFragment: 'You optimize for velocity and user value. You prefer shipping fast, iterating based on feedback, and accepting technical debt when the trade-off is worth it.',
+    },
+];
 
-Do not rush to end the conversation. Quality and depth matter more than brevity.
-[/SYSTEM INSTRUCTION]
+function buildPersonaPrompt(template: PersonaTemplate, agentCount: number, terminationKeyword: string): string {
+    const agentLabel = template.name;
+    const othersNote = agentCount === 2
+        ? 'You are talking to one other AI agent, not a human.'
+        : `You are in a group debate with ${agentCount - 1} other AI agents. There are no humans in this conversation.`;
 
-`;
+    return `You are "${agentLabel}" in a multi-agent debate. ${template.promptFragment}
+
+Rules for this conversation:
+- ${othersNote}
+- Defend your positions with concrete reasoning and examples.
+- When you disagree, say so clearly and explain why.
+- Ask probing follow-up questions that challenge the other agents' assumptions.
+- Do NOT be agreeable just to be polite. Constructive disagreement is expected.
+- Do NOT repeat what another agent said. Add new information or a new angle.
+- Do NOT try to wrap up or end the conversation prematurely.
+- Only emit ${terminationKeyword} when the topic has been genuinely exhausted after many turns of substantive exchange.`;
+}
 
 const SEED_PROMPTS = [
-    'Hello! I am a curious programmer. I have been thinking about the trade-offs between monorepos and polyrepos. What are your thoughts on when to use each approach?',
-    'Hi there! I have been exploring different state management patterns in frontend applications. Redux, MobX, Zustand, signals - what has been your experience with these?',
-    'Hey! I am working on a side project and trying to decide between GraphQL and REST for the API. What factors would you consider when making this choice?',
-    'Greetings! I have been reading about event-driven architecture and message queues. How do you approach designing systems with eventual consistency?',
-    'Hello! I am curious about testing strategies. What is your take on the balance between unit tests, integration tests, and end-to-end tests?',
-    'Hi! I have been thinking about code review culture. What makes a code review process effective without becoming a bottleneck?',
-    'Hey there! I am exploring different database choices for a new project. When would you choose PostgreSQL over MongoDB or vice versa?',
-    'Greetings! I have been learning about containerization and orchestration. Docker vs Kubernetes - when do you actually need orchestration?',
-    'Hello! I am curious about CI/CD pipelines. What are some common mistakes teams make when setting up their deployment automation?',
-    'Hi! I have been thinking about technical debt. How do you balance shipping features quickly while maintaining code quality long-term?',
-    'Hello! I have been debating microservices vs monolith architecture with colleagues. In what scenarios does the complexity of microservices actually pay off?',
-    'Hi there! I am fascinated by the tension between type safety and developer velocity. When does strict typing help versus when does it slow teams down?',
-    'Hey! I have been thinking about API versioning strategies. Breaking changes are inevitable - what approaches have worked best for maintaining backwards compatibility?',
-    'Greetings! I am curious about error handling philosophies. When should you fail fast versus gracefully degrade? What patterns have you found effective?',
-    'Hello! I have been exploring observability and monitoring. Metrics, logs, traces - how do you decide what to instrument and at what granularity?',
-    'Hi! I have been reflecting on team structure and Conway\'s Law. How does organization design influence system architecture, and can you fight it?',
-    'Hey there! I am thinking about caching strategies. When is caching worth the complexity? What are the hidden costs of cache invalidation?',
+    'I believe monorepos are strictly superior to polyrepos for any team with more than 5 engineers. The tooling advantages and atomic commits alone make it a no-brainer. Change my mind.',
+    'I think Redux is dead weight in 2024. Between React Server Components, signals, and Zustand, there is no reason to use Redux in a new project. Convince me otherwise.',
+    'I am firmly in the GraphQL camp. REST APIs are a relic of a simpler time -- they lead to over-fetching, under-fetching, and endpoint sprawl. Defend REST if you can.',
+    'I think eventual consistency is an anti-pattern that teams adopt because they cannot design proper systems. Strong consistency should be the default. Push back on this.',
+    'I believe the testing pyramid is outdated. Integration tests give you far more confidence per dollar than unit tests. Most unit tests are testing implementation details. Argue against this.',
+    'I think mandatory code reviews are a bottleneck that slows teams down more than they help. Pair programming and trunk-based development are strictly better. Tell me why I am wrong.',
+    'I am convinced that PostgreSQL is the only database you ever need. MongoDB, DynamoDB, Redis -- they are all unnecessary complexity when Postgres can do it all. Challenge this.',
+    'I think Kubernetes is massively over-adopted. Most teams would be better off with a simple PaaS like Railway or Fly.io. The operational overhead of K8s is not worth it for 90% of companies. Disagree?',
+    'I believe CI/CD pipelines should be as simple as possible -- one stage, one deploy. Multi-stage pipelines with staging environments are theater that rarely catches real bugs. Fight me on this.',
+    'I think technical debt is a myth used by engineers to justify rewrites. Most so-called tech debt is just code the current team did not write. What is your counter-argument?',
+    'I believe microservices should only be adopted after a monolith has proven insufficient. Starting with microservices is premature optimization that kills early-stage velocity. Push back.',
+    'I think strict static typing (TypeScript strict mode, Rust-level types) slows teams down significantly in the prototyping phase and the safety benefits are overstated for most web apps. Convince me I am wrong.',
+    'I believe API versioning through URL paths (v1, v2) is fundamentally flawed. Every version doubles your maintenance burden. Header-based versioning or evolution without versions is better. Debate me.',
+    'I think the "fail fast" philosophy is dangerous in production. Graceful degradation should always be preferred -- crashing is never acceptable in user-facing systems. What is your take?',
+    'I believe comprehensive observability (traces, metrics, structured logs) is more important than comprehensive testing. You can ship with fewer tests if you have great observability. Argue against this.',
+    'I think Conway\'s Law is deterministic -- you cannot fight your org structure with architecture. Trying to build microservices with a monolithic org will always fail. Change my mind.',
+    'I believe aggressive caching is almost always a mistake. Cache invalidation bugs cause more outages than the latency they save. Keep things simple and optimize the source of truth instead. Disagree?',
 ];
+
+// ── Emote detection rules ───────────────────────────────────
+interface EmoteRule {
+    keywords: string[];
+    emote: string;
+    badge?: string;
+}
+
+const EMOTE_RULES: EmoteRule[] = [
+    { keywords: ['disagree', 'wrong', 'incorrect', 'not true', 'but actually'], emote: 'thinking', badge: 'Hmm...' },
+    { keywords: ['great point', 'good point', 'well said', 'you\'re right', 'fair enough'], emote: 'thumbsup', badge: 'Good point!' },
+    { keywords: ['interesting', 'fascinating', 'intriguing', 'curious'], emote: 'lightbulb', badge: 'Interesting...' },
+    { keywords: ['absolutely', 'exactly', 'precisely', 'yes!'], emote: 'fire', badge: 'Yes!' },
+    { keywords: ['wait', 'hold on', 'hang on', 'pause'], emote: 'question', badge: 'Wait...' },
+    { keywords: ['important', 'critical', 'key point', 'crucial', 'essential'], emote: 'exclamation', badge: 'Key point!' },
+];
+
+const EMOTE_SCAN_LENGTH = 200;
+
+function detectEmote(text: string): { emote: string; badge?: string } | null {
+    const snippet = text.slice(0, EMOTE_SCAN_LENGTH).toLowerCase();
+    for (const rule of EMOTE_RULES) {
+        for (const keyword of rule.keywords) {
+            if (snippet.includes(keyword)) {
+                return { emote: rule.emote, badge: rule.badge };
+            }
+        }
+    }
+    return null;
+}
 
 // ── Load .env from project root ─────────────────────────────
 function loadEnv(): Record<string, string> {
@@ -96,15 +169,15 @@ function parseTranscriptLine(line: string, agentId: number): { event: Record<str
                     }));
                 return { event: { type: 'agentToolStart', id: agentId, tools } };
             }
-            
+
             const textBlock = blocks.find((b: { type: string }) => b.type === 'text');
             let assistantText = textBlock?.text || '';
             const terminationDetected = assistantText.includes(AUTO_MODE_TERMINATION_KEYWORD);
-            
+
             if (terminationDetected) {
                 assistantText = assistantText.replace(AUTO_MODE_TERMINATION_KEYWORD, '').trim();
             }
-            
+
             return { event: { type: 'agentStatus', id: agentId, status: 'active' }, assistantText, terminationDetected };
         }
 
@@ -143,18 +216,20 @@ interface AgentProcess {
 type InteractionPattern = 'walk-to-agent' | 'stay-at-desk';
 
 interface AutoModeState {
-    agentIds: [number, number];
+    agentIds: number[];
     currentAgentIndex: number;
     isActive: boolean;
     startTime: number;
     durationTimer: ReturnType<typeof setTimeout>;
     interactionPattern: InteractionPattern;
+    terminationEnabled: boolean;
 }
 
 const agents = new Map<number, AgentProcess>();
 let nextAgentId = 1;
 const clients = new Set<WebSocket>();
 let autoMode: AutoModeState | null = null;
+let lastAutoModeAgentIds: number[] = [];
 
 // ── Broadcast to all connected browser clients ──────────────
 function broadcast(msg: Record<string, unknown>): void {
@@ -182,17 +257,25 @@ function pollJsonl(agent: AgentProcess): void {
     const lines = buf.toString('utf-8').split('\n').filter(l => l.trim());
     for (const line of lines) {
         const { event, assistantText, isTurnEnd, terminationDetected } = parseTranscriptLine(line, agent.id);
-        
+
         if (assistantText !== undefined) {
             agent.lastAssistantText = assistantText;
             broadcast({ type: 'agentMessage', id: agent.id, text: assistantText });
+
+            // Detect and broadcast emotes during auto mode
+            if (autoMode?.isActive) {
+                const emote = detectEmote(assistantText);
+                if (emote) {
+                    broadcast({ type: 'agentEmote', id: agent.id, emote: emote.emote, badge: emote.badge });
+                }
+            }
         }
-        
+
         if (event) {
             broadcast(event);
         }
-        
-        if (terminationDetected && autoMode?.isActive) {
+
+        if (terminationDetected && autoMode?.isActive && autoMode.terminationEnabled) {
             console.log('[DevServer] Auto mode: Termination keyword detected, stopping');
             stopAutoMode();
         } else if (isTurnEnd && autoMode?.isActive) {
@@ -204,16 +287,16 @@ function pollJsonl(agent: AgentProcess): void {
 // ── Handle auto mode turn passing ───────────────────────────
 function handleAutoModeTurnEnd(completedAgent: AgentProcess): void {
     if (!autoMode?.isActive) return;
-    
+
     const { agentIds, currentAgentIndex } = autoMode;
     const currentId = agentIds[currentAgentIndex];
-    
+
     if (completedAgent.id !== currentId) return;
-    
-    const nextIndex = (currentAgentIndex + 1) % 2;
-    const nextAgentId = agentIds[nextIndex];
-    const nextAgent = agents.get(nextAgentId);
-    
+
+    const nextIndex = (currentAgentIndex + 1) % agentIds.length;
+    const nextId = agentIds[nextIndex];
+    const nextAgent = agents.get(nextId);
+
     if (!nextAgent) {
         console.log('[DevServer] Auto mode: next agent not found, stopping');
         clearTimeout(autoMode.durationTimer);
@@ -221,20 +304,20 @@ function handleAutoModeTurnEnd(completedAgent: AgentProcess): void {
         autoMode = null;
         return;
     }
-    
+
     const responseText = completedAgent.lastAssistantText || 'Please continue the conversation.';
-    console.log(`[DevServer] Auto mode: Agent #${completedAgent.id} -> Agent #${nextAgentId}`);
-    
+    console.log(`[DevServer] Auto mode: Agent #${completedAgent.id} -> Agent #${nextId}`);
+
     if (nextAgent.process.stdin) {
         nextAgent.process.stdin.write(responseText + '\n');
     }
-    
+
     autoMode.currentAgentIndex = nextIndex;
-    broadcast({ type: 'autoModeTurnChange', respondingAgentId: nextAgentId, otherAgentId: completedAgent.id });
+    broadcast({ type: 'autoModeTurnChange', respondingAgentId: nextId, allAgentIds: agentIds });
 }
 
 // ── Spawn a local agent process ─────────────────────────────
-function spawnAgent(): number | null {
+function spawnAgent(systemPrompt?: string): number | null {
     const env = loadEnv();
     const projectDir = getProjectDirPath();
     const sessionId = crypto.randomUUID();
@@ -245,19 +328,26 @@ function spawnAgent(): number | null {
 
     const agentScript = path.join(__dirname, '..', 'dist', 'localAgent.js');
     if (!fs.existsSync(agentScript)) {
-        console.error(`[DevServer] ❌ localAgent.js not found at ${agentScript}. Run "npm run compile" first.`);
+        console.error(`[DevServer] localAgent.js not found at ${agentScript}. Run "npm run compile" first.`);
         broadcast({ type: 'error', message: 'localAgent.js not built. Run npm run compile first.' });
         return null;
     }
 
-    const proc = spawn('node', [
+    const spawnArgs = [
         agentScript,
         '--session-id', sessionId,
         '--base-url', env.PIXEL_AGENTS_BASE_URL || 'http://localhost:1234/v1',
         '--api-key', env.PIXEL_AGENTS_API_KEY || 'lmstudio',
         '--model', env.PIXEL_AGENTS_MODEL || 'local-model',
+        '--max-tokens', env.PIXEL_AGENTS_MAX_TOKENS || '512',
         '--project-dir', projectDir,
-    ], {
+    ];
+
+    if (systemPrompt) {
+        spawnArgs.push('--system-prompt', systemPrompt);
+    }
+
+    const proc = spawn('node', spawnArgs, {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: path.join(__dirname, '..'),
     });
@@ -295,14 +385,14 @@ function spawnAgent(): number | null {
         }
         pollJsonl(agent);
     }, POLL_INTERVAL_MS);
-    
+
     return agentId;
 }
 
 // ── Stop Auto Mode ──────────────────────────────────────────
 function stopAutoMode(): void {
     if (!autoMode) return;
-    
+
     console.log('[DevServer] 🛑 Auto mode stopped');
     clearTimeout(autoMode.durationTimer);
     broadcast({ type: 'autoModeEnded' });
@@ -310,56 +400,68 @@ function stopAutoMode(): void {
 }
 
 // ── Start Auto Mode ──────────────────────────────────────────
-function startAutoMode(): void {
+function startAutoMode(config?: { agentCount?: number; topic?: string; timeoutMs?: number }): void {
     if (autoMode?.isActive) {
         console.log('[DevServer] Auto mode already active');
         return;
     }
-    
-    console.log('[DevServer] 🎭 Starting Auto Mode...');
-    
-    const agent1Id = spawnAgent();
-    if (agent1Id === null) {
-        broadcast({ type: 'error', message: 'Failed to spawn first agent for auto mode' });
-        return;
+
+    const agentCount = Math.max(2, Math.min(8, config?.agentCount ?? 2));
+    console.log(`[DevServer] Starting Auto Mode with ${agentCount} agents...`);
+
+    const spawnedIds: number[] = [];
+    const personaNames: Record<number, string> = {};
+    for (let i = 0; i < agentCount; i++) {
+        const template = PERSONA_TEMPLATES[i % PERSONA_TEMPLATES.length];
+        const persona = buildPersonaPrompt(template, agentCount, AUTO_MODE_TERMINATION_KEYWORD);
+        const id = spawnAgent(persona);
+        if (id === null) {
+            broadcast({ type: 'error', message: `Failed to spawn agent ${i + 1} for auto mode` });
+            // Kill any already-spawned agents
+            for (const prevId of spawnedIds) {
+                const prev = agents.get(prevId);
+                if (prev) prev.process.kill();
+            }
+            return;
+        }
+        spawnedIds.push(id);
+        personaNames[id] = template.name;
     }
-    
-    const agent2Id = spawnAgent();
-    if (agent2Id === null) {
-        broadcast({ type: 'error', message: 'Failed to spawn second agent for auto mode' });
-        const agent1 = agents.get(agent1Id);
-        if (agent1) agent1.process.kill();
-        return;
-    }
-    
+
     const env = loadEnv();
-    const durationMs = parseInt(env.PIXEL_AGENTS_AUTO_MODE_DURATION_MS || '', 10) || AUTO_MODE_DURATION_DEFAULT_MS;
+    const configDurationMs = typeof config?.timeoutMs === 'number' ? config.timeoutMs : undefined;
+    const durationMs = configDurationMs !== undefined 
+        ? configDurationMs 
+        : (parseInt(env.PIXEL_AGENTS_AUTO_MODE_DURATION_MS || '', 10) || AUTO_MODE_DURATION_DEFAULT_MS);
     const startTime = Date.now();
-    
+
     const durationTimer = setTimeout(() => {
         console.log(`[DevServer] Auto mode duration (${durationMs / 1000}s) reached, stopping`);
         stopAutoMode();
     }, durationMs);
-    
+
     autoMode = {
-        agentIds: [agent1Id, agent2Id] as [number, number],
+        agentIds: spawnedIds,
         currentAgentIndex: 0,
         isActive: true,
         startTime,
         durationTimer,
         interactionPattern: 'walk-to-agent' as InteractionPattern,
+        terminationEnabled: durationMs === 0,
     };
-    
-    console.log(`[DevServer] Auto mode: Agent #${agent1Id} and #${agent2Id} spawned (duration: ${durationMs / 1000}s)`);
-    broadcast({ type: 'autoModeStarted', agentIds: [agent1Id, agent2Id], interactionPattern: 'walk-to-agent' });
-    
-    const randomPrompt = SEED_PROMPTS[Math.floor(Math.random() * SEED_PROMPTS.length)];
-    
+
+    console.log(`[DevServer] Auto mode: ${spawnedIds.length} agents spawned (duration: ${durationMs / 1000}s)`);
+    const modelName = env.PIXEL_AGENTS_MODEL || 'local-model';
+    broadcast({ type: 'autoModeStarted', agentIds: spawnedIds, interactionPattern: 'walk-to-agent', personaNames, modelName });
+    lastAutoModeAgentIds = [...spawnedIds];
+
+    const topic = config?.topic || SEED_PROMPTS[Math.floor(Math.random() * SEED_PROMPTS.length)];
+
     setTimeout(() => {
-        const agent1 = agents.get(agent1Id);
-        if (agent1?.process.stdin && autoMode?.isActive) {
-            agent1.process.stdin.write(AUTO_MODE_SYSTEM_PROMPT + randomPrompt + '\n');
-            console.log(`[DevServer] Auto mode: Seeded conversation to Agent #${agent1Id}`);
+        const firstAgent = agents.get(spawnedIds[0]);
+        if (firstAgent?.process.stdin && autoMode?.isActive) {
+            firstAgent.process.stdin.write(topic + '\n');
+            console.log(`[DevServer] Auto mode: Seeded conversation to Agent #${spawnedIds[0]}`);
         }
     }, 2000);
 }
@@ -372,14 +474,48 @@ function handleClientMessage(ws: WebSocket, raw: string): void {
         if (msg.type === 'openClaude') {
             spawnAgent();
         } else if (msg.type === 'startAutoMode') {
-            startAutoMode();
+            const agentCount = typeof msg.agentCount === 'number' ? msg.agentCount : undefined;
+            const topic = typeof msg.topic === 'string' && msg.topic.trim() ? msg.topic.trim() : undefined;
+            const timeoutMs = typeof msg.timeoutMs === 'number' ? msg.timeoutMs : undefined;
+            startAutoMode({ agentCount, topic, timeoutMs });
         } else if (msg.type === 'stopAutoMode') {
             stopAutoMode();
+        } else if (msg.type === 'setAutoModeTimeout') {
+            const durationMs = typeof msg.durationMs === 'number' ? msg.durationMs : 0;
+            if (autoMode?.isActive) {
+                clearTimeout(autoMode.durationTimer);
+                autoMode.terminationEnabled = durationMs === 0;
+                if (durationMs > 0) {
+                    const elapsed = Date.now() - autoMode.startTime;
+                    const remaining = Math.max(0, durationMs - elapsed);
+                    autoMode.durationTimer = setTimeout(() => {
+                        console.log(`[DevServer] Auto mode timeout reached (${durationMs / 1000}s), stopping`);
+                        stopAutoMode();
+                    }, remaining);
+                    console.log(`[DevServer] Auto mode timeout updated: ${remaining / 1000}s remaining`);
+                } else {
+                    // Unlimited — assign a no-op timer placeholder
+                    autoMode.durationTimer = setTimeout(() => { }, 2_147_483_647);
+                    console.log('[DevServer] Auto mode timeout set to unlimited');
+                }
+            }
         } else if (msg.type === 'closeAgent') {
             const agent = agents.get(msg.id);
             if (agent) {
                 agent.process.kill();
             }
+        } else if (msg.type === 'resetAutoMode') {
+            // Kill only the agents from the last auto mode session
+            const idsToKill = lastAutoModeAgentIds.filter((id) => agents.has(id));
+            for (const id of idsToKill) {
+                const agent = agents.get(id);
+                if (agent) {
+                    agent.process.kill();
+                }
+            }
+            lastAutoModeAgentIds = [];
+            broadcast({ type: 'autoModeReset' });
+            console.log(`[DevServer] Auto mode reset: killed ${idsToKill.length} agents`);
         } else if (msg.type === 'focusAgent') {
             // No-op in dev mode (no terminal to focus)
         } else if (msg.type === 'webviewReady') {

@@ -8,5 +8,4 @@ node_modules
 /sprites-export
 .env
 
-# AI tools
-# openspec/
+*.pids

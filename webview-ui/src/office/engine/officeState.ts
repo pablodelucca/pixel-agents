@@ -12,8 +12,9 @@ import {
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_HIT_HALF_WIDTH,
   CHARACTER_HIT_HEIGHT,
+  EMOTE_DURATION_SEC,
 } from '../../constants.js'
-import type { Character, Seat, FurnitureInstance, TileType as TileTypeVal, OfficeLayout, PlacedFurniture } from '../types.js'
+import type { Character, Seat, FurnitureInstance, TileType as TileTypeVal, OfficeLayout, PlacedFurniture, EmoteType } from '../types.js'
 import { createCharacter, updateCharacter } from './characters.js'
 import { matrixEffectSeeds } from './matrixEffect.js'
 import { isWalkable, getWalkableTiles, findPath } from '../layout/tileMap.js'
@@ -644,6 +645,24 @@ export class OfficeState {
     }
   }
 
+  setEmote(id: number, emoteType: EmoteType, badge: string | null): void {
+    const ch = this.characters.get(id)
+    if (ch) {
+      ch.emoteType = emoteType
+      ch.emoteBadge = badge
+      ch.emoteTimer = EMOTE_DURATION_SEC
+    }
+  }
+
+  clearEmote(id: number): void {
+    const ch = this.characters.get(id)
+    if (ch) {
+      ch.emoteType = null
+      ch.emoteBadge = null
+      ch.emoteTimer = 0
+    }
+  }
+
   /** Dismiss bubble on click — permission: instant, waiting: quick fade */
   dismissBubble(id: number): void {
     const ch = this.characters.get(id)
@@ -688,6 +707,16 @@ export class OfficeState {
         if (ch.bubbleTimer <= 0) {
           ch.bubbleType = null
           ch.bubbleTimer = 0
+        }
+      }
+
+      // Tick emote timer and clear when expired
+      if (ch.emoteType) {
+        ch.emoteTimer -= dt
+        if (ch.emoteTimer <= 0) {
+          ch.emoteType = null
+          ch.emoteBadge = null
+          ch.emoteTimer = 0
         }
       }
     }

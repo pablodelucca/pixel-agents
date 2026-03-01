@@ -111,3 +111,6 @@ export const CHARACTER_HIT_HALF_WIDTH = 8
 export const CHARACTER_HIT_HEIGHT = 24
 export const TOOL_OVERLAY_VERTICAL_OFFSET = 32
 export const PULSE_ANIMATION_DURATION_SEC = 1.5
+
+// ── Emote System ────────────────────────────────────────────
+export const EMOTE_DURATION_SEC = 3.5

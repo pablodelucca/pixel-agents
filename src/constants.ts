@@ -31,6 +31,8 @@ export const LAYOUT_FILE_POLL_INTERVAL_MS = 2000;
 
 // ── Settings Persistence ────────────────────────────────────
 export const GLOBAL_KEY_SOUND_ENABLED = 'pixel-agents.soundEnabled';
+export const GLOBAL_KEY_MAX_TOKENS = 'pixel-agents.maxTokens';
+export const DEFAULT_MAX_TOKENS = 512;
 
 // ── VS Code Identifiers ─────────────────────────────────────
 export const VIEW_ID = 'pixel-agents.panelView';

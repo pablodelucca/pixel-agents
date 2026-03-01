@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { OfficeState } from '../office/engine/officeState.js'
-import type { OfficeLayout, ToolActivity } from '../office/types.js'
+import type { OfficeLayout, ToolActivity, EmoteType } from '../office/types.js'
 import { extractToolName } from '../office/toolUtils.js'
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js'
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js'
@@ -9,6 +9,7 @@ import { setWallSprites } from '../office/wallTiles.js'
 import { setCharacterTemplates } from '../office/sprites/spriteData.js'
 import { vscode } from '../vscodeApi.js'
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js'
+import { setMaxTokens } from '../maxTokensStore.js'
 
 export interface SubagentCharacter {
   id: number
@@ -40,6 +41,12 @@ export interface WorkspaceFolder {
   path: string
 }
 
+export interface ConversationEntry {
+  agentId: number
+  text: string
+  timestamp: number
+}
+
 export interface ExtensionMessageState {
   agents: number[]
   selectedAgent: number | null
@@ -52,6 +59,11 @@ export interface ExtensionMessageState {
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> }
   workspaceFolders: WorkspaceFolder[]
   isDevMode: boolean
+  conversationLog: ConversationEntry[]
+  autoModeAgentIds: number[]
+  autoModeResponderId: number | null
+  autoModePersonaNames: Record<number, string>
+  autoModeModelName: string | null
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -80,7 +92,11 @@ export function useExtensionMessages(
   const [loadedAssets, setLoadedAssets] = useState<{ catalog: FurnitureAsset[]; sprites: Record<string, string[][]> } | undefined>()
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([])
   const [isDevMode, setIsDevMode] = useState(false)
-
+  const [conversationLog, setConversationLog] = useState<ConversationEntry[]>([])
+  const [autoModeAgentIds, setAutoModeAgentIds] = useState<number[]>([])
+  const [autoModeResponderId, setAutoModeResponderId] = useState<number | null>(null)
+  const [autoModePersonaNames, setAutoModePersonaNames] = useState<Record<number, string>>({})
+  const [autoModeModelName, setAutoModeModelName] = useState<string | null>(null)
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false)
 
@@ -253,6 +269,12 @@ export function useExtensionMessages(
         const id = msg.id as number
         const text = msg.text as string
         setAgentMessages((prev) => ({ ...prev, [id]: text }))
+        setConversationLog((prev) => [...prev, { agentId: id, text, timestamp: Date.now() }])
+      } else if (msg.type === 'agentEmote') {
+        const id = msg.id as number
+        const emote = msg.emote as EmoteType
+        const badge = (msg.badge as string) || null
+        os.setEmote(id, emote, badge)
       } else if (msg.type === 'agentToolPermission') {
         const id = msg.id as number
         setAgentTools((prev) => {
@@ -359,6 +381,9 @@ export function useExtensionMessages(
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean
         setSoundEnabled(soundOn)
+        if (typeof msg.maxTokens === 'number') {
+          setMaxTokens(msg.maxTokens)
+        }
       } else if (msg.type === 'furnitureAssetsLoaded') {
         try {
           const catalog = msg.catalog as FurnitureAsset[]
@@ -371,23 +396,39 @@ export function useExtensionMessages(
           console.error(`❌ Webview: Error processing furnitureAssetsLoaded:`, err)
         }
       } else if (msg.type === 'autoModeStarted') {
-        const agentIds = msg.agentIds as [number, number]
-        const respondingAgentId = agentIds[0]
-        const otherAgentId = agentIds[1]
-        const respondingCh = os.characters.get(respondingAgentId)
-        if (respondingCh) {
-          respondingCh.autoModeTarget = otherAgentId
-          os.walkToAgent(respondingAgentId, otherAgentId)
+        const agentIds = msg.agentIds as number[]
+        const personaNames = (msg.personaNames || {}) as Record<number, string>
+        const modelName = (msg.modelName as string) || null
+        setConversationLog([])
+        setAutoModeAgentIds(agentIds)
+        setAutoModeResponderId(agentIds[0] ?? null)
+        setAutoModePersonaNames(personaNames)
+        setAutoModeModelName(modelName)
+        // Set auto mode targets: each agent targets the next one in round-robin
+        for (let i = 0; i < agentIds.length; i++) {
+          const targetId = agentIds[(i + 1) % agentIds.length]
+          const ch = os.characters.get(agentIds[i])
+          if (ch) {
+            ch.autoModeTarget = targetId
+            os.walkToAgent(agentIds[i], targetId)
+          }
         }
       } else if (msg.type === 'autoModeTurnChange') {
         const respondingAgentId = msg.respondingAgentId as number
-        const otherAgentId = msg.otherAgentId as number
-        const respondingCh = os.characters.get(respondingAgentId)
-        if (respondingCh) {
-          respondingCh.autoModeTarget = otherAgentId
-          os.walkToAgent(respondingAgentId, otherAgentId)
+        const allAgentIds = msg.allAgentIds as number[]
+        setAutoModeResponderId(respondingAgentId)
+        // The responding agent walks toward the next agent in rotation
+        const respondingIdx = allAgentIds.indexOf(respondingAgentId)
+        if (respondingIdx !== -1) {
+          const targetId = allAgentIds[(respondingIdx + 1) % allAgentIds.length]
+          const respondingCh = os.characters.get(respondingAgentId)
+          if (respondingCh) {
+            respondingCh.autoModeTarget = targetId
+            os.walkToAgent(respondingAgentId, targetId)
+          }
         }
       } else if (msg.type === 'autoModeEnded') {
+        setAutoModeResponderId(null)
         for (const ch of os.characters.values()) {
           if (ch.autoModeTarget !== null) {
             ch.autoModeTarget = null
@@ -395,6 +436,12 @@ export function useExtensionMessages(
           }
         }
         onAutoModeEnded?.()
+      } else if (msg.type === 'autoModeReset') {
+        setConversationLog([])
+        setAutoModeAgentIds([])
+        setAutoModeResponderId(null)
+        setAutoModePersonaNames({})
+        setAutoModeModelName(null)
       }
     }
     window.addEventListener('message', handler)
@@ -414,5 +461,10 @@ export function useExtensionMessages(
     loadedAssets,
     workspaceFolders,
     isDevMode,
+    conversationLog,
+    autoModeAgentIds,
+    autoModeResponderId,
+    autoModePersonaNames,
+    autoModeModelName,
   }
 }

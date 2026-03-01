@@ -14,6 +14,9 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard.js'
 import { ZoomControls } from './components/ZoomControls.js'
 import { BottomToolbar } from './components/BottomToolbar.js'
 import { DebugView } from './components/DebugView.js'
+import { AutoModeConfigDialog } from './components/AutoModeConfigDialog.js'
+import { ConversationPanel } from './components/ConversationPanel.js'
+import { AgentInfoPanel } from './components/AgentInfoPanel.js'
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null }
@@ -123,21 +126,32 @@ function App() {
 
   const [isDebugMode, setIsDebugMode] = useState(false)
   const [isAutoMode, setIsAutoMode] = useState(false)
+  const [isAutoConfigOpen, setIsAutoConfigOpen] = useState(false)
+  const [isChatOpen, setIsChatOpen] = useState(false)
+  const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(false)
+  const [infoPanelAgentId, setInfoPanelAgentId] = useState<number | null>(null)
 
-  const { agents, selectedAgent, agentTools, agentStatuses, agentMessages, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, isDevMode } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty, () => setIsAutoMode(false))
+  const { agents, selectedAgent, agentTools, agentStatuses, agentMessages, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, isDevMode, conversationLog, autoModeAgentIds, autoModeResponderId, autoModePersonaNames, autoModeModelName } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty, () => setIsAutoMode(false))
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
 
   const handleToggleAutoMode = useCallback(() => {
-    setIsAutoMode((prev) => {
-      const newValue = !prev
-      if (newValue) {
-        vscode.postMessage({ type: 'startAutoMode' })
-      } else {
-        vscode.postMessage({ type: 'stopAutoMode' })
-      }
-      return newValue
-    })
+    if (isAutoMode) {
+      vscode.postMessage({ type: 'stopAutoMode' })
+      setIsAutoMode(false)
+    } else {
+      setIsAutoConfigOpen(true)
+    }
+  }, [isAutoMode])
+
+  const handleAutoModeStart = useCallback((config: { agentCount: number; topic?: string; timeoutMs?: number }) => {
+    setIsAutoConfigOpen(false)
+    setIsAutoMode(true)
+    vscode.postMessage({ type: 'startAutoMode', agentCount: config.agentCount, topic: config.topic, timeoutMs: config.timeoutMs })
+  }, [])
+
+  const handleResetAutoMode = useCallback(() => {
+    vscode.postMessage({ type: 'resetAutoMode' })
   }, [])
 
   const handleSelectAgent = useCallback((id: number) => {
@@ -169,6 +183,13 @@ function App() {
     const meta = os.subagentMeta.get(agentId)
     const focusId = meta ? meta.parentAgentId : agentId
     vscode.postMessage({ type: 'focusAgent', id: focusId })
+
+    // Open agent info panel (mutual exclusion with chat panel)
+    if (!meta) {
+      setInfoPanelAgentId(focusId)
+      setIsInfoPanelOpen(true)
+      setIsChatOpen(false)
+    }
   }, [])
 
   const officeState = getOfficeState()
@@ -245,6 +266,16 @@ function App() {
         workspaceFolders={workspaceFolders}
         isAutoMode={isAutoMode}
         onToggleAutoMode={handleToggleAutoMode}
+        isChatOpen={isChatOpen}
+        onToggleChat={() => {
+          setIsChatOpen((v) => {
+            if (!v) setIsInfoPanelOpen(false)
+            return !v
+          })
+        }}
+        autoModeAgentIds={autoModeAgentIds}
+        agents={agents}
+        onResetAutoMode={handleResetAutoMode}
       />
 
       {isDevMode && selectedAgent !== null && (
@@ -348,6 +379,34 @@ function App() {
         )
       })()}
 
+      <AutoModeConfigDialog
+        isOpen={isAutoConfigOpen}
+        onClose={() => setIsAutoConfigOpen(false)}
+        onStart={handleAutoModeStart}
+      />
+
+      <ConversationPanel
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        entries={conversationLog}
+        agentIds={autoModeAgentIds}
+        isAutoModeActive={isAutoMode}
+        onStopAutoMode={handleToggleAutoMode}
+      />
+
+      <AgentInfoPanel
+        isOpen={isInfoPanelOpen}
+        onClose={() => setIsInfoPanelOpen(false)}
+        agentId={infoPanelAgentId}
+        agentIds={agents}
+        personaNames={autoModePersonaNames}
+        modelName={autoModeModelName}
+        conversationLog={conversationLog}
+        isAutoModeActive={isAutoMode}
+        autoModeAgentIds={autoModeAgentIds}
+        onCloseAgent={handleCloseAgent}
+      />
+
       <ToolOverlay
         officeState={officeState}
         agents={agents}
@@ -358,6 +417,8 @@ function App() {
         zoom={editor.zoom}
         panRef={editor.panRef}
         onCloseAgent={handleCloseAgent}
+        isAutoModeActive={isAutoMode}
+        autoModeResponderId={autoModeResponderId}
       />
 
       {isDebugMode && (

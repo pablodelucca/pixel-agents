@@ -37,6 +37,8 @@ function parseArgs(): {
     apiKey: string;
     model: string;
     projectDir: string;
+    systemPrompt: string;
+    maxTokens: number;
 } {
     loadEnvFile();
     const args = process.argv.slice(2);
@@ -47,12 +49,16 @@ function parseArgs(): {
         }
         return args[idx + 1];
     };
+    const maxTokensRaw = get('--max-tokens') || process.env.PIXEL_AGENTS_MAX_TOKENS || '512';
+    const maxTokensParsed = parseInt(maxTokensRaw, 10);
     return {
         sessionId: get('--session-id') || crypto.randomUUID(),
         baseUrl: get('--base-url') || process.env.PIXEL_AGENTS_BASE_URL || 'http://localhost:1234/v1',
         apiKey: get('--api-key') || process.env.PIXEL_AGENTS_API_KEY || 'lmstudio',
         model: get('--model') || process.env.PIXEL_AGENTS_MODEL || 'local-model',
         projectDir: get('--project-dir') || process.env.PIXEL_AGENTS_PROJECT_DIR || '',
+        systemPrompt: get('--system-prompt'),
+        maxTokens: Number.isFinite(maxTokensParsed) && maxTokensParsed > 0 ? maxTokensParsed : 512,
     };
 }
 
@@ -113,10 +119,11 @@ async function main(): Promise<void> {
     });
 
     const transcript = new TranscriptWriter(config.projectDir, config.sessionId);
+    const defaultSystemPrompt = 'You are a helpful coding assistant. Be concise and direct.';
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
         {
             role: 'system',
-            content: 'You are a helpful coding assistant. Be concise and direct.',
+            content: config.systemPrompt || defaultSystemPrompt,
         },
     ];
 
@@ -129,6 +136,7 @@ async function main(): Promise<void> {
     console.log(`\x1b[36m║\x1b[0m  \x1b[1mPixel Agents Local Chat\x1b[0m                 \x1b[36m║\x1b[0m`);
     console.log(`\x1b[36m║\x1b[0m  Model: \x1b[33m${config.model.padEnd(32)}\x1b[0m \x1b[36m║\x1b[0m`);
     console.log(`\x1b[36m║\x1b[0m  Server: \x1b[33m${config.baseUrl.padEnd(31)}\x1b[0m \x1b[36m║\x1b[0m`);
+    console.log(`\x1b[36m║\x1b[0m  Max tokens: \x1b[33m${String(config.maxTokens).padEnd(27)}\x1b[0m \x1b[36m║\x1b[0m`);
     console.log(`\x1b[36m╚══════════════════════════════════════════╝\x1b[0m`);
     console.log(`\x1b[2mType your message and press Enter. Ctrl+C to exit.\x1b[0m\n`);
 
@@ -149,6 +157,7 @@ async function main(): Promise<void> {
                 const response = await client.chat.completions.create({
                     model: config.model,
                     messages,
+                    max_tokens: config.maxTokens,
                     stream: false,
                 });
 

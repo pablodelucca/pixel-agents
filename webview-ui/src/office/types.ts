@@ -34,6 +34,8 @@ export interface FloorColor {
   colorize?: boolean
 }
 
+export type EmoteType = 'thinking' | 'lightbulb' | 'fire' | 'question' | 'thumbsup' | 'exclamation'
+
 export const CharacterState = {
   IDLE: 'idle',
   WALK: 'walk',
@@ -197,4 +199,10 @@ export interface Character {
   folderName?: string
   /** Target agent ID for auto mode interaction, or null */
   autoModeTarget: number | null
+  /** Active emote type shown above character, or null */
+  emoteType: EmoteType | null
+  /** Text badge shown alongside emote bubble, or null */
+  emoteBadge: string | null
+  /** Countdown timer for emote display (seconds) */
+  emoteTimer: number
 }

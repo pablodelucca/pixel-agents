@@ -79,6 +79,9 @@ export function createCharacter(
     matrixEffectTimer: 0,
     matrixEffectSeeds: [],
     autoModeTarget: null,
+    emoteType: null,
+    emoteBadge: null,
+    emoteTimer: 0,
   }
 }
 

@@ -8,4 +8,7 @@ export default defineConfig({
     emptyOutDir: true,
   },
   base: './',
+  server: {
+    port: 5174,
+  },
 })

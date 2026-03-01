@@ -12,6 +12,11 @@ interface BottomToolbarProps {
   workspaceFolders: WorkspaceFolder[]
   isAutoMode: boolean
   onToggleAutoMode: () => void
+  isChatOpen: boolean
+  onToggleChat: () => void
+  autoModeAgentIds: number[]
+  agents: number[]
+  onResetAutoMode: () => void
 }
 
 const panelStyle: React.CSSProperties = {
@@ -55,6 +60,11 @@ export function BottomToolbar({
   workspaceFolders,
   isAutoMode,
   onToggleAutoMode,
+  isChatOpen,
+  onToggleChat,
+  autoModeAgentIds,
+  agents,
+  onResetAutoMode,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -158,9 +168,9 @@ export function BottomToolbar({
           isEditMode
             ? { ...btnActive }
             : {
-                ...btnBase,
-                background: hovered === 'edit' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
-              }
+              ...btnBase,
+              background: hovered === 'edit' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+            }
         }
         title="Edit office layout"
       >
@@ -174,13 +184,43 @@ export function BottomToolbar({
           isAutoMode
             ? { ...btnActive }
             : {
-                ...btnBase,
-                background: hovered === 'auto' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
-              }
+              ...btnBase,
+              background: hovered === 'auto' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+            }
         }
         title="Auto Mode - agents converse automatically"
       >
         Auto
+      </button>
+      {!isAutoMode && autoModeAgentIds.length > 0 && autoModeAgentIds.some((id) => agents.includes(id)) && (
+        <button
+          onClick={onResetAutoMode}
+          onMouseEnter={() => setHovered('reset')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...btnBase,
+            background: hovered === 'reset' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+          }}
+          title="Reset auto mode - close all auto mode agents"
+        >
+          Reset
+        </button>
+      )}
+      <button
+        onClick={onToggleChat}
+        onMouseEnter={() => setHovered('chat')}
+        onMouseLeave={() => setHovered(null)}
+        style={
+          isChatOpen
+            ? { ...btnActive }
+            : {
+              ...btnBase,
+              background: hovered === 'chat' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+            }
+        }
+        title="Conversation log"
+      >
+        Conversation Panel
       </button>
       <div style={{ position: 'relative' }}>
         <button
@@ -191,9 +231,9 @@ export function BottomToolbar({
             isSettingsOpen
               ? { ...btnActive }
               : {
-                  ...btnBase,
-                  background: hovered === 'settings' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
-                }
+                ...btnBase,
+                background: hovered === 'settings' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+              }
           }
           title="Settings"
         >

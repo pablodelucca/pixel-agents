@@ -33,6 +33,7 @@ export async function launchNewTerminal(
 	persistAgents: () => void,
 	folderPath?: string,
 	extensionPath?: string,
+	maxTokensOverride?: number,
 ): Promise<void> {
 	const folders = vscode.workspace.workspaceFolders;
 	const cwd = folderPath || folders?.[0]?.uri.fsPath;
@@ -43,6 +44,7 @@ export async function launchNewTerminal(
 	const baseUrl = config.get<string>('baseUrl');
 	const apiKey = config.get<string>('apiKey');
 	const model = config.get<string>('model');
+	const maxTokens = maxTokensOverride ?? config.get<number>('maxTokens');
 
 	const terminalOptions: vscode.TerminalOptions = {
 		name: `${TERMINAL_NAME_PREFIX} #${idx}`,
@@ -62,6 +64,7 @@ export async function launchNewTerminal(
 			`--base-url ${baseUrl || 'http://localhost:1234/v1'}`,
 			`--api-key ${apiKey || 'lmstudio'}`,
 			`--model ${model || 'local-model'}`,
+			`--max-tokens ${maxTokens || 512}`,
 			`--project-dir ${projectDir}`,
 		].join(' ');
 		terminal.sendText(`node "${agentScript}" ${args}`);

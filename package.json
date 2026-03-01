@@ -70,6 +70,13 @@
           "type": "string",
           "default": "openai/local-model",
           "description": "The name of the local model to run via the proxy."
+        },
+        "pixel-agents.local.maxTokens": {
+          "type": "number",
+          "default": 512,
+          "minimum": 1,
+          "maximum": 32768,
+          "description": "Maximum number of tokens the local agent model can generate per response. Lower values produce shorter, more focused answers."
         }
       }
     }

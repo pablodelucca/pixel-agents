@@ -1,6 +1,16 @@
 import { useState } from 'react'
 import { vscode } from '../vscodeApi.js'
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js'
+import { getMaxTokens, setMaxTokens } from '../maxTokensStore.js'
+
+const MAX_TOKEN_OPTIONS = [
+  { label: '128', value: 128 },
+  { label: '256', value: 256 },
+  { label: '512', value: 512 },
+  { label: '1024', value: 1024 },
+  { label: '2048', value: 2048 },
+  { label: '4096', value: 4096 },
+]
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -27,6 +37,7 @@ const menuItemBase: React.CSSProperties = {
 export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled)
+  const [maxTokensLocal, setMaxTokensLocal] = useState(getMaxTokens)
 
   if (!isOpen) return null
 
@@ -56,9 +67,9 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
           background: 'var(--pixel-bg)',
           border: '2px solid var(--pixel-border)',
           borderRadius: 0,
-          padding: '4px',
+          padding: '16px',
           boxShadow: 'var(--pixel-shadow)',
-          minWidth: 200,
+          minWidth: 280,
         }}
       >
         {/* Header with title and X button */}
@@ -168,6 +179,41 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
             {soundLocal ? 'X' : ''}
           </span>
         </button>
+        <div
+          onMouseEnter={() => setHovered('maxTokens')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...menuItemBase,
+            cursor: 'default',
+            background: hovered === 'maxTokens' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          }}
+        >
+          <span>Max Tokens</span>
+          <select
+            value={maxTokensLocal}
+            onChange={(e) => {
+              const val = Number(e.target.value)
+              setMaxTokens(val)
+              setMaxTokensLocal(val)
+              vscode.postMessage({ type: 'setMaxTokens', maxTokens: val })
+            }}
+            style={{
+              background: 'rgba(255, 255, 255, 0.1)',
+              color: 'rgba(255, 255, 255, 0.8)',
+              borderRadius: 0,
+              fontSize: '20px',
+              padding: '1px 2px',
+              cursor: 'pointer',
+              outline: 'none',
+            }}
+          >
+            {MAX_TOKEN_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <button
           onClick={onToggleDebugMode}
           onMouseEnter={() => setHovered('debug')}

@@ -1,4 +1,4 @@
-import type { Direction, SpriteData, FloorColor } from '../types.js'
+import type { Direction, SpriteData, FloorColor, EmoteType } from '../types.js'
 import { Direction as Dir } from '../types.js'
 import { adjustSprite } from '../colorize.js'
 
@@ -317,6 +317,148 @@ export const BUBBLE_WAITING_SPRITE: SpriteData = (() => {
     [_, _, _, _, _, _, _, _, _, _, _],
   ]
 })()
+
+// ── Emote Bubble Sprites (10x12 each: 10x9 icon + 3-row tail) ──
+
+/** Thinking emote: cloud/thought bubble with "..." */
+export const EMOTE_THINKING_SPRITE: SpriteData = (() => {
+  const B = '#555566'
+  const F = '#EEEEFF'
+  const D = '#8888AA'
+  return [
+    [_, _, B, B, B, B, B, B, _, _],
+    [_, B, F, F, F, F, F, F, B, _],
+    [B, F, F, F, F, F, F, F, F, B],
+    [B, F, F, D, F, D, F, D, F, B],
+    [B, F, F, D, F, D, F, D, F, B],
+    [B, F, F, F, F, F, F, F, F, B],
+    [_, B, F, F, F, F, F, F, B, _],
+    [_, _, B, B, B, B, B, B, _, _],
+    [_, _, _, _, _, B, B, _, _, _],
+    [_, _, _, _, _, _, B, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _],
+  ]
+})()
+
+/** Lightbulb emote: yellow bulb icon */
+export const EMOTE_LIGHTBULB_SPRITE: SpriteData = (() => {
+  const B = '#555566'
+  const F = '#EEEEFF'
+  const Y = '#FFDD44'
+  const G = '#FFEE88'
+  return [
+    [_, _, B, B, B, B, B, B, _, _],
+    [_, B, F, F, F, F, F, F, B, _],
+    [B, F, F, F, Y, Y, F, F, F, B],
+    [B, F, F, Y, G, G, Y, F, F, B],
+    [B, F, F, Y, G, G, Y, F, F, B],
+    [B, F, F, F, Y, Y, F, F, F, B],
+    [_, B, F, F, Y, Y, F, F, B, _],
+    [_, _, B, B, B, B, B, B, _, _],
+    [_, _, _, _, B, B, _, _, _, _],
+    [_, _, _, _, _, B, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _],
+  ]
+})()
+
+/** Fire emote: orange/red flame */
+export const EMOTE_FIRE_SPRITE: SpriteData = (() => {
+  const B = '#555566'
+  const F = '#EEEEFF'
+  const R = '#EE4422'
+  const O = '#FF8833'
+  const Y = '#FFCC22'
+  return [
+    [_, _, B, B, B, B, B, B, _, _],
+    [_, B, F, F, F, R, F, F, B, _],
+    [B, F, F, F, R, R, O, F, F, B],
+    [B, F, F, R, O, Y, O, R, F, B],
+    [B, F, F, R, O, Y, O, R, F, B],
+    [B, F, F, F, R, O, R, F, F, B],
+    [_, B, F, F, F, R, F, F, B, _],
+    [_, _, B, B, B, B, B, B, _, _],
+    [_, _, _, _, B, B, _, _, _, _],
+    [_, _, _, _, _, B, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _],
+  ]
+})()
+
+/** Question emote: "?" mark */
+export const EMOTE_QUESTION_SPRITE: SpriteData = (() => {
+  const B = '#555566'
+  const F = '#EEEEFF'
+  const Q = '#6688CC'
+  return [
+    [_, _, B, B, B, B, B, B, _, _],
+    [_, B, F, F, Q, Q, F, F, B, _],
+    [B, F, F, Q, F, F, Q, F, F, B],
+    [B, F, F, F, F, F, Q, F, F, B],
+    [B, F, F, F, F, Q, F, F, F, B],
+    [B, F, F, F, F, Q, F, F, F, B],
+    [_, B, F, F, F, F, F, F, B, _],
+    [_, _, B, F, F, Q, F, B, _, _],
+    [_, _, _, B, B, B, B, _, _, _],
+    [_, _, _, _, _, B, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _],
+  ]
+})()
+
+/** Thumbsup emote: green thumb */
+export const EMOTE_THUMBSUP_SPRITE: SpriteData = (() => {
+  const B = '#555566'
+  const F = '#EEEEFF'
+  const G = '#44BB66'
+  const D = '#339955'
+  return [
+    [_, _, B, B, B, B, B, B, _, _],
+    [_, B, F, F, F, G, F, F, B, _],
+    [B, F, F, F, G, G, F, F, F, B],
+    [B, F, F, F, G, G, F, F, F, B],
+    [B, F, G, G, G, G, G, F, F, B],
+    [B, F, F, D, D, D, D, F, F, B],
+    [_, B, F, D, D, D, D, F, B, _],
+    [_, _, B, B, B, B, B, B, _, _],
+    [_, _, _, _, B, B, _, _, _, _],
+    [_, _, _, _, _, B, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _],
+  ]
+})()
+
+/** Exclamation emote: "!" mark */
+export const EMOTE_EXCLAMATION_SPRITE: SpriteData = (() => {
+  const B = '#555566'
+  const F = '#EEEEFF'
+  const R = '#CC4444'
+  return [
+    [_, _, B, B, B, B, B, B, _, _],
+    [_, B, F, F, R, R, F, F, B, _],
+    [B, F, F, F, R, R, F, F, F, B],
+    [B, F, F, F, R, R, F, F, F, B],
+    [B, F, F, F, R, R, F, F, F, B],
+    [B, F, F, F, F, F, F, F, F, B],
+    [_, B, F, F, R, R, F, F, B, _],
+    [_, _, B, B, B, B, B, B, _, _],
+    [_, _, _, _, B, B, _, _, _, _],
+    [_, _, _, _, _, B, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _],
+  ]
+})()
+
+/** Map EmoteType to its sprite */
+export const EMOTE_SPRITES: Record<EmoteType, SpriteData> = {
+  thinking: EMOTE_THINKING_SPRITE,
+  lightbulb: EMOTE_LIGHTBULB_SPRITE,
+  fire: EMOTE_FIRE_SPRITE,
+  question: EMOTE_QUESTION_SPRITE,
+  thumbsup: EMOTE_THUMBSUP_SPRITE,
+  exclamation: EMOTE_EXCLAMATION_SPRITE,
+}
 
 // ── Character Sprites ───────────────────────────────────────────
 // 16x24 characters with palette substitution
