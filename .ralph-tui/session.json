@@ -3,10 +3,10 @@
   "sessionId": "2cff1b31-32da-4884-bb86-6c25fccdb6ed",
   "status": "running",
   "startedAt": "2026-03-01T03:31:29.798Z",
-  "updatedAt": "2026-03-01T03:40:53.093Z",
-  "currentIteration": 3,
+  "updatedAt": "2026-03-01T03:43:21.149Z",
+  "currentIteration": 4,
   "maxIterations": 10,
-  "tasksCompleted": 3,
+  "tasksCompleted": 4,
   "isPaused": false,
   "agentPlugin": "opencode",
   "trackerState": {
@@ -35,8 +35,8 @@
       {
         "id": "US-004",
         "title": "Wire UI Auto button to stop auto mode and sync autoModeEnded state",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "US-005",
@@ -94,6 +94,16 @@
       "durationMs": 51329,
       "startedAt": "2026-03-01T03:36:14.104Z",
       "endedAt": "2026-03-01T03:37:05.433Z"
+    },
+    {
+      "iteration": 4,
+      "status": "completed",
+      "taskId": "US-004",
+      "taskTitle": "Wire UI Auto button to stop auto mode and sync autoModeEnded state",
+      "taskCompleted": true,
+      "durationMs": 226615,
+      "startedAt": "2026-03-01T03:37:06.476Z",
+      "endedAt": "2026-03-01T03:40:53.091Z"
     }
   ],
   "skippedTaskIds": [],

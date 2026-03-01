@@ -43,4 +43,14 @@ after each iteration and it's included in prompts for context.
   - Message handlers in `useExtensionMessages` follow a simple if-else pattern for different message types
   - The `autoModeEnded` broadcast from server triggers UI state reset via callback pattern
 ---
+## [2026-03-01] - US-005
+- Defined InteractionPattern type and extended AutoModeState with interactionPattern field
+- Broadcast autoModeStarted event with agentIds and interactionPattern
+- Files changed: `webview-ui/devServer.ts`
+- **Learnings:**
+  - Type definitions can be placed alongside interfaces in the same file for simple cases
+  - Union types like `InteractionPattern` enable future extensibility without refactoring existing code
+  - The `broadcast()` function is used to send events to all connected webview clients
+  - Default values for new fields should be set when creating the state object
+---
 

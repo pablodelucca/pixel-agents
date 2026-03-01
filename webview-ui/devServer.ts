@@ -140,12 +140,15 @@ interface AgentProcess {
     lastAssistantText?: string;
 }
 
+type InteractionPattern = 'walk-to-agent' | 'stay-at-desk';
+
 interface AutoModeState {
     agentIds: [number, number];
     currentAgentIndex: number;
     isActive: boolean;
     startTime: number;
     durationTimer: ReturnType<typeof setTimeout>;
+    interactionPattern: InteractionPattern;
 }
 
 const agents = new Map<number, AgentProcess>();
@@ -343,9 +346,11 @@ function startAutoMode(): void {
         isActive: true,
         startTime,
         durationTimer,
+        interactionPattern: 'walk-to-agent' as InteractionPattern,
     };
     
     console.log(`[DevServer] Auto mode: Agent #${agent1Id} and #${agent2Id} spawned (duration: ${durationMs / 1000}s)`);
+    broadcast({ type: 'autoModeStarted', agentIds: [agent1Id, agent2Id], interactionPattern: 'walk-to-agent' });
     
     const randomPrompt = SEED_PROMPTS[Math.floor(Math.random() * SEED_PROMPTS.length)];
     
