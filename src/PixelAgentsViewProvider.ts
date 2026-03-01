@@ -18,6 +18,7 @@ import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTile
 import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
+import { startTerminalActivityTracking, cleanupTerminalActivity } from './terminalActivityTracker.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	nextAgentId = { current: 1 };
@@ -43,6 +44,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	// Cross-window layout sync
 	layoutWatcher: LayoutWatcher | null = null;
 
+	// Terminal activity tracking for vscode-terminal agents
+	terminalActivityDisposable: vscode.Disposable | null = null;
+
 	constructor(private readonly context: vscode.ExtensionContext) {}
 
 	private get extensionUri(): vscode.Uri {
@@ -61,6 +65,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		this.webviewView = webviewView;
 		webviewView.webview.options = { enableScripts: true };
 		webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
+
+		// Start terminal activity tracking for vscode-terminal agents
+		if (!this.terminalActivityDisposable) {
+			this.terminalActivityDisposable = startTerminalActivityTracking(
+				this.agents,
+				() => this.webview,
+			);
+		}
 
 		webviewView.webview.onDidReceiveMessage(async (message) => {
 			if (message.type === 'openClaude') {
@@ -292,8 +304,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				if (agent.terminalRef === closed) {
 					if (this.activeAgentId.current === id) {
 						this.activeAgentId.current = null;
-					}
-					removeAgent(
+					}				cleanupTerminalActivity(id);					removeAgent(
 						id, this.agents,
 						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 						this.jsonlPollTimers, this.persistAgents,
@@ -331,6 +342,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	}
 
 	dispose() {
+		this.terminalActivityDisposable?.dispose();
+		this.terminalActivityDisposable = null;
 		this.layoutWatcher?.dispose();
 		this.layoutWatcher = null;
 		for (const id of [...this.agents.keys()]) {
