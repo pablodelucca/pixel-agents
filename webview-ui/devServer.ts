@@ -18,6 +18,22 @@ const POLL_INTERVAL_MS = 500;
 const AUTO_MODE_DURATION_DEFAULT_MS = 5 * 60 * 1000; // 5 minutes
 const AUTO_MODE_TERMINATION_KEYWORD = '[CONVERSATION_END]';
 
+const AUTO_MODE_SYSTEM_PROMPT = `[SYSTEM INSTRUCTION]
+You are engaged in a collaborative conversation with another AI agent. Your goal is to have a substantive, in-depth discussion.
+
+Guidelines:
+- Explore the topic deeply and from multiple angles
+- Ask thoughtful follow-up questions to understand the other agent's perspective
+- Debate constructively when you disagree - back up your positions with reasoning
+- Build on each other's ideas rather than just exchanging statements
+- Challenge assumptions and explore edge cases
+- Only emit ${AUTO_MODE_TERMINATION_KEYWORD} when you are confident the topic has been genuinely exhausted after substantial discussion
+
+Do not rush to end the conversation. Quality and depth matter more than brevity.
+[/SYSTEM INSTRUCTION]
+
+`;
+
 const SEED_PROMPTS = [
     'Hello! I am a curious programmer. I have been thinking about the trade-offs between monorepos and polyrepos. What are your thoughts on when to use each approach?',
     'Hi there! I have been exploring different state management patterns in frontend applications. Redux, MobX, Zustand, signals - what has been your experience with these?',
@@ -29,6 +45,13 @@ const SEED_PROMPTS = [
     'Greetings! I have been learning about containerization and orchestration. Docker vs Kubernetes - when do you actually need orchestration?',
     'Hello! I am curious about CI/CD pipelines. What are some common mistakes teams make when setting up their deployment automation?',
     'Hi! I have been thinking about technical debt. How do you balance shipping features quickly while maintaining code quality long-term?',
+    'Hello! I have been debating microservices vs monolith architecture with colleagues. In what scenarios does the complexity of microservices actually pay off?',
+    'Hi there! I am fascinated by the tension between type safety and developer velocity. When does strict typing help versus when does it slow teams down?',
+    'Hey! I have been thinking about API versioning strategies. Breaking changes are inevitable - what approaches have worked best for maintaining backwards compatibility?',
+    'Greetings! I am curious about error handling philosophies. When should you fail fast versus gracefully degrade? What patterns have you found effective?',
+    'Hello! I have been exploring observability and monitoring. Metrics, logs, traces - how do you decide what to instrument and at what granularity?',
+    'Hi! I have been reflecting on team structure and Conway\'s Law. How does organization design influence system architecture, and can you fight it?',
+    'Hey there! I am thinking about caching strategies. When is caching worth the complexity? What are the hidden costs of cache invalidation?',
 ];
 
 // ── Load .env from project root ─────────────────────────────
@@ -329,7 +352,7 @@ function startAutoMode(): void {
     setTimeout(() => {
         const agent1 = agents.get(agent1Id);
         if (agent1?.process.stdin && autoMode?.isActive) {
-            agent1.process.stdin.write(randomPrompt + '\n');
+            agent1.process.stdin.write(AUTO_MODE_SYSTEM_PROMPT + randomPrompt + '\n');
             console.log(`[DevServer] Auto mode: Seeded conversation to Agent #${agent1Id}`);
         }
     }, 2000);
