@@ -218,21 +218,7 @@ function scanForNewJsonlFiles(
 		if (activityProvider.mode === 'session-observer') {
 			const maxObserved = activityProvider.maxObservedAgents ?? 1;
 			if (agents.size >= maxObserved) {
-				const replaceId = pickObserverAgentToRotate(agents);
-				if (replaceId !== null) {
-					reassignAgentToFile(
-						replaceId,
-						file,
-						agents,
-						fileWatchers,
-						pollingTimers,
-						waitingTimers,
-						permissionTimers,
-						webview,
-						persistAgents,
-						activityProvider,
-					)
-				}
+				// Keep a stable roster once cap is reached (no automatic role churn).
 				continue;
 			}
 		}
@@ -337,24 +323,6 @@ function getObserverTerminal(): vscode.Terminal {
 		return existing;
 	}
 	return vscode.window.createTerminal({ name: OPENCLAW_OBSERVER_TERMINAL_NAME });
-}
-
-function pickObserverAgentToRotate(agents: Map<number, AgentState>): number | null {
-	let candidateId: number | null = null;
-	let candidateMtime = Number.POSITIVE_INFINITY;
-	for (const [id, agent] of agents) {
-		let mtime = Number.POSITIVE_INFINITY;
-		try {
-			mtime = fs.statSync(agent.jsonlFile).mtimeMs;
-		} catch {
-			mtime = Number.NEGATIVE_INFINITY;
-		}
-		if (candidateId === null || mtime < candidateMtime) {
-			candidateId = id;
-			candidateMtime = mtime;
-		}
-	}
-	return candidateId;
 }
 
 function detectOpenClawObserverLabel(jsonlFile: string): string {
