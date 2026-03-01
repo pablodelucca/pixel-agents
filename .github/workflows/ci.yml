@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+        continue-on-error: true
+
+      - name: Setup Node
+        id: setup_node
+        if: always()
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            webview-ui/package-lock.json
+        continue-on-error: true
+
+      - name: Install Root Dependencies
+        id: install_root
+        if: always()
+        run: npm ci
+        continue-on-error: true
+
+      - name: Install Webview Dependencies
+        id: install_webview
+        if: always()
+        working-directory: webview-ui
+        run: npm ci
+        continue-on-error: true
+
+      - name: Root Lint
+        id: root_lint
+        if: always()
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Webview Lint
+        id: webview_lint
+        if: always()
+        working-directory: webview-ui
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Build
+        id: build
+        if: always()
+        run: npm run build
+        continue-on-error: true
+
+      - name: Contributors Policy
+        id: contributors_policy
+        if: always()
+        run: |
+          if [ -f scripts/check-contributors-rules.mjs ]; then
+            node scripts/check-contributors-rules.mjs
+          else
+            echo "Missing contributors policy script: scripts/check-contributors-rules.mjs" >&2
+            exit 1
+          fi
+        continue-on-error: true
+
+      - name: Write Step Summary
+        if: always()
+        env:
+          CHECKOUT: ${{ steps.checkout.outcome }}
+          SETUP_NODE: ${{ steps.setup_node.outcome }}
+          INSTALL_ROOT: ${{ steps.install_root.outcome }}
+          INSTALL_WEBVIEW: ${{ steps.install_webview.outcome }}
+          ROOT_LINT: ${{ steps.root_lint.outcome }}
+          WEBVIEW_LINT: ${{ steps.webview_lint.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          CONTRIBUTORS_POLICY: ${{ steps.contributors_policy.outcome }}
+        run: |
+          status() {
+            if [ "$1" = "success" ]; then
+              echo "PASS"
+            else
+              echo "FAIL"
+            fi
+          }
+
+          {
+            echo "## CI Results"
+            echo
+            echo "| Check | Result |"
+            echo "| --- | --- |"
+            echo "| Checkout | $(status "$CHECKOUT") |"
+            echo "| Setup Node | $(status "$SETUP_NODE") |"
+            echo "| Install root dependencies | $(status "$INSTALL_ROOT") |"
+            echo "| Install webview dependencies | $(status "$INSTALL_WEBVIEW") |"
+            echo "| Root lint | $(status "$ROOT_LINT") |"
+            echo "| Webview lint | $(status "$WEBVIEW_LINT") |"
+            echo "| Build | $(status "$BUILD") |"
+            echo "| Contributors policy | $(status "$CONTRIBUTORS_POLICY") |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail If Any Blocking Check Failed
+        if: always()
+        env:
+          CHECKOUT: ${{ steps.checkout.outcome }}
+          SETUP_NODE: ${{ steps.setup_node.outcome }}
+          INSTALL_ROOT: ${{ steps.install_root.outcome }}
+          INSTALL_WEBVIEW: ${{ steps.install_webview.outcome }}
+          ROOT_LINT: ${{ steps.root_lint.outcome }}
+          WEBVIEW_LINT: ${{ steps.webview_lint.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          CONTRIBUTORS_POLICY: ${{ steps.contributors_policy.outcome }}
+        run: |
+          failed=0
+
+          [ "$CHECKOUT" = "success" ] || failed=1
+          [ "$SETUP_NODE" = "success" ] || failed=1
+          [ "$INSTALL_ROOT" = "success" ] || failed=1
+          [ "$INSTALL_WEBVIEW" = "success" ] || failed=1
+          [ "$ROOT_LINT" = "success" ] || failed=1
+          [ "$WEBVIEW_LINT" = "success" ] || failed=1
+          [ "$BUILD" = "success" ] || failed=1
+          [ "$CONTRIBUTORS_POLICY" = "success" ] || failed=1
+
+          exit "$failed"

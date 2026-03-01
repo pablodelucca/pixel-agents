@@ -142,6 +142,22 @@ export class OfficeState {
     return this.layout
   }
 
+  setSelectedAgentId(selectedAgentId: number | null): void {
+    this.selectedAgentId = selectedAgentId
+  }
+
+  setCameraFollowId(cameraFollowId: number | null): void {
+    this.cameraFollowId = cameraFollowId
+  }
+
+  setHoveredAgentId(hoveredAgentId: number | null): void {
+    this.hoveredAgentId = hoveredAgentId
+  }
+
+  setHoveredTile(hoveredTile: { col: number; row: number } | null): void {
+    this.hoveredTile = hoveredTile
+  }
+
   /** Get the blocked-tile key for a character's own seat, or null */
   private ownSeatKey(ch: Character): string | null {
     if (!ch.seatId) return null

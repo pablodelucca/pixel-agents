@@ -31,6 +31,7 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
   const [hovered, setHovered] = useState<'minus' | 'plus' | null>(null)
   const [showLevel, setShowLevel] = useState(false)
   const [fadeOut, setFadeOut] = useState(false)
+  const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevZoomRef = useRef(zoom)
@@ -44,11 +45,14 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
     prevZoomRef.current = zoom
 
     // Clear existing timers
+    if (showTimerRef.current) clearTimeout(showTimerRef.current)
     if (timerRef.current) clearTimeout(timerRef.current)
     if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
 
-    setShowLevel(true)
-    setFadeOut(false)
+    showTimerRef.current = setTimeout(() => {
+      setShowLevel(true)
+      setFadeOut(false)
+    }, 0)
 
     // Start fade after delay
     fadeTimerRef.current = setTimeout(() => {
@@ -62,6 +66,7 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
     }, ZOOM_LEVEL_HIDE_DELAY_MS)
 
     return () => {
+      if (showTimerRef.current) clearTimeout(showTimerRef.current)
       if (timerRef.current) clearTimeout(timerRef.current)
       if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
     }
