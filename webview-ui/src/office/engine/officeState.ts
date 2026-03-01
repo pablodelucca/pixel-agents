@@ -357,6 +357,50 @@ export class OfficeState {
     return true
   }
 
+  /** Walk an agent to a tile adjacent to another agent (auto mode interaction) */
+  walkToAgent(agentId: number, targetAgentId: number): boolean {
+    const ch = this.characters.get(agentId)
+    const targetCh = this.characters.get(targetAgentId)
+    if (!ch || !targetCh || ch.isSubagent) return false
+
+    const dirs = [
+      { dc: 0, dr: -1 },
+      { dc: 0, dr: 1 },
+      { dc: -1, dr: 0 },
+      { dc: 1, dr: 0 },
+    ]
+
+    const adjacentTiles: Array<{ col: number; row: number; dist: number }> = []
+    for (const d of dirs) {
+      const col = targetCh.tileCol + d.dc
+      const row = targetCh.tileRow + d.dr
+      if (isWalkable(col, row, this.tileMap, this.blockedTiles)) {
+        const dist = Math.abs(ch.tileCol - col) + Math.abs(ch.tileRow - row)
+        adjacentTiles.push({ col, row, dist })
+      }
+    }
+
+    if (adjacentTiles.length === 0) return false
+
+    adjacentTiles.sort((a, b) => a.dist - b.dist)
+
+    for (const tile of adjacentTiles) {
+      const path = this.withOwnSeatUnblocked(ch, () =>
+        findPath(ch.tileCol, ch.tileRow, tile.col, tile.row, this.tileMap, this.blockedTiles)
+      )
+      if (path.length > 0) {
+        ch.path = path
+        ch.moveProgress = 0
+        ch.state = CharacterState.WALK
+        ch.frame = 0
+        ch.frameTimer = 0
+        return true
+      }
+    }
+
+    return false
+  }
+
   /** Create a sub-agent character with the parent's palette. Returns the sub-agent ID. */
   addSubagent(parentAgentId: number, parentToolId: string): number {
     const key = `${parentAgentId}:${parentToolId}`

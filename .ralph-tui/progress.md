@@ -53,4 +53,14 @@ after each iteration and it's included in prompts for context.
   - The `broadcast()` function is used to send events to all connected webview clients
   - Default values for new fields should be set when creating the state object
 ---
+## [2026-03-01] - US-006
+- Added walkToAgent method to OfficeState for agent-to-agent pathfinding during auto mode
+- Files changed: `webview-ui/src/office/engine/officeState.ts`
+- **Learnings:**
+  - The `withOwnSeatUnblocked()` wrapper is essential for pathfinding - it temporarily unblocks the agent's own seat tile so they can pathfind through it
+  - Adjacent tile discovery should check walkability first, then sort by distance to prioritize closest tiles
+  - The method returns boolean to indicate success/failure, allowing caller to handle no-path scenarios gracefully
+  - Pathfinding uses the existing `findPath()` function from tileMap.ts which returns an empty array if no path exists
+  - Character state must be set to WALK and frame timers reset when starting movement
+---
 
