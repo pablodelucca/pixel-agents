@@ -2,9 +2,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { AgentState } from './types.js';
+import type { AgentState, AgentType } from './types.js';
 import {
 	launchNewTerminal,
+	adoptExistingTerminal,
 	removeAgent,
 	restoreAgents,
 	persistAgents,
@@ -63,6 +64,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
 		webviewView.webview.onDidReceiveMessage(async (message) => {
 			if (message.type === 'openClaude') {
+				const agentType = (message.agentType as AgentType) || 'claude-code';
 				await launchNewTerminal(
 					this.nextAgentId, this.nextTerminalIndex,
 					this.agents, this.activeAgentId, this.knownJsonlFiles,
@@ -70,6 +72,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					this.jsonlPollTimers, this.projectScanTimer,
 					this.webview, this.persistAgents,
 					message.folderPath as string | undefined,
+					agentType,
+				);
+			} else if (message.type === 'adoptTerminal') {
+				await adoptExistingTerminal(
+					this.nextAgentId,
+					this.agents, this.activeAgentId,
+					this.webview, this.persistAgents,
 				);
 			} else if (message.type === 'focusAgent') {
 				const agent = this.agents.get(message.id);

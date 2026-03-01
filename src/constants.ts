@@ -40,3 +40,12 @@ export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';
 export const WORKSPACE_KEY_AGENT_SEATS = 'pixel-agents.agentSeats';
 export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
 export const TERMINAL_NAME_PREFIX = 'Claude Code';
+export const TERMINAL_NAME_PREFIX_OPENCODE = 'Opencode';
+export const TERMINAL_NAME_PREFIX_VSCODE = 'Terminal Agent';
+
+/** Map of agent type to terminal name prefix */
+export const AGENT_TERMINAL_PREFIXES: Record<string, string> = {
+	'claude-code': TERMINAL_NAME_PREFIX,
+	'opencode': TERMINAL_NAME_PREFIX_OPENCODE,
+	'vscode-terminal': TERMINAL_NAME_PREFIX_VSCODE,
+};
