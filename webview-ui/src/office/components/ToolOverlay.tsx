@@ -9,11 +9,19 @@ interface ToolOverlayProps {
   officeState: OfficeState
   agents: number[]
   agentTools: Record<number, ToolActivity[]>
+  agentMessages: Record<number, string>
   subagentCharacters: SubagentCharacter[]
   containerRef: React.RefObject<HTMLDivElement | null>
   zoom: number
   panRef: React.RefObject<{ x: number; y: number }>
   onCloseAgent: (id: number) => void
+  isAutoModeActive: boolean
+  autoModeResponderId: number | null
+}
+
+function truncateText(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text
+  return text.slice(0, maxLen - 1) + '...'
 }
 
 /** Derive a short human-readable activity string from tools/status */
@@ -21,6 +29,8 @@ function getActivityText(
   agentId: number,
   agentTools: Record<number, ToolActivity[]>,
   isActive: boolean,
+  autoModeTarget: number | null,
+  isAutoModeResponder: boolean,
 ): string {
   const tools = agentTools[agentId]
   if (tools && tools.length > 0) {
@@ -37,6 +47,12 @@ function getActivityText(
     }
   }
 
+  // Auto mode: show conversation status instead of Idle
+  if (autoModeTarget !== null) {
+    if (isActive && isAutoModeResponder) return 'Talking...'
+    return 'Listening...'
+  }
+
   return 'Idle'
 }
 
@@ -44,11 +60,14 @@ export function ToolOverlay({
   officeState,
   agents,
   agentTools,
+  agentMessages,
   subagentCharacters,
   containerRef,
   zoom,
   panRef,
   onCloseAgent,
+  isAutoModeActive,
+  autoModeResponderId,
 }: ToolOverlayProps) {
   const [, setTick] = useState(0)
   useEffect(() => {
@@ -81,6 +100,51 @@ export function ToolOverlay({
 
   return (
     <>
+      {/* Emote text badges — visible for any character with an active emote */}
+      {Array.from(officeState.characters.values()).map((ch) => {
+        if (!ch.emoteBadge || ch.emoteTimer <= 0) return null
+
+        // Fade out in last 0.5s
+        const fadeSec = 0.5
+        const alpha = ch.emoteTimer < fadeSec ? ch.emoteTimer / fadeSec : 1.0
+        if (alpha <= 0) return null
+
+        const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0
+        const screenX = (deviceOffsetX + ch.x * zoom) / dpr
+        const screenY = (deviceOffsetY + (ch.y + sittingOffset - TOOL_OVERLAY_VERTICAL_OFFSET) * zoom) / dpr
+
+        return (
+          <div
+            key={`emote-${ch.id}`}
+            style={{
+              position: 'absolute',
+              left: screenX,
+              top: screenY - 52,
+              transform: 'translateX(-50%)',
+              pointerEvents: 'none',
+              zIndex: 'var(--pixel-overlay-z)',
+              opacity: alpha,
+            }}
+          >
+            <div
+              style={{
+                background: 'rgba(0, 0, 0, 0.65)',
+                border: '2px solid var(--pixel-border)',
+                padding: '2px 6px',
+                whiteSpace: 'nowrap',
+                fontSize: '18px',
+                color: '#EEEEFF',
+                fontFamily: 'var(--pixel-font, monospace)',
+                letterSpacing: '0.5px',
+                boxShadow: 'var(--pixel-shadow)',
+              }}
+            >
+              {ch.emoteBadge}
+            </div>
+          </div>
+        )
+      })}
+
       {allIds.map((id) => {
         const ch = officeState.characters.get(id)
         if (!ch) return null
@@ -100,6 +164,7 @@ export function ToolOverlay({
         // Get activity text
         const subHasPermission = isSub && ch.bubbleType === 'permission'
         let activityText: string
+        let isAutoModeStatus = false
         if (isSub) {
           if (subHasPermission) {
             activityText = 'Needs approval'
@@ -108,7 +173,8 @@ export function ToolOverlay({
             activityText = sub ? sub.label : 'Subtask'
           }
         } else {
-          activityText = getActivityText(id, agentTools, ch.isActive)
+          activityText = getActivityText(id, agentTools, ch.isActive, ch.autoModeTarget, isAutoModeActive && autoModeResponderId === id)
+          isAutoModeStatus = ch.autoModeTarget !== null && (activityText === 'Talking...' || activityText === 'Listening...')
         }
 
         // Determine dot color
@@ -172,7 +238,7 @@ export function ToolOverlay({
                   style={{
                     fontSize: isSub ? '20px' : '22px',
                     fontStyle: isSub ? 'italic' : undefined,
-                    color: 'var(--vscode-foreground)',
+                    color: isAutoModeStatus ? '#ffffff' : 'var(--vscode-foreground)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     display: 'block',
@@ -193,8 +259,24 @@ export function ToolOverlay({
                     {ch.folderName}
                   </span>
                 )}
+                {!isSub && agentMessages[id] && (
+                  <span
+                    style={{
+                      fontSize: '18px',
+                      color: 'var(--pixel-text-dim)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: 'block',
+                      maxWidth: 180,
+                      fontStyle: 'italic',
+                    }}
+                    title={agentMessages[id]}
+                  >
+                    {truncateText(agentMessages[id], 100)}
+                  </span>
+                )}
               </div>
-              {isSelected && !isSub && (
+              {isSelected && !isSub && !(isAutoModeActive && ch.autoModeTarget !== null) && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation()

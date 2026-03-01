@@ -12,8 +12,9 @@ import {
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_HIT_HALF_WIDTH,
   CHARACTER_HIT_HEIGHT,
+  EMOTE_DURATION_SEC,
 } from '../../constants.js'
-import type { Character, Seat, FurnitureInstance, TileType as TileTypeVal, OfficeLayout, PlacedFurniture } from '../types.js'
+import type { Character, Seat, FurnitureInstance, TileType as TileTypeVal, OfficeLayout, PlacedFurniture, EmoteType } from '../types.js'
 import { createCharacter, updateCharacter } from './characters.js'
 import { matrixEffectSeeds } from './matrixEffect.js'
 import { isWalkable, getWalkableTiles, findPath } from '../layout/tileMap.js'
@@ -357,6 +358,50 @@ export class OfficeState {
     return true
   }
 
+  /** Walk an agent to a tile adjacent to another agent (auto mode interaction) */
+  walkToAgent(agentId: number, targetAgentId: number): boolean {
+    const ch = this.characters.get(agentId)
+    const targetCh = this.characters.get(targetAgentId)
+    if (!ch || !targetCh || ch.isSubagent) return false
+
+    const dirs = [
+      { dc: 0, dr: -1 },
+      { dc: 0, dr: 1 },
+      { dc: -1, dr: 0 },
+      { dc: 1, dr: 0 },
+    ]
+
+    const adjacentTiles: Array<{ col: number; row: number; dist: number }> = []
+    for (const d of dirs) {
+      const col = targetCh.tileCol + d.dc
+      const row = targetCh.tileRow + d.dr
+      if (isWalkable(col, row, this.tileMap, this.blockedTiles)) {
+        const dist = Math.abs(ch.tileCol - col) + Math.abs(ch.tileRow - row)
+        adjacentTiles.push({ col, row, dist })
+      }
+    }
+
+    if (adjacentTiles.length === 0) return false
+
+    adjacentTiles.sort((a, b) => a.dist - b.dist)
+
+    for (const tile of adjacentTiles) {
+      const path = this.withOwnSeatUnblocked(ch, () =>
+        findPath(ch.tileCol, ch.tileRow, tile.col, tile.row, this.tileMap, this.blockedTiles)
+      )
+      if (path.length > 0) {
+        ch.path = path
+        ch.moveProgress = 0
+        ch.state = CharacterState.WALK
+        ch.frame = 0
+        ch.frameTimer = 0
+        return true
+      }
+    }
+
+    return false
+  }
+
   /** Create a sub-agent character with the parent's palette. Returns the sub-agent ID. */
   addSubagent(parentAgentId: number, parentToolId: string): number {
     const key = `${parentAgentId}:${parentToolId}`
@@ -600,6 +645,24 @@ export class OfficeState {
     }
   }
 
+  setEmote(id: number, emoteType: EmoteType, badge: string | null): void {
+    const ch = this.characters.get(id)
+    if (ch) {
+      ch.emoteType = emoteType
+      ch.emoteBadge = badge
+      ch.emoteTimer = EMOTE_DURATION_SEC
+    }
+  }
+
+  clearEmote(id: number): void {
+    const ch = this.characters.get(id)
+    if (ch) {
+      ch.emoteType = null
+      ch.emoteBadge = null
+      ch.emoteTimer = 0
+    }
+  }
+
   /** Dismiss bubble on click — permission: instant, waiting: quick fade */
   dismissBubble(id: number): void {
     const ch = this.characters.get(id)
@@ -644,6 +707,16 @@ export class OfficeState {
         if (ch.bubbleTimer <= 0) {
           ch.bubbleType = null
           ch.bubbleTimer = 0
+        }
+      }
+
+      // Tick emote timer and clear when expired
+      if (ch.emoteType) {
+        ch.emoteTimer -= dt
+        if (ch.emoteTimer <= 0) {
+          ch.emoteType = null
+          ch.emoteBadge = null
+          ch.emoteTimer = 0
         }
       }
     }

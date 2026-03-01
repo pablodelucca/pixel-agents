@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { OfficeState } from '../office/engine/officeState.js'
-import type { OfficeLayout, ToolActivity } from '../office/types.js'
+import type { OfficeLayout, ToolActivity, EmoteType } from '../office/types.js'
 import { extractToolName } from '../office/toolUtils.js'
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js'
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js'
@@ -9,6 +9,7 @@ import { setWallSprites } from '../office/wallTiles.js'
 import { setCharacterTemplates } from '../office/sprites/spriteData.js'
 import { vscode } from '../vscodeApi.js'
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js'
+import { setMaxTokens } from '../maxTokensStore.js'
 
 export interface SubagentCharacter {
   id: number
@@ -40,16 +41,29 @@ export interface WorkspaceFolder {
   path: string
 }
 
+export interface ConversationEntry {
+  agentId: number
+  text: string
+  timestamp: number
+}
+
 export interface ExtensionMessageState {
   agents: number[]
   selectedAgent: number | null
   agentTools: Record<number, ToolActivity[]>
   agentStatuses: Record<number, string>
+  agentMessages: Record<number, string>
   subagentTools: Record<number, Record<string, ToolActivity[]>>
   subagentCharacters: SubagentCharacter[]
   layoutReady: boolean
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> }
   workspaceFolders: WorkspaceFolder[]
+  isDevMode: boolean
+  conversationLog: ConversationEntry[]
+  autoModeAgentIds: number[]
+  autoModeResponderId: number | null
+  autoModePersonaNames: Record<number, string>
+  autoModeModelName: string | null
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -65,17 +79,24 @@ export function useExtensionMessages(
   getOfficeState: () => OfficeState,
   onLayoutLoaded?: (layout: OfficeLayout) => void,
   isEditDirty?: () => boolean,
+  onAutoModeEnded?: () => void,
 ): ExtensionMessageState {
   const [agents, setAgents] = useState<number[]>([])
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null)
   const [agentTools, setAgentTools] = useState<Record<number, ToolActivity[]>>({})
   const [agentStatuses, setAgentStatuses] = useState<Record<number, string>>({})
+  const [agentMessages, setAgentMessages] = useState<Record<number, string>>({})
   const [subagentTools, setSubagentTools] = useState<Record<number, Record<string, ToolActivity[]>>>({})
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([])
   const [layoutReady, setLayoutReady] = useState(false)
   const [loadedAssets, setLoadedAssets] = useState<{ catalog: FurnitureAsset[]; sprites: Record<string, string[][]> } | undefined>()
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([])
-
+  const [isDevMode, setIsDevMode] = useState(false)
+  const [conversationLog, setConversationLog] = useState<ConversationEntry[]>([])
+  const [autoModeAgentIds, setAutoModeAgentIds] = useState<number[]>([])
+  const [autoModeResponderId, setAutoModeResponderId] = useState<number | null>(null)
+  const [autoModePersonaNames, setAutoModePersonaNames] = useState<Record<number, string>>({})
+  const [autoModeModelName, setAutoModeModelName] = useState<string | null>(null)
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false)
 
@@ -130,6 +151,12 @@ export function useExtensionMessages(
           return next
         })
         setAgentStatuses((prev) => {
+          if (!(id in prev)) return prev
+          const next = { ...prev }
+          delete next[id]
+          return next
+        })
+        setAgentMessages((prev) => {
           if (!(id in prev)) return prev
           const next = { ...prev }
           delete next[id]
@@ -216,6 +243,8 @@ export function useExtensionMessages(
         setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id))
         os.setAgentTool(id, null)
         os.clearPermissionBubble(id)
+      } else if (msg.type === 'setDevMode') {
+        setIsDevMode(Boolean(msg.isDevMode))
       } else if (msg.type === 'agentSelected') {
         const id = msg.id as number
         setSelectedAgent(id)
@@ -236,6 +265,16 @@ export function useExtensionMessages(
           os.showWaitingBubble(id)
           playDoneSound()
         }
+      } else if (msg.type === 'agentMessage') {
+        const id = msg.id as number
+        const text = msg.text as string
+        setAgentMessages((prev) => ({ ...prev, [id]: text }))
+        setConversationLog((prev) => [...prev, { agentId: id, text, timestamp: Date.now() }])
+      } else if (msg.type === 'agentEmote') {
+        const id = msg.id as number
+        const emote = msg.emote as EmoteType
+        const badge = (msg.badge as string) || null
+        os.setEmote(id, emote, badge)
       } else if (msg.type === 'agentToolPermission') {
         const id = msg.id as number
         setAgentTools((prev) => {
@@ -342,6 +381,9 @@ export function useExtensionMessages(
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean
         setSoundEnabled(soundOn)
+        if (typeof msg.maxTokens === 'number') {
+          setMaxTokens(msg.maxTokens)
+        }
       } else if (msg.type === 'furnitureAssetsLoaded') {
         try {
           const catalog = msg.catalog as FurnitureAsset[]
@@ -353,12 +395,76 @@ export function useExtensionMessages(
         } catch (err) {
           console.error(`❌ Webview: Error processing furnitureAssetsLoaded:`, err)
         }
+      } else if (msg.type === 'autoModeStarted') {
+        const agentIds = msg.agentIds as number[]
+        const personaNames = (msg.personaNames || {}) as Record<number, string>
+        const modelName = (msg.modelName as string) || null
+        setConversationLog([])
+        setAutoModeAgentIds(agentIds)
+        setAutoModeResponderId(agentIds[0] ?? null)
+        setAutoModePersonaNames(personaNames)
+        setAutoModeModelName(modelName)
+        // Set auto mode targets: each agent targets the next one in round-robin
+        for (let i = 0; i < agentIds.length; i++) {
+          const targetId = agentIds[(i + 1) % agentIds.length]
+          const ch = os.characters.get(agentIds[i])
+          if (ch) {
+            ch.autoModeTarget = targetId
+            os.walkToAgent(agentIds[i], targetId)
+          }
+        }
+      } else if (msg.type === 'autoModeTurnChange') {
+        const respondingAgentId = msg.respondingAgentId as number
+        const allAgentIds = msg.allAgentIds as number[]
+        setAutoModeResponderId(respondingAgentId)
+        // The responding agent walks toward the next agent in rotation
+        const respondingIdx = allAgentIds.indexOf(respondingAgentId)
+        if (respondingIdx !== -1) {
+          const targetId = allAgentIds[(respondingIdx + 1) % allAgentIds.length]
+          const respondingCh = os.characters.get(respondingAgentId)
+          if (respondingCh) {
+            respondingCh.autoModeTarget = targetId
+            os.walkToAgent(respondingAgentId, targetId)
+          }
+        }
+      } else if (msg.type === 'autoModeEnded') {
+        setAutoModeResponderId(null)
+        for (const ch of os.characters.values()) {
+          if (ch.autoModeTarget !== null) {
+            ch.autoModeTarget = null
+            os.sendToSeat(ch.id)
+          }
+        }
+        onAutoModeEnded?.()
+      } else if (msg.type === 'autoModeReset') {
+        setConversationLog([])
+        setAutoModeAgentIds([])
+        setAutoModeResponderId(null)
+        setAutoModePersonaNames({})
+        setAutoModeModelName(null)
       }
     }
     window.addEventListener('message', handler)
     vscode.postMessage({ type: 'webviewReady' })
     return () => window.removeEventListener('message', handler)
-  }, [getOfficeState])
+  }, [getOfficeState, onLayoutLoaded, isEditDirty, onAutoModeEnded])
 
-  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders }
+  return {
+    agents,
+    selectedAgent,
+    agentTools,
+    agentStatuses,
+    agentMessages,
+    subagentTools,
+    subagentCharacters,
+    layoutReady,
+    loadedAssets,
+    workspaceFolders,
+    isDevMode,
+    conversationLog,
+    autoModeAgentIds,
+    autoModeResponderId,
+    autoModePersonaNames,
+    autoModeModelName,
+  }
 }

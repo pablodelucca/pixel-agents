@@ -7,3 +7,5 @@ node_modules
 /logs
 /sprites-export
 .env
+
+*.pids

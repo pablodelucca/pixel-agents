@@ -47,6 +47,7 @@ const esbuildProblemMatcherPlugin = {
 };
 
 async function main() {
+	// Build the VS Code extension
 	const ctx = await esbuild.context({
 		entryPoints: [
 			'src/extension.ts'
@@ -65,11 +66,46 @@ async function main() {
 			esbuildProblemMatcherPlugin,
 		],
 	});
+
+	// Build the local agent script (standalone Node.js)
+	const agentCtx = await esbuild.context({
+		entryPoints: ['src/localAgent.ts'],
+		bundle: true,
+		format: 'cjs',
+		minify: production,
+		sourcemap: !production,
+		sourcesContent: false,
+		platform: 'node',
+		outfile: 'dist/localAgent.js',
+		logLevel: 'silent',
+		plugins: [esbuildProblemMatcherPlugin],
+	});
+
+	// Build the dev server (standalone Node.js)
+	const devCtx = await esbuild.context({
+		entryPoints: ['webview-ui/devServer.ts'],
+		bundle: true,
+		format: 'cjs',
+		minify: production,
+		sourcemap: !production,
+		sourcesContent: false,
+		platform: 'node',
+		outfile: 'dist/devServer.js',
+		logLevel: 'silent',
+		plugins: [esbuildProblemMatcherPlugin],
+	});
+
 	if (watch) {
 		await ctx.watch();
+		await agentCtx.watch();
+		await devCtx.watch();
 	} else {
 		await ctx.rebuild();
+		await agentCtx.rebuild();
+		await devCtx.rebuild();
 		await ctx.dispose();
+		await agentCtx.dispose();
+		await devCtx.dispose();
 		// Copy assets after build
 		copyAssets();
 	}

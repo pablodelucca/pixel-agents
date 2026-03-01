@@ -14,6 +14,9 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard.js'
 import { ZoomControls } from './components/ZoomControls.js'
 import { BottomToolbar } from './components/BottomToolbar.js'
 import { DebugView } from './components/DebugView.js'
+import { AutoModeConfigDialog } from './components/AutoModeConfigDialog.js'
+import { ConversationPanel } from './components/ConversationPanel.js'
+import { AgentInfoPanel } from './components/AgentInfoPanel.js'
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null }
@@ -121,11 +124,35 @@ function App() {
 
   const isEditDirty = useCallback(() => editor.isEditMode && editor.isDirty, [editor.isEditMode, editor.isDirty])
 
-  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
-
   const [isDebugMode, setIsDebugMode] = useState(false)
+  const [isAutoMode, setIsAutoMode] = useState(false)
+  const [isAutoConfigOpen, setIsAutoConfigOpen] = useState(false)
+  const [isChatOpen, setIsChatOpen] = useState(false)
+  const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(false)
+  const [infoPanelAgentId, setInfoPanelAgentId] = useState<number | null>(null)
+
+  const { agents, selectedAgent, agentTools, agentStatuses, agentMessages, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, isDevMode, conversationLog, autoModeAgentIds, autoModeResponderId, autoModePersonaNames, autoModeModelName } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty, () => setIsAutoMode(false))
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
+
+  const handleToggleAutoMode = useCallback(() => {
+    if (isAutoMode) {
+      vscode.postMessage({ type: 'stopAutoMode' })
+      setIsAutoMode(false)
+    } else {
+      setIsAutoConfigOpen(true)
+    }
+  }, [isAutoMode])
+
+  const handleAutoModeStart = useCallback((config: { agentCount: number; topic?: string; timeoutMs?: number }) => {
+    setIsAutoConfigOpen(false)
+    setIsAutoMode(true)
+    vscode.postMessage({ type: 'startAutoMode', agentCount: config.agentCount, topic: config.topic, timeoutMs: config.timeoutMs })
+  }, [])
+
+  const handleResetAutoMode = useCallback(() => {
+    vscode.postMessage({ type: 'resetAutoMode' })
+  }, [])
 
   const handleSelectAgent = useCallback((id: number) => {
     vscode.postMessage({ type: 'focusAgent', id })
@@ -156,6 +183,13 @@ function App() {
     const meta = os.subagentMeta.get(agentId)
     const focusId = meta ? meta.parentAgentId : agentId
     vscode.postMessage({ type: 'focusAgent', id: focusId })
+
+    // Open agent info panel (mutual exclusion with chat panel)
+    if (!meta) {
+      setInfoPanelAgentId(focusId)
+      setIsInfoPanelOpen(true)
+      setIsChatOpen(false)
+    }
   }, [])
 
   const officeState = getOfficeState()
@@ -230,7 +264,67 @@ function App() {
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
         workspaceFolders={workspaceFolders}
+        isAutoMode={isAutoMode}
+        onToggleAutoMode={handleToggleAutoMode}
+        isChatOpen={isChatOpen}
+        onToggleChat={() => {
+          setIsChatOpen((v) => {
+            if (!v) setIsInfoPanelOpen(false)
+            return !v
+          })
+        }}
+        autoModeAgentIds={autoModeAgentIds}
+        agents={agents}
+        onResetAutoMode={handleResetAutoMode}
       />
+
+      {isDevMode && selectedAgent !== null && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '72px', // right above BottomToolbar
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 50,
+            background: 'var(--pixel-ui-bg)',
+            border: '2px solid var(--pixel-accent)',
+            boxShadow: 'var(--pixel-shadow)',
+            padding: '8px',
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center',
+            width: '400px',
+            maxWidth: '90vw',
+          }}
+        >
+          <span style={{ fontSize: '20px', color: 'var(--pixel-accent)' }}>🤖 #{selectedAgent}</span>
+          <input
+            type="text"
+            placeholder="Chat with agent..."
+            autoFocus
+            style={{
+              flex: 1,
+              background: 'var(--pixel-canvas-bg)',
+              color: 'var(--pixel-text)',
+              border: '2px solid var(--pixel-primary)',
+              padding: '4px 8px',
+              fontFamily: 'var(--pixel-font)',
+              fontSize: '18px',
+              outline: 'none',
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const target = e.target as HTMLInputElement;
+                const text = target.value.trim();
+                if (text) {
+                  vscode.postMessage({ type: 'stdinInput', id: selectedAgent, text });
+                  target.value = '';
+                }
+              }
+            }}
+          />
+        </div>
+      )}
 
       {editor.isEditMode && editor.isDirty && (
         <EditActionBar editor={editor} editorState={editorState} />
@@ -285,15 +379,46 @@ function App() {
         )
       })()}
 
+      <AutoModeConfigDialog
+        isOpen={isAutoConfigOpen}
+        onClose={() => setIsAutoConfigOpen(false)}
+        onStart={handleAutoModeStart}
+      />
+
+      <ConversationPanel
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        entries={conversationLog}
+        agentIds={autoModeAgentIds}
+        isAutoModeActive={isAutoMode}
+        onStopAutoMode={handleToggleAutoMode}
+      />
+
+      <AgentInfoPanel
+        isOpen={isInfoPanelOpen}
+        onClose={() => setIsInfoPanelOpen(false)}
+        agentId={infoPanelAgentId}
+        agentIds={agents}
+        personaNames={autoModePersonaNames}
+        modelName={autoModeModelName}
+        conversationLog={conversationLog}
+        isAutoModeActive={isAutoMode}
+        autoModeAgentIds={autoModeAgentIds}
+        onCloseAgent={handleCloseAgent}
+      />
+
       <ToolOverlay
         officeState={officeState}
         agents={agents}
         agentTools={agentTools}
+        agentMessages={agentMessages}
         subagentCharacters={subagentCharacters}
         containerRef={containerRef}
         zoom={editor.zoom}
         panRef={editor.panRef}
         onCloseAgent={handleCloseAgent}
+        isAutoModeActive={isAutoMode}
+        autoModeResponderId={autoModeResponderId}
       />
 
       {isDebugMode && (

@@ -1,7 +1,7 @@
 import { TileType, TILE_SIZE, CharacterState } from '../types.js'
 import type { TileType as TileTypeVal, FurnitureInstance, Character, SpriteData, Seat, FloorColor } from '../types.js'
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js'
-import { getCharacterSprites, BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE } from '../sprites/spriteData.js'
+import { getCharacterSprites, BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE, EMOTE_SPRITES } from '../sprites/spriteData.js'
 import { getCharacterSprite } from './characters.js'
 import { renderMatrixEffect } from './matrixEffect.js'
 import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js'
@@ -39,8 +39,6 @@ import {
   DELETE_BUTTON_BG,
   ROTATE_BUTTON_BG,
 } from '../../constants.js'
-
-// ── Render functions ────────────────────────────────────────────
 
 export function renderTileGrid(
   ctx: CanvasRenderingContext2D,
@@ -186,8 +184,6 @@ export function renderScene(
   }
 }
 
-// ── Seat indicators ─────────────────────────────────────────────
-
 export function renderSeatIndicators(
   ctx: CanvasRenderingContext2D,
   seats: Map<string, Seat>,
@@ -224,8 +220,6 @@ export function renderSeatIndicators(
     break
   }
 }
-
-// ── Edit mode overlays ──────────────────────────────────────────
 
 export function renderGridOverlay(
   ctx: CanvasRenderingContext2D,
@@ -445,8 +439,6 @@ export function renderRotateButton(
   return { cx, cy, radius }
 }
 
-// ── Speech bubbles ──────────────────────────────────────────────
-
 export function renderBubbles(
   ctx: CanvasRenderingContext2D,
   characters: Character[],
@@ -478,6 +470,41 @@ export function renderBubbles(
     ctx.save()
     if (alpha < 1.0) ctx.globalAlpha = alpha
     ctx.drawImage(cached, bubbleX, bubbleY)
+    ctx.restore()
+  }
+}
+
+const EMOTE_FADE_DURATION_SEC = 0.5
+
+export function renderEmoteBubbles(
+  ctx: CanvasRenderingContext2D,
+  characters: Character[],
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  for (const ch of characters) {
+    if (!ch.emoteType) continue
+
+    const sprite = EMOTE_SPRITES[ch.emoteType]
+    if (!sprite) continue
+
+    // Fade out in last 0.5s of the emote timer
+    let alpha = 1.0
+    if (ch.emoteTimer < EMOTE_FADE_DURATION_SEC) {
+      alpha = Math.max(0, ch.emoteTimer / EMOTE_FADE_DURATION_SEC)
+    }
+    if (alpha <= 0) continue
+
+    const cached = getCachedSprite(sprite, zoom)
+    // Position above head, offset to the right so it doesn't overlap permission/waiting bubbles
+    const sittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0
+    const emoteX = Math.round(offsetX + ch.x * zoom - cached.width / 2 + 6 * zoom)
+    const emoteY = Math.round(offsetY + (ch.y + sittingOff - BUBBLE_VERTICAL_OFFSET_PX) * zoom - cached.height - 1 * zoom)
+
+    ctx.save()
+    if (alpha < 1.0) ctx.globalAlpha = alpha
+    ctx.drawImage(cached, emoteX, emoteY)
     ctx.restore()
   }
 }
@@ -578,6 +605,9 @@ export function renderFrame(
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom)
+
+  // Emote bubbles (on top of speech bubbles, offset to the side)
+  renderEmoteBubbles(ctx, characters, offsetX, offsetY, zoom)
 
   // Editor overlays
   if (editor) {

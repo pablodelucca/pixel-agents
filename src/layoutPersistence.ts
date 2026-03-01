@@ -16,7 +16,7 @@ function getLayoutFilePath(): string {
 export function readLayoutFromFile(): Record<string, unknown> | null {
 	const filePath = getLayoutFilePath();
 	try {
-		if (!fs.existsSync(filePath)) return null;
+		if (!fs.existsSync(filePath)) {return null;}
 		const raw = fs.readFileSync(filePath, 'utf-8');
 		return JSON.parse(raw) as Record<string, unknown>;
 	} catch (err) {
@@ -101,11 +101,11 @@ export function watchLayoutFile(
 	} catch { /* ignore */ }
 
 	function checkForChange(): void {
-		if (disposed) return;
+		if (disposed) {return;}
 		try {
-			if (!fs.existsSync(filePath)) return;
+			if (!fs.existsSync(filePath)) {return;}
 			const stat = fs.statSync(filePath);
-			if (stat.mtimeMs <= lastMtime) return;
+			if (stat.mtimeMs <= lastMtime) {return;}
 			lastMtime = stat.mtimeMs;
 
 			if (skipNextChange) {
@@ -123,9 +123,9 @@ export function watchLayoutFile(
 	}
 
 	function startFsWatch(): void {
-		if (disposed || fsWatcher) return;
+		if (disposed || fsWatcher) {return;}
 		try {
-			if (!fs.existsSync(filePath)) return;
+			if (!fs.existsSync(filePath)) {return;}
 			fsWatcher = fs.watch(filePath, () => {
 				checkForChange();
 			});
@@ -144,7 +144,7 @@ export function watchLayoutFile(
 
 	// Polling backup (also starts fs.watch if file appears)
 	pollTimer = setInterval(() => {
-		if (disposed) return;
+		if (disposed) {return;}
 		if (!fsWatcher) {
 			startFsWatch();
 		}

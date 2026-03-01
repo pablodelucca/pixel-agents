@@ -18,7 +18,6 @@ const { PNG } = require('pngjs');
 const fs = require('fs');
 const path = require('path');
 
-// ── Dimensions ───────────────────────────────────────────
 const TILE = 16;
 const SPRITE_H = 32;
 const GRID_COLS = 4;
@@ -26,13 +25,11 @@ const GRID_ROWS = 4;
 const IMG_W = GRID_COLS * TILE;
 const IMG_H = GRID_ROWS * SPRITE_H;
 
-// ── Colors (RGBA) ────────────────────────────────────────
 const TRANSPARENT = [0, 0, 0, 0];
 const BORDER    = [0x30, 0x2A, 0x28, 255]; // #302A28
 const CAP       = [0xFF, 0xFF, 0xFF, 255]; // #FFFFFF
 const FACE      = [0xEB, 0xE8, 0xE0, 255]; // #EBE8E0
 
-// ── Wall geometry ────────────────────────────────────────
 const WALL_BAND = 8;                       // wall thickness in pixels
 const BAND_START = (TILE - WALL_BAND) / 2; // = 4
 const BAND_END = BAND_START + WALL_BAND;   // = 12
@@ -204,7 +201,6 @@ function generatePiece(mask) {
   return pixels;
 }
 
-// ── Generate PNG ─────────────────────────────────────────
 const png = new PNG({ width: IMG_W, height: IMG_H });
 
 // Fill with transparent

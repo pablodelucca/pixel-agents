@@ -63,3 +63,10 @@ html, body, #root {
 * {
   font-family: 'FS Pixel Sans', sans-serif;
 }
+
+/* Override pixel font for side panels -- system fonts for readable long-form text.
+   Specificity (0,1,0) beats the * rule (0,0,0) so all children get system fonts. */
+.pixel-panel,
+.pixel-panel * {
+  font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+}

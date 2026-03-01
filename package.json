@@ -43,16 +43,50 @@
         {
           "type": "webview",
           "id": "pixel-agents.panelView",
-          "name": "Pixel Agents"
+          "name": "Pixel Agents",
+          "icon": "media/icon.svg"
         }
       ]
+    },
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixel-agents.local.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable routing Claude CLI requests to a local OpenAI-compatible endpoint via a transparent LiteLLM proxy."
+        },
+        "pixel-agents.local.baseUrl": {
+          "type": "string",
+          "default": "http://localhost:1234/v1",
+          "description": "The base URL for the local OpenAI-compatible server (e.g., LM Studio, Ollama, vLLM)."
+        },
+        "pixel-agents.local.apiKey": {
+          "type": "string",
+          "default": "lmstudio",
+          "description": "The API key required by your local endpoint (often optional, 'lmstudio' or 'ollama')."
+        },
+        "pixel-agents.local.model": {
+          "type": "string",
+          "default": "openai/local-model",
+          "description": "The name of the local model to run via the proxy."
+        },
+        "pixel-agents.local.maxTokens": {
+          "type": "number",
+          "default": 512,
+          "minimum": 1,
+          "maximum": 32768,
+          "description": "Maximum number of tokens the local agent model can generate per response. Lower values produce shorter, more focused answers."
+        }
+      }
     }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
     "build:webview": "cd webview-ui && npm run build",
     "compile": "npm run check-types && npm run lint && node esbuild.js && npm run build:webview",
-    "build": "npm run compile",
+    "build": "npm run check-types && npm run lint && node esbuild.js --production && npm run build:webview",
+    "build:backend": "node esbuild.js",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
@@ -73,5 +107,8 @@
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.54.0"
+  },
+  "dependencies": {
+    "openai": "^6.25.0"
   }
 }
