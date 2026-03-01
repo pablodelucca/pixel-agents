@@ -3,10 +3,10 @@
   "sessionId": "2cff1b31-32da-4884-bb86-6c25fccdb6ed",
   "status": "running",
   "startedAt": "2026-03-01T03:31:29.798Z",
-  "updatedAt": "2026-03-01T03:52:57.095Z",
-  "currentIteration": 6,
+  "updatedAt": "2026-03-01T03:56:58.295Z",
+  "currentIteration": 7,
   "maxIterations": 10,
-  "tasksCompleted": 6,
+  "tasksCompleted": 7,
   "isPaused": false,
   "agentPlugin": "opencode",
   "trackerState": {
@@ -53,8 +53,8 @@
       {
         "id": "US-007",
         "title": "Wire walk-to-agent behavior into character FSM and auto mode events",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "US-008",
@@ -124,6 +124,16 @@
       "durationMs": 246576,
       "startedAt": "2026-03-01T03:43:22.183Z",
       "endedAt": "2026-03-01T03:47:28.759Z"
+    },
+    {
+      "iteration": 7,
+      "status": "completed",
+      "taskId": "US-007",
+      "taskTitle": "Wire walk-to-agent behavior into character FSM and auto mode events",
+      "taskCompleted": true,
+      "durationMs": 327295,
+      "startedAt": "2026-03-01T03:47:29.799Z",
+      "endedAt": "2026-03-01T03:52:57.094Z"
     }
   ],
   "skippedTaskIds": [],

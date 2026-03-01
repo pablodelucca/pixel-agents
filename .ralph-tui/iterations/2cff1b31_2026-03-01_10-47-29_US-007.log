@@ -1,0 +1,77 @@
+# Iteration 7 Log
+
+## Metadata
+
+- **Task ID**: US-007
+- **Task Title**: Wire walk-to-agent behavior into character FSM and auto mode events
+- **Description**: As a user, I want to see the responding agent walk toward the other agent during auto mode so that the simulation visually represents agents interacting.
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-03-01T03:47:29.799Z
+- **Ended At**: 2026-03-01T03:52:57.094Z
+- **Duration**: 5m 27s
+- **Agent**: opencode
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+I'll help you implement US-007. Let me start by understanding the context and current state.
+[94m[read][0m
+[94m[read][0m
+[94m[read][0m
+[94m[read][0m
+[94m[read][0m
+[94m[grep][0m [95m/Users/laansdole/Projects/pixel-agents/webview-ui[0m pattern: [96mautoMode(Started|TurnChange|Ended)[0m
+[94m[read][0m
+[94m[read][0m
+[94m[read][0m
+[94m[read][0m
+[94m[grep][0m [95m/Users/laansdole/Projects/pixel-agents/webview-ui/src/office[0m pattern: [96minterface Character[0m
+[94m[read][0m
+[94m[read][0m
+[94m[edit][0m
+[94m[edit][0m
+[94m[edit][0m
+[94m[edit][0m
+[94m[edit][0m
+[94m[edit][0m
+[94m[edit][0m
+[94m[bash][0m Run TypeScript type checking $ cd /Users/laansdole/Projects/pixel-agents/webview-ui && npm run check-types
+[94m[bash][0m List available npm scripts $ cd /Users/laansdole/Projects/pixel-agents/webview-ui && npm run
+[94m[bash][0m Run TypeScript compiler in build mode $ cd /Users/laansdole/Projects/pixel-agents/webview-ui && npx tsc -b
+[94m[bash][0m Run ESLint $ cd /Users/laansdole/Projects/pixel-agents/webview-ui && npm run lint
+[94m[edit][0m
+[94m[read][0m
+[94m[edit][0m
+[94m[bash][0m Final TypeScript type check $ cd /Users/laansdole/Projects/pixel-agents/webview-ui && npx tsc -b
+## Summary
+
+Successfully implemented US-007 - Wire walk-to-agent behavior into character FSM and auto mode events.
+
+### Changes Made:
+
+1. **Character Interface** (`webview-ui/src/office/types.ts`)
+   - Added `autoModeTarget: number | null` field to track interaction target during auto mode
+
+2. **Character FSM** (`webview-ui/src/office/engine/characters.ts`)
+   - Updated `createCharacter()` to initialize `autoModeTarget: null`
+   - Modified `updateCharacter()` IDLE state to skip seat-return pathfinding when `autoModeTarget` is set
+   - Modified `updateCharacter()` WALK state to skip seat repathing when `autoModeTarget` is set
+
+3. **Auto Mode Events** (`webview-ui/devServer.ts`)
+   - Added `autoModeTurnChange` broadcast event when turns switch between agents
+   - Event includes `respondingAgentId` and `otherAgentId` to identify who should walk
+
+4. **Message Handlers** (`webview-ui/src/hooks/useExtensionMessages.ts`)
+   - Handle `autoModeStarted`: Set responding agent's `autoModeTarget` and call `walkToAgent()`
+   - Handle `autoModeTurnChange`: Update responding agent's `autoModeTarget` and call `walkToAgent()`
+   - Handle `autoModeEnded`: Clear `autoModeTarget` for all agents and call `sendToSeat()`
+
+### Oscillation Mitigation:
+Only the responding agent (whose turn is starting) walks toward the other agent. The speaking agent stays in place, preventing both agents from oscillating back and forth.
+
+### Quality Checks:
+- ✅ TypeScript compilation passes
+- ✅ No new lint errors introduced
+
+<promise>COMPLETE</promise>
