@@ -17,6 +17,13 @@ after each iteration and it's included in prompts for context.
   - The `pollJsonl()` function handles both termination detection and turn-end handling with priority given to termination
   - Type checking for this project requires `--project tsconfig.json` flag (not direct file compilation)
 ---
+## [2026-03-01] - US-003
+- Added stopAutoMode message handler case in handleClientMessage()
+- Files changed: `webview-ui/devServer.ts`
+- **Learnings:**
+  - Message handlers follow a simple if-else chain pattern in handleClientMessage()
+  - The stopAutoMode() function is idempotent - it safely handles null autoMode state
+---
 ## [2026-03-01] - US-002
 - Added AUTO_MODE_SYSTEM_PROMPT constant with instructions for sustained conversation
 - Expanded SEED_PROMPTS from 10 to 17 diverse debate-style topics

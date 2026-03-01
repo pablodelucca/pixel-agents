@@ -367,6 +367,8 @@ function handleClientMessage(ws: WebSocket, raw: string): void {
             spawnAgent();
         } else if (msg.type === 'startAutoMode') {
             startAutoMode();
+        } else if (msg.type === 'stopAutoMode') {
+            stopAutoMode();
         } else if (msg.type === 'closeAgent') {
             const agent = agents.get(msg.id);
             if (agent) {
