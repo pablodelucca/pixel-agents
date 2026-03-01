@@ -12,7 +12,6 @@ import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
 
-// ── Config ──────────────────────────────────────────────────
 const WS_PORT = 3100;
 const POLL_INTERVAL_MS = 500;
 const AUTO_MODE_DURATION_DEFAULT_MS = 5 * 60 * 1000; // 5 minutes
@@ -97,7 +96,6 @@ const SEED_PROMPTS = [
     'I believe aggressive caching is almost always a mistake. Cache invalidation bugs cause more outages than the latency they save. Keep things simple and optimize the source of truth instead. Disagree?',
 ];
 
-// ── Emote detection rules ───────────────────────────────────
 interface EmoteRule {
     keywords: string[];
     emote: string;
@@ -127,7 +125,6 @@ function detectEmote(text: string): { emote: string; badge?: string } | null {
     return null;
 }
 
-// ── Load .env from project root ─────────────────────────────
 function loadEnv(): Record<string, string> {
     const envPath = path.join(__dirname, '..', '.env');
     const env: Record<string, string> = {};
@@ -144,14 +141,12 @@ function loadEnv(): Record<string, string> {
     return env;
 }
 
-// ── Project directory (mirrors getProjectDirPath in extension) ──
 function getProjectDirPath(): string {
     const cwd = path.resolve(__dirname, '..');
     const dirName = cwd.replace(/[^a-zA-Z0-9-]/g, '-');
     return path.join(os.homedir(), '.claude', 'projects', dirName);
 }
 
-// ── Transcript line parser (simplified version of transcriptParser.ts) ──
 function parseTranscriptLine(line: string, agentId: number): { event: Record<string, unknown> | null; assistantText?: string; isTurnEnd?: boolean; terminationDetected?: boolean } {
     try {
         const record = JSON.parse(line);
@@ -204,7 +199,6 @@ function parseTranscriptLine(line: string, agentId: number): { event: Record<str
     }
 }
 
-// ── State ───────────────────────────────────────────────────
 interface AgentProcess {
     id: number;
     process: ChildProcess;
@@ -231,7 +225,6 @@ const clients = new Set<WebSocket>();
 let autoMode: AutoModeState | null = null;
 let lastAutoModeAgentIds: number[] = [];
 
-// ── Broadcast to all connected browser clients ──────────────
 function broadcast(msg: Record<string, unknown>): void {
     const data = JSON.stringify(msg);
     for (const ws of clients) {
@@ -241,7 +234,6 @@ function broadcast(msg: Record<string, unknown>): void {
     }
 }
 
-// ── Poll .jsonl file for new lines ──────────────────────────
 function pollJsonl(agent: AgentProcess): void {
     if (!fs.existsSync(agent.jsonlFile)) return;
 
@@ -284,7 +276,6 @@ function pollJsonl(agent: AgentProcess): void {
     }
 }
 
-// ── Handle auto mode turn passing ───────────────────────────
 function handleAutoModeTurnEnd(completedAgent: AgentProcess): void {
     if (!autoMode?.isActive) return;
 
@@ -316,7 +307,6 @@ function handleAutoModeTurnEnd(completedAgent: AgentProcess): void {
     broadcast({ type: 'autoModeTurnChange', respondingAgentId: nextId, allAgentIds: agentIds });
 }
 
-// ── Spawn a local agent process ─────────────────────────────
 function spawnAgent(systemPrompt?: string): number | null {
     const env = loadEnv();
     const projectDir = getProjectDirPath();
@@ -389,7 +379,6 @@ function spawnAgent(systemPrompt?: string): number | null {
     return agentId;
 }
 
-// ── Stop Auto Mode ──────────────────────────────────────────
 function stopAutoMode(): void {
     if (!autoMode) return;
 
@@ -399,7 +388,6 @@ function stopAutoMode(): void {
     autoMode = null;
 }
 
-// ── Start Auto Mode ──────────────────────────────────────────
 function startAutoMode(config?: { agentCount?: number; topic?: string; timeoutMs?: number }): void {
     if (autoMode?.isActive) {
         console.log('[DevServer] Auto mode already active');
@@ -466,7 +454,6 @@ function startAutoMode(config?: { agentCount?: number; topic?: string; timeoutMs
     }, 2000);
 }
 
-// ── Handle messages from the browser ────────────────────────
 function handleClientMessage(ws: WebSocket, raw: string): void {
     try {
         const msg = JSON.parse(raw);
@@ -538,7 +525,6 @@ function handleClientMessage(ws: WebSocket, raw: string): void {
     }
 }
 
-// ── Start WebSocket server ──────────────────────────────────
 const wss = new WebSocketServer({ port: WS_PORT });
 
 wss.on('connection', (ws: WebSocket) => {

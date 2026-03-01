@@ -2,10 +2,7 @@ import type { Direction, SpriteData, FloorColor, EmoteType } from '../types.js'
 import { Direction as Dir } from '../types.js'
 import { adjustSprite } from '../colorize.js'
 
-// ── Color Palettes ──────────────────────────────────────────────
 const _ = '' // transparent
-
-// ── Furniture Sprites ───────────────────────────────────────────
 
 /** Square desk: 32x32 pixels (2x2 tiles) — top-down wood surface */
 export const DESK_SQUARE_SPRITE: SpriteData = (() => {
@@ -272,8 +269,6 @@ export const LAMP_SPRITE: SpriteData = (() => {
   ]
 })()
 
-// ── Speech Bubble Sprites ───────────────────────────────────────
-
 /** Permission bubble: white square with "..." in amber, and a tail pointer (11x13) */
 export const BUBBLE_PERMISSION_SPRITE: SpriteData = (() => {
   const B = '#555566' // border
@@ -317,8 +312,6 @@ export const BUBBLE_WAITING_SPRITE: SpriteData = (() => {
     [_, _, _, _, _, _, _, _, _, _, _],
   ]
 })()
-
-// ── Emote Bubble Sprites (10x12 each: 10x9 icon + 3-row tail) ──
 
 /** Thinking emote: cloud/thought bubble with "..." */
 export const EMOTE_THINKING_SPRITE: SpriteData = (() => {
@@ -460,7 +453,6 @@ export const EMOTE_SPRITES: Record<EmoteType, SpriteData> = {
   exclamation: EMOTE_EXCLAMATION_SPRITE,
 }
 
-// ── Character Sprites ───────────────────────────────────────────
 // 16x24 characters with palette substitution
 
 /** Palette colors for 6 distinct agent characters */

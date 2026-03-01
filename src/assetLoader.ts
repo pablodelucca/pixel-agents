@@ -161,12 +161,6 @@ function pngToSpriteData(pngBuffer: Buffer, width: number, height: number): stri
   }
 }
 
-// ── Default layout loading ───────────────────────────────────
-
-/**
- * Load the bundled default layout from assets/default-layout.json.
- * Returns the parsed layout object or null if not found.
- */
 export function loadDefaultLayout(assetsRoot: string): Record<string, unknown> | null {
   try {
     const layoutPath = path.join(assetsRoot, 'assets', 'default-layout.json');
@@ -183,8 +177,6 @@ export function loadDefaultLayout(assetsRoot: string): Record<string, unknown> |
     return null;
   }
 }
-
-// ── Wall tile loading ────────────────────────────────────────
 
 export interface LoadedWallTiles {
   /** 16 sprites indexed by bitmask (N=1,E=2,S=4,W=8), each 16×32 SpriteData */
@@ -319,8 +311,6 @@ export function sendFloorTilesToWebview(
   });
   console.log(`📤 Sent ${floorTiles.sprites.length} floor tile patterns to webview`);
 }
-
-// ── Character sprite loading ────────────────────────────────
 
 export interface CharacterDirectionSprites {
   down: string[][][]

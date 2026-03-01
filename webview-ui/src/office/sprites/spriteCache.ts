@@ -2,8 +2,6 @@ import type { SpriteData } from '../types.js'
 
 const zoomCaches = new Map<number, WeakMap<SpriteData, HTMLCanvasElement>>()
 
-// ── Outline sprite generation ─────────────────────────────────
-
 const outlineCache = new WeakMap<SpriteData, SpriteData>()
 
 /** Generate a 1px white outline SpriteData (2px larger in each dimension) */

@@ -40,8 +40,6 @@ import {
   ROTATE_BUTTON_BG,
 } from '../../constants.js'
 
-// ── Render functions ────────────────────────────────────────────
-
 export function renderTileGrid(
   ctx: CanvasRenderingContext2D,
   tileMap: TileTypeVal[][],
@@ -186,8 +184,6 @@ export function renderScene(
   }
 }
 
-// ── Seat indicators ─────────────────────────────────────────────
-
 export function renderSeatIndicators(
   ctx: CanvasRenderingContext2D,
   seats: Map<string, Seat>,
@@ -224,8 +220,6 @@ export function renderSeatIndicators(
     break
   }
 }
-
-// ── Edit mode overlays ──────────────────────────────────────────
 
 export function renderGridOverlay(
   ctx: CanvasRenderingContext2D,
@@ -445,8 +439,6 @@ export function renderRotateButton(
   return { cx, cy, radius }
 }
 
-// ── Speech bubbles ──────────────────────────────────────────────
-
 export function renderBubbles(
   ctx: CanvasRenderingContext2D,
   characters: Character[],
@@ -482,9 +474,6 @@ export function renderBubbles(
   }
 }
 
-// ── Emote bubbles ───────────────────────────────────────────────
-
-/** Fade threshold for emote bubbles (last 0.5s) */
 const EMOTE_FADE_DURATION_SEC = 0.5
 
 export function renderEmoteBubbles(

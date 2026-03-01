@@ -38,7 +38,6 @@ export interface CatalogEntryWithCategory extends FurnitureCatalogEntry {
 }
 
 export const FURNITURE_CATALOG: CatalogEntryWithCategory[] = [
-  // ── Original hand-drawn sprites ──
   { type: FurnitureType.DESK,       label: 'Desk',       footprintW: 2, footprintH: 2, sprite: DESK_SQUARE_SPRITE,  isDesk: true,  category: 'desks' },
   { type: FurnitureType.BOOKSHELF,  label: 'Bookshelf',  footprintW: 1, footprintH: 2, sprite: BOOKSHELF_SPRITE,    isDesk: false, category: 'storage' },
   { type: FurnitureType.PLANT,      label: 'Plant',      footprintW: 1, footprintH: 1, sprite: PLANT_SPRITE,        isDesk: false, category: 'decor' },
@@ -50,7 +49,6 @@ export const FURNITURE_CATALOG: CatalogEntryWithCategory[] = [
 
 ]
 
-// ── Rotation groups ──────────────────────────────────────────────
 // Flexible rotation: supports 2+ orientations (not just all 4)
 interface RotationGroup {
   /** Ordered list of orientations available for this group */
@@ -62,7 +60,6 @@ interface RotationGroup {
 // Maps any member asset ID → its rotation group
 const rotationGroups = new Map<string, RotationGroup>()
 
-// ── State groups ────────────────────────────────────────────────
 // Maps asset ID → its on/off counterpart (symmetric for toggle)
 const stateGroups = new Map<string, string>()
 // Directional maps for getOnStateType / getOffStateType
@@ -267,8 +264,6 @@ export const FURNITURE_CATEGORIES: Array<{ id: FurnitureCategory; label: string 
   { id: 'wall', label: 'Wall' },
   { id: 'misc', label: 'Misc' },
 ]
-
-// ── Rotation helpers ─────────────────────────────────────────────
 
 /** Returns the next asset ID in the rotation group (cw or ccw), or null if not rotatable. */
 export function getRotatedType(currentType: string, direction: 'cw' | 'ccw'): string | null {

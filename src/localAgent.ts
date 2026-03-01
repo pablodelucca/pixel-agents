@@ -3,7 +3,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
 
-// ── Load .env file (no external deps) ───────────────────────
 function loadEnvFile(): void {
     // Walk up from cwd looking for .env
     let dir = process.cwd();
@@ -30,7 +29,6 @@ function loadEnvFile(): void {
     }
 }
 
-// ── Parse CLI arguments (with .env / env var fallbacks) ─────
 function parseArgs(): {
     sessionId: string;
     baseUrl: string;
@@ -62,7 +60,6 @@ function parseArgs(): {
     };
 }
 
-// ── JSONL Writer ────────────────────────────────────────────
 class TranscriptWriter {
     private filePath: string;
 
@@ -104,7 +101,6 @@ class TranscriptWriter {
     }
 }
 
-// ── Main ────────────────────────────────────────────────────
 async function main(): Promise<void> {
     const config = parseArgs();
 
