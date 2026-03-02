@@ -3,9 +3,22 @@ import { SettingsModal } from './SettingsModal.js'
 import type { WorkspaceFolder } from '../hooks/useExtensionMessages.js'
 import { vscode } from '../vscodeApi.js'
 
+type AgentTypeOption = {
+  type: string
+  label: string
+  description: string
+}
+
+const AGENT_TYPES: AgentTypeOption[] = [
+  { type: 'claude-code', label: 'Claude Code', description: 'Claude Code CLI agent with full tool tracking' },
+  { type: 'opencode', label: 'Opencode', description: 'Opencode AI coding assistant' },
+  { type: 'vscode-terminal', label: 'VS Code Terminal', description: 'Connect any terminal as an agent' },
+  { type: 'adopt-terminal', label: 'Adopt Existing Terminal', description: 'Pick a running terminal to connect' },
+]
+
 interface BottomToolbarProps {
   isEditMode: boolean
-  onOpenClaude: () => void
+  onOpenAgent: (agentType: string) => void
   onToggleEditMode: () => void
   isDebugMode: boolean
   onToggleDebugMode: () => void
@@ -46,7 +59,7 @@ const btnActive: React.CSSProperties = {
 
 export function BottomToolbar({
   isEditMode,
-  onOpenClaude,
+  onOpenAgent,
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
@@ -54,40 +67,67 @@ export function BottomToolbar({
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isAgentPickerOpen, setIsAgentPickerOpen] = useState(false)
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false)
   const [hoveredFolder, setHoveredFolder] = useState<number | null>(null)
+  const [hoveredAgentType, setHoveredAgentType] = useState<number | null>(null)
+  const [pendingAgentType, setPendingAgentType] = useState<string | null>(null)
   const folderPickerRef = useRef<HTMLDivElement>(null)
+  const agentPickerRef = useRef<HTMLDivElement>(null)
 
-  // Close folder picker on outside click
+  // Close pickers on outside click
   useEffect(() => {
-    if (!isFolderPickerOpen) return
+    if (!isFolderPickerOpen && !isAgentPickerOpen) return
     const handleClick = (e: MouseEvent) => {
-      if (folderPickerRef.current && !folderPickerRef.current.contains(e.target as Node)) {
+      if (isFolderPickerOpen && folderPickerRef.current && !folderPickerRef.current.contains(e.target as Node)) {
         setIsFolderPickerOpen(false)
+        setPendingAgentType(null)
+      }
+      if (isAgentPickerOpen && agentPickerRef.current && !agentPickerRef.current.contains(e.target as Node)) {
+        setIsAgentPickerOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [isFolderPickerOpen])
+  }, [isFolderPickerOpen, isAgentPickerOpen])
 
   const hasMultipleFolders = workspaceFolders.length > 1
 
   const handleAgentClick = () => {
-    if (hasMultipleFolders) {
-      setIsFolderPickerOpen((v) => !v)
+    setIsAgentPickerOpen((v) => !v)
+    setIsFolderPickerOpen(false)
+    setPendingAgentType(null)
+  }
+
+  const handleAgentTypeSelect = (agentType: string) => {
+    if (agentType === 'adopt-terminal') {
+      // Adopt existing terminal — no folder selection needed
+      setIsAgentPickerOpen(false)
+      vscode.postMessage({ type: 'adoptTerminal' })
+      return
+    }
+
+    if (hasMultipleFolders && agentType !== 'vscode-terminal') {
+      // Show folder picker for non-terminal agents in multi-root workspace
+      setPendingAgentType(agentType)
+      setIsAgentPickerOpen(false)
+      setIsFolderPickerOpen(true)
     } else {
-      onOpenClaude()
+      setIsAgentPickerOpen(false)
+      onOpenAgent(agentType)
     }
   }
 
   const handleFolderSelect = (folder: WorkspaceFolder) => {
     setIsFolderPickerOpen(false)
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path })
+    const agentType = pendingAgentType || 'claude-code'
+    setPendingAgentType(null)
+    vscode.postMessage({ type: 'openClaude', agentType, folderPath: folder.path })
   }
 
   return (
     <div style={panelStyle}>
-      <div ref={folderPickerRef} style={{ position: 'relative' }}>
+      <div ref={agentPickerRef} style={{ position: 'relative' }}>
         <button
           onClick={handleAgentClick}
           onMouseEnter={() => setHovered('agent')}
@@ -96,7 +136,7 @@ export function BottomToolbar({
             ...btnBase,
             padding: '5px 12px',
             background:
-              hovered === 'agent' || isFolderPickerOpen
+              hovered === 'agent' || isAgentPickerOpen
                 ? 'var(--pixel-agent-hover-bg)'
                 : 'var(--pixel-agent-bg)',
             border: '2px solid var(--pixel-agent-border)',
@@ -105,7 +145,7 @@ export function BottomToolbar({
         >
           + Agent
         </button>
-        {isFolderPickerOpen && (
+        {isAgentPickerOpen && (
           <div
             style={{
               position: 'absolute',
@@ -116,16 +156,19 @@ export function BottomToolbar({
               border: '2px solid var(--pixel-border)',
               borderRadius: 0,
               boxShadow: 'var(--pixel-shadow)',
-              minWidth: 160,
+              minWidth: 220,
               zIndex: 'var(--pixel-controls-z)',
             }}
           >
-            {workspaceFolders.map((folder, i) => (
+            <div style={{ padding: '4px 10px', fontSize: '18px', color: 'var(--pixel-text-dim)', borderBottom: '1px solid var(--pixel-border)' }}>
+              Choose agent type
+            </div>
+            {AGENT_TYPES.map((at, i) => (
               <button
-                key={folder.path}
-                onClick={() => handleFolderSelect(folder)}
-                onMouseEnter={() => setHoveredFolder(i)}
-                onMouseLeave={() => setHoveredFolder(null)}
+                key={at.type}
+                onClick={() => handleAgentTypeSelect(at.type)}
+                onMouseEnter={() => setHoveredAgentType(i)}
+                onMouseLeave={() => setHoveredAgentType(null)}
                 style={{
                   display: 'block',
                   width: '100%',
@@ -133,19 +176,65 @@ export function BottomToolbar({
                   padding: '6px 10px',
                   fontSize: '22px',
                   color: 'var(--pixel-text)',
-                  background: hoveredFolder === i ? 'var(--pixel-btn-hover-bg)' : 'transparent',
+                  background: hoveredAgentType === i ? 'var(--pixel-btn-hover-bg)' : 'transparent',
                   border: 'none',
                   borderRadius: 0,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                 }}
+                title={at.description}
               >
-                {folder.name}
+                {at.label}
               </button>
             ))}
           </div>
         )}
       </div>
+      {/* Folder picker for multi-root workspaces */}
+      {isFolderPickerOpen && (
+        <div
+          ref={folderPickerRef}
+          style={{
+            position: 'absolute',
+            bottom: '100%',
+            left: 10,
+            marginBottom: 4,
+            background: 'var(--pixel-bg)',
+            border: '2px solid var(--pixel-border)',
+            borderRadius: 0,
+            boxShadow: 'var(--pixel-shadow)',
+            minWidth: 160,
+            zIndex: 'var(--pixel-controls-z)',
+          }}
+        >
+          <div style={{ padding: '4px 10px', fontSize: '18px', color: 'var(--pixel-text-dim)', borderBottom: '1px solid var(--pixel-border)' }}>
+            Choose workspace folder
+          </div>
+          {workspaceFolders.map((folder, i) => (
+            <button
+              key={folder.path}
+              onClick={() => handleFolderSelect(folder)}
+              onMouseEnter={() => setHoveredFolder(i)}
+              onMouseLeave={() => setHoveredFolder(null)}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '6px 10px',
+                fontSize: '22px',
+                color: 'var(--pixel-text)',
+                background: hoveredFolder === i ? 'var(--pixel-btn-hover-bg)' : 'transparent',
+                border: 'none',
+                borderRadius: 0,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {folder.name}
+            </button>
+          ))}
+        </div>
+      )}
       <button
         onClick={onToggleEditMode}
         onMouseEnter={() => setHovered('edit')}

@@ -9,6 +9,15 @@ export const STATUS_TO_TOOL: Record<string, string> = {
   'Editing': 'Edit',
   'Running': 'Bash',
   'Task': 'Task',
+  // Opencode & generic agent tool status prefixes
+  'Searching code': 'Grep',
+  'Searching files': 'Glob',
+  'Fetching web': 'WebFetch',
+  'Running subtask': 'Task',
+  'Subtask': 'Task',
+  'Planning': 'Read',
+  'Using': 'Bash',
+  'Waiting': 'Read',
 }
 
 export function extractToolName(status: string): string | null {

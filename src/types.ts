@@ -1,7 +1,11 @@
 import type * as vscode from 'vscode';
 
+/** Supported agent backend types */
+export type AgentType = 'claude-code' | 'opencode' | 'vscode-terminal';
+
 export interface AgentState {
 	id: number;
+	agentType: AgentType;
 	terminalRef: vscode.Terminal;
 	projectDir: string;
 	jsonlFile: string;
@@ -21,6 +25,7 @@ export interface AgentState {
 
 export interface PersistedAgent {
 	id: number;
+	agentType: AgentType;
 	terminalName: string;
 	jsonlFile: string;
 	projectDir: string;

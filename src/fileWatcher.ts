@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import type { AgentState } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
+import { processOpencodeTranscriptLine } from './opencodeParser.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
 
 export function startFileWatching(
@@ -83,7 +84,13 @@ export function readNewLines(
 
 		for (const line of lines) {
 			if (!line.trim()) continue;
-			processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
+			// Dispatch to the appropriate parser based on agent type
+			const agentType = agent.agentType || 'claude-code';
+			if (agentType === 'opencode') {
+				processOpencodeTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
+			} else {
+				processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
+			}
 		}
 	} catch (e) {
 		console.log(`[Pixel Agents] Read error for agent ${agentId}: ${e}`);
@@ -197,6 +204,7 @@ function adoptTerminalForFile(
 	const id = nextAgentIdRef.current++;
 	const agent: AgentState = {
 		id,
+		agentType: 'claude-code', // Adopted terminals from project scan are always Claude Code
 		terminalRef: terminal,
 		projectDir,
 		jsonlFile,
