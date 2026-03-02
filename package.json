@@ -11,7 +11,7 @@
   "icon": "icon.png",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.107.0"
+    "vscode": "^1.100.0"
   },
   "categories": [
     "Other"
@@ -48,11 +48,16 @@
       ]
     }
   },
+  "bin": {
+    "pixel-agents": "./dist/cli.js"
+  },
   "scripts": {
     "vscode:prepublish": "npm run package",
     "build:webview": "cd webview-ui && npm run build",
+    "build:cli": "node esbuild.js --cli",
     "compile": "npm run check-types && npm run lint && node esbuild.js && npm run build:webview",
     "build": "npm run compile",
+    "start": "node dist/cli.js",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
@@ -65,7 +70,8 @@
     "@anthropic-ai/sdk": "^0.74.0",
     "@types/node": "22.x",
     "@types/pngjs": "^6.0.5",
-    "@types/vscode": "^1.107.0",
+    "@types/vscode": "^1.100.0",
+    "@types/ws": "^8.18.1",
     "esbuild": "^0.27.2",
     "eslint": "^9.39.2",
     "npm-run-all": "^4.1.5",
@@ -73,5 +79,8 @@
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.54.0"
+  },
+  "dependencies": {
+    "ws": "^8.19.0"
   }
 }

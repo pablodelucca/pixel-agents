@@ -74,12 +74,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			} else if (message.type === 'focusAgent') {
 				const agent = this.agents.get(message.id);
 				if (agent) {
-					agent.terminalRef.show();
+					agent.terminalRef?.show();
 				}
 			} else if (message.type === 'closeAgent') {
 				const agent = this.agents.get(message.id);
 				if (agent) {
-					agent.terminalRef.dispose();
+					agent.terminalRef?.dispose();
 				}
 			} else if (message.type === 'saveAgentSeats') {
 				// Store seat assignments in a separate key (never touched by persistAgents)

@@ -2,7 +2,7 @@ import type * as vscode from 'vscode';
 
 export interface AgentState {
 	id: number;
-	terminalRef: vscode.Terminal;
+	terminalRef?: vscode.Terminal;
 	projectDir: string;
 	jsonlFile: string;
 	fileOffset: number;
