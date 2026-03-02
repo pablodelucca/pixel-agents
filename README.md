@@ -2,7 +2,7 @@
 
 A VS Code extension that turns your AI coding agents into animated pixel art characters in a virtual office.
 
-Each Claude Code terminal you open spawns a character that walks around, sits at desks, and visually reflects what the agent is doing — typing when writing code, reading when searching files, waiting when it needs your attention.
+Each interactive AI terminal you open (Claude Code, Codex, or Gemini) spawns a character that walks around, sits at desks, and visually reflects what the agent is doing — typing when writing code, reading when searching files, waiting when it needs your attention.
 
 This is the source code for the free [Pixel Agents extension for VS Code](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents) — you can install it directly from the marketplace with the full furniture catalog included.
 
@@ -11,7 +11,8 @@ This is the source code for the free [Pixel Agents extension for VS Code](https:
 
 ## Features
 
-- **One agent, one character** — every Claude Code terminal gets its own animated character
+- **One agent, one character** — every Claude Code, Codex, or Gemini terminal gets its own animated character
+- **Mixed providers in one workspace** — run Claude, Codex, and Gemini agents side by side in the same panel
 - **Live activity tracking** — characters animate based on what the agent is actually doing (writing, reading, running commands)
 - **Office layout editor** — design your office with floors, walls, and furniture using a built-in editor
 - **Speech bubbles** — visual indicators when an agent is waiting for input or needs permission
@@ -27,7 +28,10 @@ This is the source code for the free [Pixel Agents extension for VS Code](https:
 ## Requirements
 
 - VS Code 1.109.0 or later
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
+- At least one supported CLI installed and configured:
+  - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
+  - Codex CLI
+  - Gemini CLI
 
 ## Getting Started
 
@@ -48,8 +52,9 @@ Then press **F5** in VS Code to launch the Extension Development Host.
 ### Usage
 
 1. Open the **Pixel Agents** panel (it appears in the bottom panel area alongside your terminal)
-2. Click **+ Agent** to spawn a new Claude Code terminal and its character
-3. Start coding with Claude — watch the character react in real time
+2. Click **+ Agent** to spawn a new agent terminal and its character
+3. Pick a provider (Claude/Codex/Gemini) if prompted, or use your configured default provider
+4. Start coding with your agent and watch the character react in real time
 4. Click a character to select it, then click a seat to reassign it
 5. Click **Layout** to open the office editor and customize your space
 
@@ -81,7 +86,7 @@ The extension will still work without the tileset — you'll get the default cha
 
 ## How It Works
 
-Pixel Agents watches Claude Code's JSONL transcript files to track what each agent is doing. When an agent uses a tool (like writing a file or running a command), the extension detects it and updates the character's animation accordingly. No modifications to Claude Code are needed — it's purely observational.
+Pixel Agents watches provider session transcripts to track what each agent is doing. For Claude and Codex it reads JSONL logs; for Gemini it reads session JSON snapshots. When an agent uses a tool (like writing a file or running a command), the extension detects it and updates the character's animation accordingly. No CLI modifications are required — it's purely observational.
 
 The webview runs a lightweight game loop with canvas rendering, BFS pathfinding, and a character state machine (idle → walk → type/read). Everything is pixel-perfect at integer zoom levels.
 
@@ -92,8 +97,9 @@ The webview runs a lightweight game loop with canvas rendering, BFS pathfinding,
 
 ## Known Limitations
 
-- **Agent-terminal sync** — the way agents are connected to Claude Code terminal instances is not super robust and sometimes desyncs, especially when terminals are rapidly opened/closed or restored across sessions.
-- **Heuristic-based status detection** — Claude Code's JSONL transcript format does not provide clear signals for when an agent is waiting for user input or when it has finished its turn. The current detection is based on heuristics (idle timers, turn-duration events) and often misfires — agents may briefly show the wrong status or miss transitions.
+- **Agent-terminal sync** — the way agents are connected to interactive terminal instances is not super robust and sometimes desyncs, especially when terminals are rapidly opened/closed or restored across sessions.
+- **Provider log format churn** — status/tool tracking depends on local CLI log formats, which may change without notice and require parser updates.
+- **Feature parity across providers** — Claude currently has the richest permission/sub-agent tracking. Codex and Gemini use best-effort parsing where equivalent signals are unavailable.
 - **Windows-only testing** — the extension has only been tested on Windows 11. It may work on macOS or Linux, but there could be unexpected issues with file watching, paths, or terminal behavior on those platforms.
 
 ## Roadmap

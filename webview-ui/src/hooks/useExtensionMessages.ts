@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { OfficeState } from '../office/engine/officeState.js'
-import type { OfficeLayout, ToolActivity } from '../office/types.js'
+import type { OfficeLayout, ToolActivity, Provider } from '../office/types.js'
 import { extractToolName } from '../office/toolUtils.js'
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js'
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js'
@@ -40,6 +40,35 @@ export interface WorkspaceFolder {
   path: string
 }
 
+export interface DetectedProvider {
+  id: Provider
+  installed: boolean
+}
+
+export interface ProviderPreference {
+  defaultProvider: Provider
+  askEachTime: boolean
+}
+
+function toDetectedProviders(msg: Record<string, unknown>): DetectedProvider[] {
+  const direct = msg.providers
+  if (Array.isArray(direct)) {
+    return direct
+      .filter((p): p is { id: Provider; installed: boolean } =>
+        !!p &&
+        typeof p === 'object' &&
+        typeof (p as { id?: unknown }).id === 'string' &&
+        typeof (p as { installed?: unknown }).installed === 'boolean',
+      )
+      .map((p) => ({ id: p.id, installed: p.installed }))
+  }
+
+  const installed = msg.installed as Record<string, unknown> | undefined
+  if (!installed || typeof installed !== 'object') return []
+  const known: Provider[] = ['claude', 'codex', 'gemini']
+  return known.map((id) => ({ id, installed: installed[id] === true }))
+}
+
 export interface ExtensionMessageState {
   agents: number[]
   selectedAgent: number | null
@@ -50,6 +79,9 @@ export interface ExtensionMessageState {
   layoutReady: boolean
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> }
   workspaceFolders: WorkspaceFolder[]
+  providers: DetectedProvider[]
+  recommendedDefault: Provider | null
+  providerPreference: ProviderPreference
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -75,16 +107,19 @@ export function useExtensionMessages(
   const [layoutReady, setLayoutReady] = useState(false)
   const [loadedAssets, setLoadedAssets] = useState<{ catalog: FurnitureAsset[]; sprites: Record<string, string[][]> } | undefined>()
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([])
+  const [providers, setProviders] = useState<DetectedProvider[]>([])
+  const [recommendedDefault, setRecommendedDefault] = useState<Provider | null>(null)
+  const [providerPreference, setProviderPreference] = useState<ProviderPreference>({ defaultProvider: 'claude', askEachTime: false })
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false)
 
   useEffect(() => {
     // Buffer agents from existingAgents until layout is loaded
-    let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string; folderName?: string }> = []
+    let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string; folderName?: string; provider?: Provider }> = []
 
     const handler = (e: MessageEvent) => {
-      const msg = e.data
+      const msg = e.data as Record<string, unknown>
       const os = getOfficeState()
 
       if (msg.type === 'layoutLoaded') {
@@ -104,7 +139,7 @@ export function useExtensionMessages(
         }
         // Add buffered agents now that layout (and seats) are correct
         for (const p of pendingAgents) {
-          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName)
+          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName, p.provider)
         }
         pendingAgents = []
         layoutReadyRef.current = true
@@ -115,9 +150,10 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentCreated') {
         const id = msg.id as number
         const folderName = msg.folderName as string | undefined
+        const provider = msg.provider as Provider | undefined
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]))
         setSelectedAgent(id)
-        os.addAgent(id, undefined, undefined, undefined, undefined, folderName)
+        os.addAgent(id, undefined, undefined, undefined, undefined, folderName, provider)
         saveAgentSeats(os)
       } else if (msg.type === 'agentClosed') {
         const id = msg.id as number
@@ -147,12 +183,20 @@ export function useExtensionMessages(
         os.removeAgent(id)
       } else if (msg.type === 'existingAgents') {
         const incoming = msg.agents as number[]
-        const meta = (msg.agentMeta || {}) as Record<number, { palette?: number; hueShift?: number; seatId?: string }>
+        const meta = (msg.agentMeta || {}) as Record<number, { palette?: number; hueShift?: number; seatId?: string; provider?: Provider }>
         const folderNames = (msg.folderNames || {}) as Record<number, string>
+        const providerMap = (msg.providers || {}) as Record<number, Provider>
         // Buffer agents — they'll be added in layoutLoaded after seats are built
         for (const id of incoming) {
           const m = meta[id]
-          pendingAgents.push({ id, palette: m?.palette, hueShift: m?.hueShift, seatId: m?.seatId, folderName: folderNames[id] })
+          pendingAgents.push({
+            id,
+            palette: m?.palette,
+            hueShift: m?.hueShift,
+            seatId: m?.seatId,
+            folderName: folderNames[id],
+            provider: providerMap[id] || m?.provider,
+          })
         }
         setAgents((prev) => {
           const ids = new Set(prev)
@@ -353,6 +397,13 @@ export function useExtensionMessages(
         } catch (err) {
           console.error(`❌ Webview: Error processing furnitureAssetsLoaded:`, err)
         }
+      } else if (msg.type === 'providersDetected') {
+        setProviders(toDetectedProviders(msg))
+        setRecommendedDefault((msg.recommendedDefault as Provider | null | undefined) ?? (msg.recommended as Provider | null | undefined) ?? null)
+      } else if (msg.type === 'providerPreferenceLoaded' || msg.type === 'providerPreferenceSaved') {
+        if (typeof msg.defaultProvider === 'string' && typeof msg.askEachTime === 'boolean') {
+          setProviderPreference({ defaultProvider: msg.defaultProvider as Provider, askEachTime: msg.askEachTime })
+        }
       }
     }
     window.addEventListener('message', handler)
@@ -360,5 +411,5 @@ export function useExtensionMessages(
     return () => window.removeEventListener('message', handler)
   }, [getOfficeState])
 
-  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders }
+  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, providers, recommendedDefault, providerPreference }
 }

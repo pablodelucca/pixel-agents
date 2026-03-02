@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { AgentState } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
-import { processTranscriptLine } from './transcriptParser.js';
+import { processTranscriptLine, processGeminiSessionSnapshot } from './transcriptParser.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
 
 export function startFileWatching(
@@ -16,7 +16,6 @@ export function startFileWatching(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 ): void {
-	// Primary: fs.watch (unreliable on macOS — may miss events)
 	try {
 		const watcher = fs.watch(filePath, () => {
 			readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
@@ -26,7 +25,6 @@ export function startFileWatching(
 		console.log(`[Pixel Agents] fs.watch failed for agent ${agentId}: ${e}`);
 	}
 
-	// Secondary: fs.watchFile (stat-based polling, reliable on macOS)
 	try {
 		fs.watchFile(filePath, { interval: FILE_WATCHER_POLL_INTERVAL_MS }, () => {
 			readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
@@ -35,7 +33,6 @@ export function startFileWatching(
 		console.log(`[Pixel Agents] fs.watchFile failed for agent ${agentId}: ${e}`);
 	}
 
-	// Tertiary: manual poll as last resort
 	const interval = setInterval(() => {
 		if (!agents.has(agentId)) {
 			clearInterval(interval);
@@ -56,7 +53,18 @@ export function readNewLines(
 ): void {
 	const agent = agents.get(agentId);
 	if (!agent) return;
+	if (!agent.jsonlFile) return;
 	try {
+		if (agent.sessionFormat === 'gemini-json') {
+			const stat = fs.statSync(agent.jsonlFile);
+			if (stat.size <= agent.fileOffset && agent.processedGeminiMessages !== undefined) return;
+			const raw = fs.readFileSync(agent.jsonlFile, 'utf-8');
+			agent.fileOffset = stat.size;
+			cancelPermissionTimer(agentId, permissionTimers);
+			processGeminiSessionSnapshot(agentId, raw, agents, waitingTimers, permissionTimers, webview);
+			return;
+		}
+
 		const stat = fs.statSync(agent.jsonlFile);
 		if (stat.size <= agent.fileOffset) return;
 
@@ -72,7 +80,6 @@ export function readNewLines(
 
 		const hasLines = lines.some(l => l.trim());
 		if (hasLines) {
-			// New data arriving — cancel timers (data flowing means agent is still active)
 			cancelWaitingTimer(agentId, waitingTimers);
 			cancelPermissionTimer(agentId, permissionTimers);
 			if (agent.permissionSent) {
@@ -105,7 +112,6 @@ export function ensureProjectScan(
 	persistAgents: () => void,
 ): void {
 	if (projectScanTimerRef.current) return;
-	// Seed with all existing JSONL files so we only react to truly new ones
 	try {
 		const files = fs.readdirSync(projectDir)
 			.filter(f => f.endsWith('.jsonl'))
@@ -148,32 +154,28 @@ function scanForNewJsonlFiles(
 		if (!knownJsonlFiles.has(file)) {
 			knownJsonlFiles.add(file);
 			if (activeAgentIdRef.current !== null) {
-				// Active agent focused → /clear reassignment
-				console.log(`[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`);
 				reassignAgentToFile(
 					activeAgentIdRef.current, file,
 					agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
 					webview, persistAgents,
 				);
 			} else {
-				// No active agent → try to adopt the focused terminal
 				const activeTerminal = vscode.window.activeTerminal;
-				if (activeTerminal) {
-					let owned = false;
-					for (const agent of agents.values()) {
-						if (agent.terminalRef === activeTerminal) {
-							owned = true;
-							break;
-						}
+				if (!activeTerminal) continue;
+				let owned = false;
+				for (const agent of agents.values()) {
+					if (agent.terminalRef === activeTerminal) {
+						owned = true;
+						break;
 					}
-					if (!owned) {
-						adoptTerminalForFile(
-							activeTerminal, file, projectDir,
-							nextAgentIdRef, agents, activeAgentIdRef,
-							fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-							webview, persistAgents,
-						);
-					}
+				}
+				if (!owned) {
+					adoptTerminalForFile(
+						activeTerminal, file, projectDir,
+						nextAgentIdRef, agents, activeAgentIdRef,
+						fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+						webview, persistAgents,
+					);
 				}
 			}
 		}
@@ -198,8 +200,10 @@ function adoptTerminalForFile(
 	const agent: AgentState = {
 		id,
 		terminalRef: terminal,
+		provider: 'claude',
 		projectDir,
 		jsonlFile,
+		sessionFormat: 'jsonl',
 		fileOffset: 0,
 		lineBuffer: '',
 		activeToolIds: new Set(),
@@ -216,9 +220,7 @@ function adoptTerminalForFile(
 	activeAgentIdRef.current = id;
 	persistAgents();
 
-	console.log(`[Pixel Agents] Agent ${id}: adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`);
-	webview?.postMessage({ type: 'agentCreated', id });
-
+	webview?.postMessage({ type: 'agentCreated', id, provider: 'claude' });
 	startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
 	readNewLines(id, agents, waitingTimers, permissionTimers, webview);
 }
@@ -237,7 +239,6 @@ export function reassignAgentToFile(
 	const agent = agents.get(agentId);
 	if (!agent) return;
 
-	// Stop old file watching
 	fileWatchers.get(agentId)?.close();
 	fileWatchers.delete(agentId);
 	const pt = pollingTimers.get(agentId);
@@ -245,18 +246,16 @@ export function reassignAgentToFile(
 	pollingTimers.delete(agentId);
 	try { fs.unwatchFile(agent.jsonlFile); } catch { /* ignore */ }
 
-	// Clear activity
 	cancelWaitingTimer(agentId, waitingTimers);
 	cancelPermissionTimer(agentId, permissionTimers);
 	clearAgentActivity(agent, agentId, permissionTimers, webview);
 
-	// Swap to new file
 	agent.jsonlFile = newFilePath;
 	agent.fileOffset = 0;
 	agent.lineBuffer = '';
 	persistAgents();
 
-	// Start watching new file
 	startFileWatching(agentId, newFilePath, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
 	readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
 }
+

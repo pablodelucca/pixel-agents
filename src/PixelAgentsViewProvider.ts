@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { AgentState } from './types.js';
+import type { AgentProvider } from './types.js';
 import {
 	launchNewTerminal,
 	removeAgent,
@@ -14,9 +15,16 @@ import {
 } from './agentManager.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
-import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
+import {
+	WORKSPACE_KEY_AGENT_SEATS,
+	GLOBAL_KEY_SOUND_ENABLED,
+	GLOBAL_KEY_DEFAULT_PROVIDER,
+	GLOBAL_KEY_ASK_PROVIDER_EACH_TIME,
+	WORKSPACE_KEY_PROVIDER_PREFERENCE_SET,
+} from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
+import { detectInstalledProviders, getRecommendedProvider } from './providers.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	nextAgentId = { current: 1 };
@@ -34,6 +42,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	// /clear detection: project-level scan for new JSONL files
 	activeAgentId = { current: null as number | null };
 	knownJsonlFiles = new Set<string>();
+	claimedSessionFiles = new Set<string>();
 	projectScanTimer = { current: null as ReturnType<typeof setInterval> | null };
 
 	// Bundled default layout (loaded from assets/default-layout.json)
@@ -56,21 +65,73 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		persistAgents(this.agents, this.context);
 	};
 
+	private getProviderPreference(): { defaultProvider: AgentProvider | null; askEachTime: boolean; preferenceSet: boolean } {
+		const installed = detectInstalledProviders();
+		const recommended = getRecommendedProvider(installed);
+		const preferenceSet = this.context.workspaceState.get<boolean>(WORKSPACE_KEY_PROVIDER_PREFERENCE_SET, false);
+		const saved = this.context.globalState.get<AgentProvider | null>(GLOBAL_KEY_DEFAULT_PROVIDER, null);
+		const savedAskEachTime = this.context.globalState.get<boolean>(GLOBAL_KEY_ASK_PROVIDER_EACH_TIME, false);
+		const installedCount = Object.values(installed).filter(Boolean).length;
+		// First-run behavior: if multiple providers are installed and preference is unset, ask each time.
+		const askEachTime = preferenceSet ? savedAskEachTime : (savedAskEachTime || installedCount > 1);
+
+		let defaultProvider = saved;
+		if (!defaultProvider || !installed[defaultProvider]) {
+			defaultProvider = recommended;
+		}
+		return { defaultProvider, askEachTime, preferenceSet };
+	}
+
+	private ensureDefaultProviderInitialized(): void {
+		const installed = detectInstalledProviders();
+		const saved = this.context.globalState.get<AgentProvider | null>(GLOBAL_KEY_DEFAULT_PROVIDER, null);
+		if (saved && installed[saved]) return;
+		const recommended = getRecommendedProvider(installed);
+		if (recommended) {
+			this.context.globalState.update(GLOBAL_KEY_DEFAULT_PROVIDER, recommended);
+		}
+	}
+
 	resolveWebviewView(webviewView: vscode.WebviewView) {
 		this.webviewView = webviewView;
 		webviewView.webview.options = { enableScripts: true };
 		webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
 
 		webviewView.webview.onDidReceiveMessage(async (message) => {
-			if (message.type === 'openClaude') {
+			if (message.type === 'openClaude' || message.type === 'openAgent') {
+				const installed = detectInstalledProviders();
+				const pref = this.getProviderPreference();
+				let provider = (message.provider as AgentProvider | undefined);
+				if (!provider) {
+					provider = pref.defaultProvider || getRecommendedProvider(installed) || 'claude';
+				}
+				if (!installed[provider]) {
+					vscode.window.showErrorMessage(`Pixel Agents: ${provider} CLI is not installed.`);
+					return;
+				}
 				await launchNewTerminal(
 					this.nextAgentId, this.nextTerminalIndex,
 					this.agents, this.activeAgentId, this.knownJsonlFiles,
+					this.claimedSessionFiles,
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 					this.jsonlPollTimers, this.projectScanTimer,
 					this.webview, this.persistAgents,
+					provider,
 					message.folderPath as string | undefined,
 				);
+			} else if (message.type === 'saveProviderPreference') {
+				const provider = message.defaultProvider as AgentProvider | null;
+				const askEachTime = !!message.askEachTime;
+				if (provider) {
+					this.context.globalState.update(GLOBAL_KEY_DEFAULT_PROVIDER, provider);
+				}
+				this.context.globalState.update(GLOBAL_KEY_ASK_PROVIDER_EACH_TIME, askEachTime);
+				this.context.workspaceState.update(WORKSPACE_KEY_PROVIDER_PREFERENCE_SET, true);
+				this.webview?.postMessage({
+					type: 'providerPreferenceSaved',
+					defaultProvider: provider,
+					askEachTime,
+				});
 			} else if (message.type === 'focusAgent') {
 				const agent = this.agents.get(message.id);
 				if (agent) {
@@ -91,10 +152,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			} else if (message.type === 'setSoundEnabled') {
 				this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
 			} else if (message.type === 'webviewReady') {
+				this.ensureDefaultProviderInitialized();
+				const installed = detectInstalledProviders();
+				const recommended = getRecommendedProvider(installed);
 				restoreAgents(
 					this.context,
 					this.nextAgentId, this.nextTerminalIndex,
 					this.agents, this.knownJsonlFiles,
+					this.claimedSessionFiles,
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 					this.jsonlPollTimers, this.projectScanTimer, this.activeAgentId,
 					this.webview, this.persistAgents,
@@ -102,6 +167,18 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				// Send persisted settings to webview
 				const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
 				this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled });
+				const pref = this.getProviderPreference();
+				this.webview?.postMessage({
+					type: 'providersDetected',
+					installed,
+					recommended,
+				});
+				this.webview?.postMessage({
+					type: 'providerPreferenceLoaded',
+					defaultProvider: pref.defaultProvider,
+					askEachTime: pref.askEachTime,
+					preferenceSet: pref.preferenceSet,
+				});
 
 				// Send workspace folders to webview (only when multi-root)
 				const wsFolders = vscode.workspace.workspaceFolders;
@@ -113,8 +190,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				}
 
 				// Ensure project scan runs even with no restored agents (to adopt external terminals)
-				const projectDir = getProjectDirPath();
 				const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+				const projectDir = getProjectDirPath('claude', workspaceRoot);
 				console.log('[Extension] workspaceRoot:', workspaceRoot);
 				console.log('[Extension] projectDir:', projectDir);
 				if (projectDir) {
@@ -225,7 +302,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				}
 				sendExistingAgents(this.agents, this.context, this.webview);
 			} else if (message.type === 'openSessionsFolder') {
-				const projectDir = getProjectDirPath();
+				const projectDir = getProjectDirPath('claude', vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
 				if (projectDir && fs.existsSync(projectDir)) {
 					vscode.env.openExternal(vscode.Uri.file(projectDir));
 				}
@@ -286,6 +363,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					}
 					removeAgent(
 						id, this.agents,
+						this.claimedSessionFiles,
 						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 						this.jsonlPollTimers, this.persistAgents,
 					);
@@ -327,6 +405,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		for (const id of [...this.agents.keys()]) {
 			removeAgent(
 				id, this.agents,
+				this.claimedSessionFiles,
 				this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 				this.jsonlPollTimers, this.persistAgents,
 			);

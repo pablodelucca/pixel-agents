@@ -49,6 +49,13 @@ export const Direction = {
 } as const
 export type Direction = (typeof Direction)[keyof typeof Direction]
 
+export const Provider = {
+  CLAUDE: 'claude',
+  CODEX: 'codex',
+  GEMINI: 'gemini',
+} as const
+export type Provider = (typeof Provider)[keyof typeof Provider]
+
 /** 2D array of hex color strings (or '' for transparent). [row][col] */
 export type SpriteData = string[][]
 
@@ -195,4 +202,6 @@ export interface Character {
   matrixEffectSeeds: number[]
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string
+  /** Provider for this agent */
+  provider?: Provider
 }

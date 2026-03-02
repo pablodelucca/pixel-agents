@@ -1,5 +1,20 @@
 # Changelog
 
+## Next
+
+### Features
+
+- Add multi-provider interactive agent support (Claude, Codex, Gemini) with mixed-provider agents in a single workspace.
+- Add provider detection and persisted provider preferences (`defaultProvider`, `askEachTime`).
+- Add `openAgent` message flow while keeping `openClaude` as a backward-compatible alias.
+- Include provider metadata in `agentCreated` and `existingAgents` payloads.
+
+### Migration Notes
+
+- Existing persisted agents without `provider` are restored as `claude`.
+- Claude `/clear` rollover behavior is preserved.
+- Codex and Gemini use provider-specific session file resolution and best-effort tool/turn parsing.
+
 ## v1.0.2
 
 ### Bug Fixes

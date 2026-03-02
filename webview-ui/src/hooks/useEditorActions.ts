@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import type { OfficeState } from '../office/engine/officeState.js'
 import type { EditorState } from '../office/editor/editorState.js'
-import { EditTool } from '../office/types.js'
+import { EditTool, Provider } from '../office/types.js'
 import { TileType } from '../office/types.js'
 import type { OfficeLayout, EditTool as EditToolType, TileType as TileTypeVal, FloorColor, PlacedFurniture } from '../office/types.js'
 import { paintTile, placeFurniture, removeFurniture, moveFurniture, rotateFurniture, toggleFurnitureState, canPlaceFurniture, getWallPlacementRow, expandLayout } from '../office/editor/editorActions.js'
@@ -19,7 +19,7 @@ export interface EditorActions {
   panRef: React.MutableRefObject<{ x: number; y: number }>
   saveTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
   setLastSavedLayout: (layout: OfficeLayout) => void
-  handleOpenClaude: () => void
+  handleOpenAgent: (provider?: Provider, folderPath?: string) => void
   handleToggleEditMode: () => void
   handleToolChange: (tool: EditToolType) => void
   handleTileTypeChange: (type: TileTypeVal) => void
@@ -78,8 +78,8 @@ export function useEditorActions(
     setEditorTick((n) => n + 1)
   }, [getOfficeState, editorState, saveLayout])
 
-  const handleOpenClaude = useCallback(() => {
-    vscode.postMessage({ type: 'openClaude' })
+  const handleOpenAgent = useCallback((provider?: Provider, folderPath?: string) => {
+    vscode.postMessage({ type: 'openAgent', provider, folderPath })
   }, [])
 
   const handleToggleEditMode = useCallback(() => {
@@ -503,7 +503,7 @@ export function useEditorActions(
     panRef,
     saveTimerRef,
     setLastSavedLayout,
-    handleOpenClaude,
+    handleOpenAgent,
     handleToggleEditMode,
     handleToolChange,
     handleTileTypeChange,

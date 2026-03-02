@@ -31,6 +31,8 @@ export const LAYOUT_FILE_POLL_INTERVAL_MS = 2000;
 
 // ── Settings Persistence ────────────────────────────────────
 export const GLOBAL_KEY_SOUND_ENABLED = 'pixel-agents.soundEnabled';
+export const GLOBAL_KEY_DEFAULT_PROVIDER = 'pixel-agents.defaultProvider';
+export const GLOBAL_KEY_ASK_PROVIDER_EACH_TIME = 'pixel-agents.askProviderEachTime';
 
 // ── VS Code Identifiers ─────────────────────────────────────
 export const VIEW_ID = 'pixel-agents.panelView';
@@ -39,4 +41,6 @@ export const COMMAND_EXPORT_DEFAULT_LAYOUT = 'pixel-agents.exportDefaultLayout';
 export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';
 export const WORKSPACE_KEY_AGENT_SEATS = 'pixel-agents.agentSeats';
 export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
-export const TERMINAL_NAME_PREFIX = 'Claude Code';
+export const WORKSPACE_KEY_PROVIDER_PREFERENCE_SET = 'pixel-agents.providerPreferenceSet';
+
+export const PROVIDERS = ['claude', 'codex', 'gemini'] as const;

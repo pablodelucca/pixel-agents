@@ -1,4 +1,4 @@
-import { TILE_SIZE, MATRIX_EFFECT_DURATION, CharacterState, Direction } from '../types.js'
+import { TILE_SIZE, MATRIX_EFFECT_DURATION, CharacterState, Direction, Provider } from '../types.js'
 import {
   PALETTE_COUNT,
   HUE_SHIFT_MIN_DEG,
@@ -193,7 +193,7 @@ export class OfficeState {
     return { palette, hueShift }
   }
 
-  addAgent(id: number, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean, folderName?: string): void {
+  addAgent(id: number, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean, folderName?: string, provider?: Provider): void {
     if (this.characters.has(id)) return
 
     let palette: number
@@ -238,6 +238,9 @@ export class OfficeState {
 
     if (folderName) {
       ch.folderName = folderName
+    }
+    if (provider) {
+      ch.provider = provider
     }
     if (!skipSpawnEffect) {
       ch.matrixEffect = 'spawn'
