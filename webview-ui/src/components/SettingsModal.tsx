@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { vscode } from '../vscodeApi.js'
+import { vscode, isCliMode } from '../vscodeApi.js'
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js'
 
 interface SettingsModalProps {
@@ -92,23 +92,45 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
           </button>
         </div>
         {/* Menu items */}
+        {!isCliMode && (
+          <button
+            onClick={() => {
+              vscode.postMessage({ type: 'openSessionsFolder' })
+              onClose()
+            }}
+            onMouseEnter={() => setHovered('sessions')}
+            onMouseLeave={() => setHovered(null)}
+            style={{
+              ...menuItemBase,
+              background: hovered === 'sessions' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+            }}
+          >
+            Open Sessions Folder
+          </button>
+        )}
         <button
           onClick={() => {
-            vscode.postMessage({ type: 'openSessionsFolder' })
-            onClose()
-          }}
-          onMouseEnter={() => setHovered('sessions')}
-          onMouseLeave={() => setHovered(null)}
-          style={{
-            ...menuItemBase,
-            background: hovered === 'sessions' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-          }}
-        >
-          Open Sessions Folder
-        </button>
-        <button
-          onClick={() => {
-            vscode.postMessage({ type: 'exportLayout' })
+            if (isCliMode) {
+              // In CLI mode, request layout data from backend; the backend sends exportLayoutData
+              // which we handle via a one-time message listener
+              const handler = (e: MessageEvent) => {
+                const msg = e.data
+                if (msg?.type === 'exportLayoutData' && typeof msg.layout === 'string') {
+                  window.removeEventListener('message', handler)
+                  const blob = new Blob([msg.layout], { type: 'application/json' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = 'pixel-agents-layout.json'
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }
+              }
+              window.addEventListener('message', handler)
+              vscode.postMessage({ type: 'exportLayout' })
+            } else {
+              vscode.postMessage({ type: 'exportLayout' })
+            }
             onClose()
           }}
           onMouseEnter={() => setHovered('export')}
@@ -122,7 +144,33 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
         </button>
         <button
           onClick={() => {
-            vscode.postMessage({ type: 'importLayout' })
+            if (isCliMode) {
+              // In CLI mode, use browser file picker
+              const input = document.createElement('input')
+              input.type = 'file'
+              input.accept = '.json'
+              input.onchange = () => {
+                const file = input.files?.[0]
+                if (!file) return
+                const reader = new FileReader()
+                reader.onload = () => {
+                  try {
+                    const imported = JSON.parse(reader.result as string)
+                    if (imported.version !== 1 || !Array.isArray(imported.tiles)) {
+                      alert('Invalid layout file.')
+                      return
+                    }
+                    vscode.postMessage({ type: 'importLayoutData', layout: imported })
+                  } catch {
+                    alert('Failed to parse layout file.')
+                  }
+                }
+                reader.readAsText(file)
+              }
+              input.click()
+            } else {
+              vscode.postMessage({ type: 'importLayout' })
+            }
             onClose()
           }}
           onMouseEnter={() => setHovered('import')}

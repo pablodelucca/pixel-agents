@@ -4,6 +4,7 @@ const path = require("path");
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
+const cliBuild = process.argv.includes('--cli');
 
 /**
  * Copy assets folder to dist/assets
@@ -46,7 +47,7 @@ const esbuildProblemMatcherPlugin = {
 	},
 };
 
-async function main() {
+async function buildExtension() {
 	const ctx = await esbuild.context({
 		entryPoints: [
 			'src/extension.ts'
@@ -72,6 +73,49 @@ async function main() {
 		await ctx.dispose();
 		// Copy assets after build
 		copyAssets();
+	}
+}
+
+async function buildCli() {
+	console.log('Building CLI...');
+	const ctx = await esbuild.context({
+		entryPoints: ['cli/main.ts'],
+		bundle: true,
+		format: 'cjs',
+		minify: production,
+		sourcemap: !production,
+		sourcesContent: false,
+		platform: 'node',
+		outfile: 'dist/cli.js',
+		alias: {
+			'vscode': './cli/vscode-stub.ts',
+		},
+		banner: {
+			js: '#!/usr/bin/env node',
+		},
+		logLevel: 'silent',
+		plugins: [esbuildProblemMatcherPlugin],
+	});
+	if (watch) {
+		await ctx.watch();
+	} else {
+		await ctx.rebuild();
+		await ctx.dispose();
+		// Copy assets for CLI too
+		copyAssets();
+		// Make CLI executable
+		try {
+			fs.chmodSync(path.join(__dirname, 'dist', 'cli.js'), '755');
+		} catch { /* ignore on Windows */ }
+		console.log('✓ CLI built → dist/cli.js');
+	}
+}
+
+async function main() {
+	if (cliBuild) {
+		await buildCli();
+	} else {
+		await buildExtension();
 	}
 }
 
