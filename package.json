@@ -46,6 +46,26 @@
           "name": "Pixel Agents"
         }
       ]
+    },
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixel-agents.externalSessions.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Detect Claude sessions running outside VS Code (in external terminals)"
+        },
+        "pixel-agents.externalSessions.scope": {
+          "type": "string",
+          "enum": ["currentProject", "allProjects"],
+          "enumDescriptions": [
+            "Only detect sessions for the current workspace project",
+            "Detect sessions across all projects"
+          ],
+          "default": "currentProject",
+          "description": "Scope of external session detection"
+        }
+      }
     }
   },
   "scripts": {
@@ -59,7 +79,9 @@
     "package": "npm run check-types && npm run lint && node esbuild.js --production && npm run build:webview",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "import-tileset": "tsx scripts/import-tileset-cli.ts"
+    "import-tileset": "tsx scripts/import-tileset-cli.ts",
+    "electron:dev": "npm run build:webview && cd electron && npm run dev",
+    "electron:build": "npm run build:webview && cd electron && npm run package"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.74.0",

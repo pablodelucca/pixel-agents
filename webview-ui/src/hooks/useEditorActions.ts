@@ -4,7 +4,7 @@ import type { EditorState } from '../office/editor/editorState.js'
 import { EditTool } from '../office/types.js'
 import { TileType } from '../office/types.js'
 import type { OfficeLayout, EditTool as EditToolType, TileType as TileTypeVal, FloorColor, PlacedFurniture } from '../office/types.js'
-import { paintTile, placeFurniture, removeFurniture, moveFurniture, rotateFurniture, toggleFurnitureState, canPlaceFurniture, getWallPlacementRow, expandLayout } from '../office/editor/editorActions.js'
+import { paintTile, placeFurniture, removeFurniture, moveFurniture, rotateFurniture, toggleFurnitureState, canPlaceFurniture, getWallPlacementRow, expandLayout, paintZone, moveRegion } from '../office/editor/editorActions.js'
 import type { ExpandDirection } from '../office/editor/editorActions.js'
 import { getCatalogEntry, getRotatedType, getToggledType } from '../office/layout/furnitureCatalog.js'
 import { defaultZoom } from '../office/toolUtils.js'
@@ -39,6 +39,10 @@ export interface EditorActions {
   handleEditorEraseAction: (col: number, row: number) => void
   handleEditorSelectionChange: () => void
   handleDragMove: (uid: string, newCol: number, newRow: number) => void
+  handleEditorZoneAction: (col: number, row: number) => void
+  handleZoneIdChange: (zoneId: string | null) => void
+  handleZoneColorChange: (projectId: string, hue: number) => void
+  handleRegionMove: (srcCol: number, srcRow: number, w: number, h: number, dstCol: number, dstRow: number) => void
 }
 
 export function useEditorActions(
@@ -118,6 +122,7 @@ export function useEditorActions(
     editorState.clearSelection()
     editorState.clearGhost()
     editorState.clearDrag()
+    editorState.clearRegion()
     colorEditUidRef.current = null
     wallColorEditActiveRef.current = false
     setEditorTick((n) => n + 1)
@@ -471,6 +476,12 @@ export function useEditorActions(
         editorState.activeTool = EditTool.WALL_PAINT
       }
       setEditorTick((n) => n + 1)
+    } else if (editorState.activeTool === EditTool.ZONE_PAINT) {
+      if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return
+      const newLayout = paintZone(layout, col, row, editorState.selectedZoneId)
+      if (newLayout !== layout) {
+        applyEdit(newLayout)
+      }
     } else if (editorState.activeTool === EditTool.SELECT) {
       const hit = layout.furniture.find((f) => {
         const entry = getCatalogEntry(f.type)
@@ -481,6 +492,55 @@ export function useEditorActions(
       setEditorTick((n) => n + 1)
     }
   }, [getOfficeState, editorState, applyEdit, maybeExpand])
+
+  const handleEditorZoneAction = useCallback((col: number, row: number) => {
+    const os = getOfficeState()
+    const layout = os.getLayout()
+    if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return
+    const newLayout = paintZone(layout, col, row, editorState.selectedZoneId)
+    if (newLayout !== layout) {
+      applyEdit(newLayout)
+    }
+  }, [getOfficeState, editorState, applyEdit])
+
+  const handleZoneIdChange = useCallback((zoneId: string | null) => {
+    editorState.selectedZoneId = zoneId
+    zoneColorEditActiveRef.current = null
+    setEditorTick((n) => n + 1)
+  }, [editorState])
+
+  // Track which zone we've pushed undo for during color editing
+  const zoneColorEditActiveRef = useRef<string | null>(null)
+
+  const handleZoneColorChange = useCallback((projectId: string, hue: number) => {
+    const os = getOfficeState()
+    const layout = os.getLayout()
+    const existingColors = layout.zoneColors || {}
+
+    // Push undo only once per zone editing session
+    if (zoneColorEditActiveRef.current !== projectId) {
+      editorState.pushUndo(layout)
+      editorState.clearRedo()
+      zoneColorEditActiveRef.current = projectId
+    }
+
+    const newZoneColors = { ...existingColors, [projectId]: hue }
+    const newLayout = { ...layout, zoneColors: newZoneColors }
+    editorState.isDirty = true
+    setIsDirty(true)
+    os.rebuildFromLayout(newLayout)
+    saveLayout(newLayout)
+    setEditorTick((n) => n + 1)
+  }, [getOfficeState, editorState, saveLayout])
+
+  const handleRegionMove = useCallback((srcCol: number, srcRow: number, w: number, h: number, dstCol: number, dstRow: number) => {
+    const os = getOfficeState()
+    const layout = os.getLayout()
+    const newLayout = moveRegion(layout, srcCol, srcRow, w, h, dstCol, dstRow)
+    if (newLayout !== layout) {
+      applyEdit(newLayout)
+    }
+  }, [getOfficeState, applyEdit])
 
   const handleEditorEraseAction = useCallback((col: number, row: number) => {
     const os = getOfficeState()
@@ -523,5 +583,9 @@ export function useEditorActions(
     handleEditorEraseAction,
     handleEditorSelectionChange,
     handleDragMove,
+    handleEditorZoneAction,
+    handleZoneIdChange,
+    handleZoneColorChange,
+    handleRegionMove,
   }
 }

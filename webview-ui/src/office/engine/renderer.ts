@@ -12,6 +12,7 @@ import {
   OUTLINE_Z_SORT_OFFSET,
   SELECTED_OUTLINE_ALPHA,
   HOVERED_OUTLINE_ALPHA,
+  EXTERNAL_AGENT_OPACITY,
   GHOST_PREVIEW_SPRITE_ALPHA,
   GHOST_PREVIEW_TINT_ALPHA,
   SELECTION_DASH_PATTERN,
@@ -38,7 +39,16 @@ import {
   SELECTION_HIGHLIGHT_COLOR,
   DELETE_BUTTON_BG,
   ROTATE_BUTTON_BG,
+  ZONE_OVERLAY_SATURATION,
+  ZONE_OVERLAY_LIGHTNESS,
+  ZONE_OVERLAY_ALPHA,
+  ZONE_LOBBY_OVERLAY_COLOR,
+  ZONE_DESATURATE_FILTER,
+  REGION_SELECT_COLOR,
+  REGION_SELECT_STROKE,
+  REGION_MOVE_GHOST_ALPHA,
 } from '../../constants.js'
+import { OfficeState } from './officeState.js'
 
 // ── Render functions ────────────────────────────────────────────
 
@@ -170,10 +180,18 @@ export function renderScene(
       })
     }
 
+    const isExternalAgent = ch.isExternal
     drawables.push({
       zY: charZY,
       draw: (c) => {
-        c.drawImage(cached, drawX, drawY)
+        if (isExternalAgent) {
+          c.save()
+          c.globalAlpha = EXTERNAL_AGENT_OPACITY
+          c.drawImage(cached, drawX, drawY)
+          c.restore()
+        } else {
+          c.drawImage(cached, drawX, drawY)
+        }
       },
     })
   }
@@ -494,6 +512,89 @@ export interface ButtonBounds {
 export type DeleteButtonBounds = ButtonBounds
 export type RotateButtonBounds = ButtonBounds
 
+// ── Zone overlay ─────────────────────────────────────────────────
+
+export function renderZoneOverlay(
+  ctx: CanvasRenderingContext2D,
+  zoneMap: Array<string | null>,
+  cols: number,
+  rows: number,
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+  tileMap: TileTypeVal[][],
+  zoneColors?: Record<string, number>,
+): void {
+  const s = TILE_SIZE * zoom
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const tile = tileMap[r]?.[c]
+      if (tile === TileType.WALL || tile === TileType.VOID) continue
+      const idx = r * cols + c
+      const zone = zoneMap[idx]
+      if (zone === null || zone === undefined) {
+        ctx.fillStyle = ZONE_LOBBY_OVERLAY_COLOR
+      } else {
+        const hue = zoneColors?.[zone] ?? OfficeState.projectIdToHue(zone)
+        ctx.fillStyle = `hsla(${hue}, ${ZONE_OVERLAY_SATURATION}%, ${ZONE_OVERLAY_LIGHTNESS}%, ${ZONE_OVERLAY_ALPHA})`
+      }
+      ctx.fillRect(offsetX + c * s, offsetY + r * s, s, s)
+    }
+  }
+}
+
+// ── Region selection overlay ─────────────────────────────────────
+
+export function renderRegionSelection(
+  ctx: CanvasRenderingContext2D,
+  col: number,
+  row: number,
+  w: number,
+  h: number,
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+  isDragging: boolean,
+): void {
+  const s = TILE_SIZE * zoom
+  const x = offsetX + col * s
+  const y = offsetY + row * s
+  ctx.save()
+  ctx.fillStyle = REGION_SELECT_COLOR
+  ctx.fillRect(x, y, w * s, h * s)
+  ctx.strokeStyle = REGION_SELECT_STROKE
+  ctx.lineWidth = 2
+  if (isDragging) {
+    ctx.setLineDash(SELECTION_DASH_PATTERN)
+  }
+  ctx.strokeRect(x + 1, y + 1, w * s - 2, h * s - 2)
+  ctx.restore()
+}
+
+export function renderRegionMoveGhost(
+  ctx: CanvasRenderingContext2D,
+  col: number,
+  row: number,
+  w: number,
+  h: number,
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  const s = TILE_SIZE * zoom
+  const x = offsetX + col * s
+  const y = offsetY + row * s
+  ctx.save()
+  ctx.globalAlpha = REGION_MOVE_GHOST_ALPHA
+  ctx.fillStyle = REGION_SELECT_COLOR
+  ctx.fillRect(x, y, w * s, h * s)
+  ctx.strokeStyle = REGION_SELECT_STROKE
+  ctx.lineWidth = 2
+  ctx.setLineDash(SELECTION_DASH_PATTERN)
+  ctx.strokeRect(x + 1, y + 1, w * s - 2, h * s - 2)
+  ctx.restore()
+}
+
 export interface EditorRenderState {
   showGrid: boolean
   ghostSprite: SpriteData | null
@@ -516,6 +617,16 @@ export interface EditorRenderState {
   ghostBorderHoverCol: number
   /** Hovered ghost border tile row (-1 to rows) */
   ghostBorderHoverRow: number
+  /** Zone overlay data */
+  showZoneOverlay: boolean
+  zoneMap: Array<string | null>
+  zoneCols: number
+  zoneColors: Record<string, number>
+  /** Region selection rect (finalized or in-progress) */
+  regionRect: { col: number; row: number; w: number; h: number } | null
+  regionIsSelecting: boolean
+  /** Region move ghost position */
+  regionMoveGhost: { col: number; row: number; w: number; h: number } | null
 }
 
 export interface SelectionRenderState {
@@ -555,6 +666,13 @@ export function renderFrame(
   const offsetX = Math.floor((canvasWidth - mapW) / 2) + Math.round(panX)
   const offsetY = Math.floor((canvasHeight - mapH) / 2) + Math.round(panY)
 
+  // Apply desaturation filter when zone overlay is active (grayscale scene behind bright zones)
+  const zoneDesaturate = editor?.showZoneOverlay ?? false
+  if (zoneDesaturate) {
+    ctx.save()
+    ctx.filter = ZONE_DESATURATE_FILTER
+  }
+
   // Draw tiles (floor + wall base color)
   renderTileGrid(ctx, tileMap, offsetX, offsetY, zoom, tileColors, layoutCols)
 
@@ -579,10 +697,18 @@ export function renderFrame(
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom)
 
+  // Restore filter before drawing overlays
+  if (zoneDesaturate) {
+    ctx.restore()
+  }
+
   // Editor overlays
   if (editor) {
     if (editor.showGrid) {
       renderGridOverlay(ctx, offsetX, offsetY, zoom, cols, rows, tileMap)
+    }
+    if (editor.showZoneOverlay) {
+      renderZoneOverlay(ctx, editor.zoneMap, editor.zoneCols, rows, offsetX, offsetY, zoom, tileMap, editor.zoneColors)
     }
     if (editor.showGhostBorder) {
       renderGhostBorder(ctx, offsetX, offsetY, zoom, cols, rows, editor.ghostBorderHoverCol, editor.ghostBorderHoverRow)
@@ -601,6 +727,12 @@ export function renderFrame(
     } else {
       editor.deleteButtonBounds = null
       editor.rotateButtonBounds = null
+    }
+    if (editor.regionRect) {
+      renderRegionSelection(ctx, editor.regionRect.col, editor.regionRect.row, editor.regionRect.w, editor.regionRect.h, offsetX, offsetY, zoom, editor.regionIsSelecting)
+    }
+    if (editor.regionMoveGhost) {
+      renderRegionMoveGhost(ctx, editor.regionMoveGhost.col, editor.regionMoveGhost.row, editor.regionMoveGhost.w, editor.regionMoveGhost.h, offsetX, offsetY, zoom)
     }
   }
 

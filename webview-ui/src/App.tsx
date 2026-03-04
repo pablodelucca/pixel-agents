@@ -119,13 +119,25 @@ function EditActionBar({ editor, editorState: es }: { editor: ReturnType<typeof 
 function App() {
   const editor = useEditorActions(getOfficeState, editorState)
 
+  // Wire up the layout-changed callback for auto-generated rooms
+  const os = getOfficeState()
+  os.onLayoutChanged = (layout) => {
+    vscode.postMessage({ type: 'saveLayout', layout })
+    editor.setLastSavedLayout(layout)
+  }
+
   const isEditDirty = useCallback(() => editor.isEditMode && editor.isDirty, [editor.isEditMode, editor.isDirty])
 
-  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
+  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
 
   const [isDebugMode, setIsDebugMode] = useState(false)
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
+
+  const handleToggleShowLabelsAlways = useCallback(() => {
+    const newVal = !showLabelsAlways
+    vscode.postMessage({ type: 'setShowLabelsAlways', enabled: newVal })
+  }, [showLabelsAlways])
 
   const handleSelectAgent = useCallback((id: number) => {
     vscode.postMessage({ type: 'focusAgent', id })
@@ -200,10 +212,12 @@ function App() {
         editorState={editorState}
         onEditorTileAction={editor.handleEditorTileAction}
         onEditorEraseAction={editor.handleEditorEraseAction}
+        onEditorZoneAction={editor.handleEditorZoneAction}
         onEditorSelectionChange={editor.handleEditorSelectionChange}
         onDeleteSelected={editor.handleDeleteSelected}
         onRotateSelected={editor.handleRotateSelected}
         onDragMove={editor.handleDragMove}
+        onRegionMove={editor.handleRegionMove}
         editorTick={editor.editorTick}
         zoom={editor.zoom}
         onZoomChange={editor.handleZoomChange}
@@ -230,6 +244,9 @@ function App() {
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
         workspaceFolders={workspaceFolders}
+        externalSessionsSettings={externalSessionsSettings}
+        showLabelsAlways={showLabelsAlways}
+        onToggleShowLabelsAlways={handleToggleShowLabelsAlways}
       />
 
       {editor.isEditMode && editor.isDirty && (
@@ -281,6 +298,11 @@ function App() {
             onSelectedFurnitureColorChange={editor.handleSelectedFurnitureColorChange}
             onFurnitureTypeChange={editor.handleFurnitureTypeChange}
             loadedAssets={loadedAssets}
+            knownProjects={Array.from(officeState.knownProjects)}
+            selectedZoneId={editorState.selectedZoneId}
+            onZoneIdChange={editor.handleZoneIdChange}
+            zoneColors={officeState.getLayout().zoneColors}
+            onZoneColorChange={editor.handleZoneColorChange}
           />
         )
       })()}
@@ -294,6 +316,7 @@ function App() {
         zoom={editor.zoom}
         panRef={editor.panRef}
         onCloseAgent={handleCloseAgent}
+        showAlways={showLabelsAlways}
       />
 
       {isDebugMode && (

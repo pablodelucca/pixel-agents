@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { SettingsModal } from './SettingsModal.js'
-import type { WorkspaceFolder } from '../hooks/useExtensionMessages.js'
+import type { WorkspaceFolder, ExternalSessionsSettings } from '../hooks/useExtensionMessages.js'
 import { vscode } from '../vscodeApi.js'
 
 interface BottomToolbarProps {
@@ -10,6 +10,9 @@ interface BottomToolbarProps {
   isDebugMode: boolean
   onToggleDebugMode: () => void
   workspaceFolders: WorkspaceFolder[]
+  externalSessionsSettings: ExternalSessionsSettings
+  showLabelsAlways: boolean
+  onToggleShowLabelsAlways: () => void
 }
 
 const panelStyle: React.CSSProperties = {
@@ -51,6 +54,9 @@ export function BottomToolbar({
   isDebugMode,
   onToggleDebugMode,
   workspaceFolders,
+  externalSessionsSettings,
+  showLabelsAlways,
+  onToggleShowLabelsAlways,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -184,6 +190,10 @@ export function BottomToolbar({
           onClose={() => setIsSettingsOpen(false)}
           isDebugMode={isDebugMode}
           onToggleDebugMode={onToggleDebugMode}
+          externalSessionsEnabled={externalSessionsSettings.enabled}
+          externalSessionsScope={externalSessionsSettings.scope}
+          showLabelsAlways={showLabelsAlways}
+          onToggleShowLabelsAlways={onToggleShowLabelsAlways}
         />
       </div>
     </div>

@@ -159,6 +159,86 @@ export function canPlaceFurniture(
   return true
 }
 
+/** Paint a zone assignment on a single tile. Returns new layout (immutable). */
+export function paintZone(layout: OfficeLayout, col: number, row: number, zoneId: string | null): OfficeLayout {
+  const idx = row * layout.cols + col
+  if (idx < 0 || idx >= layout.tiles.length) return layout
+  // Only paint zones on floor tiles (not WALL, not VOID)
+  const tile = layout.tiles[idx]
+  if (tile === TileType.WALL || tile === TileType.VOID) return layout
+
+  const existingZones = layout.zones || new Array(layout.tiles.length).fill(null) as Array<string | null>
+  if (existingZones[idx] === zoneId) return layout // no change
+
+  const zones = [...existingZones]
+  zones[idx] = zoneId
+  return { ...layout, zones }
+}
+
+/** Move a rectangular region of tiles, colors, zones, and furniture to a new position.
+ *  Source area becomes VOID with null zones. Returns new layout (immutable). */
+export function moveRegion(
+  layout: OfficeLayout,
+  srcCol: number, srcRow: number, w: number, h: number,
+  dstCol: number, dstRow: number,
+): OfficeLayout {
+  // Validate bounds
+  if (srcCol < 0 || srcRow < 0 || srcCol + w > layout.cols || srcRow + h > layout.rows) return layout
+  if (dstCol < 0 || dstRow < 0 || dstCol + w > layout.cols || dstRow + h > layout.rows) return layout
+  // No-op if same position
+  if (srcCol === dstCol && srcRow === dstRow) return layout
+
+  const tiles = [...layout.tiles]
+  const tileColors = [...(layout.tileColors || new Array(tiles.length).fill(null))]
+  const zones = [...(layout.zones || new Array(tiles.length).fill(null) as Array<string | null>)]
+
+  // Copy source data
+  const srcTiles: TileTypeVal[] = []
+  const srcColors: Array<FloorColor | null> = []
+  const srcZones: Array<string | null> = []
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < w; c++) {
+      const idx = (srcRow + r) * layout.cols + (srcCol + c)
+      srcTiles.push(tiles[idx])
+      srcColors.push(tileColors[idx])
+      srcZones.push(zones[idx])
+    }
+  }
+
+  // Clear source area to VOID
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < w; c++) {
+      const idx = (srcRow + r) * layout.cols + (srcCol + c)
+      tiles[idx] = TileType.VOID as TileTypeVal
+      tileColors[idx] = null
+      zones[idx] = null
+    }
+  }
+
+  // Paste to destination
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < w; c++) {
+      const dstIdx = (dstRow + r) * layout.cols + (dstCol + c)
+      const srcIdx = r * w + c
+      tiles[dstIdx] = srcTiles[srcIdx]
+      tileColors[dstIdx] = srcColors[srcIdx]
+      zones[dstIdx] = srcZones[srcIdx]
+    }
+  }
+
+  // Move furniture whose top-left origin is inside the source rect
+  const deltaCol = dstCol - srcCol
+  const deltaRow = dstRow - srcRow
+  const furniture = layout.furniture.map((f) => {
+    if (f.col >= srcCol && f.col < srcCol + w && f.row >= srcRow && f.row < srcRow + h) {
+      return { ...f, col: f.col + deltaCol, row: f.row + deltaRow }
+    }
+    return f
+  })
+
+  return { ...layout, tiles, tileColors, zones, furniture }
+}
+
 export type ExpandDirection = 'left' | 'right' | 'up' | 'down'
 
 /**
@@ -170,8 +250,9 @@ export function expandLayout(
   layout: OfficeLayout,
   direction: ExpandDirection,
 ): { layout: OfficeLayout; shift: { col: number; row: number } } | null {
-  const { cols, rows, tiles, furniture, tileColors } = layout
+  const { cols, rows, tiles, furniture, tileColors, zones } = layout
   const existingColors = tileColors || new Array(tiles.length).fill(null)
+  const existingZones = zones || new Array(tiles.length).fill(null)
 
   let newCols = cols
   let newRows = rows
@@ -195,6 +276,7 @@ export function expandLayout(
   // Build new tile array
   const newTiles: TileTypeVal[] = new Array(newCols * newRows).fill(TileType.VOID as TileTypeVal)
   const newColors: Array<FloorColor | null> = new Array(newCols * newRows).fill(null)
+  const newZones: Array<string | null> = new Array(newCols * newRows).fill(null)
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -202,6 +284,7 @@ export function expandLayout(
       const newIdx = (r + shiftRow) * newCols + (c + shiftCol)
       newTiles[newIdx] = tiles[oldIdx]
       newColors[newIdx] = existingColors[oldIdx]
+      newZones[newIdx] = existingZones[oldIdx]
     }
   }
 
@@ -213,7 +296,7 @@ export function expandLayout(
   }))
 
   return {
-    layout: { ...layout, cols: newCols, rows: newRows, tiles: newTiles, tileColors: newColors, furniture: newFurniture },
+    layout: { ...layout, cols: newCols, rows: newRows, tiles: newTiles, tileColors: newColors, zones: newZones, furniture: newFurniture },
     shift: { col: shiftCol, row: shiftRow },
   }
 }

@@ -29,8 +29,20 @@ export const LAYOUT_FILE_DIR = '.pixel-agents';
 export const LAYOUT_FILE_NAME = 'layout.json';
 export const LAYOUT_FILE_POLL_INTERVAL_MS = 2000;
 
+// ── Project Rooms ────────────────────────────────────────
+export const ROOM_WIDTH = 4;
+export const ROOM_HEIGHT = 3;
+
+// ── External Session Detection ────────────────────────────
+export const EXTERNAL_SESSION_SCAN_INTERVAL_MS = 3000;
+export const EXTERNAL_SESSION_STALE_THRESHOLD_MS = 30_000;
+export const EXTERNAL_SESSION_REMOVE_THRESHOLD_MS = 300_000;
+
 // ── Settings Persistence ────────────────────────────────────
 export const GLOBAL_KEY_SOUND_ENABLED = 'pixel-agents.soundEnabled';
+export const GLOBAL_KEY_SHOW_LABELS_ALWAYS = 'pixel-agents.showLabelsAlways';
+export const GLOBAL_KEY_EXTERNAL_SESSIONS_ENABLED = 'pixel-agents.externalSessionsEnabled';
+export const GLOBAL_KEY_EXTERNAL_SESSIONS_SCOPE = 'pixel-agents.externalSessionsScope';
 
 // ── VS Code Identifiers ─────────────────────────────────────
 export const VIEW_ID = 'pixel-agents.panelView';

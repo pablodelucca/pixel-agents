@@ -1,0 +1,48 @@
+{
+  "name": "pixel-agents-app",
+  "version": "1.0.0",
+  "description": "Pixel Agents — Standalone desktop app for visualizing Claude Code sessions",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "tsc && electron .",
+    "build": "tsc",
+    "package": "tsc && electron-builder",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.x",
+    "@types/pngjs": "^6.0.5",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "com.pixelagents.app",
+    "productName": "Pixel Agents",
+    "files": [
+      "dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../webview-ui/dist",
+        "to": "webview"
+      },
+      {
+        "from": "../webview-ui/public/assets",
+        "to": "assets"
+      }
+    ],
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

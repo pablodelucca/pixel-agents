@@ -40,6 +40,8 @@ const activeTabStyle: React.CSSProperties = {
   border: '2px solid #5a8cff',
 }
 
+import { OfficeState } from '../engine/officeState.js'
+
 interface EditorToolbarProps {
   activeTool: EditTool
   selectedTileType: TileTypeVal
@@ -55,6 +57,16 @@ interface EditorToolbarProps {
   onSelectedFurnitureColorChange: (color: FloorColor | null) => void
   onFurnitureTypeChange: (type: string) => void
   loadedAssets?: LoadedAssetData
+  /** Known project IDs for zone editor */
+  knownProjects?: string[]
+  /** Currently selected zone ID (null = lobby) */
+  selectedZoneId?: string | null
+  /** Callback to change selected zone */
+  onZoneIdChange?: (zoneId: string | null) => void
+  /** Per-zone color hue overrides */
+  zoneColors?: Record<string, number>
+  /** Callback to change a zone's color hue */
+  onZoneColorChange?: (projectId: string, hue: number) => void
 }
 
 /** Render a floor pattern preview at 2x (32x32 canvas showing the 16x16 tile) */
@@ -154,6 +166,11 @@ export function EditorToolbar({
   onSelectedFurnitureColorChange,
   onFurnitureTypeChange,
   loadedAssets,
+  knownProjects,
+  selectedZoneId,
+  onZoneIdChange,
+  zoneColors,
+  onZoneColorChange,
 }: EditorToolbarProps) {
   const [activeCategory, setActiveCategory] = useState<FurnitureCategory>('desks')
   const [showColor, setShowColor] = useState(false)
@@ -209,6 +226,8 @@ export function EditorToolbar({
   const isWallActive = activeTool === EditTool.WALL_PAINT
   const isEraseActive = activeTool === EditTool.ERASE
   const isFurnitureActive = activeTool === EditTool.FURNITURE_PLACE || activeTool === EditTool.FURNITURE_PICK
+  const isZoneActive = activeTool === EditTool.ZONE_PAINT
+  const isRegionActive = activeTool === EditTool.REGION_SELECT
 
   return (
     <div
@@ -257,6 +276,20 @@ export function EditorToolbar({
           title="Place furniture"
         >
           Furniture
+        </button>
+        <button
+          style={isZoneActive ? activeBtnStyle : btnStyle}
+          onClick={() => onToolChange(EditTool.ZONE_PAINT)}
+          title="Paint zone assignments"
+        >
+          Zones
+        </button>
+        <button
+          style={isRegionActive ? activeBtnStyle : btnStyle}
+          onClick={() => onToolChange(EditTool.REGION_SELECT)}
+          title="Select and move regions"
+        >
+          Move
         </button>
       </div>
 
@@ -413,6 +446,68 @@ export function EditorToolbar({
                     }}
                     style={{ width: thumbSize, height: thumbSize }}
                   />
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Sub-panel: Zone paint — project list + color config */}
+      {isZoneActive && (
+        <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: 4 }}>
+          {/* Hue slider for selected project zone */}
+          {selectedZoneId && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 3,
+              padding: '4px 6px',
+              background: '#181828',
+              border: '2px solid #4a4a6a',
+              borderRadius: 0,
+            }}>
+              <ColorSlider
+                label="H"
+                value={zoneColors?.[selectedZoneId] ?? OfficeState.projectIdToHue(selectedZoneId)}
+                min={0}
+                max={360}
+                onChange={(v) => onZoneColorChange?.(selectedZoneId!, v)}
+              />
+              <div style={{
+                height: 8,
+                background: `linear-gradient(to right, ${Array.from({ length: 7 }, (_, i) => `hsl(${i * 60}, 70%, 55%)`).join(', ')})`,
+                borderRadius: 0,
+                border: '1px solid #4a4a6a',
+              }} />
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 140, overflowY: 'auto' }}>
+            <button
+              style={selectedZoneId === null ? activeTabStyle : tabStyle}
+              onClick={() => onZoneIdChange?.(null)}
+            >
+              <span style={{ display: 'inline-block', width: 10, height: 10, background: 'rgba(255,255,255,0.15)', border: '1px solid #666', marginRight: 4, verticalAlign: 'middle' }} />
+              Lobby
+            </button>
+            {(knownProjects || []).map((pid) => {
+              const hue = zoneColors?.[pid] ?? OfficeState.projectIdToHue(pid)
+              return (
+                <button
+                  key={pid}
+                  style={selectedZoneId === pid ? activeTabStyle : tabStyle}
+                  onClick={() => onZoneIdChange?.(pid)}
+                >
+                  <span style={{
+                    display: 'inline-block',
+                    width: 10,
+                    height: 10,
+                    background: `hsl(${hue}, 70%, 55%)`,
+                    border: '1px solid #666',
+                    marginRight: 4,
+                    verticalAlign: 'middle',
+                  }} />
+                  {pid.length > 20 ? pid.slice(0, 20) + '...' : pid}
                 </button>
               )
             })}

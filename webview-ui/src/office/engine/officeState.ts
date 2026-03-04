@@ -1,4 +1,4 @@
-import { TILE_SIZE, MATRIX_EFFECT_DURATION, CharacterState, Direction } from '../types.js'
+import { TILE_SIZE, MATRIX_EFFECT_DURATION, CharacterState, Direction, TileType, FurnitureType, MAX_COLS, MAX_ROWS } from '../types.js'
 import {
   PALETTE_COUNT,
   HUE_SHIFT_MIN_DEG,
@@ -12,8 +12,13 @@ import {
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_HIT_HALF_WIDTH,
   CHARACTER_HIT_HEIGHT,
+  ROOM_INTERIOR_WIDTH,
+  ROOM_INTERIOR_HEIGHT,
+  ROOM_GAP,
+  ROOM_DEFAULT_FLOOR_PATTERN,
+  DEFAULT_WALL_COLOR,
 } from '../../constants.js'
-import type { Character, Seat, FurnitureInstance, TileType as TileTypeVal, OfficeLayout, PlacedFurniture } from '../types.js'
+import type { Character, Seat, FurnitureInstance, TileType as TileTypeVal, OfficeLayout, PlacedFurniture, FloorColor } from '../types.js'
 import { createCharacter, updateCharacter } from './characters.js'
 import { matrixEffectSeeds } from './matrixEffect.js'
 import { isWalkable, getWalkableTiles, findPath } from '../layout/tileMap.js'
@@ -25,6 +30,7 @@ import {
   getBlockedTiles,
 } from '../layout/layoutSerializer.js'
 import { getCatalogEntry, getOnStateType } from '../layout/furnitureCatalog.js'
+import { expandLayout } from '../editor/editorActions.js'
 
 export class OfficeState {
   layout: OfficeLayout
@@ -44,6 +50,18 @@ export class OfficeState {
   subagentMeta: Map<number, { parentAgentId: number; parentToolId: string }> = new Map()
   private nextSubagentId = -1
 
+  // ── Zone data ──────────────────────────────────────────────
+  /** Per-tile zone assignment (parallel to layout.tiles). null = lobby */
+  zoneMap: Array<string | null> = []
+  /** projectId → walkable tiles within that zone */
+  zoneWalkableTiles: Map<string, Array<{ col: number; row: number }>> = new Map()
+  /** Walkable tiles in the lobby (zone === null) */
+  lobbyWalkableTiles: Array<{ col: number; row: number }> = []
+  /** Projects that have rooms */
+  knownProjects: Set<string> = new Set()
+  /** Callback to save layout when rooms are generated */
+  onLayoutChanged?: (layout: OfficeLayout) => void
+
   constructor(layout?: OfficeLayout) {
     this.layout = layout || createDefaultLayout()
     this.tileMap = layoutToTileMap(this.layout)
@@ -51,6 +69,7 @@ export class OfficeState {
     this.blockedTiles = getBlockedTiles(this.layout.furniture)
     this.furniture = layoutToFurnitureInstances(this.layout.furniture)
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles)
+    this.rebuildZoneData()
   }
 
   /** Rebuild all derived state from a new layout. Reassigns existing characters.
@@ -62,6 +81,7 @@ export class OfficeState {
     this.blockedTiles = getBlockedTiles(layout.furniture)
     this.rebuildFurnitureInstances()
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles)
+    this.rebuildZoneData()
 
     // Shift character positions when grid expands left/up
     if (shift && (shift.col !== 0 || shift.row !== 0)) {
@@ -142,6 +162,279 @@ export class OfficeState {
     return this.layout
   }
 
+  // ── Zone helpers ───────────────────────────────────────────
+
+  /** Rebuild zone data structures from layout.zones */
+  private rebuildZoneData(): void {
+    const zones = this.layout.zones || new Array(this.layout.tiles.length).fill(null)
+    this.zoneMap = zones
+
+    this.zoneWalkableTiles.clear()
+    this.lobbyWalkableTiles = []
+    this.knownProjects.clear()
+
+    for (const tile of this.walkableTiles) {
+      const idx = tile.row * this.layout.cols + tile.col
+      const zone = zones[idx]
+      if (zone === null || zone === undefined) {
+        this.lobbyWalkableTiles.push(tile)
+      } else {
+        this.knownProjects.add(zone)
+        let arr = this.zoneWalkableTiles.get(zone)
+        if (!arr) {
+          arr = []
+          this.zoneWalkableTiles.set(zone, arr)
+        }
+        arr.push(tile)
+      }
+    }
+  }
+
+  /** Get walkable tiles for a character based on zone rules */
+  getAgentWalkableTiles(ch: Character): Array<{ col: number; row: number }> {
+    if (!ch.projectId) return this.walkableTiles // no project → full access
+    const zoneTiles = this.zoneWalkableTiles.get(ch.projectId) || []
+    if (ch.isActive) {
+      // Active: prefer own zone, fall back to lobby if zone is empty
+      return zoneTiles.length > 0 ? zoneTiles : this.lobbyWalkableTiles
+    }
+    // Idle: own zone + lobby
+    return [...zoneTiles, ...this.lobbyWalkableTiles]
+  }
+
+  /** Find a free seat in a specific zone, or any free seat as fallback */
+  private findFreeSeatInZone(projectId?: string): string | null {
+    if (projectId) {
+      const zones = this.layout.zones || []
+      // First: try seats in the project's zone
+      for (const [uid, seat] of this.seats) {
+        if (seat.assigned) continue
+        const idx = seat.seatRow * this.layout.cols + seat.seatCol
+        if (zones[idx] === projectId) return uid
+      }
+    }
+    // Fallback: any free seat
+    return this.findFreeSeat()
+  }
+
+  /**
+   * Generate a 4x3 interior room for a project.
+   * Room has walls on perimeter, floor inside, a desk + chair, and a door.
+   * Returns true if room was generated.
+   */
+  generateRoomForProject(projectId: string): boolean {
+    if (this.knownProjects.has(projectId)) return false
+
+    // Room dimensions: walls + interior
+    const roomW = ROOM_INTERIOR_WIDTH + 2 // +2 for walls on left/right
+    const roomH = ROOM_INTERIOR_HEIGHT + 2 // +2 for walls on top/bottom
+
+    // Find bounding box of all non-VOID tiles (the "used area")
+    let minCol = this.layout.cols, maxCol = -1
+    let minRow = this.layout.rows, maxRow = -1
+    for (let r = 0; r < this.layout.rows; r++) {
+      for (let c = 0; c < this.layout.cols; c++) {
+        const idx = r * this.layout.cols + c
+        if (this.layout.tiles[idx] !== TileType.VOID) {
+          if (c < minCol) minCol = c
+          if (c > maxCol) maxCol = c
+          if (r < minRow) minRow = r
+          if (r > maxRow) maxRow = r
+        }
+      }
+    }
+
+    if (maxCol === -1) {
+      // No non-VOID tiles found, place at origin
+      minCol = 0; maxCol = 0; minRow = 0; maxRow = 0
+    }
+
+    // Try placement positions: right, bottom, left, top
+    type Placement = { col: number; row: number; doorSide: 'left' | 'right' | 'top' | 'bottom' }
+    const candidates: Placement[] = [
+      // Right of used area
+      { col: maxCol + 1 + ROOM_GAP, row: minRow, doorSide: 'left' },
+      // Below used area
+      { col: minCol, row: maxRow + 1 + ROOM_GAP, doorSide: 'top' },
+      // Left of used area
+      { col: minCol - roomW - ROOM_GAP, row: minRow, doorSide: 'right' },
+      // Above used area
+      { col: minCol, row: minRow - roomH - ROOM_GAP, doorSide: 'bottom' },
+    ]
+
+    let layout = this.layout
+    let placed = false
+
+    for (const candidate of candidates) {
+      // Expand layout if needed
+      let currentLayout = layout
+      let totalShiftCol = 0
+      let totalShiftRow = 0
+
+      // Expand right/down if room extends beyond grid
+      while (candidate.col + totalShiftCol + roomW > currentLayout.cols && currentLayout.cols < MAX_COLS) {
+        const result = expandLayout(currentLayout, 'right')
+        if (!result) break
+        currentLayout = result.layout
+      }
+      while (candidate.row + totalShiftRow + roomH > currentLayout.rows && currentLayout.rows < MAX_ROWS) {
+        const result = expandLayout(currentLayout, 'down')
+        if (!result) break
+        currentLayout = result.layout
+      }
+      // Expand left/up if room starts before grid
+      while (candidate.col + totalShiftCol < 0 && currentLayout.cols < MAX_COLS) {
+        const result = expandLayout(currentLayout, 'left')
+        if (!result) break
+        currentLayout = result.layout
+        totalShiftCol += result.shift.col
+      }
+      while (candidate.row + totalShiftRow < 0 && currentLayout.rows < MAX_ROWS) {
+        const result = expandLayout(currentLayout, 'up')
+        if (!result) break
+        currentLayout = result.layout
+        totalShiftRow += result.shift.row
+      }
+
+      const roomCol = candidate.col + totalShiftCol
+      const roomRow = candidate.row + totalShiftRow
+
+      // Verify all tiles in proposed area are VOID
+      if (roomCol < 0 || roomRow < 0 || roomCol + roomW > currentLayout.cols || roomRow + roomH > currentLayout.rows) {
+        continue
+      }
+
+      let allVoid = true
+      for (let r = roomRow; r < roomRow + roomH; r++) {
+        for (let c = roomCol; c < roomCol + roomW; c++) {
+          const idx = r * currentLayout.cols + c
+          if (currentLayout.tiles[idx] !== TileType.VOID) {
+            allVoid = false
+            break
+          }
+        }
+        if (!allVoid) break
+      }
+      if (!allVoid) continue
+
+      // Place the room
+      const tiles = [...currentLayout.tiles]
+      const tileColors = [...(currentLayout.tileColors || new Array(tiles.length).fill(null))]
+      const zones = [...(currentLayout.zones || new Array(tiles.length).fill(null) as Array<string | null>)]
+
+      // Generate a hue for this room based on projectId hash
+      const hue = layout.zoneColors?.[projectId] ?? OfficeState.projectIdToHue(projectId)
+      const roomFloorColor: FloorColor = { h: hue, s: 30, b: 10, c: 0 }
+
+      for (let r = roomRow; r < roomRow + roomH; r++) {
+        for (let c = roomCol; c < roomCol + roomW; c++) {
+          const idx = r * currentLayout.cols + c
+          const isPerimeter = r === roomRow || r === roomRow + roomH - 1 || c === roomCol || c === roomCol + roomW - 1
+          if (isPerimeter) {
+            tiles[idx] = TileType.WALL
+            tileColors[idx] = DEFAULT_WALL_COLOR
+          } else {
+            tiles[idx] = ROOM_DEFAULT_FLOOR_PATTERN as TileTypeVal
+            tileColors[idx] = roomFloorColor
+            zones[idx] = projectId
+          }
+        }
+      }
+
+      // Place door: one floor tile on the wall closest to lobby
+      const doorSide = candidate.doorSide
+      let doorCol: number, doorRow: number
+      const midInteriorCol = roomCol + 1 + Math.floor(ROOM_INTERIOR_WIDTH / 2)
+      const midInteriorRow = roomRow + 1 + Math.floor(ROOM_INTERIOR_HEIGHT / 2)
+      if (doorSide === 'left') {
+        doorCol = roomCol
+        doorRow = midInteriorRow
+      } else if (doorSide === 'right') {
+        doorCol = roomCol + roomW - 1
+        doorRow = midInteriorRow
+      } else if (doorSide === 'top') {
+        doorCol = midInteriorCol
+        doorRow = roomRow
+      } else {
+        doorCol = midInteriorCol
+        doorRow = roomRow + roomH - 1
+      }
+      const doorIdx = doorRow * currentLayout.cols + doorCol
+      tiles[doorIdx] = ROOM_DEFAULT_FLOOR_PATTERN as TileTypeVal
+      tileColors[doorIdx] = roomFloorColor
+      // Door is lobby (null zone) so agents can walk through it
+      zones[doorIdx] = null
+
+      // Place furniture: 1 desk + 1 chair inside the room
+      const furniture = [...currentLayout.furniture]
+      const deskCol = roomCol + 1
+      const deskRow = roomRow + 1
+      const deskUid = `room-${projectId}-desk`
+      const chairUid = `room-${projectId}-chair`
+
+      // Try to use catalog desk if available, otherwise use basic furniture type
+      furniture.push({ uid: deskUid, type: FurnitureType.DESK, col: deskCol, row: deskRow })
+      // Chair below the desk (facing up toward desk)
+      const chairCol = deskCol
+      const chairRow = deskRow + 2 < roomRow + roomH - 1 ? deskRow + 2 : deskRow - 1
+      furniture.push({ uid: chairUid, type: FurnitureType.CHAIR, col: chairCol, row: chairRow })
+
+      layout = { ...currentLayout, tiles, tileColors, zones, furniture }
+
+      // Apply shift to existing characters if we expanded left/up
+      if (totalShiftCol !== 0 || totalShiftRow !== 0) {
+        for (const ch of this.characters.values()) {
+          ch.tileCol += totalShiftCol
+          ch.tileRow += totalShiftRow
+          ch.x += totalShiftCol * TILE_SIZE
+          ch.y += totalShiftRow * TILE_SIZE
+          ch.path = []
+          ch.moveProgress = 0
+        }
+      }
+
+      placed = true
+      break
+    }
+
+    if (!placed) return false
+
+    // Rebuild everything from new layout
+    this.layout = layout
+    this.tileMap = layoutToTileMap(layout)
+    this.seats = layoutToSeats(layout.furniture)
+    this.blockedTiles = getBlockedTiles(layout.furniture)
+    this.rebuildFurnitureInstances()
+    this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles)
+    this.rebuildZoneData()
+
+    // Re-assign existing seats
+    for (const seat of this.seats.values()) {
+      seat.assigned = false
+    }
+    for (const ch of this.characters.values()) {
+      if (ch.seatId && this.seats.has(ch.seatId)) {
+        this.seats.get(ch.seatId)!.assigned = true
+      } else {
+        ch.seatId = null
+      }
+    }
+
+    // Notify to save layout
+    this.onLayoutChanged?.(layout)
+
+    return true
+  }
+
+  /** Generate a deterministic hue from a projectId string */
+  static projectIdToHue(projectId: string): number {
+    let hash = 0
+    for (let i = 0; i < projectId.length; i++) {
+      hash = ((hash << 5) - hash + projectId.charCodeAt(i)) | 0
+    }
+    return ((hash % 360) + 360) % 360
+  }
+
   /** Get the blocked-tile key for a character's own seat, or null */
   private ownSeatKey(ch: Character): string | null {
     if (!ch.seatId) return null
@@ -193,8 +486,13 @@ export class OfficeState {
     return { palette, hueShift }
   }
 
-  addAgent(id: number, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean, folderName?: string): void {
+  addAgent(id: number, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean, folderName?: string, isExternal?: boolean, projectId?: string): void {
     if (this.characters.has(id)) return
+
+    // Generate room for project if it doesn't exist yet
+    if (projectId && !this.knownProjects.has(projectId)) {
+      this.generateRoomForProject(projectId)
+    }
 
     let palette: number
     let hueShift: number
@@ -207,7 +505,7 @@ export class OfficeState {
       hueShift = pick.hueShift
     }
 
-    // Try preferred seat first, then any free seat
+    // Try preferred seat first, then seat in project zone, then any free seat
     let seatId: string | null = null
     if (preferredSeatId && this.seats.has(preferredSeatId)) {
       const seat = this.seats.get(preferredSeatId)!
@@ -216,7 +514,7 @@ export class OfficeState {
       }
     }
     if (!seatId) {
-      seatId = this.findFreeSeat()
+      seatId = this.findFreeSeatInZone(projectId)
     }
 
     let ch: Character
@@ -238,6 +536,12 @@ export class OfficeState {
 
     if (folderName) {
       ch.folderName = folderName
+    }
+    if (isExternal) {
+      ch.isExternal = true
+    }
+    if (projectId) {
+      ch.projectId = projectId
     }
     if (!skipSpawnEffect) {
       ch.matrixEffect = 'spawn'
@@ -413,6 +717,9 @@ export class OfficeState {
     }
     ch.isSubagent = true
     ch.parentAgentId = parentAgentId
+    if (parentCh?.projectId) {
+      ch.projectId = parentCh.projectId
+    }
     ch.matrixEffect = 'spawn'
     ch.matrixEffectTimer = 0
     ch.matrixEffectSeeds = matrixEffectSeeds()
@@ -504,6 +811,28 @@ export class OfficeState {
         ch.seatTimer = -1
         ch.path = []
         ch.moveProgress = 0
+      } else if (ch.projectId) {
+        // Rush back to zone when becoming active and outside own zone
+        const idx = ch.tileRow * this.layout.cols + ch.tileCol
+        const currentZone = this.zoneMap[idx]
+        if (currentZone !== ch.projectId) {
+          // Pathfind to assigned seat (in zone) or nearest zone tile
+          if (ch.seatId) {
+            const seat = this.seats.get(ch.seatId)
+            if (seat) {
+              const path = this.withOwnSeatUnblocked(ch, () =>
+                findPath(ch.tileCol, ch.tileRow, seat.seatCol, seat.seatRow, this.tileMap, this.blockedTiles)
+              )
+              if (path.length > 0) {
+                ch.path = path
+                ch.moveProgress = 0
+                ch.state = CharacterState.WALK
+                ch.frame = 0
+                ch.frameTimer = 0
+              }
+            }
+          }
+        }
       }
       this.rebuildFurnitureInstances()
     }
@@ -634,8 +963,10 @@ export class OfficeState {
       }
 
       // Temporarily unblock own seat so character can pathfind to it
+      // Use zone-filtered walkable tiles for wander target selection
+      const wanderTiles = this.getAgentWalkableTiles(ch)
       this.withOwnSeatUnblocked(ch, () =>
-        updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles)
+        updateCharacter(ch, dt, wanderTiles, this.seats, this.tileMap, this.blockedTiles)
       )
 
       // Tick bubble timer for waiting bubbles

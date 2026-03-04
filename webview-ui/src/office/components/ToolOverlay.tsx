@@ -14,6 +14,7 @@ interface ToolOverlayProps {
   zoom: number
   panRef: React.RefObject<{ x: number; y: number }>
   onCloseAgent: (id: number) => void
+  showAlways?: boolean
 }
 
 /** Derive a short human-readable activity string from tools/status */
@@ -49,6 +50,7 @@ export function ToolOverlay({
   zoom,
   panRef,
   onCloseAgent,
+  showAlways,
 }: ToolOverlayProps) {
   const [, setTick] = useState(0)
   useEffect(() => {
@@ -89,8 +91,8 @@ export function ToolOverlay({
         const isHovered = hoveredId === id
         const isSub = ch.isSubagent
 
-        // Only show for hovered or selected agents
-        if (!isSelected && !isHovered) return null
+        // Only show for hovered or selected agents (or all if showAlways)
+        if (!showAlways && !isSelected && !isHovered) return null
 
         // Position above character
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0
@@ -172,7 +174,7 @@ export function ToolOverlay({
                   style={{
                     fontSize: isSub ? '20px' : '22px',
                     fontStyle: isSub ? 'italic' : undefined,
-                    color: 'var(--vscode-foreground)',
+                    color: 'var(--pixel-text)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     display: 'block',
@@ -180,7 +182,7 @@ export function ToolOverlay({
                 >
                   {activityText}
                 </span>
-                {ch.folderName && (
+                {(ch.folderName || ch.isExternal) && (
                   <span
                     style={{
                       fontSize: '16px',
@@ -190,7 +192,7 @@ export function ToolOverlay({
                       display: 'block',
                     }}
                   >
-                    {ch.folderName}
+                    {ch.isExternal ? (ch.folderName ? `${ch.folderName} (External)` : 'External') : ch.folderName}
                   </span>
                 )}
               </div>

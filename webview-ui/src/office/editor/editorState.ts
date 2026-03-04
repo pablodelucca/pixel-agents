@@ -46,6 +46,16 @@ export class EditorState {
   dragOffsetRow = 0
   isDragMoving = false
 
+  // Zone paint state
+  selectedZoneId: string | null = null // null = lobby
+
+  // Region select state
+  regionStart: { col: number; row: number } | null = null
+  regionEnd: { col: number; row: number } | null = null
+  regionSelection: { col: number; row: number; w: number; h: number } | null = null
+  regionDragStart: { col: number; row: number } | null = null
+  isRegionDragging = false
+
   pushUndo(layout: OfficeLayout): void {
     this.undoStack.push(layout)
     // Limit undo stack size
@@ -97,6 +107,14 @@ export class EditorState {
     this.isDragMoving = false
   }
 
+  clearRegion(): void {
+    this.regionStart = null
+    this.regionEnd = null
+    this.regionSelection = null
+    this.regionDragStart = null
+    this.isRegionDragging = false
+  }
+
   reset(): void {
     this.activeTool = EditTool.SELECT
     this.selectedFurnitureUid = null
@@ -110,5 +128,7 @@ export class EditorState {
     this.isDirty = false
     this.dragUid = null
     this.isDragMoving = false
+    this.selectedZoneId = null
+    this.clearRegion()
   }
 }

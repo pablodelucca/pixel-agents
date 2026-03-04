@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as vscode from 'vscode';
-import type { AgentState, PersistedAgent } from './types.js';
+import type { AgentState, PersistedAgent, MessageEmitter } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer } from './timerManager.js';
 import { startFileWatching, readNewLines, ensureProjectScan } from './fileWatcher.js';
 import { JSONL_POLL_INTERVAL_MS, TERMINAL_NAME_PREFIX, WORKSPACE_KEY_AGENTS, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
@@ -62,6 +62,7 @@ export async function launchNewTerminal(
 	const agent: AgentState = {
 		id,
 		terminalRef: terminal,
+		isExternal: false,
 		projectDir,
 		jsonlFile: expectedFile,
 		fileOffset: 0,
@@ -81,7 +82,8 @@ export async function launchNewTerminal(
 	activeAgentIdRef.current = id;
 	persistAgents();
 	console.log(`[Pixel Agents] Agent ${id}: created for terminal ${terminal.name}`);
-	webview?.postMessage({ type: 'agentCreated', id, folderName });
+	const projectId = path.basename(projectDir);
+	webview?.postMessage({ type: 'agentCreated', id, folderName, projectId });
 
 	ensureProjectScan(
 		projectDir, knownJsonlFiles, projectScanTimerRef, activeAgentIdRef,
@@ -145,12 +147,15 @@ export function persistAgents(
 ): void {
 	const persisted: PersistedAgent[] = [];
 	for (const agent of agents.values()) {
+		// Skip external agents — they have no terminal to restore
+		if (agent.isExternal || !agent.terminalRef) continue;
 		persisted.push({
 			id: agent.id,
 			terminalName: agent.terminalRef.name,
 			jsonlFile: agent.jsonlFile,
 			projectDir: agent.projectDir,
 			folderName: agent.folderName,
+			projectId: path.basename(agent.projectDir),
 		});
 	}
 	context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
@@ -187,6 +192,7 @@ export function restoreAgents(
 		const agent: AgentState = {
 			id: p.id,
 			terminalRef: terminal,
+			isExternal: false,
 			projectDir: p.projectDir,
 			jsonlFile: p.jsonlFile,
 			fileOffset: 0,
@@ -265,7 +271,7 @@ export function restoreAgents(
 export function sendExistingAgents(
 	agents: Map<number, AgentState>,
 	context: vscode.ExtensionContext,
-	webview: vscode.Webview | undefined,
+	webview: MessageEmitter | undefined,
 ): void {
 	if (!webview) return;
 	const agentIds: number[] = [];
@@ -277,12 +283,18 @@ export function sendExistingAgents(
 	// Include persisted palette/seatId from separate key
 	const agentMeta = context.workspaceState.get<Record<string, { palette?: number; seatId?: string }>>(WORKSPACE_KEY_AGENT_SEATS, {});
 
-	// Include folderName per agent
+	// Include folderName, isExternal, and projectId per agent
 	const folderNames: Record<number, string> = {};
+	const externalFlags: Record<number, boolean> = {};
+	const projectIds: Record<number, string> = {};
 	for (const [id, agent] of agents) {
 		if (agent.folderName) {
 			folderNames[id] = agent.folderName;
 		}
+		if (agent.isExternal) {
+			externalFlags[id] = true;
+		}
+		projectIds[id] = path.basename(agent.projectDir);
 	}
 	console.log(`[Pixel Agents] sendExistingAgents: agents=${JSON.stringify(agentIds)}, meta=${JSON.stringify(agentMeta)}`);
 
@@ -291,6 +303,8 @@ export function sendExistingAgents(
 		agents: agentIds,
 		agentMeta,
 		folderNames,
+		externalFlags,
+		projectIds,
 	});
 
 	sendCurrentAgentStatuses(agents, webview);
@@ -298,7 +312,7 @@ export function sendExistingAgents(
 
 export function sendCurrentAgentStatuses(
 	agents: Map<number, AgentState>,
-	webview: vscode.Webview | undefined,
+	webview: MessageEmitter | undefined,
 ): void {
 	if (!webview) return;
 	for (const [agentId, agent] of agents) {
@@ -324,7 +338,7 @@ export function sendCurrentAgentStatuses(
 
 export function sendLayout(
 	context: vscode.ExtensionContext,
-	webview: vscode.Webview | undefined,
+	webview: MessageEmitter | undefined,
 	defaultLayout?: Record<string, unknown> | null,
 ): void {
 	if (!webview) return;

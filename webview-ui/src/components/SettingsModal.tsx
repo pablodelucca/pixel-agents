@@ -7,6 +7,10 @@ interface SettingsModalProps {
   onClose: () => void
   isDebugMode: boolean
   onToggleDebugMode: () => void
+  externalSessionsEnabled: boolean
+  externalSessionsScope: 'currentProject' | 'allProjects'
+  showLabelsAlways: boolean
+  onToggleShowLabelsAlways: () => void
 }
 
 const menuItemBase: React.CSSProperties = {
@@ -24,9 +28,11 @@ const menuItemBase: React.CSSProperties = {
   textAlign: 'left',
 }
 
-export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode, externalSessionsEnabled, externalSessionsScope, showLabelsAlways, onToggleShowLabelsAlways }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled)
+  const [extEnabled, setExtEnabled] = useState(externalSessionsEnabled)
+  const [extScope, setExtScope] = useState(externalSessionsScope)
 
   if (!isOpen) return null
 
@@ -168,6 +174,107 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
             {soundLocal ? 'X' : ''}
           </span>
         </button>
+        <button
+          onClick={onToggleShowLabelsAlways}
+          onMouseEnter={() => setHovered('labels')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...menuItemBase,
+            background: hovered === 'labels' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          }}
+        >
+          <span>Always Show Labels</span>
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              border: '2px solid rgba(255, 255, 255, 0.5)',
+              borderRadius: 0,
+              background: showLabelsAlways ? 'rgba(90, 140, 255, 0.8)' : 'transparent',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              lineHeight: 1,
+              color: '#fff',
+            }}
+          >
+            {showLabelsAlways ? 'X' : ''}
+          </span>
+        </button>
+        <button
+          onClick={() => {
+            const newVal = !extEnabled
+            setExtEnabled(newVal)
+            vscode.postMessage({ type: 'setExternalSessionsEnabled', enabled: newVal })
+          }}
+          onMouseEnter={() => setHovered('external')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...menuItemBase,
+            background: hovered === 'external' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          }}
+        >
+          <span>Detect External Sessions</span>
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              border: '2px solid rgba(255, 255, 255, 0.5)',
+              borderRadius: 0,
+              background: extEnabled ? 'rgba(90, 140, 255, 0.8)' : 'transparent',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              lineHeight: 1,
+              color: '#fff',
+            }}
+          >
+            {extEnabled ? 'X' : ''}
+          </span>
+        </button>
+        {extEnabled && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              padding: '4px 10px 4px 24px',
+              fontSize: '20px',
+              color: 'rgba(255, 255, 255, 0.6)',
+            }}
+          >
+            <span>Scope</span>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {(['currentProject', 'allProjects'] as const).map((scope) => (
+                <button
+                  key={scope}
+                  onClick={() => {
+                    setExtScope(scope)
+                    vscode.postMessage({ type: 'setExternalSessionsScope', scope })
+                  }}
+                  onMouseEnter={() => setHovered(`scope-${scope}`)}
+                  onMouseLeave={() => setHovered(null)}
+                  style={{
+                    background: extScope === scope ? 'rgba(90, 140, 255, 0.8)' : hovered === `scope-${scope}` ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    borderRadius: 0,
+                    color: extScope === scope ? '#fff' : 'rgba(255, 255, 255, 0.6)',
+                    fontSize: '18px',
+                    cursor: 'pointer',
+                    padding: '2px 6px',
+                  }}
+                >
+                  {scope === 'currentProject' ? 'Project' : 'All'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <button
           onClick={onToggleDebugMode}
           onMouseEnter={() => setHovered('debug')}

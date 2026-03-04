@@ -7,6 +7,16 @@ export const DEFAULT_ROWS = 11
 export const MAX_COLS = 64
 export const MAX_ROWS = 64
 
+// ── Project Rooms ───────────────────────────────────────────
+/** Interior width of auto-generated project rooms (tiles) */
+export const ROOM_INTERIOR_WIDTH = 4
+/** Interior height of auto-generated project rooms (tiles) */
+export const ROOM_INTERIOR_HEIGHT = 3
+/** Gap between rooms or between room and existing area (tiles) */
+export const ROOM_GAP = 1
+/** Default floor color for auto-generated rooms */
+export const ROOM_DEFAULT_FLOOR_PATTERN = 1 // FLOOR_1
+
 // ── Character Animation ─────────────────────────────────────
 export const WALK_SPEED_PX_PER_SEC = 48
 export const WALK_FRAME_DURATION_SEC = 0.15
@@ -38,6 +48,7 @@ export const CHARACTER_Z_SORT_OFFSET = 0.5
 export const OUTLINE_Z_SORT_OFFSET = 0.001
 export const SELECTED_OUTLINE_ALPHA = 1.0
 export const HOVERED_OUTLINE_ALPHA = 0.5
+export const EXTERNAL_AGENT_OPACITY = 0.7
 export const GHOST_PREVIEW_SPRITE_ALPHA = 0.5
 export const GHOST_PREVIEW_TINT_ALPHA = 0.25
 export const SELECTION_DASH_PATTERN: [number, number] = [4, 3]
@@ -66,6 +77,18 @@ export const GHOST_INVALID_TINT = '#ff0000'
 export const SELECTION_HIGHLIGHT_COLOR = '#007fd4'
 export const DELETE_BUTTON_BG = 'rgba(200, 50, 50, 0.85)'
 export const ROTATE_BUTTON_BG = 'rgba(50, 120, 200, 0.85)'
+
+// ── Zone Overlay ────────────────────────────────────────────
+export const ZONE_OVERLAY_SATURATION = 70
+export const ZONE_OVERLAY_LIGHTNESS = 55
+export const ZONE_OVERLAY_ALPHA = 0.45
+export const ZONE_LOBBY_OVERLAY_COLOR = 'rgba(255, 255, 255, 0.03)'
+export const ZONE_DESATURATE_FILTER = 'saturate(0) brightness(0.6)'
+
+// ── Region Selection ────────────────────────────────────────
+export const REGION_SELECT_COLOR = 'rgba(60, 130, 220, 0.3)'
+export const REGION_SELECT_STROKE = 'rgba(60, 130, 220, 0.8)'
+export const REGION_MOVE_GHOST_ALPHA = 0.4
 
 // ── Camera ───────────────────────────────────────────────────
 export const CAMERA_FOLLOW_LERP = 0.1

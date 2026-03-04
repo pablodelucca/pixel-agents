@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { AgentState } from './types.js';
+import type { AgentState, MessageEmitter } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
@@ -14,7 +14,7 @@ export function startFileWatching(
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageEmitter | undefined,
 ): void {
 	// Primary: fs.watch (unreliable on macOS — may miss events)
 	try {
@@ -52,7 +52,7 @@ export function readNewLines(
 	agents: Map<number, AgentState>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageEmitter | undefined,
 ): void {
 	const agent = agents.get(agentId);
 	if (!agent) return;
@@ -101,7 +101,7 @@ export function ensureProjectScan(
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageEmitter | undefined,
 	persistAgents: () => void,
 ): void {
 	if (projectScanTimerRef.current) return;
@@ -134,7 +134,7 @@ function scanForNewJsonlFiles(
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageEmitter | undefined,
 	persistAgents: () => void,
 ): void {
 	let files: string[];
@@ -161,7 +161,7 @@ function scanForNewJsonlFiles(
 				if (activeTerminal) {
 					let owned = false;
 					for (const agent of agents.values()) {
-						if (agent.terminalRef === activeTerminal) {
+						if (!agent.isExternal && agent.terminalRef === activeTerminal) {
 							owned = true;
 							break;
 						}
@@ -191,13 +191,14 @@ function adoptTerminalForFile(
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageEmitter | undefined,
 	persistAgents: () => void,
 ): void {
 	const id = nextAgentIdRef.current++;
 	const agent: AgentState = {
 		id,
 		terminalRef: terminal,
+		isExternal: false,
 		projectDir,
 		jsonlFile,
 		fileOffset: 0,
@@ -231,7 +232,7 @@ export function reassignAgentToFile(
 	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	webview: vscode.Webview | undefined,
+	webview: MessageEmitter | undefined,
 	persistAgents: () => void,
 ): void {
 	const agent = agents.get(agentId);

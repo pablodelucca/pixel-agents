@@ -18,17 +18,19 @@ interface OfficeCanvasProps {
   editorState: EditorState
   onEditorTileAction: (col: number, row: number) => void
   onEditorEraseAction: (col: number, row: number) => void
+  onEditorZoneAction: (col: number, row: number) => void
   onEditorSelectionChange: () => void
   onDeleteSelected: () => void
   onRotateSelected: () => void
   onDragMove: (uid: string, newCol: number, newRow: number) => void
+  onRegionMove: (srcCol: number, srcRow: number, w: number, h: number, dstCol: number, dstRow: number) => void
   editorTick: number
   zoom: number
   onZoomChange: (zoom: number) => void
   panRef: React.MutableRefObject<{ x: number; y: number }>
 }
 
-export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, onEditorTileAction, onEditorEraseAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, onDragMove, editorTick: _editorTick, zoom, onZoomChange, panRef }: OfficeCanvasProps) {
+export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, onEditorTileAction, onEditorEraseAction, onEditorZoneAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, onDragMove, onRegionMove, editorTick: _editorTick, zoom, onZoomChange, panRef }: OfficeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const offsetRef = useRef({ x: 0, y: 0 })
@@ -98,6 +100,34 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
         let editorRender: EditorRenderState | undefined
         if (isEditMode) {
           const showGhostBorder = editorState.activeTool === EditTool.TILE_PAINT || editorState.activeTool === EditTool.WALL_PAINT || editorState.activeTool === EditTool.ERASE
+          const showZoneOverlay = editorState.activeTool === EditTool.ZONE_PAINT
+          const layout = officeState.getLayout()
+
+          // Build region rect from start/end or finalized selection
+          let regionRect: { col: number; row: number; w: number; h: number } | null = null
+          let regionIsSelecting = false
+          if (editorState.activeTool === EditTool.REGION_SELECT) {
+            if (editorState.regionStart && editorState.regionEnd) {
+              const c1 = Math.min(editorState.regionStart.col, editorState.regionEnd.col)
+              const r1 = Math.min(editorState.regionStart.row, editorState.regionEnd.row)
+              const c2 = Math.max(editorState.regionStart.col, editorState.regionEnd.col)
+              const r2 = Math.max(editorState.regionStart.row, editorState.regionEnd.row)
+              regionRect = { col: c1, row: r1, w: c2 - c1 + 1, h: r2 - r1 + 1 }
+              regionIsSelecting = true
+            } else if (editorState.regionSelection) {
+              regionRect = editorState.regionSelection
+            }
+          }
+
+          // Region move ghost
+          let regionMoveGhost: { col: number; row: number; w: number; h: number } | null = null
+          if (editorState.isRegionDragging && editorState.regionSelection && editorState.regionDragStart) {
+            const sel = editorState.regionSelection
+            const dx = editorState.ghostCol - editorState.regionDragStart.col
+            const dy = editorState.ghostRow - editorState.regionDragStart.row
+            regionMoveGhost = { col: sel.col + dx, row: sel.row + dy, w: sel.w, h: sel.h }
+          }
+
           editorRender = {
             showGrid: true,
             ghostSprite: null,
@@ -115,6 +145,13 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
             showGhostBorder,
             ghostBorderHoverCol: showGhostBorder ? editorState.ghostCol : -999,
             ghostBorderHoverRow: showGhostBorder ? editorState.ghostRow : -999,
+            showZoneOverlay,
+            zoneMap: showZoneOverlay ? officeState.zoneMap : [],
+            zoneCols: layout.cols,
+            zoneColors: showZoneOverlay ? (layout.zoneColors || {}) : {},
+            regionRect,
+            regionIsSelecting,
+            regionMoveGhost,
           }
 
           // Ghost preview for furniture placement
@@ -317,9 +354,16 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
             }
           }
 
-          // Paint on drag (tile/wall/erase paint tool only, not during furniture drag)
+          // Paint on drag (tile/wall/erase/zone paint tool only, not during furniture drag)
           if (editorState.isDragging && (editorState.activeTool === EditTool.TILE_PAINT || editorState.activeTool === EditTool.WALL_PAINT || editorState.activeTool === EditTool.ERASE) && !editorState.dragUid) {
             onEditorTileAction(tile.col, tile.row)
+          }
+          if (editorState.isDragging && editorState.activeTool === EditTool.ZONE_PAINT) {
+            onEditorZoneAction(tile.col, tile.row)
+          }
+          // Region selection: update rubber band end
+          if (editorState.isDragging && editorState.activeTool === EditTool.REGION_SELECT && editorState.regionStart && !editorState.isRegionDragging) {
+            editorState.regionEnd = { col: tile.col, row: tile.row }
           }
           // Right-click erase drag
           if (isEraseDraggingRef.current && (editorState.activeTool === EditTool.TILE_PAINT || editorState.activeTool === EditTool.WALL_PAINT || editorState.activeTool === EditTool.ERASE)) {
@@ -477,13 +521,35 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
         }
       }
 
+      // Region select tool
+      if (editorState.activeTool === EditTool.REGION_SELECT && tile) {
+        // Check if clicking inside existing selection to start move
+        if (editorState.regionSelection) {
+          const sel = editorState.regionSelection
+          if (tile.col >= sel.col && tile.col < sel.col + sel.w && tile.row >= sel.row && tile.row < sel.row + sel.h) {
+            editorState.regionDragStart = { col: tile.col, row: tile.row }
+            editorState.isRegionDragging = true
+            editorState.isDragging = true
+            return
+          }
+        }
+        // Start new rubber band selection
+        editorState.regionStart = { col: tile.col, row: tile.row }
+        editorState.regionEnd = { col: tile.col, row: tile.row }
+        editorState.regionSelection = null
+        editorState.regionDragStart = null
+        editorState.isRegionDragging = false
+        editorState.isDragging = true
+        return
+      }
+
       // Non-select tools: start paint drag
       editorState.isDragging = true
       if (tile) {
         onEditorTileAction(tile.col, tile.row)
       }
     },
-    [officeState, isEditMode, editorState, screenToTile, screenToWorld, onEditorTileAction, onEditorEraseAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, hitTestDeleteButton, hitTestRotateButton, panRef],
+    [officeState, isEditMode, editorState, screenToTile, screenToWorld, onEditorTileAction, onEditorEraseAction, onEditorZoneAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, hitTestDeleteButton, hitTestRotateButton, panRef],
   )
 
   const handleMouseUp = useCallback(
@@ -534,10 +600,41 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
         return
       }
 
+      // Finalize region selection or move
+      if (editorState.activeTool === EditTool.REGION_SELECT) {
+        if (editorState.isRegionDragging && editorState.regionSelection && editorState.regionDragStart) {
+          // Complete region move
+          const sel = editorState.regionSelection
+          const tile = screenToTile(e.clientX, e.clientY)
+          if (tile) {
+            const dx = tile.col - editorState.regionDragStart.col
+            const dy = tile.row - editorState.regionDragStart.row
+            if (dx !== 0 || dy !== 0) {
+              onRegionMove(sel.col, sel.row, sel.w, sel.h, sel.col + dx, sel.row + dy)
+              // Update selection to new position
+              editorState.regionSelection = { col: sel.col + dx, row: sel.row + dy, w: sel.w, h: sel.h }
+            }
+          }
+          editorState.isRegionDragging = false
+          editorState.regionDragStart = null
+        } else if (editorState.regionStart && editorState.regionEnd) {
+          // Finalize rubber band → regionSelection
+          const c1 = Math.min(editorState.regionStart.col, editorState.regionEnd.col)
+          const r1 = Math.min(editorState.regionStart.row, editorState.regionEnd.row)
+          const c2 = Math.max(editorState.regionStart.col, editorState.regionEnd.col)
+          const r2 = Math.max(editorState.regionStart.row, editorState.regionEnd.row)
+          editorState.regionSelection = { col: c1, row: r1, w: c2 - c1 + 1, h: r2 - r1 + 1 }
+          editorState.regionStart = null
+          editorState.regionEnd = null
+        }
+        editorState.isDragging = false
+        return
+      }
+
       editorState.isDragging = false
       editorState.wallDragAdding = null
     },
-    [editorState, isEditMode, officeState, onDragMove, onEditorSelectionChange],
+    [editorState, isEditMode, officeState, onDragMove, onRegionMove, onEditorSelectionChange, screenToTile],
   )
 
   const handleClick = useCallback(
@@ -611,6 +708,8 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
     editorState.isDragging = false
     editorState.wallDragAdding = null
     editorState.clearDrag()
+    editorState.isRegionDragging = false
+    editorState.regionDragStart = null
     editorState.ghostCol = -1
     editorState.ghostRow = -1
     officeState.hoveredAgentId = null

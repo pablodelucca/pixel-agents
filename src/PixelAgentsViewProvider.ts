@@ -14,9 +14,11 @@ import {
 } from './agentManager.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
-import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
+import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED, GLOBAL_KEY_SHOW_LABELS_ALWAYS, GLOBAL_KEY_EXTERNAL_SESSIONS_ENABLED, GLOBAL_KEY_EXTERNAL_SESSIONS_SCOPE } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
+import { startExternalScan, stopExternalScan, createExternalScanState } from './externalSessionScanner.js';
+import type { ExternalScanState } from './externalSessionScanner.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	nextAgentId = { current: 1 };
@@ -41,6 +43,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
 	// Cross-window layout sync
 	layoutWatcher: LayoutWatcher | null = null;
+
+	// External session detection
+	externalScanState: ExternalScanState = createExternalScanState();
 
 	constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -74,12 +79,25 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			} else if (message.type === 'focusAgent') {
 				const agent = this.agents.get(message.id);
 				if (agent) {
-					agent.terminalRef.show();
+					if (agent.isExternal) {
+						vscode.window.showInformationMessage('Pixel Agents: This is an external Claude session (not managed by VS Code).');
+					} else if (agent.terminalRef) {
+						agent.terminalRef.show();
+					}
 				}
 			} else if (message.type === 'closeAgent') {
 				const agent = this.agents.get(message.id);
 				if (agent) {
-					agent.terminalRef.dispose();
+					if (agent.isExternal) {
+						removeAgent(
+							message.id, this.agents,
+							this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+							this.jsonlPollTimers, this.persistAgents,
+						);
+						this.webview?.postMessage({ type: 'agentClosed', id: message.id });
+					} else if (agent.terminalRef) {
+						agent.terminalRef.dispose();
+					}
 				}
 			} else if (message.type === 'saveAgentSeats') {
 				// Store seat assignments in a separate key (never touched by persistAgents)
@@ -90,6 +108,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				writeLayoutToFile(message.layout as Record<string, unknown>);
 			} else if (message.type === 'setSoundEnabled') {
 				this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
+			} else if (message.type === 'setShowLabelsAlways') {
+				this.context.globalState.update(GLOBAL_KEY_SHOW_LABELS_ALWAYS, message.enabled);
+				this.webview?.postMessage({ type: 'settingChanged', key: 'showLabelsAlways', value: message.enabled });
 			} else if (message.type === 'webviewReady') {
 				restoreAgents(
 					this.context,
@@ -101,7 +122,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				);
 				// Send persisted settings to webview
 				const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
-				this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled });
+				const showLabelsAlways = this.context.globalState.get<boolean>(GLOBAL_KEY_SHOW_LABELS_ALWAYS, false);
+				const externalSessionsEnabled = vscode.workspace.getConfiguration('pixel-agents').get<boolean>('externalSessions.enabled', false);
+				const externalSessionsScope = vscode.workspace.getConfiguration('pixel-agents').get<string>('externalSessions.scope', 'currentProject');
+				this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled, showLabelsAlways, externalSessionsEnabled, externalSessionsScope });
+
+				// Start external session scanning if enabled
+				if (externalSessionsEnabled) {
+					this.startExternalSessionScanning();
+				}
 
 				// Send workspace folders to webview (only when multi-root)
 				const wsFolders = vscode.workspace.workspaceFolders;
@@ -224,6 +253,21 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					})();
 				}
 				sendExistingAgents(this.agents, this.context, this.webview);
+			} else if (message.type === 'setExternalSessionsEnabled') {
+				const enabled = !!message.enabled;
+				vscode.workspace.getConfiguration('pixel-agents').update('externalSessions.enabled', enabled, vscode.ConfigurationTarget.Global);
+				if (enabled) {
+					this.startExternalSessionScanning();
+				} else {
+					stopExternalScan(
+						this.externalScanState, this.agents,
+						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+						this.jsonlPollTimers, this.persistAgents, this.webview,
+					);
+				}
+			} else if (message.type === 'setExternalSessionsScope') {
+				const scope = message.scope as string;
+				vscode.workspace.getConfiguration('pixel-agents').update('externalSessions.scope', scope, vscode.ConfigurationTarget.Global);
 			} else if (message.type === 'openSessionsFolder') {
 				const projectDir = getProjectDirPath();
 				if (projectDir && fs.existsSync(projectDir)) {
@@ -266,11 +310,31 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			}
 		});
 
+		vscode.workspace.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('pixel-agents.externalSessions.enabled')) {
+				const enabled = vscode.workspace.getConfiguration('pixel-agents').get<boolean>('externalSessions.enabled', false);
+				if (enabled) {
+					this.startExternalSessionScanning();
+				} else {
+					stopExternalScan(
+						this.externalScanState, this.agents,
+						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+						this.jsonlPollTimers, this.persistAgents, this.webview,
+					);
+				}
+				this.webview?.postMessage({ type: 'settingChanged', key: 'externalSessionsEnabled', value: enabled });
+			}
+			if (e.affectsConfiguration('pixel-agents.externalSessions.scope')) {
+				const scope = vscode.workspace.getConfiguration('pixel-agents').get<string>('externalSessions.scope', 'currentProject');
+				this.webview?.postMessage({ type: 'settingChanged', key: 'externalSessionsScope', value: scope });
+			}
+		});
+
 		vscode.window.onDidChangeActiveTerminal((terminal) => {
 			this.activeAgentId.current = null;
 			if (!terminal) return;
 			for (const [id, agent] of this.agents) {
-				if (agent.terminalRef === terminal) {
+				if (!agent.isExternal && agent.terminalRef === terminal) {
 					this.activeAgentId.current = id;
 					webviewView.webview.postMessage({ type: 'agentSelected', id });
 					break;
@@ -280,7 +344,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
 		vscode.window.onDidCloseTerminal((closed) => {
 			for (const [id, agent] of this.agents) {
-				if (agent.terminalRef === closed) {
+				if (!agent.isExternal && agent.terminalRef === closed) {
 					if (this.activeAgentId.current === id) {
 						this.activeAgentId.current = null;
 					}
@@ -313,6 +377,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		vscode.window.showInformationMessage(`Pixel Agents: Default layout exported to ${targetPath}`);
 	}
 
+	private startExternalSessionScanning(): void {
+		startExternalScan(
+			this.externalScanState, this.agents, this.knownJsonlFiles,
+			this.nextAgentId,
+			this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+			this.jsonlPollTimers, this.persistAgents, this.webview,
+		);
+	}
+
 	private startLayoutWatcher(): void {
 		if (this.layoutWatcher) return;
 		this.layoutWatcher = watchLayoutFile((layout) => {
@@ -322,6 +395,11 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	}
 
 	dispose() {
+		stopExternalScan(
+			this.externalScanState, this.agents,
+			this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+			this.jsonlPollTimers, this.persistAgents, this.webview,
+		);
 		this.layoutWatcher?.dispose();
 		this.layoutWatcher = null;
 		for (const id of [...this.agents.keys()]) {

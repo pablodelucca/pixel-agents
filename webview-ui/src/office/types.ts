@@ -102,6 +102,8 @@ export const EditTool = {
   SELECT: 'select',
   EYEDROPPER: 'eyedropper',
   ERASE: 'erase',
+  ZONE_PAINT: 'zone_paint',
+  REGION_SELECT: 'region_select',
 } as const
 export type EditTool = (typeof EditTool)[keyof typeof EditTool]
 
@@ -140,6 +142,10 @@ export interface OfficeLayout {
   furniture: PlacedFurniture[]
   /** Per-tile color settings, parallel to tiles array. null = wall/no color */
   tileColors?: Array<FloorColor | null>
+  /** Per-tile zone assignment, parallel to tiles array. null = lobby, string = projectId */
+  zones?: Array<string | null>
+  /** Per-zone color hue overrides. Maps projectId → hue (0-360) */
+  zoneColors?: Record<string, number>
 }
 
 export interface Character {
@@ -195,4 +201,8 @@ export interface Character {
   matrixEffectSeeds: number[]
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string
+  /** Whether this is an external session (not managed by VS Code) */
+  isExternal?: boolean
+  /** Project identifier for zone assignment */
+  projectId?: string
 }
