@@ -1,7 +1,7 @@
 {
   "name": "pixel-agents",
   "displayName": "Pixel Agents",
-  "description": "Pixel art office where your Claude Code agents come to life as animated characters",
+  "description": "Pixel art office where your AI coding agents come to life as animated characters — works with Claude Code and Kiro",
   "version": "1.0.2",
   "publisher": "pablodelucca",
   "repository": {
@@ -27,6 +27,14 @@
       {
         "command": "pixel-agents.exportDefaultLayout",
         "title": "Pixel Agents: Export Layout as Default"
+      },
+      {
+        "command": "pixel-agents.setupKiroBridge",
+        "title": "Pixel Agents: Setup Kiro Bridge"
+      },
+      {
+        "command": "pixel-agents.removeKiroBridge",
+        "title": "Pixel Agents: Remove Kiro Bridge"
       }
     ],
     "viewsContainers": {
@@ -57,9 +65,11 @@
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "package": "npm run check-types && npm run lint && node esbuild.js --production && npm run build:webview",
+    "vsix": "npm run package && vsce package --no-dependencies",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "import-tileset": "tsx scripts/import-tileset-cli.ts"
+    "import-tileset": "tsx scripts/import-tileset-cli.ts",
+    "test": "vitest --run"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
@@ -68,10 +78,15 @@
     "@types/vscode": "^1.107.0",
     "esbuild": "^0.27.2",
     "eslint": "^9.39.2",
+    "fast-check": "^4.5.3",
     "npm-run-all": "^4.1.5",
     "pngjs": "^7.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.54.0"
+    "typescript-eslint": "^8.54.0",
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "vsce": "^2.14.0"
   }
 }

@@ -1284,7 +1284,7 @@ function fmtToolStatus(name, input) {
     case 'AskUserQuestion': return 'Waiting for your answer';
     case 'EnterPlanMode': return 'Planning';
     case 'NotebookEdit': return 'Editing notebook';
-    default: return `Using ${name}`;
+    default: return name && name !== 'unknown' ? `Using ${name}` : 'Working';
   }
 }
 

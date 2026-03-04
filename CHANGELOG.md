@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.0.3 (unreleased)
+
+### Features
+
+- **Kiro agent support** — New bridge script and hook system that lets Kiro agents appear as animated pixel characters. Four lifecycle hooks (prompt submit, tool start, tool done, agent stop) write Claude-Code-compatible JSONL so the extension picks up Kiro activity without a terminal. Includes tool name mapping, session management, and a "Setup Kiro Bridge" command. See [KIRO.md](KIRO.md) for details.
+- **Terminal-less agents** — Extension now supports agents with no backing VS Code terminal (`terminalRef: null`). JSONL files appearing in the project directory are automatically adopted as terminal-less agents on startup or during periodic scans.
+
+### Bug Fixes
+
+- **"Using unknown" display** — When the Kiro bridge can't determine the tool name (due to `runCommand` hooks not passing tool context), the status now shows "Working" instead of "Using unknown". Applies to both the webview and the JSONL viewer.
+
+### Maintenance
+
+- **Office tileset gitignored** — The license-restricted furniture and floor tile assets under `webview-ui/public/assets/furniture/` and `webview-ui/public/assets/floors.png` are now excluded from the repository via `.gitignore`.
+
 ## v1.0.2
 
 ### Bug Fixes

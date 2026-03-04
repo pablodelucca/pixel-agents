@@ -38,7 +38,9 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
 		case 'AskUserQuestion': return 'Waiting for your answer';
 		case 'EnterPlanMode': return 'Planning';
 		case 'NotebookEdit': return `Editing notebook`;
-		default: return `Using ${toolName}`;
+		// FIX: When the Kiro bridge can't determine the tool name, it defaults to
+		// "unknown". Show a friendlier status instead of "Using unknown".
+		default: return toolName && toolName !== 'unknown' ? `Using ${toolName}` : 'Working';
 	}
 }
 
@@ -49,6 +51,7 @@ export function processTranscriptLine(
 	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
+	onTerminalLessTurnEnd?: (agentId: number) => void,
 ): void {
 	const agent = agents.get(agentId);
 	if (!agent) return;
@@ -86,7 +89,9 @@ export function processTranscriptLine(
 						});
 					}
 				}
-				if (hasNonExemptTool) {
+				if (hasNonExemptTool && agent.terminalRef !== null) {
+					// Only use timer-based permission detection for terminal-backed agents.
+					// Terminal-less agents (Kiro) use explicit permission records instead.
 					startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
 				}
 			} else if (blocks.some(b => b.type === 'text') && !agent.hadToolsInTurn) {
@@ -148,6 +153,11 @@ export function processTranscriptLine(
 				clearAgentActivity(agent, agentId, permissionTimers, webview);
 				agent.hadToolsInTurn = false;
 			}
+		} else if (record.type === 'system' && record.subtype === 'permission') {
+			// Explicit permission request (from Kiro bridge)
+			agent.permissionSent = true;
+			console.log(`[Pixel Agents] Agent ${agentId}: explicit permission request`);
+			webview?.postMessage({ type: 'agentToolPermission', id: agentId });
 		} else if (record.type === 'system' && record.subtype === 'turn_duration') {
 			cancelWaitingTimer(agentId, waitingTimers);
 			cancelPermissionTimer(agentId, permissionTimers);
@@ -170,6 +180,11 @@ export function processTranscriptLine(
 				id: agentId,
 				status: 'waiting',
 			});
+
+			// Terminal-less agents (Kiro) should be cleaned up after turn ends
+			if (agent.terminalRef === null && onTerminalLessTurnEnd) {
+				onTerminalLessTurnEnd(agentId);
+			}
 		}
 	} catch {
 		// Ignore malformed lines

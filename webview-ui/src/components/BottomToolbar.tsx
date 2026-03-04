@@ -10,6 +10,7 @@ interface BottomToolbarProps {
   isDebugMode: boolean
   onToggleDebugMode: () => void
   workspaceFolders: WorkspaceFolder[]
+  claudeAvailable: boolean
 }
 
 const panelStyle: React.CSSProperties = {
@@ -51,6 +52,7 @@ export function BottomToolbar({
   isDebugMode,
   onToggleDebugMode,
   workspaceFolders,
+  claudeAvailable,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -87,6 +89,7 @@ export function BottomToolbar({
 
   return (
     <div style={panelStyle}>
+      {claudeAvailable && (
       <div ref={folderPickerRef} style={{ position: 'relative' }}>
         <button
           onClick={handleAgentClick}
@@ -146,6 +149,7 @@ export function BottomToolbar({
           </div>
         )}
       </div>
+      )}
       <button
         onClick={onToggleEditMode}
         onMouseEnter={() => setHovered('edit')}

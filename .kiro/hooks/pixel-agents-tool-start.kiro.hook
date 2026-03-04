@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "name": "Pixel Agents: Tool Start",
+  "description": "Writes a tool_use record before each tool execution.",
+  "version": "1",
+  "when": {
+    "type": "preToolUse",
+    "toolTypes": [
+      "read",
+      "write",
+      "shell"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "bash .kiro/scripts/pixel-agents-bridge.sh tool-start"
+  }
+}
