@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Pixel Agents: Agent Done",
+  "description": "Writes a turn_duration system record when the agent finishes.",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "bash .kiro/scripts/pixel-agents-bridge.sh agent-stop"
+  }
+}

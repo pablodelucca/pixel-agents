@@ -1,5 +1,6 @@
 out
 dist
+assets
 node_modules
 .vscode-test/
 *.vsix
@@ -7,3 +8,13 @@ node_modules
 /logs
 /sprites-export
 .env
+
+# Kiro spec files (internal development artifacts)
+.kiro/specs/
+
+# Kiro steering files (workspace-level dev config)
+.kiro/steering/
+
+# License-restricted office tileset assets
+webview-ui/public/assets/furniture/
+webview-ui/public/assets/floors.png

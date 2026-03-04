@@ -14,7 +14,7 @@ import {
 } from './agentManager.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
-import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
+import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED, TERMINALLESS_CLEANUP_DELAY_MS } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 
@@ -36,6 +36,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	knownJsonlFiles = new Set<string>();
 	projectScanTimer = { current: null as ReturnType<typeof setInterval> | null };
 
+	// Delayed cleanup timers for terminal-less agents
+	terminalLessCleanupTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
 	// Bundled default layout (loaded from assets/default-layout.json)
 	defaultLayout: Record<string, unknown> | null = null;
 
@@ -56,6 +59,30 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		persistAgents(this.agents, this.context);
 	};
 
+	private onTerminalLessTurnEnd = (agentId: number): void => {
+		// Cancel any existing cleanup timer for this agent
+		const existing = this.terminalLessCleanupTimers.get(agentId);
+		if (existing) clearTimeout(existing);
+
+		const timer = setTimeout(() => {
+			this.terminalLessCleanupTimers.delete(agentId);
+			const agent = this.agents.get(agentId);
+			if (!agent || agent.terminalRef !== null) return;
+
+			console.log(`[Pixel Agents] Agent ${agentId}: removing terminal-less agent after turn end`);
+			if (this.activeAgentId.current === agentId) {
+				this.activeAgentId.current = null;
+			}
+			removeAgent(
+				agentId, this.agents,
+				this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+				this.jsonlPollTimers, this.persistAgents,
+			);
+			this.webview?.postMessage({ type: 'agentClosed', id: agentId });
+		}, TERMINALLESS_CLEANUP_DELAY_MS);
+		this.terminalLessCleanupTimers.set(agentId, timer);
+	};
+
 	resolveWebviewView(webviewView: vscode.WebviewView) {
 		this.webviewView = webviewView;
 		webviewView.webview.options = { enableScripts: true };
@@ -73,12 +100,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				);
 			} else if (message.type === 'focusAgent') {
 				const agent = this.agents.get(message.id);
-				if (agent) {
+				if (agent?.terminalRef) {
 					agent.terminalRef.show();
 				}
 			} else if (message.type === 'closeAgent') {
 				const agent = this.agents.get(message.id);
-				if (agent) {
+				if (agent?.terminalRef) {
 					agent.terminalRef.dispose();
 				}
 			} else if (message.type === 'saveAgentSeats') {
@@ -97,11 +124,18 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					this.agents, this.knownJsonlFiles,
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 					this.jsonlPollTimers, this.projectScanTimer, this.activeAgentId,
-					this.webview, this.persistAgents,
+					this.webview, this.persistAgents, this.onTerminalLessTurnEnd,
 				);
 				// Send persisted settings to webview
 				const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
-				this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled });
+				// Check if claude CLI is available (for the +Agent button)
+				let claudeAvailable = false;
+				try {
+					const { execSync } = require('child_process');
+					execSync('which claude', { stdio: 'ignore' });
+					claudeAvailable = true;
+				} catch { /* claude not found */ }
+				this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled, claudeAvailable });
 
 				// Send workspace folders to webview (only when multi-root)
 				const wsFolders = vscode.workspace.workspaceFolders;
@@ -122,7 +156,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 						projectDir, this.knownJsonlFiles, this.projectScanTimer, this.activeAgentId,
 						this.nextAgentId, this.agents,
 						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
-						this.webview, this.persistAgents,
+						this.webview, this.persistAgents, this.onTerminalLessTurnEnd,
 					);
 
 					// Load furniture assets BEFORE sending layout
@@ -270,7 +304,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			this.activeAgentId.current = null;
 			if (!terminal) return;
 			for (const [id, agent] of this.agents) {
-				if (agent.terminalRef === terminal) {
+				if (agent.terminalRef && agent.terminalRef === terminal) {
 					this.activeAgentId.current = id;
 					webviewView.webview.postMessage({ type: 'agentSelected', id });
 					break;
@@ -280,7 +314,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
 		vscode.window.onDidCloseTerminal((closed) => {
 			for (const [id, agent] of this.agents) {
-				if (agent.terminalRef === closed) {
+				if (agent.terminalRef && agent.terminalRef === closed) {
 					if (this.activeAgentId.current === id) {
 						this.activeAgentId.current = null;
 					}
@@ -324,6 +358,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	dispose() {
 		this.layoutWatcher?.dispose();
 		this.layoutWatcher = null;
+		for (const timer of this.terminalLessCleanupTimers.values()) {
+			clearTimeout(timer);
+		}
+		this.terminalLessCleanupTimers.clear();
 		for (const id of [...this.agents.keys()]) {
 			removeAgent(
 				id, this.agents,

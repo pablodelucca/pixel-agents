@@ -2,7 +2,7 @@ import type * as vscode from 'vscode';
 
 export interface AgentState {
 	id: number;
-	terminalRef: vscode.Terminal;
+	terminalRef: vscode.Terminal | null;
 	projectDir: string;
 	jsonlFile: string;
 	fileOffset: number;
@@ -21,7 +21,7 @@ export interface AgentState {
 
 export interface PersistedAgent {
 	id: number;
-	terminalName: string;
+	terminalName: string | null;
 	jsonlFile: string;
 	projectDir: string;
 	/** Workspace folder name (only set for multi-root workspaces) */

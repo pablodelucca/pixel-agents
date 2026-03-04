@@ -147,7 +147,7 @@ export function persistAgents(
 	for (const agent of agents.values()) {
 		persisted.push({
 			id: agent.id,
-			terminalName: agent.terminalRef.name,
+			terminalName: agent.terminalRef?.name ?? null,
 			jsonlFile: agent.jsonlFile,
 			projectDir: agent.projectDir,
 			folderName: agent.folderName,
@@ -171,6 +171,7 @@ export function restoreAgents(
 	activeAgentIdRef: { current: number | null },
 	webview: vscode.Webview | undefined,
 	doPersist: () => void,
+	onTerminalLessTurnEnd?: (agentId: number) => void,
 ): void {
 	const persisted = context.workspaceState.get<PersistedAgent[]>(WORKSPACE_KEY_AGENTS, []);
 	if (persisted.length === 0) return;
@@ -181,8 +182,18 @@ export function restoreAgents(
 	let restoredProjectDir: string | null = null;
 
 	for (const p of persisted) {
-		const terminal = liveTerminals.find(t => t.name === p.terminalName);
-		if (!terminal) continue;
+		let terminal: vscode.Terminal | null = null;
+
+		if (p.terminalName !== null) {
+			// Terminal-backed agent: find matching live terminal
+			const found = liveTerminals.find(t => t.name === p.terminalName);
+			if (!found) continue;
+			terminal = found;
+		} else {
+			// Terminal-less agents (Kiro) are ephemeral — don't restore them.
+			// A new agent will be created when the next prompt triggers a new JSONL file.
+			continue;
+		}
 
 		const agent: AgentState = {
 			id: p.id,
@@ -208,7 +219,7 @@ export function restoreAgents(
 
 		if (p.id > maxId) maxId = p.id;
 		// Extract terminal index from name like "Claude Code #3"
-		const match = p.terminalName.match(/#(\d+)$/);
+		const match = p.terminalName?.match(/#(\d+)$/);
 		if (match) {
 			const idx = parseInt(match[1], 10);
 			if (idx > maxIdx) maxIdx = idx;
@@ -257,7 +268,7 @@ export function restoreAgents(
 		ensureProjectScan(
 			restoredProjectDir, knownJsonlFiles, projectScanTimerRef, activeAgentIdRef,
 			nextAgentIdRef, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-			webview, doPersist,
+			webview, doPersist, onTerminalLessTurnEnd,
 		);
 	}
 }
