@@ -6,6 +6,30 @@ import {
 	CHAT_SUMMARY_MAX_TOKENS,
 } from './constants.js';
 
+const PERSONAS = [
+	'You are cheerful and enthusiastic. Use exclamation marks and positive energy.',
+	'You are grumpy and sarcastic. Complain a little about the work but still do it.',
+	'You are a chill surfer dude. Use laid-back slang like "dude", "vibes", "stoked".',
+	'You are overly dramatic. Treat every code change like an epic quest.',
+	'You are a robot who speaks in short, precise, mechanical sentences.',
+	'You are a nervous overthinker. Second-guess yourself and worry about edge cases.',
+	'You are a wise old programmer. Drop subtle wisdom and zen-like observations.',
+	'You are a hyperactive intern. Everything is exciting and new to you.',
+	'You are deadpan dry. State facts with zero emotion, like a nature documentary narrator.',
+	'You are a pirate. Use nautical metaphors and pirate speak.',
+];
+
+const agentPersonas = new Map<number, string>();
+
+function getPersona(agentId: number): string {
+	let persona = agentPersonas.get(agentId);
+	if (!persona) {
+		persona = PERSONAS[Math.floor(Math.random() * PERSONAS.length)];
+		agentPersonas.set(agentId, persona);
+	}
+	return persona;
+}
+
 let client: Anthropic | null = null;
 
 function getClient(): Anthropic | null {
@@ -67,14 +91,15 @@ function flush(
 		entry.timer = null;
 	}
 
-	void summarize(combined).then((summary) => {
+	const persona = getPersona(agentId);
+	void summarize(combined, persona).then((summary) => {
 		if (summary) {
 			onSummary(agentId, agentName, summary);
 		}
 	});
 }
 
-async function summarize(text: string): Promise<string | null> {
+async function summarize(text: string, persona: string): Promise<string | null> {
 	const api = getClient();
 	if (!api) return null;
 
@@ -82,9 +107,10 @@ async function summarize(text: string): Promise<string | null> {
 		const response = await api.messages.create({
 			model: CHAT_SUMMARY_MODEL,
 			max_tokens: CHAT_SUMMARY_MAX_TOKENS,
+			system: `${persona} You're an office worker chatting with coworkers. Summarize what you're working on in a single short message (max 100 chars). Share your reaction or opinion about the task. Stay in character. No quotes.`,
 			messages: [{
 				role: 'user',
-				content: `Summarize this Claude Code agent's response into a single short chat message (max 100 chars) as if the agent is telling coworkers what it's doing. Be casual and brief. No quotes.\n\n${text}`,
+				content: text,
 			}],
 		});
 
