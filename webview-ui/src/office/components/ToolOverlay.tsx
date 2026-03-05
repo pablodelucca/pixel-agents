@@ -111,6 +111,9 @@ export function ToolOverlay({
           }
         } else {
           activityText = getActivityText(id, agentTools, ch.isActive)
+          if (ch.bubbleType === 'thinking') {
+            activityText = 'Thinking...'
+          }
         }
 
         // Determine dot color
@@ -182,7 +185,20 @@ export function ToolOverlay({
                 >
                   {activityText}
                 </span>
-                {(ch.folderName || ch.isExternal) && (
+                {ch.tasks && ch.tasks.length > 0 && (
+                <span
+                  style={{
+                    fontSize: '16px',
+                    color: 'var(--pixel-text-dim)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    display: 'block',
+                  }}
+                >
+                  Tasks: {ch.tasks.filter(t => t.status === 'completed').length}/{ch.tasks.length} done
+                </span>
+              )}
+              {(ch.folderName || ch.isExternal) && (
                   <span
                     style={{
                       fontSize: '16px',

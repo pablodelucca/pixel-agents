@@ -12,6 +12,7 @@ import {
   WANDER_MOVES_BEFORE_REST_MAX,
   SEAT_REST_MIN_SEC,
   SEAT_REST_MAX_SEC,
+  VIRTUAL_MONITOR_FRAME_DURATION_SEC,
 } from '../../constants.js'
 
 /** Tools that show reading animation instead of typing */
@@ -78,6 +79,9 @@ export function createCharacter(
     matrixEffect: null,
     matrixEffectTimer: 0,
     matrixEffectSeeds: [],
+    monitorFrame: 0,
+    monitorFrameTimer: 0,
+    tasks: [],
   }
 }
 
@@ -90,6 +94,15 @@ export function updateCharacter(
   blockedTiles: Set<string>,
 ): void {
   ch.frameTimer += dt
+
+  // Update virtual monitor animation
+  if (ch.isActive && ch.state === CharacterState.TYPE) {
+    ch.monitorFrameTimer += dt
+    if (ch.monitorFrameTimer >= VIRTUAL_MONITOR_FRAME_DURATION_SEC) {
+      ch.monitorFrameTimer -= VIRTUAL_MONITOR_FRAME_DURATION_SEC
+      ch.monitorFrame = (ch.monitorFrame + 1) % 3
+    }
+  }
 
   switch (ch.state) {
     case CharacterState.TYPE: {

@@ -898,6 +898,13 @@ export class OfficeState {
     this.furniture = layoutToFurnitureInstances(modifiedFurniture)
   }
 
+  setAgentTasks(id: number, tasks: Array<{ taskId: string; subject: string; status: 'pending' | 'in_progress' | 'completed' }>): void {
+    const ch = this.characters.get(id)
+    if (ch) {
+      ch.tasks = tasks
+    }
+  }
+
   setAgentTool(id: number, tool: string | null): void {
     const ch = this.characters.get(id)
     if (ch) {
@@ -916,6 +923,22 @@ export class OfficeState {
   clearPermissionBubble(id: number): void {
     const ch = this.characters.get(id)
     if (ch && ch.bubbleType === 'permission') {
+      ch.bubbleType = null
+      ch.bubbleTimer = 0
+    }
+  }
+
+  showThinkingBubble(id: number): void {
+    const ch = this.characters.get(id)
+    if (ch) {
+      ch.bubbleType = 'thinking'
+      ch.bubbleTimer = 0
+    }
+  }
+
+  clearThinkingBubble(id: number): void {
+    const ch = this.characters.get(id)
+    if (ch && ch.bubbleType === 'thinking') {
       ch.bubbleType = null
       ch.bubbleTimer = 0
     }

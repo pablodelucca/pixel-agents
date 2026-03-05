@@ -12,9 +12,11 @@ import {
 	TEXT_IDLE_DELAY_MS,
 	BASH_COMMAND_DISPLAY_MAX_LENGTH,
 	TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
+	SUBAGENT_TOOL_NAMES,
+	TASK_MGMT_TOOL_NAMES,
 } from './constants.js';
 
-export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'AskUserQuestion']);
+export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet']);
 
 export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
 	const base = (p: unknown) => typeof p === 'string' ? path.basename(p) : '';
@@ -30,10 +32,15 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
 		case 'Grep': return 'Searching code';
 		case 'WebFetch': return 'Fetching web content';
 		case 'WebSearch': return 'Searching the web';
+		case 'Agent':
 		case 'Task': {
 			const desc = typeof input.description === 'string' ? input.description : '';
 			return desc ? `Subtask: ${desc.length > TASK_DESCRIPTION_DISPLAY_MAX_LENGTH ? desc.slice(0, TASK_DESCRIPTION_DISPLAY_MAX_LENGTH) + '\u2026' : desc}` : 'Running subtask';
 		}
+		case 'TaskCreate': return 'Creating task';
+		case 'TaskUpdate': return 'Updating task';
+		case 'TaskList': return 'Listing tasks';
+		case 'TaskGet': return 'Getting task';
 		case 'AskUserQuestion': return 'Waiting for your answer';
 		case 'EnterPlanMode': return 'Planning';
 		case 'NotebookEdit': return `Editing notebook`;
@@ -93,6 +100,8 @@ export function processTranscriptLine(
 				// turn_duration handles tool-using turns reliably but is never
 				// emitted for text-only turns, so we use a silence-based timer:
 				// if no new JSONL data arrives within TEXT_IDLE_DELAY_MS, mark as waiting.
+				// Agent is thinking (text output, no tools yet)
+				webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'thinking' });
 				startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
 			}
 		} else if (record.type === 'progress') {
@@ -107,8 +116,13 @@ export function processTranscriptLine(
 						if (block.type === 'tool_result' && block.tool_use_id) {
 							console.log(`[Pixel Agents] Agent ${agentId} tool done: ${block.tool_use_id}`);
 							const completedToolId = block.tool_use_id;
-							// If the completed tool was a Task, clear its subagent tools
-							if (agent.activeToolNames.get(completedToolId) === 'Task') {
+							const completedToolName = agent.activeToolNames.get(completedToolId) || '';
+							// Parse task management tool results
+							if (TASK_MGMT_TOOL_NAMES.has(completedToolName)) {
+								parseTaskToolResult(agentId, completedToolName, block, agent, webview);
+							}
+							// If the completed tool was a Task/Agent, clear its subagent tools
+							if (SUBAGENT_TOOL_NAMES.has(completedToolName)) {
 								agent.activeSubagentToolIds.delete(completedToolId);
 								agent.activeSubagentToolNames.delete(completedToolId);
 								webview?.postMessage({
@@ -202,8 +216,8 @@ function processProgressRecord(
 		return;
 	}
 
-	// Verify parent is an active Task tool (agent_progress handling)
-	if (agent.activeToolNames.get(parentToolId) !== 'Task') return;
+	// Verify parent is an active Task/Agent tool (agent_progress handling)
+	if (!SUBAGENT_TOOL_NAMES.has(agent.activeToolNames.get(parentToolId) || '')) return;
 
 	const msg = data.message as Record<string, unknown> | undefined;
 	if (!msg) return;
@@ -294,5 +308,129 @@ function processProgressRecord(
 		if (stillHasNonExempt) {
 			startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
 		}
+	}
+}
+
+function sendTaskUpdate(agentId: number, agent: AgentState, webview: MessageEmitter | undefined): void {
+	const tasks = Array.from(agent.tasks.values());
+	webview?.postMessage({ type: 'agentTaskUpdate', id: agentId, tasks });
+}
+
+function parseTaskToolResult(
+	agentId: number,
+	toolName: string,
+	block: Record<string, unknown>,
+	agent: AgentState,
+	webview: MessageEmitter | undefined,
+): void {
+	// Extract text content from the tool_result block
+	const content = block.content;
+	let text = '';
+	if (typeof content === 'string') {
+		text = content;
+	} else if (Array.isArray(content)) {
+		for (const part of content) {
+			if (typeof part === 'object' && part !== null && (part as Record<string, unknown>).type === 'text') {
+				text += (part as Record<string, unknown>).text || '';
+			}
+		}
+	}
+	if (!text) return;
+
+	try {
+		if (toolName === 'TaskList') {
+			// TaskList is authoritative — replace full task state
+			// Parse the structured output to extract task entries
+			const taskLines = text.split('\n').filter(l => l.trim());
+			const newTasks = new Map<string, { taskId: string; subject: string; status: string }>();
+			for (const line of taskLines) {
+				// Match patterns like "- [id] subject (status)" or structured JSON
+				const match = line.match(/(?:^|\s)(\d+)\.\s+(.+?)\s*\((\w+)\)\s*$/);
+				if (match) {
+					newTasks.set(match[1], { taskId: match[1], subject: match[2].trim(), status: match[3] });
+					continue;
+				}
+				// Try JSON parsing for structured results
+				try {
+					const parsed = JSON.parse(line);
+					if (parsed.id && parsed.subject) {
+						const id = String(parsed.id);
+						newTasks.set(id, { taskId: id, subject: parsed.subject, status: parsed.status || 'pending' });
+					}
+				} catch { /* not JSON, skip */ }
+			}
+			// Also try parsing the entire text as JSON (array of tasks)
+			try {
+				const parsed = JSON.parse(text);
+				if (Array.isArray(parsed)) {
+					for (const item of parsed) {
+						if (item.id && item.subject) {
+							const id = String(item.id);
+							newTasks.set(id, { taskId: id, subject: item.subject, status: item.status || 'pending' });
+						}
+					}
+				}
+			} catch { /* not JSON array */ }
+			if (newTasks.size > 0) {
+				agent.tasks = newTasks;
+				sendTaskUpdate(agentId, agent, webview);
+			}
+		} else if (toolName === 'TaskCreate') {
+			// Extract task from creation result
+			try {
+				const parsed = JSON.parse(text);
+				if (parsed.id && parsed.subject) {
+					const id = String(parsed.id);
+					agent.tasks.set(id, { taskId: id, subject: parsed.subject, status: parsed.status || 'pending' });
+					sendTaskUpdate(agentId, agent, webview);
+				}
+			} catch {
+				// Try to extract from text format: "Created task 1: subject"
+				const match = text.match(/(?:Created|Added)\s+task\s+(\d+):\s+(.+)/i);
+				if (match) {
+					agent.tasks.set(match[1], { taskId: match[1], subject: match[2].trim(), status: 'pending' });
+					sendTaskUpdate(agentId, agent, webview);
+				}
+			}
+		} else if (toolName === 'TaskUpdate') {
+			// Extract updated task info
+			try {
+				const parsed = JSON.parse(text);
+				if (parsed.id) {
+					const id = String(parsed.id);
+					const existing = agent.tasks.get(id);
+					if (existing) {
+						if (parsed.status) existing.status = parsed.status;
+						if (parsed.subject) existing.subject = parsed.subject;
+						sendTaskUpdate(agentId, agent, webview);
+					} else if (parsed.subject) {
+						agent.tasks.set(id, { taskId: id, subject: parsed.subject, status: parsed.status || 'pending' });
+						sendTaskUpdate(agentId, agent, webview);
+					}
+				}
+			} catch {
+				// Try text format: "Updated task 1 status to completed"
+				const match = text.match(/(?:Updated|Changed)\s+task\s+(\d+)\s+.*?(?:status\s+to\s+)?(\w+)/i);
+				if (match) {
+					const existing = agent.tasks.get(match[1]);
+					if (existing) {
+						existing.status = match[2];
+						sendTaskUpdate(agentId, agent, webview);
+					}
+				}
+			}
+		} else if (toolName === 'TaskGet') {
+			// TaskGet returns a single task — update if we already track it
+			try {
+				const parsed = JSON.parse(text);
+				if (parsed.id && parsed.subject) {
+					const id = String(parsed.id);
+					agent.tasks.set(id, { taskId: id, subject: parsed.subject, status: parsed.status || 'pending' });
+					sendTaskUpdate(agentId, agent, webview);
+				}
+			} catch { /* ignore */ }
+		}
+	} catch {
+		// Ignore parsing errors
 	}
 }

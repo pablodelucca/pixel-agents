@@ -244,10 +244,14 @@ export function useExtensionMessages(
           }
           return { ...prev, [id]: status }
         })
-        os.setAgentActive(id, status === 'active')
+        os.setAgentActive(id, status === 'active' || status === 'thinking')
         if (status === 'waiting') {
           os.showWaitingBubble(id)
           playDoneSound()
+        } else if (status === 'thinking') {
+          os.showThinkingBubble(id)
+        } else if (status === 'active') {
+          os.clearThinkingBubble(id)
         }
       } else if (msg.type === 'agentToolPermission') {
         const id = msg.id as number
@@ -337,6 +341,10 @@ export function useExtensionMessages(
         // Remove sub-agent character
         os.removeSubagent(id, parentToolId)
         setSubagentCharacters((prev) => prev.filter((s) => !(s.parentAgentId === id && s.parentToolId === parentToolId)))
+      } else if (msg.type === 'agentTaskUpdate') {
+        const id = msg.id as number
+        const tasks = msg.tasks as Array<{ taskId: string; subject: string; status: 'pending' | 'in_progress' | 'completed' }>
+        os.setAgentTasks(id, tasks)
       } else if (msg.type === 'characterSpritesLoaded') {
         const characters = msg.characters as Array<{ down: string[][][]; up: string[][][]; right: string[][][] }>
         console.log(`[Webview] Received ${characters.length} pre-colored character sprites`)

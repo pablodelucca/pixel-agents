@@ -161,6 +161,7 @@ function runExternalScan(
 								isWaiting: false,
 								permissionSent: false,
 								hadToolsInTurn: false,
+								tasks: new Map(),
 								folderName,
 							};
 

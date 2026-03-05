@@ -12,6 +12,7 @@
     "resolveJsonModule": true,
     "declaration": false,
     "sourceMap": true,
+    "typeRoots": ["./node_modules/@types"],
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },

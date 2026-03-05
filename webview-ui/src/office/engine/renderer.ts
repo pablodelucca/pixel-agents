@@ -1,12 +1,22 @@
-import { TileType, TILE_SIZE, CharacterState } from '../types.js'
+import { TileType, TILE_SIZE, CharacterState, Direction } from '../types.js'
 import type { TileType as TileTypeVal, FurnitureInstance, Character, SpriteData, Seat, FloorColor } from '../types.js'
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js'
-import { getCharacterSprites, BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE } from '../sprites/spriteData.js'
+import { getCharacterSprites, BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE, BUBBLE_THINKING_SPRITE, VIRTUAL_MONITOR_FRAMES, VIRTUAL_MONITOR_OFF } from '../sprites/spriteData.js'
 import { getCharacterSprite } from './characters.js'
 import { renderMatrixEffect } from './matrixEffect.js'
 import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js'
 import { hasWallSprites, getWallInstances, wallColorToHex } from '../wallTiles.js'
 import {
+  TASK_BADGE_OFFSET_X_PX,
+  TASK_BADGE_OFFSET_Y_PX,
+  TASK_BADGE_SEG_WIDTH_PX,
+  TASK_BADGE_HEIGHT_PX,
+  TASK_BADGE_MAX_SEGMENTS,
+  TASK_BADGE_BG,
+  TASK_BADGE_BORDER,
+  TASK_STATUS_COMPLETED_COLOR,
+  TASK_STATUS_IN_PROGRESS_COLOR,
+  TASK_STATUS_PENDING_COLOR,
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_Z_SORT_OFFSET,
   OUTLINE_Z_SORT_OFFSET,
@@ -113,6 +123,7 @@ export function renderScene(
   zoom: number,
   selectedAgentId: number | null,
   hoveredAgentId: number | null,
+  seats?: Map<string, Seat>,
 ): void {
   const drawables: ZDrawable[] = []
 
@@ -194,6 +205,36 @@ export function renderScene(
         }
       },
     })
+
+    // Virtual monitor — placed on the desk the seat faces, always visible
+    if (!ch.matrixEffect && ch.seatId && seats) {
+      const seat = seats.get(ch.seatId)
+      if (seat) {
+        const isWorking = ch.isActive && ch.state === CharacterState.TYPE
+        const monSprite = isWorking
+          ? VIRTUAL_MONITOR_FRAMES[ch.monitorFrame % VIRTUAL_MONITOR_FRAMES.length]
+          : VIRTUAL_MONITOR_OFF
+        const monCached = getCachedSprite(monSprite, zoom)
+        // Desk tile = one tile in the facing direction from the seat
+        let deskCol = seat.seatCol
+        let deskRow = seat.seatRow
+        switch (seat.facingDir) {
+          case Direction.DOWN: deskRow += 1; break
+          case Direction.UP: deskRow -= 1; break
+          case Direction.LEFT: deskCol -= 1; break
+          case Direction.RIGHT: deskCol += 1; break
+        }
+        const deskCenterX = deskCol * TILE_SIZE + TILE_SIZE / 2
+        const deskCenterY = deskRow * TILE_SIZE + TILE_SIZE / 2
+        const monX = Math.round(offsetX + deskCenterX * zoom - monCached.width / 2)
+        const monY = Math.round(offsetY + (deskCenterY - 11) * zoom - monCached.height / 2)
+        const monZY = (deskRow + 1) * TILE_SIZE + 0.2
+        drawables.push({
+          zY: monZY,
+          draw: (c) => { c.drawImage(monCached, monX, monY) },
+        })
+      }
+    }
   }
 
   // Sort by Y (lower = in front = drawn later)
@@ -477,7 +518,9 @@ export function renderBubbles(
 
     const sprite = ch.bubbleType === 'permission'
       ? BUBBLE_PERMISSION_SPRITE
-      : BUBBLE_WAITING_SPRITE
+      : ch.bubbleType === 'thinking'
+        ? BUBBLE_THINKING_SPRITE
+        : BUBBLE_WAITING_SPRITE
 
     // Compute opacity: permission = full, waiting = fade in last 0.5s
     let alpha = 1.0
@@ -497,6 +540,56 @@ export function renderBubbles(
     if (alpha < 1.0) ctx.globalAlpha = alpha
     ctx.drawImage(cached, bubbleX, bubbleY)
     ctx.restore()
+  }
+}
+
+// ── Virtual monitors ────────────────────────────────────────────
+
+
+// ── Task progress badges ────────────────────────────────────────
+
+export function renderTaskBadges(
+  ctx: CanvasRenderingContext2D,
+  characters: Character[],
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  for (const ch of characters) {
+    if (!ch.tasks || ch.tasks.length === 0) continue
+
+    const tasks = ch.tasks.slice(0, TASK_BADGE_MAX_SEGMENTS)
+    const segW = TASK_BADGE_SEG_WIDTH_PX * zoom
+    const badgeH = TASK_BADGE_HEIGHT_PX * zoom
+    const totalW = tasks.length * segW
+    const borderW = 1 * zoom
+
+    // Position: above-right of character, offset from bubble position
+    const sittingOff = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0
+    const badgeX = Math.round(offsetX + ch.x * zoom + TASK_BADGE_OFFSET_X_PX * zoom)
+    const badgeY = Math.round(offsetY + (ch.y + sittingOff - TASK_BADGE_OFFSET_Y_PX) * zoom - badgeH)
+
+    // Background
+    ctx.fillStyle = TASK_BADGE_BG
+    ctx.fillRect(badgeX - borderW, badgeY - borderW, totalW + borderW * 2, badgeH + borderW * 2)
+
+    // Border
+    ctx.strokeStyle = TASK_BADGE_BORDER
+    ctx.lineWidth = 1
+    ctx.strokeRect(badgeX - borderW + 0.5, badgeY - borderW + 0.5, totalW + borderW * 2 - 1, badgeH + borderW * 2 - 1)
+
+    // Segments
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i]
+      if (task.status === 'completed') {
+        ctx.fillStyle = TASK_STATUS_COMPLETED_COLOR
+      } else if (task.status === 'in_progress') {
+        ctx.fillStyle = TASK_STATUS_IN_PROGRESS_COLOR
+      } else {
+        ctx.fillStyle = TASK_STATUS_PENDING_COLOR
+      }
+      ctx.fillRect(badgeX + i * segW, badgeY, segW, badgeH)
+    }
   }
 }
 
@@ -652,6 +745,7 @@ export function renderFrame(
   tileColors?: Array<FloorColor | null>,
   layoutCols?: number,
   layoutRows?: number,
+  seats?: Map<string, Seat>,
 ): { offsetX: number; offsetY: number } {
   // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
@@ -692,10 +786,13 @@ export function renderFrame(
   // Draw walls + furniture + characters (z-sorted)
   const selectedId = selection?.selectedAgentId ?? null
   const hoveredId = selection?.hoveredAgentId ?? null
-  renderScene(ctx, allFurniture, characters, offsetX, offsetY, zoom, selectedId, hoveredId)
+  renderScene(ctx, allFurniture, characters, offsetX, offsetY, zoom, selectedId, hoveredId, seats)
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom)
+
+  // Task progress badges (above-right of characters)
+  renderTaskBadges(ctx, characters, offsetX, offsetY, zoom)
 
   // Restore filter before drawing overlays
   if (zoneDesaturate) {

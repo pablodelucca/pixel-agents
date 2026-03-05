@@ -48,7 +48,7 @@ export const CHARACTER_Z_SORT_OFFSET = 0.5
 export const OUTLINE_Z_SORT_OFFSET = 0.001
 export const SELECTED_OUTLINE_ALPHA = 1.0
 export const HOVERED_OUTLINE_ALPHA = 0.5
-export const EXTERNAL_AGENT_OPACITY = 0.7
+export const EXTERNAL_AGENT_OPACITY = 1.0
 export const GHOST_PREVIEW_SPRITE_ALPHA = 0.5
 export const GHOST_PREVIEW_TINT_ALPHA = 0.25
 export const SELECTION_DASH_PATTERN: [number, number] = [4, 3]
@@ -118,6 +118,23 @@ export const NOTIFICATION_NOTE_1_START_SEC = 0
 export const NOTIFICATION_NOTE_2_START_SEC = 0.1
 export const NOTIFICATION_NOTE_DURATION_SEC = 0.18
 export const NOTIFICATION_VOLUME = 0.14
+
+// ── Task Badge ──────────────────────────────────────────────
+export const TASK_BADGE_OFFSET_X_PX = 6
+export const TASK_BADGE_OFFSET_Y_PX = 20
+export const TASK_BADGE_SEG_WIDTH_PX = 2
+export const TASK_BADGE_HEIGHT_PX = 5
+export const TASK_BADGE_MAX_SEGMENTS = 20
+export const TASK_BADGE_BG = '#333344'
+export const TASK_BADGE_BORDER = '#555566'
+export const TASK_STATUS_COMPLETED_COLOR = '#44BB66'
+export const TASK_STATUS_IN_PROGRESS_COLOR = '#44AADD'
+export const TASK_STATUS_PENDING_COLOR = '#666677'
+
+// ── Virtual Monitor ─────────────────────────────────────────
+export const VIRTUAL_MONITOR_OFFSET_X_PX = 4
+export const VIRTUAL_MONITOR_OFFSET_Y_PX = 2
+export const VIRTUAL_MONITOR_FRAME_DURATION_SEC = 0.3
 
 // ── Game Logic ───────────────────────────────────────────────
 export const MAX_DELTA_TIME_SEC = 0.1

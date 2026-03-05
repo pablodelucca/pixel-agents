@@ -318,6 +318,90 @@ export const BUBBLE_WAITING_SPRITE: SpriteData = (() => {
   ]
 })()
 
+/** Thinking bubble: cloud-shaped with "..." in cyan, and small circle tail (11x13) */
+export const BUBBLE_THINKING_SPRITE: SpriteData = (() => {
+  const B = '#555566' // border
+  const F = '#EEEEFF' // fill
+  const C = '#66DDEE' // cyan dots
+  return [
+    [_, _, B, B, B, B, B, B, B, _, _],
+    [_, B, F, F, F, B, F, F, F, B, _],
+    [B, F, F, F, F, F, F, F, F, F, B],
+    [B, F, F, F, F, F, F, F, F, F, B],
+    [B, F, F, C, F, C, F, C, F, F, B],
+    [B, F, F, F, F, F, F, F, F, F, B],
+    [B, F, F, F, F, F, F, F, F, F, B],
+    [_, B, F, F, F, B, F, F, F, B, _],
+    [_, _, B, B, B, _, B, B, B, _, _],
+    [_, _, _, _, _, _, _, B, _, _, _],
+    [_, _, _, _, _, _, B, F, B, _, _],
+    [_, _, _, _, _, _, _, B, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _],
+  ]
+})()
+
+// ── Virtual Monitor Sprites ───────────────────────────────────────
+// 10x8 mini-monitor with green phosphor screen, 3 animation frames
+
+/** Monitor frame border color */
+const MF = '#444455' // monitor frame
+const MS = '#0a1a0a' // screen background (very dark green)
+const MG = '#33cc44' // green text (bright)
+const MD = '#1a5522' // green text (dim/partial line)
+const MK = '#111111' // screen off (black)
+
+/** Off screen — all black, shown when agent is idle */
+export const VIRTUAL_MONITOR_OFF: SpriteData = [
+  [_, _, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, _],
+  [_, MF, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MF, _],
+  [_, MF, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MF, _],
+  [_, MF, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MF, _],
+  [_, MF, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MF, _],
+  [_, MF, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MF, _],
+  [_, MF, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MF, _],
+  [_, MF, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MK, MF, _],
+  [_, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, _],
+]
+
+export const VIRTUAL_MONITOR_FRAMES: SpriteData[] = [
+  // Frame 0: text lines at rows 2, 4, 6
+  [
+    [_, _, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, _],
+    [_, MF, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MG, MG, MG, MG, MG, MG, MG, MG, MS, MS, MS, MF, _],
+    [_, MF, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MG, MG, MG, MG, MG, MG, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MG, MG, MG, MG, MS, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, _],
+  ],
+  // Frame 1: text scrolled — lines at rows 1, 3, 5, 7
+  [
+    [_, _, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, _],
+    [_, MF, MS, MG, MG, MG, MG, MG, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MG, MG, MG, MG, MG, MG, MG, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MD, MD, MD, MD, MD, MD, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MG, MG, MG, MG, MG, MG, MG, MG, MG, MS, MS, MF, _],
+    [_, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, _],
+  ],
+  // Frame 2: fewer lines — visual variety
+  [
+    [_, _, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, _],
+    [_, MF, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MG, MG, MG, MG, MG, MG, MG, MG, MG, MS, MS, MF, _],
+    [_, MF, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MG, MG, MG, MG, MG, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MS, MD, MD, MD, MS, MS, MS, MS, MS, MS, MS, MS, MF, _],
+    [_, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, MF, _],
+  ],
+]
+
 // ── Character Sprites ───────────────────────────────────────────
 // 16x24 characters with palette substitution
 

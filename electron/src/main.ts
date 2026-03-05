@@ -33,7 +33,9 @@ const EXTERNAL_SESSION_SCAN_INTERVAL_MS = 3000
 const EXTERNAL_SESSION_STALE_THRESHOLD_MS = 30_000
 const EXTERNAL_SESSION_REMOVE_THRESHOLD_MS = 300_000
 
-const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'AskUserQuestion'])
+const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet'])
+const SUBAGENT_TOOL_NAMES = new Set(['Task', 'Agent'])
+const TASK_MGMT_TOOL_NAMES = new Set(['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet'])
 const BASH_COMMAND_DISPLAY_MAX_LENGTH = 30
 const TASK_DESCRIPTION_DISPLAY_MAX_LENGTH = 40
 
@@ -59,6 +61,7 @@ interface AgentState {
   isWaiting: boolean
   permissionSent: boolean
   hadToolsInTurn: boolean
+  tasks: Map<string, { taskId: string; subject: string; status: string }>
   folderName?: string
 }
 
@@ -307,10 +310,15 @@ function formatToolStatus(toolName: string, input: Record<string, unknown>): str
     case 'Grep': return 'Searching code'
     case 'WebFetch': return 'Fetching web content'
     case 'WebSearch': return 'Searching the web'
+    case 'Agent':
     case 'Task': {
       const desc = typeof input.description === 'string' ? input.description : ''
       return desc ? `Subtask: ${desc.length > TASK_DESCRIPTION_DISPLAY_MAX_LENGTH ? desc.slice(0, TASK_DESCRIPTION_DISPLAY_MAX_LENGTH) + '\u2026' : desc}` : 'Running subtask'
     }
+    case 'TaskCreate': return 'Creating task'
+    case 'TaskUpdate': return 'Updating task'
+    case 'TaskList': return 'Listing tasks'
+    case 'TaskGet': return 'Getting task'
     case 'AskUserQuestion': return 'Waiting for your answer'
     case 'EnterPlanMode': return 'Planning'
     case 'NotebookEdit': return 'Editing notebook'
@@ -413,6 +421,7 @@ function processTranscriptLine(agentId: number, line: string): void {
         }
         if (hasNonExemptTool) startPermissionTimer(agentId)
       } else if (blocks.some((b: { type: string }) => b.type === 'text') && !agent.hadToolsInTurn) {
+        emitter?.postMessage({ type: 'agentStatus', id: agentId, status: 'thinking' })
         cancelTimer(agentId, waitingTimers)
         const timer = setTimeout(() => {
           waitingTimers.delete(agentId)
@@ -432,7 +441,11 @@ function processTranscriptLine(agentId: number, line: string): void {
           for (const block of content) {
             if (block.type === 'tool_result' && block.tool_use_id) {
               const completedToolId = block.tool_use_id as string
-              if (agent.activeToolNames.get(completedToolId) === 'Task') {
+              const completedToolName = agent.activeToolNames.get(completedToolId) || ''
+              if (TASK_MGMT_TOOL_NAMES.has(completedToolName)) {
+                parseTaskToolResult(agentId, completedToolName, block, agent, emitter)
+              }
+              if (SUBAGENT_TOOL_NAMES.has(completedToolName)) {
                 agent.activeSubagentToolIds.delete(completedToolId)
                 agent.activeSubagentToolNames.delete(completedToolId)
                 emitter?.postMessage({ type: 'subagentClear', id: agentId, parentToolId: completedToolId })
@@ -493,7 +506,7 @@ function processProgressRecord(agentId: number, record: Record<string, unknown>)
     return
   }
 
-  if (agent.activeToolNames.get(parentToolId) !== 'Task') return
+  if (!SUBAGENT_TOOL_NAMES.has(agent.activeToolNames.get(parentToolId) || '')) return
 
   const msg = data.message as Record<string, unknown> | undefined
   if (!msg) return
@@ -538,6 +551,118 @@ function processProgressRecord(agentId: number, record: Record<string, unknown>)
       }
     }
   }
+}
+
+// ── Task Tool Parsing ───────────────────────────────────────
+function sendTaskUpdate(agentId: number, agent: AgentState, emitter: MessageEmitter | undefined): void {
+  const tasks = Array.from(agent.tasks.values())
+  emitter?.postMessage({ type: 'agentTaskUpdate', id: agentId, tasks })
+}
+
+function parseTaskToolResult(
+  agentId: number,
+  toolName: string,
+  block: Record<string, unknown>,
+  agent: AgentState,
+  emitter: MessageEmitter | undefined,
+): void {
+  const content = block.content
+  let text = ''
+  if (typeof content === 'string') {
+    text = content
+  } else if (Array.isArray(content)) {
+    for (const part of content) {
+      if (typeof part === 'object' && part !== null && (part as Record<string, unknown>).type === 'text') {
+        text += (part as Record<string, unknown>).text || ''
+      }
+    }
+  }
+  if (!text) return
+
+  try {
+    if (toolName === 'TaskList') {
+      const taskLines = text.split('\n').filter((l: string) => l.trim())
+      const newTasks = new Map<string, { taskId: string; subject: string; status: string }>()
+      for (const line of taskLines) {
+        const match = line.match(/(?:^|\s)(\d+)\.\s+(.+?)\s*\((\w+)\)\s*$/)
+        if (match) {
+          newTasks.set(match[1], { taskId: match[1], subject: match[2].trim(), status: match[3] })
+          continue
+        }
+        try {
+          const parsed = JSON.parse(line)
+          if (parsed.id && parsed.subject) {
+            const id = String(parsed.id)
+            newTasks.set(id, { taskId: id, subject: parsed.subject, status: parsed.status || 'pending' })
+          }
+        } catch { /* not JSON */ }
+      }
+      try {
+        const parsed = JSON.parse(text)
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) {
+            if (item.id && item.subject) {
+              const id = String(item.id)
+              newTasks.set(id, { taskId: id, subject: item.subject, status: item.status || 'pending' })
+            }
+          }
+        }
+      } catch { /* not JSON array */ }
+      if (newTasks.size > 0) {
+        agent.tasks = newTasks
+        sendTaskUpdate(agentId, agent, emitter)
+      }
+    } else if (toolName === 'TaskCreate') {
+      try {
+        const parsed = JSON.parse(text)
+        if (parsed.id && parsed.subject) {
+          const id = String(parsed.id)
+          agent.tasks.set(id, { taskId: id, subject: parsed.subject, status: parsed.status || 'pending' })
+          sendTaskUpdate(agentId, agent, emitter)
+        }
+      } catch {
+        const match = text.match(/(?:Created|Added)\s+task\s+(\d+):\s+(.+)/i)
+        if (match) {
+          agent.tasks.set(match[1], { taskId: match[1], subject: match[2].trim(), status: 'pending' })
+          sendTaskUpdate(agentId, agent, emitter)
+        }
+      }
+    } else if (toolName === 'TaskUpdate') {
+      try {
+        const parsed = JSON.parse(text)
+        if (parsed.id) {
+          const id = String(parsed.id)
+          const existing = agent.tasks.get(id)
+          if (existing) {
+            if (parsed.status) existing.status = parsed.status
+            if (parsed.subject) existing.subject = parsed.subject
+            sendTaskUpdate(agentId, agent, emitter)
+          } else if (parsed.subject) {
+            agent.tasks.set(id, { taskId: id, subject: parsed.subject, status: parsed.status || 'pending' })
+            sendTaskUpdate(agentId, agent, emitter)
+          }
+        }
+      } catch {
+        const match = text.match(/(?:Updated|Changed)\s+task\s+(\d+)\s+.*?(?:status\s+to\s+)?(\w+)/i)
+        if (match) {
+          const existing = agent.tasks.get(match[1])
+          if (existing) {
+            existing.status = match[2]
+            sendTaskUpdate(agentId, agent, emitter)
+          }
+        }
+      }
+    } else if (toolName === 'TaskGet') {
+      try {
+        const parsed = JSON.parse(text)
+        if (parsed.id && parsed.subject) {
+          const id = String(parsed.id)
+          agent.tasks.set(id, { taskId: id, subject: parsed.subject, status: parsed.status || 'pending' })
+          sendTaskUpdate(agentId, agent, emitter)
+        }
+      } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
 }
 
 // ── File Watching ───────────────────────────────────────────
@@ -678,6 +803,7 @@ function runExternalScan(): void {
                 isWaiting: false,
                 permissionSent: false,
                 hadToolsInTurn: false,
+                tasks: new Map(),
                 folderName,
               }
 
@@ -753,6 +879,7 @@ function handleOpenClaude(): void {
     isWaiting: false,
     permissionSent: false,
     hadToolsInTurn: false,
+    tasks: new Map(),
   }
 
   agents.set(id, agent)

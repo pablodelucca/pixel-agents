@@ -81,6 +81,12 @@ export interface ToolActivity {
   permissionWait?: boolean
 }
 
+export interface AgentTask {
+  taskId: string
+  subject: string
+  status: 'pending' | 'in_progress' | 'completed'
+}
+
 export const FurnitureType = {
   // Original hand-drawn sprites (kept for backward compat)
   DESK: 'desk',
@@ -184,7 +190,7 @@ export interface Character {
   /** Assigned seat uid, or null if no seat */
   seatId: string | null
   /** Active speech bubble type, or null if none showing */
-  bubbleType: 'permission' | 'waiting' | null
+  bubbleType: 'permission' | 'waiting' | 'thinking' | null
   /** Countdown timer for bubble (waiting: 2→0, permission: unused) */
   bubbleTimer: number
   /** Timer to stay seated while inactive after seat reassignment (counts down to 0) */
@@ -199,10 +205,16 @@ export interface Character {
   matrixEffectTimer: number
   /** Per-column random seeds (16 values) for staggered rain timing */
   matrixEffectSeeds: number[]
+  /** Animation frame index for virtual monitor (0-2) */
+  monitorFrame: number
+  /** Timer for virtual monitor animation */
+  monitorFrameTimer: number
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string
   /** Whether this is an external session (not managed by VS Code) */
   isExternal?: boolean
   /** Project identifier for zone assignment */
   projectId?: string
+  /** Active tasks tracked by this agent */
+  tasks: AgentTask[]
 }

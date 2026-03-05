@@ -44,6 +44,10 @@ export const GLOBAL_KEY_SHOW_LABELS_ALWAYS = 'pixel-agents.showLabelsAlways';
 export const GLOBAL_KEY_EXTERNAL_SESSIONS_ENABLED = 'pixel-agents.externalSessionsEnabled';
 export const GLOBAL_KEY_EXTERNAL_SESSIONS_SCOPE = 'pixel-agents.externalSessionsScope';
 
+// ── Subagent / Task Management Tools ──────────────────────
+export const SUBAGENT_TOOL_NAMES = new Set(['Task', 'Agent']);
+export const TASK_MGMT_TOOL_NAMES = new Set(['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet']);
+
 // ── VS Code Identifiers ─────────────────────────────────────
 export const VIEW_ID = 'pixel-agents.panelView';
 export const COMMAND_SHOW_PANEL = 'pixel-agents.showPanel';

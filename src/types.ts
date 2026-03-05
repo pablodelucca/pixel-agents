@@ -21,6 +21,7 @@ export interface AgentState {
 	isWaiting: boolean;
 	permissionSent: boolean;
 	hadToolsInTurn: boolean;
+	tasks: Map<string, { taskId: string; subject: string; status: string }>;
 	/** Workspace folder name (only set for multi-root workspaces) */
 	folderName?: string;
 }
