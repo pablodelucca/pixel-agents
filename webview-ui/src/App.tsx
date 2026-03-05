@@ -17,6 +17,7 @@ import { DebugView } from './components/DebugView.js'
 import { AgentLabels } from './components/AgentLabels.js'
 import { TokenDashboard } from './components/TokenDashboard.js'
 import { TokenPopups } from './components/TokenPopups.js'
+import { ChatBox } from './components/ChatBox.js'
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null }
@@ -129,13 +130,15 @@ function App() {
     tokenPopupRef.current?.(agentId, input, output)
   }, [])
 
-  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, agentTokens, layoutReady } = useServerMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty, onTokens)
+  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, agentTokens, chatMessages, layoutReady } = useServerMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty, onTokens)
 
   const [isDebugMode, setIsDebugMode] = useState(false)
   const [isTokenDashboardOpen, setIsTokenDashboardOpen] = useState(true)
+  const [isChatOpen, setIsChatOpen] = useState(true)
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
   const handleToggleTokenDashboard = useCallback(() => setIsTokenDashboardOpen((prev) => !prev), [])
+  const handleToggleChat = useCallback(() => setIsChatOpen((prev) => !prev), [])
 
   const handleSelectAgent = useCallback((id: number) => {
     serverApi.postMessage({ type: 'focusAgent', id })
@@ -236,7 +239,11 @@ function App() {
         onToggleDebugMode={handleToggleDebugMode}
         isTokenDashboardOpen={isTokenDashboardOpen}
         onToggleTokenDashboard={handleToggleTokenDashboard}
+        isChatOpen={isChatOpen}
+        onToggleChat={handleToggleChat}
       />
+
+      <ChatBox messages={chatMessages} isOpen={isChatOpen} />
 
       {isTokenDashboardOpen && (
         <TokenDashboard

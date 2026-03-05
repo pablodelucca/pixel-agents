@@ -7,3 +7,5 @@ services:
     envVars:
       - key: PORT
         value: "3000"
+      - key: ANTHROPIC_API_KEY
+        sync: false

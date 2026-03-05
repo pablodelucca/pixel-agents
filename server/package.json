@@ -8,6 +8,7 @@
     "start": "bun index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "express": "^5.1.0",
     "ws": "^8.18.0"
   },

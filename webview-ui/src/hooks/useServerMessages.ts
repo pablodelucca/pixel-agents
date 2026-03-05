@@ -6,6 +6,8 @@ import { migrateLayoutColors } from '../office/layout/layoutSerializer.js'
 import { serverApi } from '../serverApi.js'
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js'
 import { initAssets } from '../assetLoader.js'
+import type { ChatMessage } from '../components/ChatBox.js'
+import { CHAT_MAX_MESSAGES } from '../constants.js'
 
 export interface SubagentCharacter {
   id: number
@@ -29,6 +31,7 @@ export interface ServerMessageState {
   subagentTools: Record<number, Record<string, ToolActivity[]>>
   subagentCharacters: SubagentCharacter[]
   agentTokens: Record<number, TokenUsage>
+  chatMessages: ChatMessage[]
   layoutReady: boolean
 }
 
@@ -54,6 +57,7 @@ export function useServerMessages(
   const [subagentTools, setSubagentTools] = useState<Record<number, Record<string, ToolActivity[]>>>({})
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([])
   const [agentTokens, setAgentTokens] = useState<Record<number, TokenUsage>>({})
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [layoutReady, setLayoutReady] = useState(false)
 
   const layoutReadyRef = useRef(false)
@@ -311,6 +315,17 @@ export function useServerMessages(
             },
           }
         })
+      } else if (msg.type === 'chatMessage') {
+        const chatMsg: ChatMessage = {
+          sender: msg.sender as string,
+          text: msg.text as string,
+          agentId: msg.agentId as number,
+          timestamp: msg.timestamp as number,
+        }
+        setChatMessages((prev) => {
+          const next = [...prev, chatMsg]
+          return next.length > CHAT_MAX_MESSAGES ? next.slice(-CHAT_MAX_MESSAGES) : next
+        })
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean
         setSoundEnabled(soundOn)
@@ -329,5 +344,5 @@ export function useServerMessages(
     return () => unsubscribe?.()
   }, [getOfficeState])
 
-  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, agentTokens, layoutReady }
+  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, agentTokens, chatMessages, layoutReady }
 }

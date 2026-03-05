@@ -117,6 +117,12 @@ export function processTranscriptLine(
 			} else if (blocks.some(b => b.type === 'text') && !agent.hadToolsInTurn) {
 				startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, emit);
 			}
+
+			const textBlocks = blocks.filter(b => b.type === 'text') as Array<{ type: string; text?: string }>;
+			const text = textBlocks.map(b => b.text || '').join('\n').trim();
+			if (text) {
+				emit({ type: 'agentText', id: agentId, text });
+			}
 		} else if (record.type === 'progress') {
 			processProgressRecord(agentId, record, agents, waitingTimers, permissionTimers, emit);
 		} else if (record.type === 'user') {

@@ -22,6 +22,12 @@ export const SETTINGS_FILE_NAME = 'settings.json';
 export const AGENTS_FILE_NAME = 'agents.json';
 export const LAYOUT_FILE_POLL_INTERVAL_MS = 2000;
 
+// -- Chat Summarizer --
+export const CHAT_SUMMARIZE_INTERVAL_MS = 10_000;
+export const CHAT_MAX_TEXT_LENGTH = 2000;
+export const CHAT_SUMMARY_MODEL = 'claude-haiku-4-5-20251001';
+export const CHAT_SUMMARY_MAX_TOKENS = 60;
+
 // -- Server --
 export const DEFAULT_PORT = 3000;
 export const TERMINAL_NAME_PREFIX = 'Claude Code';

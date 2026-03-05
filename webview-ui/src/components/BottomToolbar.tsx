@@ -8,6 +8,8 @@ interface BottomToolbarProps {
   onToggleDebugMode: () => void
   isTokenDashboardOpen: boolean
   onToggleTokenDashboard: () => void
+  isChatOpen: boolean
+  onToggleChat: () => void
 }
 
 const panelStyle: React.CSSProperties = {
@@ -49,6 +51,8 @@ export function BottomToolbar({
   onToggleDebugMode,
   isTokenDashboardOpen,
   onToggleTokenDashboard,
+  isChatOpen,
+  onToggleChat,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -70,6 +74,22 @@ export function BottomToolbar({
         title="Token usage dashboard"
       >
         Tokens
+      </button>
+      <button
+        onClick={onToggleChat}
+        onMouseEnter={() => setHovered('chat')}
+        onMouseLeave={() => setHovered(null)}
+        style={
+          isChatOpen
+            ? { ...btnActive }
+            : {
+                ...btnBase,
+                background: hovered === 'chat' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+              }
+        }
+        title="Agent chat"
+      >
+        Chat
       </button>
       <button
         onClick={onToggleEditMode}

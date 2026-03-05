@@ -163,6 +163,8 @@ export function handlePeerMessage(ws: WebSocket, msg: Record<string, unknown>, c
 		ctx.emit({ type: 'subagentToolPermission', id: globalId, parentToolId: msg.parentToolId });
 	} else if (type === 'peerAgentTokens') {
 		ctx.emit({ type: 'agentTokens', id: globalId, input: msg.input, output: msg.output, cacheRead: msg.cacheRead, cacheCreation: msg.cacheCreation });
+	} else if (type === 'peerAgentText') {
+		ctx.emit({ type: 'agentText', id: globalId, text: msg.text });
 	}
 
 	return true;

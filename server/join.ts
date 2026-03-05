@@ -145,6 +145,9 @@ function createPeerEmit(localId: number): (msg: unknown) => void {
 			case 'agentTokens':
 				send({ type: 'peerAgentTokens', localId, input: m.input, output: m.output, cacheRead: m.cacheRead, cacheCreation: m.cacheCreation });
 				break;
+			case 'agentText':
+				send({ type: 'peerAgentText', localId, text: m.text });
+				break;
 		}
 	};
 }

@@ -13,6 +13,7 @@ import { loadLayout, watchLayoutFile, writeLayoutToFile, readLayoutFromFile } fr
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readSettings, setAgentSeats, setSoundEnabled } from './settingsStore.js';
 import { DEFAULT_PORT } from './constants.js';
+import { feedAgentText, flushAgent } from './chatSummarizer.js';
 
 // -- Shared state --
 const agents = new Map<number, AgentState>();
@@ -95,6 +96,31 @@ const peerCtx: PeerContext = {
 	emit: broadcast,
 	persistAgents,
 };
+
+// -- Chat summarizer callback --
+function onChatSummary(agentId: number, sender: string, summary: string): void {
+	broadcast({ type: 'chatMessage', agentId, sender, text: summary, timestamp: Date.now() });
+}
+
+// -- Intercept agentText from emit for chat summarization --
+const originalBroadcast = broadcast;
+function instrumentedBroadcast(msg: unknown): void {
+	originalBroadcast(msg);
+	const m = msg as Record<string, unknown>;
+	if (m.type === 'agentText') {
+		const agentId = m.id as number;
+		const text = m.text as string;
+		const agent = agents.get(agentId);
+		const name = agent?.label || `Agent ${agentId}`;
+		feedAgentText(agentId, text, name, onChatSummary);
+	} else if (m.type === 'agentStatus' && m.status === 'waiting') {
+		const agentId = m.id as number;
+		const agent = agents.get(agentId);
+		const name = agent?.label || `Agent ${agentId}`;
+		flushAgent(agentId, name, onChatSummary);
+	}
+}
+peerCtx.emit = instrumentedBroadcast;
 
 // -- WS message handler --
 setMessageHandler((msg, ws) => {
