@@ -34,7 +34,7 @@ export const INTERACT_STAY_SEC_MAX = 8.0
 
 // ── Subagent (kid) ──────────────────────────────────────────
 export const SUBAGENT_SCALE = 0.7
-export const SUBAGENT_WALK_SPEED_PX_PER_SEC = 80
+export const SUBAGENT_WALK_SPEED_PX_PER_SEC = 100
 export const SUBAGENT_WALK_FRAME_DURATION_SEC = 0.08
 export const SUBAGENT_PAUSE_MIN_SEC = 0.3
 export const SUBAGENT_PAUSE_MAX_SEC = 1.2

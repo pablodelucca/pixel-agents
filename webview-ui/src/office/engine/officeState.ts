@@ -1019,8 +1019,8 @@ export class OfficeState {
       }
 
       // Temporarily unblock own seat so character can pathfind to it
-      // Use zone-filtered walkable tiles for wander target selection
-      const wanderTiles = this.getAgentWalkableTiles(ch)
+      // Subagents (kids) roam the entire office; others use zone-filtered tiles
+      const wanderTiles = ch.isSubagent ? this.walkableTiles : this.getAgentWalkableTiles(ch)
       this.withOwnSeatUnblocked(ch, () =>
         updateCharacter(ch, dt, wanderTiles, this.seats, this.tileMap, this.blockedTiles, this.layout.furniture, this.bathroomTiles)
       )
