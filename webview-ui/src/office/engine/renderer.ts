@@ -57,6 +57,11 @@ import {
   REGION_SELECT_COLOR,
   REGION_SELECT_STROKE,
   REGION_MOVE_GHOST_ALPHA,
+  SUBAGENT_SCALE,
+  TOOL_EMOJI_SIZE_PX,
+  TOOL_EMOJI_BG,
+  TOOL_EMOJI_BORDER,
+  TOOL_EMOJI_PADDING_PX,
 } from '../../constants.js'
 import { OfficeState } from './officeState.js'
 
@@ -145,11 +150,14 @@ export function renderScene(
     const sprites = getCharacterSprites(ch.palette, ch.hueShift)
     const spriteData = getCharacterSprite(ch, sprites)
     const cached = getCachedSprite(spriteData, zoom)
+    const scale = ch.isSubagent ? SUBAGENT_SCALE : 1
+    const scaledW = Math.round(cached.width * scale)
+    const scaledH = Math.round(cached.height * scale)
     // Sitting offset: shift character down when seated so they visually sit in the chair
     const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0
     // Anchor at bottom-center of character — round to integer device pixels
-    const drawX = Math.round(offsetX + ch.x * zoom - cached.width / 2)
-    const drawY = Math.round(offsetY + (ch.y + sittingOffset) * zoom - cached.height)
+    const drawX = Math.round(offsetX + ch.x * zoom - scaledW / 2)
+    const drawY = Math.round(offsetY + (ch.y + sittingOffset) * zoom - scaledH)
 
     // Sort characters by bottom of their tile (not center) so they render
     // in front of same-row furniture (e.g. chairs) but behind furniture
@@ -192,14 +200,21 @@ export function renderScene(
     }
 
     const isExternalAgent = ch.isExternal
+    const isSmall = ch.isSubagent
     drawables.push({
       zY: charZY,
       draw: (c) => {
         if (isExternalAgent) {
           c.save()
           c.globalAlpha = EXTERNAL_AGENT_OPACITY
-          c.drawImage(cached, drawX, drawY)
+          if (isSmall) {
+            c.drawImage(cached, 0, 0, cached.width, cached.height, drawX, drawY, scaledW, scaledH)
+          } else {
+            c.drawImage(cached, drawX, drawY)
+          }
           c.restore()
+        } else if (isSmall) {
+          c.drawImage(cached, 0, 0, cached.width, cached.height, drawX, drawY, scaledW, scaledH)
         } else {
           c.drawImage(cached, drawX, drawY)
         }
@@ -577,6 +592,76 @@ export function renderInteractEmojis(
   }
 }
 
+// ── Tool activity bubbles (real emoji) ─────────────────────────
+
+const TOOL_EMOJI_MAP: Record<string, string> = {
+  Edit: '✏️',
+  Bash: '💻',
+  Read: '📖',
+  Grep: '🔍',
+  Glob: '🔍',
+  Write: '📝',
+  WebFetch: '🌐',
+  WebSearch: '🌐',
+  Task: '👥',
+  Agent: '👥',
+  AskUserQuestion: '❓',
+}
+const TOOL_EMOJI_DEFAULT = '⚙️'
+
+function getToolEmoji(toolName: string): string {
+  return TOOL_EMOJI_MAP[toolName] ?? TOOL_EMOJI_DEFAULT
+}
+
+export function renderToolBubbles(
+  ctx: CanvasRenderingContext2D,
+  characters: Character[],
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  for (const ch of characters) {
+    if (!ch.isActive || !ch.currentTool) continue
+    if (ch.bubbleType) continue
+    if (ch.interactEmoji && ch.interactEmojiTimer > 0) continue
+
+    const emoji = getToolEmoji(ch.currentTool)
+    const fontSize = TOOL_EMOJI_SIZE_PX * zoom
+    const pad = TOOL_EMOJI_PADDING_PX * zoom
+    const boxSize = fontSize + pad * 2
+
+    const sittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0
+    const bx = Math.round(offsetX + ch.x * zoom - boxSize / 2)
+    const by = Math.round(offsetY + (ch.y + sittingOff - BUBBLE_VERTICAL_OFFSET_PX) * zoom - boxSize - 1 * zoom)
+
+    // Background bubble
+    ctx.fillStyle = TOOL_EMOJI_BG
+    ctx.fillRect(bx, by, boxSize, boxSize)
+    ctx.strokeStyle = TOOL_EMOJI_BORDER
+    ctx.lineWidth = 1
+    ctx.strokeRect(bx + 0.5, by + 0.5, boxSize - 1, boxSize - 1)
+
+    // Tail (small triangle pointing down-center)
+    const tailX = bx + boxSize / 2
+    const tailY = by + boxSize
+    const tailW = 2 * zoom
+    ctx.fillStyle = TOOL_EMOJI_BG
+    ctx.beginPath()
+    ctx.moveTo(tailX - tailW, tailY)
+    ctx.lineTo(tailX + tailW, tailY)
+    ctx.lineTo(tailX, tailY + tailW)
+    ctx.closePath()
+    ctx.fill()
+
+    // Emoji text
+    ctx.font = `${fontSize}px serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText(emoji, bx + boxSize / 2, by + boxSize / 2)
+  }
+}
+
 // ── Task progress badges ────────────────────────────────────────
 
 export function renderTaskBadges(
@@ -821,6 +906,9 @@ export function renderFrame(
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom)
+
+  // Tool activity bubbles (when working)
+  renderToolBubbles(ctx, characters, offsetX, offsetY, zoom)
 
   // Interaction emoji bubbles (when not showing speech bubbles)
   renderInteractEmojis(ctx, characters, offsetX, offsetY, zoom)

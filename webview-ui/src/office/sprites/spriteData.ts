@@ -650,6 +650,135 @@ export function getEmojiSprite(key: string): SpriteData | null {
   }
 }
 
+// ── Tool Icon Sprites ─────────────────────────────────────────────
+// Shown as bubbles above agents when using a tool
+
+const _TW = '#FFFFFF' // white
+const _TB = '#333333' // black
+const _TG = '#44AA66' // green
+const _TO = '#FF8833' // orange
+const _TC = '#66BBFF' // cyan/blue
+const _TP = '#AA66CC' // purple
+const _TY = '#FFCC33' // yellow
+// const _TR = '#DD4444' // red (reserved)
+
+/** Pencil icon — for Edit tool */
+const TOOL_ICON_EDIT: string[][] = [
+  [_, _, _, _, _, _TY, _],
+  [_, _, _, _, _TY, _TO, _],
+  [_, _, _, _TY, _TO, _, _],
+  [_, _, _TW, _TO, _, _, _],
+  [_, _TW, _TO, _, _, _, _],
+  [_TW, _TB, _, _, _, _, _],
+  [_TB, _, _, _, _, _, _],
+]
+
+/** Terminal icon — for Bash tool */
+const TOOL_ICON_BASH: string[][] = [
+  [_TB, _TB, _TB, _TB, _TB, _TB, _TB],
+  [_TB, _TG, _, _, _, _, _TB],
+  [_TB, _, _TG, _, _, _, _TB],
+  [_TB, _TG, _, _, _, _, _TB],
+  [_TB, _, _, _TG, _TG, _, _TB],
+  [_TB, _, _, _, _, _, _TB],
+  [_TB, _TB, _TB, _TB, _TB, _TB, _TB],
+]
+
+/** Magnifying glass — for Read/Grep/Glob */
+const TOOL_ICON_SEARCH: string[][] = [
+  [_, _, _TC, _TC, _TC, _, _],
+  [_, _TC, _, _, _, _TC, _],
+  [_TC, _, _, _, _, _, _TC],
+  [_TC, _, _, _, _, _, _TC],
+  [_, _TC, _, _, _, _TC, _],
+  [_, _, _TC, _TC, _TC, _, _],
+  [_, _, _, _, _, _TC, _TC],
+]
+
+/** Page icon — for Write tool */
+const TOOL_ICON_WRITE: string[][] = [
+  [_, _TW, _TW, _TW, _TW, _, _],
+  [_, _TW, _TB, _TB, _TW, _, _],
+  [_, _TW, _, _, _TW, _, _],
+  [_, _TW, _TB, _TB, _TW, _, _],
+  [_, _TW, _, _, _TW, _, _],
+  [_, _TW, _TB, _TB, _TW, _, _],
+  [_, _TW, _TW, _TW, _TW, _, _],
+]
+
+/** Globe icon — for WebFetch/WebSearch */
+const TOOL_ICON_WEB: string[][] = [
+  [_, _, _TC, _TC, _TC, _, _],
+  [_, _TC, _TB, _TC, _TB, _TC, _],
+  [_TC, _TB, _TB, _TC, _TB, _TB, _TC],
+  [_TC, _TC, _TC, _TC, _TC, _TC, _TC],
+  [_TC, _TB, _TB, _TC, _TB, _TB, _TC],
+  [_, _TC, _TB, _TC, _TB, _TC, _],
+  [_, _, _TC, _TC, _TC, _, _],
+]
+
+/** People icon — for Agent/Task (subagent) */
+const TOOL_ICON_TASK: string[][] = [
+  [_, _, _TP, _TP, _, _, _],
+  [_, _TP, _TP, _TP, _TP, _, _],
+  [_, _, _TP, _TP, _, _, _],
+  [_, _TP, _TP, _TP, _TP, _, _],
+  [_TP, _TP, _TP, _TP, _TP, _TP, _],
+  [_, _, _TP, _TP, _, _, _],
+  [_, _, _TP, _, _TP, _, _],
+]
+
+/** Question mark — for AskUserQuestion */
+const TOOL_ICON_ASK: string[][] = [
+  [_, _, _TY, _TY, _TY, _, _],
+  [_, _TY, _, _, _, _TY, _],
+  [_, _, _, _, _, _TY, _],
+  [_, _, _, _, _TY, _, _],
+  [_, _, _, _TY, _, _, _],
+  [_, _, _, _, _, _, _],
+  [_, _, _, _TY, _, _, _],
+]
+
+/** Gear icon — fallback for unknown tools */
+const TOOL_ICON_DEFAULT: string[][] = [
+  [_, _, _TB, _TB, _TB, _, _],
+  [_, _TB, _, _, _, _TB, _],
+  [_TB, _, _TB, _TB, _, _, _TB],
+  [_TB, _, _TB, _TB, _, _, _TB],
+  [_, _TB, _, _, _, _TB, _],
+  [_, _, _TB, _TB, _TB, _, _],
+  [_, _, _, _, _, _, _],
+]
+
+/** Get tool icon sprite wrapped in a bubble */
+export function getToolBubbleSprite(toolName: string): SpriteData {
+  let icon: string[][]
+  switch (toolName) {
+    case 'Edit': icon = TOOL_ICON_EDIT; break
+    case 'Bash': icon = TOOL_ICON_BASH; break
+    case 'Read': case 'Grep': case 'Glob': icon = TOOL_ICON_SEARCH; break
+    case 'Write': icon = TOOL_ICON_WRITE; break
+    case 'WebFetch': case 'WebSearch': icon = TOOL_ICON_WEB; break
+    case 'Task': case 'Agent': icon = TOOL_ICON_TASK; break
+    case 'AskUserQuestion': icon = TOOL_ICON_ASK; break
+    default: icon = TOOL_ICON_DEFAULT; break
+  }
+  return makeEmojiBubble(icon)
+}
+
+// Tool bubble sprite cache (toolName → SpriteData)
+const toolBubbleCache = new Map<string, SpriteData>()
+
+/** Get cached tool bubble sprite */
+export function getCachedToolBubble(toolName: string): SpriteData {
+  let sprite = toolBubbleCache.get(toolName)
+  if (!sprite) {
+    sprite = getToolBubbleSprite(toolName)
+    toolBubbleCache.set(toolName, sprite)
+  }
+  return sprite
+}
+
 // ── Virtual Monitor Sprites ───────────────────────────────────────
 // 10x8 mini-monitor with green phosphor screen, 3 animation frames
 

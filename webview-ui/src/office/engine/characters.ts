@@ -10,13 +10,13 @@ import {
   WANDER_PAUSE_MAX_SEC,
   WANDER_MOVES_BEFORE_REST_MIN,
   WANDER_MOVES_BEFORE_REST_MAX,
-  SEAT_REST_MIN_SEC,
-  SEAT_REST_MAX_SEC,
   VIRTUAL_MONITOR_FRAME_DURATION_SEC,
   INTERACT_CHANCE,
   INTERACT_EMOJI_DURATION_SEC,
   INTERACT_STAY_SEC_MIN,
   INTERACT_STAY_SEC_MAX,
+  SUBAGENT_WALK_SPEED_PX_PER_SEC,
+  SUBAGENT_WALK_FRAME_DURATION_SEC,
 } from '../../constants.js'
 import { FURNITURE_INTERACT_EMOJIS } from '../sprites/spriteData.js'
 import type { PlacedFurniture } from '../types.js'
@@ -192,19 +192,12 @@ export function updateCharacter(
         ch.frameTimer -= TYPE_FRAME_DURATION_SEC
         ch.frame = (ch.frame + 1) % 2
       }
-      // If no longer active, stand up and start wandering (after seatTimer expires)
+      // If no longer active, stand up and start wandering immediately
       if (!ch.isActive) {
-        if (ch.seatTimer > 0) {
-          ch.seatTimer -= dt
-          break
-        }
-        ch.seatTimer = 0 // clear sentinel
         ch.state = CharacterState.IDLE
         ch.frame = 0
         ch.frameTimer = 0
         ch.wanderTimer = randomRange(WANDER_PAUSE_MIN_SEC, WANDER_PAUSE_MAX_SEC)
-        ch.wanderCount = 0
-        ch.wanderLimit = randomInt(WANDER_MOVES_BEFORE_REST_MIN, WANDER_MOVES_BEFORE_REST_MAX)
       }
       break
     }
@@ -244,21 +237,6 @@ export function updateCharacter(
       // Countdown wander timer
       ch.wanderTimer -= dt
       if (ch.wanderTimer <= 0) {
-        // Check if we've wandered enough — return to seat for a rest
-        if (ch.wanderCount >= ch.wanderLimit && ch.seatId) {
-          const seat = seats.get(ch.seatId)
-          if (seat) {
-            const path = findPath(ch.tileCol, ch.tileRow, seat.seatCol, seat.seatRow, tileMap, blockedTiles)
-            if (path.length > 0) {
-              ch.path = path
-              ch.moveProgress = 0
-              ch.state = CharacterState.WALK
-              ch.frame = 0
-              ch.frameTimer = 0
-              break
-            }
-          }
-        }
         // Try to interact with furniture
         let didInteract = false
         if (furniture && Math.random() < INTERACT_CHANCE) {
@@ -297,9 +275,10 @@ export function updateCharacter(
     }
 
     case CharacterState.WALK: {
-      // Walk animation
-      if (ch.frameTimer >= WALK_FRAME_DURATION_SEC) {
-        ch.frameTimer -= WALK_FRAME_DURATION_SEC
+      // Walk animation — subagents animate faster (kids running)
+      const walkFrameDur = ch.isSubagent ? SUBAGENT_WALK_FRAME_DURATION_SEC : WALK_FRAME_DURATION_SEC
+      if (ch.frameTimer >= walkFrameDur) {
+        ch.frameTimer -= walkFrameDur
         ch.frame = (ch.frame + 1) % 4
       }
 
@@ -355,26 +334,6 @@ export function updateCharacter(
             ch.frameTimer = 0
             break
           }
-          // Check if arrived at assigned seat — sit down for a rest before wandering again
-          if (ch.seatId) {
-            const seat = seats.get(ch.seatId)
-            if (seat && ch.tileCol === seat.seatCol && ch.tileRow === seat.seatRow) {
-              ch.state = CharacterState.TYPE
-              ch.dir = seat.facingDir
-              // seatTimer < 0 is a sentinel from setAgentActive(false) meaning
-              // "turn just ended" — skip the long rest so idle transition is immediate
-              if (ch.seatTimer < 0) {
-                ch.seatTimer = 0
-              } else {
-                ch.seatTimer = randomRange(SEAT_REST_MIN_SEC, SEAT_REST_MAX_SEC)
-              }
-              ch.wanderCount = 0
-              ch.wanderLimit = randomInt(WANDER_MOVES_BEFORE_REST_MIN, WANDER_MOVES_BEFORE_REST_MAX)
-              ch.frame = 0
-              ch.frameTimer = 0
-              break
-            }
-          }
           ch.state = CharacterState.IDLE
           ch.wanderTimer = randomRange(WANDER_PAUSE_MIN_SEC, WANDER_PAUSE_MAX_SEC)
         }
@@ -387,7 +346,8 @@ export function updateCharacter(
       const nextTile = ch.path[0]
       ch.dir = directionBetween(ch.tileCol, ch.tileRow, nextTile.col, nextTile.row)
 
-      ch.moveProgress += (WALK_SPEED_PX_PER_SEC / TILE_SIZE) * dt
+      const walkSpeed = ch.isSubagent ? SUBAGENT_WALK_SPEED_PX_PER_SEC : WALK_SPEED_PX_PER_SEC
+      ch.moveProgress += (walkSpeed / TILE_SIZE) * dt
 
       const fromCenter = tileCenter(ch.tileCol, ch.tileRow)
       const toCenter = tileCenter(nextTile.col, nextTile.row)

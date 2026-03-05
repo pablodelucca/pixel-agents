@@ -32,6 +32,11 @@ export const INTERACT_EMOJI_DURATION_SEC = 2.5
 export const INTERACT_STAY_SEC_MIN = 3.0
 export const INTERACT_STAY_SEC_MAX = 8.0
 
+// ── Subagent (kid) ──────────────────────────────────────────
+export const SUBAGENT_SCALE = 0.7
+export const SUBAGENT_WALK_SPEED_PX_PER_SEC = 80
+export const SUBAGENT_WALK_FRAME_DURATION_SEC = 0.08
+
 // ── Matrix Effect ────────────────────────────────────────────
 export const MATRIX_EFFECT_DURATION_SEC = 0.3
 export const MATRIX_TRAIL_LENGTH = 6
@@ -64,6 +69,10 @@ export const BUTTON_LINE_WIDTH_ZOOM_FACTOR = 0.5
 export const BUBBLE_FADE_DURATION_SEC = 0.5
 export const BUBBLE_SITTING_OFFSET_PX = 10
 export const BUBBLE_VERTICAL_OFFSET_PX = 24
+export const TOOL_EMOJI_SIZE_PX = 10
+export const TOOL_EMOJI_BG = 'rgba(30, 30, 46, 0.85)'
+export const TOOL_EMOJI_BORDER = '#555566'
+export const TOOL_EMOJI_PADDING_PX = 2
 export const FALLBACK_FLOOR_COLOR = '#808080'
 
 // ── Rendering - Overlay Colors (canvas, not CSS) ─────────────
