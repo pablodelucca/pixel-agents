@@ -134,11 +134,15 @@ setConnectHandler((ws) => {
 	// Send existing agents
 	const agentIds = [...agents.keys()].sort((a, b) => a - b);
 	const agentSeats = settings.agentSeats || {};
+	const folderNames: Record<number, string> = {};
+	for (const [id, agent] of agents) {
+		if (agent.label) folderNames[id] = agent.label;
+	}
 	sendTo(ws, {
 		type: 'existingAgents',
 		agents: agentIds,
 		agentMeta: agentSeats,
-		folderNames: {},
+		folderNames,
 	});
 
 	// Send current agent statuses

@@ -37,6 +37,14 @@ export function startSessionScanner(
 	}, SESSION_SCAN_INTERVAL_MS);
 }
 
+/** Decode Claude's project dir encoding (e.g. "-Users-bob-my-project" → "my-project") */
+function decodeProjectDir(encoded: string): string {
+	// Claude encodes paths as: / → -, so "-Users-bob-projects-my-app" = "/Users/bob/projects/my-app"
+	// We want just the last path segment
+	const decoded = encoded.replace(/^-/, '/').replace(/-/g, '/')
+	return path.basename(decoded)
+}
+
 function scanAllProjects(
 	nextAgentIdRef: { current: number },
 	agents: Map<number, AgentState>,
@@ -99,7 +107,7 @@ function scanAllProjects(
 					permissionSent: false,
 					hadToolsInTurn: false,
 					isExternal: true,
-					label: path.basename(projectDir),
+					label: decodeProjectDir(path.basename(projectDir)),
 				};
 
 				// Skip to near end of file, read last chunk for current state
@@ -110,7 +118,7 @@ function scanAllProjects(
 				persistAgents();
 
 				console.log(`[SessionScanner] Detected active session: ${path.basename(jsonlFile)} in ${path.basename(projectDir)}`);
-				emit({ type: 'agentCreated', id, label: agent.label });
+				emit({ type: 'agentCreated', id, folderName: agent.label });
 
 				startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, emit);
 				readNewLines(id, agents, waitingTimers, permissionTimers, emit);

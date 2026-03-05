@@ -14,6 +14,7 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard.js'
 import { ZoomControls } from './components/ZoomControls.js'
 import { BottomToolbar } from './components/BottomToolbar.js'
 import { DebugView } from './components/DebugView.js'
+import { AgentLabels } from './components/AgentLabels.js'
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null }
@@ -177,7 +178,7 @@ function App() {
 
   if (!layoutReady) {
     return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--vscode-foreground)' }}>
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
         Loading...
       </div>
     )
@@ -293,6 +294,16 @@ function App() {
         zoom={editor.zoom}
         panRef={editor.panRef}
         onCloseAgent={handleCloseAgent}
+      />
+
+      <AgentLabels
+        officeState={officeState}
+        agents={agents}
+        agentStatuses={agentStatuses}
+        containerRef={containerRef}
+        zoom={editor.zoom}
+        panRef={editor.panRef}
+        subagentCharacters={subagentCharacters}
       />
 
       {isDebugMode && (

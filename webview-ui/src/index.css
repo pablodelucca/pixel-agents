@@ -43,8 +43,8 @@
   --pixel-vignette: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.6) 100%);
 
   /* Status dot colors */
-  --pixel-status-permission: var(--vscode-charts-yellow, #cca700);
-  --pixel-status-active: var(--vscode-charts-blue, #3794ff);
+  --pixel-status-permission: #cca700;
+  --pixel-status-active: #3794ff;
 
   /* ToolOverlay z-index layers */
   --pixel-overlay-z: 100;
