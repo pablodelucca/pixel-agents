@@ -1,7 +1,6 @@
 export interface AgentState {
 	id: number;
-	/** node-pty process reference (null for detected external sessions) */
-	ptyProcess: import('node-pty').IPty | null;
+	ptyProcess: unknown;
 	projectDir: string;
 	jsonlFile: string;
 	fileOffset: number;

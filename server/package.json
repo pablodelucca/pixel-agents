@@ -9,8 +9,7 @@
   },
   "dependencies": {
     "express": "^5.1.0",
-    "ws": "^8.18.0",
-    "node-pty": "^1.0.0"
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

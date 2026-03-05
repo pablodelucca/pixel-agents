@@ -1,0 +1,5 @@
+node_modules
+server/node_modules
+webview-ui/node_modules
+webview-ui/dist
+.git

@@ -1,118 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
-import * as pty from 'node-pty';
 import type { AgentState, PersistedAgent } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer } from './timerManager.js';
 import { startFileWatching, readNewLines, ensureProjectScan } from './fileWatcher.js';
-import { JSONL_POLL_INTERVAL_MS } from './constants.js';
 import { writePersistedAgents, readPersistedAgents, getAgentSeats } from './settingsStore.js';
-
-export function getProjectDirPath(cwd: string): string | null {
-	const dirName = cwd.replace(/[^a-zA-Z0-9-]/g, '-');
-	const projectDir = path.join(os.homedir(), '.claude', 'projects', dirName);
-	console.log(`[Pixel Agents] Project dir: ${cwd} -> ${dirName}`);
-	return projectDir;
-}
-
-export function launchNewAgent(
-	nextAgentIdRef: { current: number },
-	agents: Map<number, AgentState>,
-	activeAgentIdRef: { current: number | null },
-	knownJsonlFiles: Set<string>,
-	fileWatchers: Map<number, fs.FSWatcher>,
-	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
-	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
-	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
-	projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
-	emit: (msg: unknown) => void,
-	persistAgents: () => void,
-	cwd: string,
-): number {
-	const sessionId = crypto.randomUUID();
-	const projectDir = getProjectDirPath(cwd);
-	if (!projectDir) {
-		console.log(`[Pixel Agents] No project dir, cannot track agent`);
-		return -1;
-	}
-
-	// Pre-register expected JSONL file
-	const expectedFile = path.join(projectDir, `${sessionId}.jsonl`);
-	knownJsonlFiles.add(expectedFile);
-
-	// Create agent
-	const id = nextAgentIdRef.current++;
-	const shell = process.platform === 'win32' ? 'cmd.exe' : (process.env.SHELL || '/bin/bash');
-	const ptyProcess = pty.spawn(shell, [], {
-		name: 'xterm-256color',
-		cols: 120,
-		rows: 30,
-		cwd,
-		env: process.env as Record<string, string>,
-	});
-
-	// Send the claude command
-	ptyProcess.write(`claude --session-id ${sessionId}\r`);
-
-	const agent: AgentState = {
-		id,
-		ptyProcess,
-		projectDir,
-		jsonlFile: expectedFile,
-		fileOffset: 0,
-		lineBuffer: '',
-		activeToolIds: new Set(),
-		activeToolStatuses: new Map(),
-		activeToolNames: new Map(),
-		activeSubagentToolIds: new Map(),
-		activeSubagentToolNames: new Map(),
-		isWaiting: false,
-		permissionSent: false,
-		hadToolsInTurn: false,
-	};
-
-	agents.set(id, agent);
-	activeAgentIdRef.current = id;
-	persistAgents();
-	console.log(`[Pixel Agents] Agent ${id}: created with session ${sessionId}`);
-	emit({ type: 'agentCreated', id });
-
-	// Detect exit
-	ptyProcess.onExit(() => {
-		console.log(`[Pixel Agents] Agent ${id}: process exited`);
-		if (activeAgentIdRef.current === id) {
-			activeAgentIdRef.current = null;
-		}
-		removeAgent(
-			id, agents, fileWatchers, pollingTimers, waitingTimers,
-			permissionTimers, jsonlPollTimers, persistAgents,
-		);
-		emit({ type: 'agentClosed', id });
-	});
-
-	ensureProjectScan(
-		projectDir, knownJsonlFiles, projectScanTimerRef, activeAgentIdRef,
-		nextAgentIdRef, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-		emit, persistAgents,
-	);
-
-	// Poll for JSONL file to appear
-	const pollTimer = setInterval(() => {
-		try {
-			if (fs.existsSync(agent.jsonlFile)) {
-				console.log(`[Pixel Agents] Agent ${id}: found JSONL file ${path.basename(agent.jsonlFile)}`);
-				clearInterval(pollTimer);
-				jsonlPollTimers.delete(id);
-				startFileWatching(id, agent.jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, emit);
-				readNewLines(id, agents, waitingTimers, permissionTimers, emit);
-			}
-		} catch { /* file may not exist yet */ }
-	}, JSONL_POLL_INTERVAL_MS);
-	jsonlPollTimers.set(id, pollTimer);
-
-	return id;
-}
 
 export function removeAgent(
 	agentId: number,
@@ -143,31 +34,6 @@ export function removeAgent(
 
 	agents.delete(agentId);
 	persistAgents();
-}
-
-export function killAgent(
-	agentId: number,
-	agents: Map<number, AgentState>,
-	fileWatchers: Map<number, fs.FSWatcher>,
-	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
-	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
-	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-	jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
-	persistAgents: () => void,
-	emit: (msg: unknown) => void,
-): void {
-	const agent = agents.get(agentId);
-	if (!agent) return;
-
-	// Kill the pty process if we own it
-	if (agent.ptyProcess) {
-		try {
-			agent.ptyProcess.kill();
-		} catch { /* may already be dead */ }
-	}
-
-	removeAgent(agentId, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, jsonlPollTimers, persistAgents);
-	emit({ type: 'agentClosed', id: agentId });
 }
 
 export function persistAgents(agents: Map<number, AgentState>): void {
