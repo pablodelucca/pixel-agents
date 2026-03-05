@@ -17,6 +17,8 @@ export interface AgentState {
 	isExternal?: boolean;
 	/** Display label for the session */
 	label?: string;
+	/** Session UUID from the JSONL filename */
+	sessionId?: string;
 	lastUsage?: { input: number; output: number; cacheRead: number; cacheCreation: number };
 	suppressTokens?: boolean;
 	/** Whether this agent comes from a remote peer (join CLI) */

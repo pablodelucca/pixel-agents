@@ -124,6 +124,7 @@ function scanAllProjects(
 				knownJsonlFiles.add(jsonlFile);
 				const id = nextAgentIdRef.current++;
 
+				const sessionId = path.basename(jsonlFile, '.jsonl');
 				const agent: AgentState = {
 					id,
 					ptyProcess: null,
@@ -140,6 +141,7 @@ function scanAllProjects(
 					permissionSent: false,
 					hadToolsInTurn: false,
 					isExternal: true,
+					sessionId,
 					label: decodeProjectDir(path.basename(projectDir)),
 				};
 

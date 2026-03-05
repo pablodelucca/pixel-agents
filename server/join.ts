@@ -55,49 +55,6 @@ let ws: WebSocket | null = null;
 let reconnectDelay = 2000;
 let scanTimer: ReturnType<typeof setInterval> | null = null;
 
-// -- Folder name from project dir --
-function decodeProjectDir(encoded: string): string {
-	// Encoded: "/Users/bob/cludo/pixel-agents" → "-Users-bob-cludo-pixel-agents"
-	// Strip home dir prefix, keep the rest with hyphens intact
-	const homeEncoded = os.homedir().replace(/[/\\:]/g, '-');
-	let stripped = encoded;
-	if (stripped.startsWith('-' + homeEncoded + '-')) {
-		stripped = stripped.slice(1 + homeEncoded.length + 1);
-	} else {
-		stripped = stripped.replace(/^-/, '');
-	}
-	return stripped;
-}
-
-const ADJECTIVES = [
-	'brave', 'cosmic', 'turbo', 'swift', 'neon', 'pixel', 'cyber', 'mega',
-	'ultra', 'hyper', 'solar', 'lunar', 'iron', 'golden', 'silver', 'crystal',
-	'atomic', 'vivid', 'bold', 'witty', 'fuzzy', 'snappy', 'zippy', 'jolly',
-	'mighty', 'noble', 'clever', 'daring', 'fierce', 'gentle', 'lucky', 'plucky',
-];
-
-const NOUNS = [
-	'penguin', 'potato', 'llama', 'falcon', 'otter', 'panda', 'phoenix', 'tiger',
-	'badger', 'dolphin', 'raven', 'fox', 'wolf', 'hawk', 'cobra', 'mantis',
-	'bison', 'koala', 'parrot', 'squid', 'moose', 'gecko', 'ferret', 'walrus',
-	'yak', 'newt', 'osprey', 'toucan', 'lynx', 'marmot', 'wombat', 'starling',
-];
-
-const usedNames = new Set<string>();
-
-function generateAgentName(): string {
-	for (let i = 0; i < 100; i++) {
-		const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-		const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-		const name = adj[0].toUpperCase() + adj.slice(1) + ' ' + noun[0].toUpperCase() + noun.slice(1);
-		if (!usedNames.has(name)) {
-			usedNames.add(name);
-			return name;
-		}
-	}
-	return `agent-${nextLocalId}`;
-}
-
 // -- Send peer message --
 function send(msg: Record<string, unknown>): void {
 	if (ws && ws.readyState === WebSocket.OPEN) {
@@ -260,7 +217,7 @@ function scanAllProjects(): void {
 
 				knownJsonlFiles.add(jsonlFile);
 				const localId = nextLocalId++;
-				const folderName = generateAgentName();
+				const sessionId = path.basename(jsonlFile, '.jsonl');
 
 				const agent: AgentState = {
 					id: localId,
@@ -279,12 +236,12 @@ function scanAllProjects(): void {
 					hadToolsInTurn: false,
 					isExternal: true,
 					suppressTokens: true,
-					label: folderName,
+					sessionId,
 				};
 
 				localAgents.set(localId, agent);
-				console.log(`[Join] Detected session: ${path.basename(jsonlFile)} in ${folderName}`);
-				send({ type: 'peerAgentCreated', localId, folderName });
+				console.log(`[Join] Detected session: ${sessionId}`);
+				send({ type: 'peerAgentCreated', localId, sessionId });
 				startFileWatching(localId, jsonlFile);
 				readNewLines(localId);
 				agent.suppressTokens = false;
@@ -328,7 +285,7 @@ function stopScanning(): void {
 // -- Re-announce all agents (on reconnect) --
 function announceAllAgents(): void {
 	for (const [localId, agent] of localAgents) {
-		send({ type: 'peerAgentCreated', localId, folderName: agent.label });
+		send({ type: 'peerAgentCreated', localId, sessionId: agent.sessionId });
 		// Also send current tool state
 		for (const [toolId, status] of agent.activeToolStatuses) {
 			send({ type: 'peerAgentToolStart', localId, toolId, status });

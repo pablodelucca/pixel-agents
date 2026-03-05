@@ -1,6 +1,35 @@
 import { WebSocket } from 'ws';
 import type { AgentState } from './types.js';
 
+const ADJECTIVES = [
+	'brave', 'cosmic', 'turbo', 'swift', 'neon', 'pixel', 'cyber', 'mega',
+	'ultra', 'hyper', 'solar', 'lunar', 'iron', 'golden', 'silver', 'crystal',
+	'atomic', 'vivid', 'bold', 'witty', 'fuzzy', 'snappy', 'zippy', 'jolly',
+	'mighty', 'noble', 'clever', 'daring', 'fierce', 'gentle', 'lucky', 'plucky',
+];
+
+const NOUNS = [
+	'penguin', 'potato', 'llama', 'falcon', 'otter', 'panda', 'phoenix', 'tiger',
+	'badger', 'dolphin', 'raven', 'fox', 'wolf', 'hawk', 'cobra', 'mantis',
+	'bison', 'koala', 'parrot', 'squid', 'moose', 'gecko', 'ferret', 'walrus',
+	'yak', 'newt', 'osprey', 'toucan', 'lynx', 'marmot', 'wombat', 'starling',
+];
+
+const usedNames = new Set<string>();
+
+function generateAgentName(): string {
+	for (let i = 0; i < 100; i++) {
+		const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+		const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+		const name = adj[0].toUpperCase() + adj.slice(1) + ' ' + noun[0].toUpperCase() + noun.slice(1);
+		if (!usedNames.has(name)) {
+			usedNames.add(name);
+			return name;
+		}
+	}
+	return `Agent ${Date.now()}`;
+}
+
 interface PeerState {
 	peerId: string;
 	name: string;
@@ -62,7 +91,8 @@ export function handlePeerMessage(ws: WebSocket, msg: Record<string, unknown>, c
 	const localId = msg.localId as number;
 
 	if (type === 'peerAgentCreated') {
-		const folderName = msg.folderName as string | undefined;
+		const sessionId = msg.sessionId as string | undefined;
+		const agentName = generateAgentName();
 		const globalId = ctx.nextAgentIdRef.current++;
 		peer.agentIdMap.set(localId, globalId);
 
@@ -86,7 +116,8 @@ export function handlePeerMessage(ws: WebSocket, msg: Record<string, unknown>, c
 			peerId: peer.peerId,
 			peerLocalId: localId,
 			peerName: peer.name,
-			label: folderName ? `${peer.name}: ${folderName}` : peer.name,
+			sessionId,
+			label: `${peer.name}: ${agentName}`,
 		};
 
 		ctx.agents.set(globalId, agent);
