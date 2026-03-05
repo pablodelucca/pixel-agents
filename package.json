@@ -57,13 +57,26 @@
         },
         "pixel-agents.externalSessions.scope": {
           "type": "string",
-          "enum": ["currentProject", "allProjects"],
+          "enum": [
+            "currentProject",
+            "allProjects"
+          ],
           "enumDescriptions": [
             "Only detect sessions for the current workspace project",
             "Detect sessions across all projects"
           ],
           "default": "currentProject",
           "description": "Scope of external session detection"
+        },
+        "pixel-agents.serverUrl": {
+          "type": "string",
+          "default": "",
+          "description": "URL of the Pixel Agents multiuser server (e.g. ws://localhost:4200). Leave empty for offline mode."
+        },
+        "pixel-agents.userName": {
+          "type": "string",
+          "default": "",
+          "description": "Your display name shown under your agents in the shared office."
         }
       }
     }
@@ -95,5 +108,9 @@
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.54.0"
+  },
+  "dependencies": {
+    "@types/ws": "^8.18.1",
+    "ws": "^8.19.0"
   }
 }

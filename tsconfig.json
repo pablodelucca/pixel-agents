@@ -16,6 +16,7 @@
 		"dist",
 		"out",
 		"scripts",
-		"electron"
+		"electron",
+		"server"
 	]
 }

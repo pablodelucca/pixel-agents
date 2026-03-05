@@ -14,7 +14,8 @@ import {
 } from './agentManager.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
-import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED, GLOBAL_KEY_SHOW_LABELS_ALWAYS, GLOBAL_KEY_EXTERNAL_SESSIONS_ENABLED, GLOBAL_KEY_EXTERNAL_SESSIONS_SCOPE } from './constants.js';
+import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED, GLOBAL_KEY_SHOW_LABELS_ALWAYS, GLOBAL_KEY_EXTERNAL_SESSIONS_ENABLED, GLOBAL_KEY_EXTERNAL_SESSIONS_SCOPE, CONFIG_KEY_SERVER_URL, CONFIG_KEY_USER_NAME } from './constants.js';
+import { SyncClient } from './syncClient.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { startExternalScan, stopExternalScan, createExternalScanState } from './externalSessionScanner.js';
@@ -46,6 +47,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
 	// External session detection
 	externalScanState: ExternalScanState = createExternalScanState();
+
+	// Multiuser sync
+	private syncClient: SyncClient | null = null;
 
 	constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -106,6 +110,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			} else if (message.type === 'saveLayout') {
 				this.layoutWatcher?.markOwnWrite();
 				writeLayoutToFile(message.layout as Record<string, unknown>);
+				// Push to multiuser server if connected
+				this.syncClient?.putLayout(message.layout as Record<string, unknown>);
 			} else if (message.type === 'setSoundEnabled') {
 				this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
 			} else if (message.type === 'setShowLabelsAlways') {
@@ -253,6 +259,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					})();
 				}
 				sendExistingAgents(this.agents, this.context, this.webview);
+				this.initSyncClient();
 			} else if (message.type === 'setExternalSessionsEnabled') {
 				const enabled = !!message.enabled;
 				vscode.workspace.getConfiguration('pixel-agents').update('externalSessions.enabled', enabled, vscode.ConfigurationTarget.Global);
@@ -328,6 +335,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				const scope = vscode.workspace.getConfiguration('pixel-agents').get<string>('externalSessions.scope', 'currentProject');
 				this.webview?.postMessage({ type: 'settingChanged', key: 'externalSessionsScope', value: scope });
 			}
+			if (e.affectsConfiguration(CONFIG_KEY_SERVER_URL) || e.affectsConfiguration(CONFIG_KEY_USER_NAME)) {
+				const newName = vscode.workspace.getConfiguration('pixel-agents').get<string>('userName', '') || os.userInfo().username || 'Anonymous';
+				if (this.syncClient) {
+					this.syncClient.updateUserName(newName);
+				}
+				this.webview?.postMessage({ type: 'localUserName', userName: newName });
+			}
 		});
 
 		vscode.window.onDidChangeActiveTerminal((terminal) => {
@@ -386,6 +400,32 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		);
 	}
 
+	private initSyncClient(): void {
+		const config = vscode.workspace.getConfiguration('pixel-agents');
+		const serverUrl = config.get<string>('serverUrl', '');
+		const userName = config.get<string>('userName', '') || os.userInfo().username || 'Anonymous';
+
+		if (!serverUrl) {
+			console.log('[Pixel Agents] No server URL — offline mode');
+			return;
+		}
+
+		this.syncClient = new SyncClient(
+			serverUrl,
+			userName,
+			this.agents,
+			this.webview,
+			(layout) => {
+				console.log('[Pixel Agents] Remote layout change from server');
+				this.webview?.postMessage({ type: 'layoutLoaded', layout });
+				this.layoutWatcher?.markOwnWrite();
+				writeLayoutToFile(layout);
+			},
+		);
+
+		this.webview?.postMessage({ type: 'localUserName', userName });
+	}
+
 	private startLayoutWatcher(): void {
 		if (this.layoutWatcher) return;
 		this.layoutWatcher = watchLayoutFile((layout) => {
@@ -400,6 +440,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 			this.jsonlPollTimers, this.persistAgents, this.webview,
 		);
+		this.syncClient?.dispose();
+		this.syncClient = null;
 		this.layoutWatcher?.dispose();
 		this.layoutWatcher = null;
 		for (const id of [...this.agents.keys()]) {

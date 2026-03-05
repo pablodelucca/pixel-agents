@@ -56,3 +56,11 @@ export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';
 export const WORKSPACE_KEY_AGENT_SEATS = 'pixel-agents.agentSeats';
 export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
 export const TERMINAL_NAME_PREFIX = 'Claude Code';
+
+// ── Multiuser Sync ────────────────────────────────────────
+export const SYNC_HEARTBEAT_INTERVAL_MS = 2000;
+export const SYNC_LAYOUT_POLL_INTERVAL_MS = 3000;
+export const SYNC_RECONNECT_BASE_MS = 1000;
+export const SYNC_RECONNECT_MAX_MS = 10000;
+export const CONFIG_KEY_SERVER_URL = 'pixel-agents.serverUrl';
+export const CONFIG_KEY_USER_NAME = 'pixel-agents.userName';
