@@ -25,6 +25,10 @@
         "title": "Pixel Agents: Show Panel"
       },
       {
+        "command": "pixel-agents.openEditorTab",
+        "title": "Pixel Agents: Open in Editor Area"
+      },
+      {
         "command": "pixel-agents.exportDefaultLayout",
         "title": "Pixel Agents: Export Layout as Default"
       }
