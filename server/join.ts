@@ -69,6 +69,35 @@ function decodeProjectDir(encoded: string): string {
 	return stripped;
 }
 
+const ADJECTIVES = [
+	'brave', 'cosmic', 'turbo', 'swift', 'neon', 'pixel', 'cyber', 'mega',
+	'ultra', 'hyper', 'solar', 'lunar', 'iron', 'golden', 'silver', 'crystal',
+	'atomic', 'vivid', 'bold', 'witty', 'fuzzy', 'snappy', 'zippy', 'jolly',
+	'mighty', 'noble', 'clever', 'daring', 'fierce', 'gentle', 'lucky', 'plucky',
+];
+
+const NOUNS = [
+	'penguin', 'potato', 'llama', 'falcon', 'otter', 'panda', 'phoenix', 'tiger',
+	'badger', 'dolphin', 'raven', 'fox', 'wolf', 'hawk', 'cobra', 'mantis',
+	'bison', 'koala', 'parrot', 'squid', 'moose', 'gecko', 'ferret', 'walrus',
+	'yak', 'newt', 'osprey', 'toucan', 'lynx', 'marmot', 'wombat', 'starling',
+];
+
+const usedNames = new Set<string>();
+
+function generateAgentName(): string {
+	for (let i = 0; i < 100; i++) {
+		const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+		const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+		const name = `${adj} ${noun}`;
+		if (!usedNames.has(name)) {
+			usedNames.add(name);
+			return name;
+		}
+	}
+	return `agent-${nextLocalId}`;
+}
+
 // -- Send peer message --
 function send(msg: Record<string, unknown>): void {
 	if (ws && ws.readyState === WebSocket.OPEN) {
@@ -228,7 +257,7 @@ function scanAllProjects(): void {
 
 				knownJsonlFiles.add(jsonlFile);
 				const localId = nextLocalId++;
-				const folderName = decodeProjectDir(path.basename(projectDir));
+				const folderName = generateAgentName();
 
 				const agent: AgentState = {
 					id: localId,
