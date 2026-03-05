@@ -11,6 +11,8 @@ import { defaultZoom } from '../office/toolUtils.js'
 import { vscode } from '../vscodeApi.js'
 import { LAYOUT_SAVE_DEBOUNCE_MS, ZOOM_MIN, ZOOM_MAX } from '../constants.js'
 
+export type AgentProvider = 'claude' | 'codex'
+
 export interface EditorActions {
   isEditMode: boolean
   editorTick: number
@@ -19,7 +21,7 @@ export interface EditorActions {
   panRef: React.MutableRefObject<{ x: number; y: number }>
   saveTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
   setLastSavedLayout: (layout: OfficeLayout) => void
-  handleOpenClaude: () => void
+  handleOpenAgent: (provider: AgentProvider, folderPath?: string) => void
   handleToggleEditMode: () => void
   handleToolChange: (tool: EditToolType) => void
   handleTileTypeChange: (type: TileTypeVal) => void
@@ -78,8 +80,8 @@ export function useEditorActions(
     setEditorTick((n) => n + 1)
   }, [getOfficeState, editorState, saveLayout])
 
-  const handleOpenClaude = useCallback(() => {
-    vscode.postMessage({ type: 'openClaude' })
+  const handleOpenAgent = useCallback((provider: AgentProvider, folderPath?: string) => {
+    vscode.postMessage({ type: 'openAgent', provider, folderPath })
   }, [])
 
   const handleToggleEditMode = useCallback(() => {
@@ -503,7 +505,7 @@ export function useEditorActions(
     panRef,
     saveTimerRef,
     setLastSavedLayout,
-    handleOpenClaude,
+    handleOpenAgent,
     handleToggleEditMode,
     handleToolChange,
     handleTileTypeChange,

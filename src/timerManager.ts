@@ -9,11 +9,25 @@ export function clearAgentActivity(
 	webview: vscode.Webview | undefined,
 ): void {
 	if (!agent) return;
+	const parentToolIdsToClear = new Set<string>();
+	for (const parentToolId of agent.activeSubagentToolIds.keys()) {
+		parentToolIdsToClear.add(parentToolId);
+	}
+	for (const parentToolId of agent.codexSubagentParentToolIds.values()) {
+		parentToolIdsToClear.add(parentToolId);
+	}
+	for (const parentToolId of parentToolIdsToClear) {
+		webview?.postMessage({ type: 'subagentClear', id: agentId, parentToolId });
+	}
 	agent.activeToolIds.clear();
 	agent.activeToolStatuses.clear();
 	agent.activeToolNames.clear();
 	agent.activeSubagentToolIds.clear();
 	agent.activeSubagentToolNames.clear();
+	agent.codexPendingSpawnCalls.clear();
+	agent.codexSubagentLabels.clear();
+	agent.codexSubagentParentToolIds.clear();
+	agent.codexWaitCallMap.clear();
 	agent.isWaiting = false;
 	agent.permissionSent = false;
 	cancelPermissionTimer(agentId, permissionTimers);

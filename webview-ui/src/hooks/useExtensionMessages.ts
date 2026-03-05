@@ -197,6 +197,15 @@ export function useExtensionMessages(
             [id]: list.map((t) => (t.toolId === toolId ? { ...t, done: true } : t)),
           }
         })
+      } else if (msg.type === 'codexSubagentLinked') {
+        const id = msg.id as number
+        const parentToolId = msg.parentToolId as string
+        const label = msg.label as string
+        const subId = os.addSubagent(id, parentToolId)
+        setSubagentCharacters((prev) => {
+          if (prev.some((s) => s.id === subId)) return prev
+          return [...prev, { id: subId, parentAgentId: id, parentToolId, label }]
+        })
       } else if (msg.type === 'agentToolsClear') {
         const id = msg.id as number
         setAgentTools((prev) => {

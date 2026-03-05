@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { AgentState } from './types.js';
+import type { AgentProvider, AgentState } from './types.js';
 import {
 	launchNewTerminal,
 	removeAgent,
@@ -17,6 +17,7 @@ import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTile
 import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
+import { getSessionDirectoryForProvider } from './providers.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	nextAgentId = { current: 1 };
@@ -34,7 +35,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	// /clear detection: project-level scan for new JSONL files
 	activeAgentId = { current: null as number | null };
 	knownJsonlFiles = new Set<string>();
-	projectScanTimer = { current: null as ReturnType<typeof setInterval> | null };
+	projectScanTimers = new Map<string, ReturnType<typeof setInterval>>();
 
 	// Bundled default layout (loaded from assets/default-layout.json)
 	defaultLayout: Record<string, unknown> | null = null;
@@ -62,13 +63,17 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
 
 		webviewView.webview.onDidReceiveMessage(async (message) => {
-			if (message.type === 'openClaude') {
+			if (message.type === 'openAgent' || message.type === 'openClaude') {
+				const provider: AgentProvider = message.type === 'openClaude'
+					? 'claude'
+					: (message.provider === 'codex' ? 'codex' : 'claude');
 				await launchNewTerminal(
 					this.nextAgentId, this.nextTerminalIndex,
 					this.agents, this.activeAgentId, this.knownJsonlFiles,
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
-					this.jsonlPollTimers, this.projectScanTimer,
+					this.jsonlPollTimers, this.projectScanTimers,
 					this.webview, this.persistAgents,
+					provider,
 					message.folderPath as string | undefined,
 				);
 			} else if (message.type === 'focusAgent') {
@@ -96,7 +101,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					this.nextAgentId, this.nextTerminalIndex,
 					this.agents, this.knownJsonlFiles,
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
-					this.jsonlPollTimers, this.projectScanTimer, this.activeAgentId,
+					this.jsonlPollTimers, this.projectScanTimers, this.activeAgentId,
 					this.webview, this.persistAgents,
 				);
 				// Send persisted settings to webview
@@ -119,7 +124,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				console.log('[Extension] projectDir:', projectDir);
 				if (projectDir) {
 					ensureProjectScan(
-						projectDir, this.knownJsonlFiles, this.projectScanTimer, this.activeAgentId,
+						projectDir, 'claude', this.knownJsonlFiles, this.projectScanTimers, this.activeAgentId,
 						this.nextAgentId, this.agents,
 						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 						this.webview, this.persistAgents,
@@ -225,9 +230,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				}
 				sendExistingAgents(this.agents, this.context, this.webview);
 			} else if (message.type === 'openSessionsFolder') {
-				const projectDir = getProjectDirPath();
+				const provider: AgentProvider = message.provider === 'codex' ? 'codex' : 'claude';
+				const projectDir = provider === 'claude'
+					? getProjectDirPath(undefined, 'claude')
+					: getSessionDirectoryForProvider('codex');
 				if (projectDir && fs.existsSync(projectDir)) {
-					vscode.env.openExternal(vscode.Uri.file(projectDir));
+					void vscode.env.openExternal(vscode.Uri.file(projectDir));
+				} else {
+					vscode.window.showWarningMessage(`Pixel Agents: ${provider === 'claude' ? 'Claude' : 'Codex'} sessions folder not found.`);
 				}
 			} else if (message.type === 'exportLayout') {
 				const layout = readLayoutFromFile();
@@ -331,10 +341,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				this.jsonlPollTimers, this.persistAgents,
 			);
 		}
-		if (this.projectScanTimer.current) {
-			clearInterval(this.projectScanTimer.current);
-			this.projectScanTimer.current = null;
+		for (const timer of this.projectScanTimers.values()) {
+			clearInterval(timer);
 		}
+		this.projectScanTimers.clear();
 	}
 }
 

@@ -7,3 +7,4 @@ node_modules
 /logs
 /sprites-export
 .env
+/scripts/.tileset-working/

@@ -94,17 +94,31 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
         {/* Menu items */}
         <button
           onClick={() => {
-            vscode.postMessage({ type: 'openSessionsFolder' })
+            vscode.postMessage({ type: 'openSessionsFolder', provider: 'claude' })
             onClose()
           }}
-          onMouseEnter={() => setHovered('sessions')}
+          onMouseEnter={() => setHovered('sessionsClaude')}
           onMouseLeave={() => setHovered(null)}
           style={{
             ...menuItemBase,
-            background: hovered === 'sessions' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+            background: hovered === 'sessionsClaude' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
           }}
         >
-          Open Sessions Folder
+          Open Claude Sessions
+        </button>
+        <button
+          onClick={() => {
+            vscode.postMessage({ type: 'openSessionsFolder', provider: 'codex' })
+            onClose()
+          }}
+          onMouseEnter={() => setHovered('sessionsCodex')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...menuItemBase,
+            background: hovered === 'sessionsCodex' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          }}
+        >
+          Open Codex Sessions
         </button>
         <button
           onClick={() => {

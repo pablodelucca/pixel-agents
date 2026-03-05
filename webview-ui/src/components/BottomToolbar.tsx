@@ -1,15 +1,22 @@
 import { useState, useEffect, useRef } from 'react'
 import { SettingsModal } from './SettingsModal.js'
 import type { WorkspaceFolder } from '../hooks/useExtensionMessages.js'
-import { vscode } from '../vscodeApi.js'
+import type { AgentProvider } from '../hooks/useEditorActions.js'
 
 interface BottomToolbarProps {
   isEditMode: boolean
-  onOpenClaude: () => void
+  onOpenAgent: (provider: AgentProvider, folderPath?: string) => void
   onToggleEditMode: () => void
   isDebugMode: boolean
   onToggleDebugMode: () => void
   workspaceFolders: WorkspaceFolder[]
+}
+
+interface AgentLaunchOption {
+  key: string
+  label: string
+  provider: AgentProvider
+  folderPath?: string
 }
 
 const panelStyle: React.CSSProperties = {
@@ -46,7 +53,7 @@ const btnActive: React.CSSProperties = {
 
 export function BottomToolbar({
   isEditMode,
-  onOpenClaude,
+  onOpenAgent,
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
@@ -54,49 +61,59 @@ export function BottomToolbar({
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false)
-  const [hoveredFolder, setHoveredFolder] = useState<number | null>(null)
-  const folderPickerRef = useRef<HTMLDivElement>(null)
+  const [isAgentPickerOpen, setIsAgentPickerOpen] = useState(false)
+  const [hoveredOption, setHoveredOption] = useState<number | null>(null)
+  const agentPickerRef = useRef<HTMLDivElement>(null)
 
-  // Close folder picker on outside click
+  // Close agent picker on outside click
   useEffect(() => {
-    if (!isFolderPickerOpen) return
+    if (!isAgentPickerOpen) return
     const handleClick = (e: MouseEvent) => {
-      if (folderPickerRef.current && !folderPickerRef.current.contains(e.target as Node)) {
-        setIsFolderPickerOpen(false)
+      if (agentPickerRef.current && !agentPickerRef.current.contains(e.target as Node)) {
+        setIsAgentPickerOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [isFolderPickerOpen])
+  }, [isAgentPickerOpen])
 
-  const hasMultipleFolders = workspaceFolders.length > 1
+  const providers: Array<{ provider: AgentProvider; label: string }> = [
+    { provider: 'claude', label: 'Claude Code' },
+    { provider: 'codex', label: 'Codex' },
+  ]
 
-  const handleAgentClick = () => {
-    if (hasMultipleFolders) {
-      setIsFolderPickerOpen((v) => !v)
-    } else {
-      onOpenClaude()
-    }
-  }
+  const launchOptions: AgentLaunchOption[] = workspaceFolders.length > 1
+    ? providers.flatMap((providerItem) =>
+      workspaceFolders.map((folder) => ({
+        key: `${providerItem.provider}:${folder.path}`,
+        label: `${providerItem.label} · ${folder.name}`,
+        provider: providerItem.provider,
+        folderPath: folder.path,
+      })),
+    )
+    : providers.map((providerItem) => ({
+      key: providerItem.provider,
+      label: providerItem.label,
+      provider: providerItem.provider,
+    }))
 
-  const handleFolderSelect = (folder: WorkspaceFolder) => {
-    setIsFolderPickerOpen(false)
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path })
+  const handleOptionSelect = (option: AgentLaunchOption) => {
+    setIsAgentPickerOpen(false)
+    onOpenAgent(option.provider, option.folderPath)
   }
 
   return (
     <div style={panelStyle}>
-      <div ref={folderPickerRef} style={{ position: 'relative' }}>
+      <div ref={agentPickerRef} style={{ position: 'relative' }}>
         <button
-          onClick={handleAgentClick}
+          onClick={() => setIsAgentPickerOpen((v) => !v)}
           onMouseEnter={() => setHovered('agent')}
           onMouseLeave={() => setHovered(null)}
           style={{
             ...btnBase,
             padding: '5px 12px',
             background:
-              hovered === 'agent' || isFolderPickerOpen
+              hovered === 'agent' || isAgentPickerOpen
                 ? 'var(--pixel-agent-hover-bg)'
                 : 'var(--pixel-agent-bg)',
             border: '2px solid var(--pixel-agent-border)',
@@ -105,7 +122,7 @@ export function BottomToolbar({
         >
           + Agent
         </button>
-        {isFolderPickerOpen && (
+        {isAgentPickerOpen && (
           <div
             style={{
               position: 'absolute',
@@ -116,16 +133,16 @@ export function BottomToolbar({
               border: '2px solid var(--pixel-border)',
               borderRadius: 0,
               boxShadow: 'var(--pixel-shadow)',
-              minWidth: 160,
+              minWidth: 220,
               zIndex: 'var(--pixel-controls-z)',
             }}
           >
-            {workspaceFolders.map((folder, i) => (
+            {launchOptions.map((option, i) => (
               <button
-                key={folder.path}
-                onClick={() => handleFolderSelect(folder)}
-                onMouseEnter={() => setHoveredFolder(i)}
-                onMouseLeave={() => setHoveredFolder(null)}
+                key={option.key}
+                onClick={() => handleOptionSelect(option)}
+                onMouseEnter={() => setHoveredOption(i)}
+                onMouseLeave={() => setHoveredOption(null)}
                 style={{
                   display: 'block',
                   width: '100%',
@@ -133,14 +150,14 @@ export function BottomToolbar({
                   padding: '6px 10px',
                   fontSize: '22px',
                   color: 'var(--pixel-text)',
-                  background: hoveredFolder === i ? 'var(--pixel-btn-hover-bg)' : 'transparent',
+                  background: hoveredOption === i ? 'var(--pixel-btn-hover-bg)' : 'transparent',
                   border: 'none',
                   borderRadius: 0,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                 }}
               >
-                {folder.name}
+                {option.label}
               </button>
             ))}
           </div>
@@ -154,9 +171,9 @@ export function BottomToolbar({
           isEditMode
             ? { ...btnActive }
             : {
-                ...btnBase,
-                background: hovered === 'edit' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
-              }
+              ...btnBase,
+              background: hovered === 'edit' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+            }
         }
         title="Edit office layout"
       >
@@ -171,9 +188,9 @@ export function BottomToolbar({
             isSettingsOpen
               ? { ...btnActive }
               : {
-                  ...btnBase,
-                  background: hovered === 'settings' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
-                }
+                ...btnBase,
+                background: hovered === 'settings' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+              }
           }
           title="Settings"
         >
