@@ -1,5 +1,6 @@
 import { WebSocket } from 'ws';
 import type { AgentState } from './types.js';
+import { getPersonaForSession } from './prompts/personas.js';
 
 const ADJECTIVES = [
 	'brave', 'cosmic', 'turbo', 'swift', 'neon', 'pixel', 'cyber', 'mega',
@@ -123,7 +124,8 @@ export function handlePeerMessage(ws: WebSocket, msg: Record<string, unknown>, c
 		ctx.agents.set(globalId, agent);
 		ctx.persistAgents();
 		console.log(`[PeerManager] Peer "${peer.name}" agent created: local=${localId} -> global=${globalId}`);
-		ctx.emit({ type: 'agentCreated', id: globalId, folderName: agent.label });
+		const persona = getPersonaForSession(agent.sessionId ?? '');
+		ctx.emit({ type: 'agentCreated', id: globalId, folderName: agent.label, personaTagline: persona.tagline });
 		return true;
 	}
 

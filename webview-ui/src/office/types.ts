@@ -195,4 +195,6 @@ export interface Character {
   matrixEffectSeeds: number[]
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string
+  /** Persona tagline from server (deterministic per session) */
+  personaTagline?: string
 }

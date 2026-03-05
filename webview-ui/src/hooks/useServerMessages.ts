@@ -63,7 +63,7 @@ export function useServerMessages(
   const layoutReadyRef = useRef(false)
 
   useEffect(() => {
-    let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string; folderName?: string }> = []
+    let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string; folderName?: string; personaTagline?: string }> = []
 
     const handler = (msg: Record<string, unknown>) => {
       const os = getOfficeState()
@@ -82,7 +82,7 @@ export function useServerMessages(
           onLayoutLoaded?.(os.getLayout())
         }
         for (const p of pendingAgents) {
-          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName)
+          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName, p.personaTagline)
         }
         pendingAgents = []
         layoutReadyRef.current = true
@@ -93,9 +93,10 @@ export function useServerMessages(
       } else if (msg.type === 'agentCreated') {
         const id = msg.id as number
         const folderName = msg.folderName as string | undefined
+        const personaTagline = msg.personaTagline as string | undefined
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]))
         setSelectedAgent(id)
-        os.addAgent(id, undefined, undefined, undefined, undefined, folderName)
+        os.addAgent(id, undefined, undefined, undefined, undefined, folderName, personaTagline)
         saveAgentSeats(os)
       } else if (msg.type === 'agentClosed') {
         const id = msg.id as number
@@ -132,9 +133,10 @@ export function useServerMessages(
         const incoming = msg.agents as number[]
         const meta = (msg.agentMeta || {}) as Record<number, { palette?: number; hueShift?: number; seatId?: string }>
         const folderNames = (msg.folderNames || {}) as Record<number, string>
+        const personaTaglines = (msg.personaTaglines || {}) as Record<number, string>
         for (const id of incoming) {
           const m = meta[id]
-          pendingAgents.push({ id, palette: m?.palette, hueShift: m?.hueShift, seatId: m?.seatId, folderName: folderNames[id] })
+          pendingAgents.push({ id, palette: m?.palette, hueShift: m?.hueShift, seatId: m?.seatId, folderName: folderNames[id], personaTagline: personaTaglines[id] })
         }
         setAgents((prev) => {
           const ids = new Set(prev)

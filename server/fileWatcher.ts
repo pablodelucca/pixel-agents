@@ -4,6 +4,7 @@ import type { AgentState } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
+import { getPersonaForSession } from './prompts/personas.js';
 
 export function startFileWatching(
 	agentId: number,
@@ -180,6 +181,7 @@ function adoptFileAsAgent(
 	persistAgents: () => void,
 ): void {
 	const id = nextAgentIdRef.current++;
+	const sessionId = path.basename(jsonlFile, '.jsonl');
 	const agent: AgentState = {
 		id,
 		ptyProcess: null,
@@ -196,6 +198,7 @@ function adoptFileAsAgent(
 		permissionSent: false,
 		hadToolsInTurn: false,
 		isExternal: true,
+		sessionId,
 	};
 
 	agents.set(id, agent);
@@ -203,7 +206,8 @@ function adoptFileAsAgent(
 	persistAgents();
 
 	console.log(`[Pixel Agents] Agent ${id}: adopted external session ${path.basename(jsonlFile)}`);
-	emit({ type: 'agentCreated', id });
+	const persona = getPersonaForSession(agent.sessionId ?? '');
+	emit({ type: 'agentCreated', id, personaTagline: persona.tagline });
 
 	startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, emit);
 	readNewLines(id, agents, waitingTimers, permissionTimers, emit);

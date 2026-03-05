@@ -5,6 +5,7 @@ import type { AgentState } from './types.js';
 import { startFileWatching, readNewLines } from './fileWatcher.js';
 import { removeAgent } from './agentManager.js';
 import { SESSION_SCAN_INTERVAL_MS, SESSION_ACTIVE_THRESHOLD_MS } from './constants.js';
+import { getPersonaForSession } from './prompts/personas.js';
 
 /** How long after last write before an external session is considered closed */
 const STALE_THRESHOLD_MS = 5 * 60_000;
@@ -153,7 +154,8 @@ function scanAllProjects(
 				persistAgents();
 
 				console.log(`[SessionScanner] Detected active session: ${path.basename(jsonlFile)} in ${path.basename(projectDir)}`);
-				emit({ type: 'agentCreated', id, folderName: agent.label });
+				const persona = getPersonaForSession(agent.sessionId ?? '');
+				emit({ type: 'agentCreated', id, folderName: agent.label, personaTagline: persona.tagline });
 
 				startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, emit);
 				readNewLines(id, agents, waitingTimers, permissionTimers, emit);

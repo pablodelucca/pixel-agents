@@ -191,6 +191,20 @@ export function ToolOverlay({
                     {ch.folderName}
                   </span>
                 )}
+                {ch.personaTagline && (
+                  <span
+                    style={{
+                      fontSize: '16px',
+                      color: 'var(--pixel-text-dim)',
+                      fontStyle: 'italic',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: 'block',
+                    }}
+                  >
+                    {ch.personaTagline}
+                  </span>
+                )}
               </div>
             </div>
           </div>

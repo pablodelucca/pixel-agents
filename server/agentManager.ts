@@ -4,6 +4,7 @@ import type { AgentState, PersistedAgent } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer } from './timerManager.js';
 import { startFileWatching, readNewLines, ensureProjectScan } from './fileWatcher.js';
 import { writePersistedAgents, readPersistedAgents, getAgentSeats } from './settingsStore.js';
+import { getPersonaForSession } from './prompts/personas.js';
 
 export function removeAgent(
 	agentId: number,
@@ -138,6 +139,11 @@ export function sendExistingAgents(
 
 	console.log(`[Pixel Agents] sendExistingAgents: agents=${JSON.stringify(agentIds)}`);
 
+	const personaTaglines: Record<number, string> = {};
+	for (const [id, agent] of agents) {
+		personaTaglines[id] = getPersonaForSession(agent.sessionId ?? '').tagline;
+	}
+
 	emit({
 		type: 'existingAgents',
 		agents: agentIds,
@@ -147,6 +153,7 @@ export function sendExistingAgents(
 				.filter(([, a]) => a.customLabel || a.label)
 				.map(([id, a]) => [id, a.customLabel || a.label])
 		),
+		personaTaglines,
 	});
 
 	sendCurrentAgentStatuses(agents, emit);
