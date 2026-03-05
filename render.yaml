@@ -3,7 +3,7 @@ services:
     name: pixel-office
     runtime: docker
     region: frankfurt
-    plan: free
+    plan: standard
     envVars:
       - key: PORT
         value: "3000"
