@@ -57,8 +57,16 @@ let scanTimer: ReturnType<typeof setInterval> | null = null;
 
 // -- Folder name from project dir --
 function decodeProjectDir(encoded: string): string {
-	const decoded = encoded.replace(/^-/, '/').replace(/-/g, '/');
-	return path.basename(decoded);
+	// Encoded: "/Users/bob/cludo/pixel-agents" → "-Users-bob-cludo-pixel-agents"
+	// Strip home dir prefix, keep the rest with hyphens intact
+	const homeEncoded = os.homedir().replace(/[/\\:]/g, '-');
+	let stripped = encoded;
+	if (stripped.startsWith('-' + homeEncoded + '-')) {
+		stripped = stripped.slice(1 + homeEncoded.length + 1);
+	} else {
+		stripped = stripped.replace(/^-/, '');
+	}
+	return stripped;
 }
 
 // -- Send peer message --

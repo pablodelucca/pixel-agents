@@ -69,12 +69,13 @@ function cleanupStaleAgents(
 	}
 }
 
-/** Decode Claude's project dir encoding (e.g. "-Users-bob-my-project" → "my-project") */
+/** Decode Claude's project dir encoding (e.g. "-Users-bob-cludo-pixel-agents" → "cludo-pixel-agents") */
 function decodeProjectDir(encoded: string): string {
-	// Claude encodes paths as: / → -, so "-Users-bob-projects-my-app" = "/Users/bob/projects/my-app"
-	// We want just the last path segment
-	const decoded = encoded.replace(/^-/, '/').replace(/-/g, '/')
-	return path.basename(decoded)
+	const homeEncoded = os.homedir().replace(/[/\\:]/g, '-')
+	if (encoded.startsWith('-' + homeEncoded + '-')) {
+		return encoded.slice(1 + homeEncoded.length + 1)
+	}
+	return encoded.replace(/^-/, '')
 }
 
 function scanAllProjects(
