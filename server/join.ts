@@ -238,6 +238,7 @@ function scanAllProjects(): void {
 					permissionSent: false,
 					hadToolsInTurn: false,
 					isExternal: true,
+					suppressTokens: true,
 					label: folderName,
 				};
 
@@ -246,6 +247,7 @@ function scanAllProjects(): void {
 				send({ type: 'peerAgentCreated', localId, folderName });
 				startFileWatching(localId, jsonlFile);
 				readNewLines(localId);
+				agent.suppressTokens = false;
 			} catch { /* ignore */ }
 		}
 	}

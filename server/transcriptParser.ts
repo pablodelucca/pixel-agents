@@ -69,7 +69,7 @@ export function processTranscriptLine(
 				const deltaCacheCreation = totalCacheCreation - prev.cacheCreation;
 				agent.lastUsage = { input: totalInput, output: totalOutput, cacheRead: totalCacheRead, cacheCreation: totalCacheCreation };
 
-				if (deltaInput > 0 || deltaOutput > 0) {
+				if ((deltaInput > 0 || deltaOutput > 0) && !agent.suppressTokens) {
 					emit({
 						type: 'agentTokens',
 						id: agentId,

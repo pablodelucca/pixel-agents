@@ -18,6 +18,7 @@ export interface AgentState {
 	/** Display label for the session */
 	label?: string;
 	lastUsage?: { input: number; output: number; cacheRead: number; cacheCreation: number };
+	suppressTokens?: boolean;
 	/** Whether this agent comes from a remote peer (join CLI) */
 	isRemote?: boolean;
 	/** Peer connection ID */
