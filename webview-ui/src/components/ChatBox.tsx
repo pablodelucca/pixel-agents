@@ -66,18 +66,24 @@ export function ChatBox({ messages, isOpen }: ChatBoxProps) {
     }
   }, [messages.length])
 
-  if (!isOpen || messages.length === 0) return null
+  if (!isOpen) return null
 
   return (
     <div style={panelStyle}>
       <div style={headerStyle}>Chat</div>
       <div ref={listRef} style={listStyle}>
-        {messages.map((msg, i) => (
-          <div key={i} style={messageStyle}>
-            <span style={senderStyle}>{msg.sender}:</span>{' '}
-            {msg.text}
+        {messages.length === 0 ? (
+          <div style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', padding: '8px 0' }}>
+            No messages yet...
           </div>
-        ))}
+        ) : (
+          messages.map((msg, i) => (
+            <div key={i} style={messageStyle}>
+              <span style={senderStyle}>{msg.sender}:</span>{' '}
+              {msg.text}
+            </div>
+          ))
+        )}
       </div>
     </div>
   )
