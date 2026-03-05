@@ -48,6 +48,8 @@ export interface ExtensionMessageState {
   subagentTools: Record<number, Record<string, ToolActivity[]>>
   subagentCharacters: SubagentCharacter[]
   layoutReady: boolean
+  defaultRuntime: 'claude' | 'codex'
+  setDefaultRuntime: (runtime: 'claude' | 'codex') => void
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> }
   workspaceFolders: WorkspaceFolder[]
 }
@@ -73,6 +75,7 @@ export function useExtensionMessages(
   const [subagentTools, setSubagentTools] = useState<Record<number, Record<string, ToolActivity[]>>>({})
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([])
   const [layoutReady, setLayoutReady] = useState(false)
+  const [defaultRuntime, setDefaultRuntime] = useState<'claude' | 'codex'>('claude')
   const [loadedAssets, setLoadedAssets] = useState<{ catalog: FurnitureAsset[]; sprites: Record<string, string[][]> } | undefined>()
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([])
 
@@ -342,6 +345,8 @@ export function useExtensionMessages(
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean
         setSoundEnabled(soundOn)
+        const runtime = msg.defaultRuntime === 'codex' ? 'codex' : 'claude'
+        setDefaultRuntime(runtime)
       } else if (msg.type === 'furnitureAssetsLoaded') {
         try {
           const catalog = msg.catalog as FurnitureAsset[]
@@ -360,5 +365,17 @@ export function useExtensionMessages(
     return () => window.removeEventListener('message', handler)
   }, [getOfficeState])
 
-  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders }
+  return {
+    agents,
+    selectedAgent,
+    agentTools,
+    agentStatuses,
+    subagentTools,
+    subagentCharacters,
+    layoutReady,
+    defaultRuntime,
+    setDefaultRuntime,
+    loadedAssets,
+    workspaceFolders,
+  }
 }
