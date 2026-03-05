@@ -128,7 +128,7 @@ function App() {
 
   const isEditDirty = useCallback(() => editor.isEditMode && editor.isDirty, [editor.isEditMode, editor.isDirty])
 
-  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
+  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways, localUserName, serverUrl, userName } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
 
   const [isDebugMode, setIsDebugMode] = useState(false)
 
@@ -250,6 +250,8 @@ function App() {
         externalSessionsSettings={externalSessionsSettings}
         showLabelsAlways={showLabelsAlways}
         onToggleShowLabelsAlways={handleToggleShowLabelsAlways}
+        serverUrl={serverUrl}
+        userName={userName || localUserName}
       />
 
       {editor.isEditMode && editor.isDirty && (

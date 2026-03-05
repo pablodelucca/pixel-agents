@@ -11,6 +11,8 @@ interface SettingsModalProps {
   externalSessionsScope: 'currentProject' | 'allProjects'
   showLabelsAlways: boolean
   onToggleShowLabelsAlways: () => void
+  serverUrl: string
+  userName: string
 }
 
 const menuItemBase: React.CSSProperties = {
@@ -28,11 +30,13 @@ const menuItemBase: React.CSSProperties = {
   textAlign: 'left',
 }
 
-export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode, externalSessionsEnabled, externalSessionsScope, showLabelsAlways, onToggleShowLabelsAlways }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode, externalSessionsEnabled, externalSessionsScope, showLabelsAlways, onToggleShowLabelsAlways, serverUrl, userName }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled)
   const [extEnabled, setExtEnabled] = useState(externalSessionsEnabled)
   const [extScope, setExtScope] = useState(externalSessionsScope)
+  const [serverUrlLocal, setServerUrlLocal] = useState(serverUrl)
+  const [userNameLocal, setUserNameLocal] = useState(userName)
 
   if (!isOpen) return null
 
@@ -275,6 +279,78 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode,
             </div>
           </div>
         )}
+        {/* Multiuser section */}
+        <div
+          style={{
+            borderTop: '1px solid var(--pixel-border)',
+            marginTop: 4,
+            paddingTop: 4,
+          }}
+        >
+          <div style={{ padding: '4px 10px', fontSize: '20px', color: 'rgba(255, 255, 255, 0.5)' }}>
+            Multiuser
+          </div>
+          <div style={{ padding: '4px 10px' }}>
+            <label style={{ fontSize: '20px', color: 'rgba(255, 255, 255, 0.7)', display: 'block', marginBottom: 2 }}>
+              Server URL
+            </label>
+            <input
+              type="text"
+              value={serverUrlLocal}
+              placeholder="ws://localhost:4200"
+              onChange={(e) => setServerUrlLocal(e.target.value)}
+              onBlur={() => {
+                vscode.postMessage({ type: 'setServerUrl', url: serverUrlLocal })
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  vscode.postMessage({ type: 'setServerUrl', url: serverUrlLocal })
+                }
+              }}
+              style={{
+                width: '100%',
+                padding: '4px 6px',
+                fontSize: '20px',
+                background: 'rgba(0, 0, 0, 0.3)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: 0,
+                color: '#e0e0e0',
+                fontFamily: '"FS Pixel Sans", monospace',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <div style={{ padding: '4px 10px' }}>
+            <label style={{ fontSize: '20px', color: 'rgba(255, 255, 255, 0.7)', display: 'block', marginBottom: 2 }}>
+              Your Name
+            </label>
+            <input
+              type="text"
+              value={userNameLocal}
+              placeholder="Anonymous"
+              onChange={(e) => setUserNameLocal(e.target.value)}
+              onBlur={() => {
+                vscode.postMessage({ type: 'setUserName', name: userNameLocal })
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  vscode.postMessage({ type: 'setUserName', name: userNameLocal })
+                }
+              }}
+              style={{
+                width: '100%',
+                padding: '4px 6px',
+                fontSize: '20px',
+                background: 'rgba(0, 0, 0, 0.3)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: 0,
+                color: '#e0e0e0',
+                fontFamily: '"FS Pixel Sans", monospace',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+        </div>
         <button
           onClick={onToggleDebugMode}
           onMouseEnter={() => setHovered('debug')}

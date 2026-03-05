@@ -58,6 +58,8 @@ export interface ExtensionMessageState {
   externalSessionsSettings: ExternalSessionsSettings
   showLabelsAlways: boolean
   localUserName: string
+  serverUrl: string
+  userName: string
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -87,6 +89,8 @@ export function useExtensionMessages(
   const [showLabelsAlways, setShowLabelsAlways] = useState(false)
   const [localUserName, setLocalUserName] = useState<string>('')
   const localUserNameRef = useRef('')
+  const [serverUrl, setServerUrl] = useState<string>('')
+  const [userName, setUserName] = useState<string>('')
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false)
@@ -387,6 +391,12 @@ export function useExtensionMessages(
             scope: (msg.externalSessionsScope as 'currentProject' | 'allProjects') || 'currentProject',
           })
         }
+        if (msg.serverUrl !== undefined) {
+          setServerUrl(msg.serverUrl as string)
+        }
+        if (msg.userName !== undefined) {
+          setUserName(msg.userName as string)
+        }
       } else if (msg.type === 'settingChanged') {
         const key = msg.key as string
         const value = msg.value
@@ -440,5 +450,5 @@ export function useExtensionMessages(
     return () => window.removeEventListener('message', handler)
   }, [getOfficeState])
 
-  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways, localUserName }
+  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways, localUserName, serverUrl, userName }
 }

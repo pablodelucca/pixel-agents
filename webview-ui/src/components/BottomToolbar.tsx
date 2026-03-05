@@ -13,6 +13,8 @@ interface BottomToolbarProps {
   externalSessionsSettings: ExternalSessionsSettings
   showLabelsAlways: boolean
   onToggleShowLabelsAlways: () => void
+  serverUrl: string
+  userName: string
 }
 
 const panelStyle: React.CSSProperties = {
@@ -57,6 +59,8 @@ export function BottomToolbar({
   externalSessionsSettings,
   showLabelsAlways,
   onToggleShowLabelsAlways,
+  serverUrl,
+  userName,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -194,6 +198,8 @@ export function BottomToolbar({
           externalSessionsScope={externalSessionsSettings.scope}
           showLabelsAlways={showLabelsAlways}
           onToggleShowLabelsAlways={onToggleShowLabelsAlways}
+          serverUrl={serverUrl}
+          userName={userName}
         />
       </div>
     </div>
