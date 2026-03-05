@@ -134,6 +134,14 @@ setMessageHandler((msg, ws) => {
 		writeLayoutToFile(msg.layout as Record<string, unknown>);
 	} else if (msg.type === 'setSoundEnabled') {
 		setSoundEnabled(msg.enabled as boolean);
+	} else if (msg.type === 'renameAgent') {
+		const id = msg.id as number;
+		const name = (msg.name as string || '').trim();
+		const agent = agents.get(id);
+		if (!agent) return;
+		agent.customLabel = name || undefined;
+		persistAgents();
+		broadcast({ type: 'agentRenamed', id, folderName: agent.customLabel || agent.label });
 	} else if (msg.type === 'webviewReady') {
 		// Client connected — state is sent via connect handler
 	}
@@ -154,7 +162,7 @@ setConnectHandler((ws) => {
 	const agentSeats = settings.agentSeats || {};
 	const folderNames: Record<number, string> = {};
 	for (const [id, agent] of agents) {
-		if (agent.label) folderNames[id] = agent.label;
+		if (agent.customLabel || agent.label) folderNames[id] = agent.customLabel || agent.label;
 	}
 	sendTo(ws, {
 		type: 'existingAgents',

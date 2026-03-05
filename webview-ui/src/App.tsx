@@ -159,6 +159,10 @@ function App() {
     editor.handleToggleEditMode,
   )
 
+  const handleRenameAgent = useCallback((id: number, name: string) => {
+    serverApi.postMessage({ type: 'renameAgent', id, name })
+  }, [])
+
   const handleClick = useCallback((agentId: number) => {
     // If clicked agent is a sub-agent, focus the parent's terminal instead
     const os = getOfficeState()
@@ -333,6 +337,7 @@ function App() {
         zoom={editor.zoom}
         panRef={editor.panRef}
         subagentCharacters={subagentCharacters}
+        onRenameAgent={handleRenameAgent}
       />
 
       {isDebugMode && (

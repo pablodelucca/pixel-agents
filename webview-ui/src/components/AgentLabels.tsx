@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { OfficeState } from '../office/engine/officeState.js'
 import type { SubagentCharacter } from '../hooks/useServerMessages.js'
 import { TILE_SIZE, CharacterState } from '../office/types.js'
@@ -11,6 +11,7 @@ interface AgentLabelsProps {
   zoom: number
   panRef: React.RefObject<{ x: number; y: number }>
   subagentCharacters: SubagentCharacter[]
+  onRenameAgent?: (id: number, name: string) => void
 }
 
 export function AgentLabels({
@@ -21,7 +22,25 @@ export function AgentLabels({
   zoom,
   panRef,
   subagentCharacters,
+  onRenameAgent,
 }: AgentLabelsProps) {
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const editInputRef = useRef<HTMLInputElement>(null)
+
+  const commitEdit = useCallback((id: number) => {
+    onRenameAgent?.(id, editValue.trim())
+    setEditingId(null)
+  }, [editValue, onRenameAgent])
+
+  // Auto-focus + select all when entering edit mode
+  useEffect(() => {
+    if (editingId !== null && editInputRef.current) {
+      editInputRef.current.focus()
+      editInputRef.current.select()
+    }
+  }, [editingId])
+
   const [, setTick] = useState(0)
   useEffect(() => {
     let rafId = 0
@@ -110,22 +129,53 @@ export function AgentLabels({
                 }}
               />
             )}
-            <span
-              style={{
-                fontSize: isSub ? '16px' : '18px',
-                fontStyle: isSub ? 'italic' : undefined,
-                color: '#fff',
-                background: 'rgba(30,30,46,0.7)',
-                padding: '1px 4px',
-                borderRadius: 2,
-                whiteSpace: 'nowrap',
-                maxWidth: isSub ? 120 : undefined,
-                overflow: isSub ? 'hidden' : undefined,
-                textOverflow: isSub ? 'ellipsis' : undefined,
-              }}
-            >
-              {agentName}
-            </span>
+            {editingId === id ? (
+              <input
+                ref={editInputRef}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitEdit(id)
+                  if (e.key === 'Escape') setEditingId(null)
+                }}
+                onBlur={() => commitEdit(id)}
+                style={{
+                  fontSize: '18px',
+                  color: '#fff',
+                  background: '#1e1e2e',
+                  border: '2px solid var(--pixel-accent)',
+                  padding: '1px 4px',
+                  borderRadius: 2,
+                  whiteSpace: 'nowrap',
+                  outline: 'none',
+                  width: 120,
+                  pointerEvents: 'auto',
+                }}
+              />
+            ) : (
+              <span
+                onDoubleClick={!isSub && id > 0 ? () => {
+                  setEditingId(id)
+                  setEditValue(agentName)
+                } : undefined}
+                style={{
+                  fontSize: isSub ? '16px' : '18px',
+                  fontStyle: isSub ? 'italic' : undefined,
+                  color: '#fff',
+                  background: 'rgba(30,30,46,0.7)',
+                  padding: '1px 4px',
+                  borderRadius: 2,
+                  whiteSpace: 'nowrap',
+                  maxWidth: isSub ? 120 : undefined,
+                  overflow: isSub ? 'hidden' : undefined,
+                  textOverflow: isSub ? 'ellipsis' : undefined,
+                  cursor: !isSub && id > 0 ? 'text' : undefined,
+                  pointerEvents: !isSub && id > 0 ? 'auto' : undefined,
+                }}
+              >
+                {agentName}
+              </span>
+            )}
             {peerName && !isSub && (
               <span
                 style={{

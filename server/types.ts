@@ -17,6 +17,8 @@ export interface AgentState {
 	isExternal?: boolean;
 	/** Display label for the session */
 	label?: string;
+	/** User-assigned custom label (overrides auto-derived label) */
+	customLabel?: string;
 	/** Session UUID from the JSONL filename */
 	sessionId?: string;
 	lastUsage?: { input: number; output: number; cacheRead: number; cacheCreation: number };
@@ -36,4 +38,5 @@ export interface PersistedAgent {
 	jsonlFile: string;
 	projectDir: string;
 	label?: string;
+	customLabel?: string;
 }

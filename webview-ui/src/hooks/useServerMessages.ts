@@ -216,6 +216,11 @@ export function useServerMessages(
           os.showWaitingBubble(id)
           playDoneSound()
         }
+      } else if (msg.type === 'agentRenamed') {
+        const id = msg.id as number
+        const folderName = msg.folderName as string
+        const ch = os.characters.get(id)
+        if (ch) ch.folderName = folderName
       } else if (msg.type === 'agentToolPermission') {
         const id = msg.id as number
         setAgentTools((prev) => {

@@ -44,6 +44,7 @@ export function persistAgents(agents: Map<number, AgentState>): void {
 			jsonlFile: agent.jsonlFile,
 			projectDir: agent.projectDir,
 			label: agent.label,
+			customLabel: agent.customLabel,
 		});
 	}
 	writePersistedAgents(persisted);
@@ -90,6 +91,7 @@ export function restoreAgents(
 			hadToolsInTurn: false,
 			isExternal: true,
 			label: p.label,
+			customLabel: p.customLabel,
 		};
 
 		agents.set(p.id, agent);
@@ -140,7 +142,11 @@ export function sendExistingAgents(
 		type: 'existingAgents',
 		agents: agentIds,
 		agentMeta,
-		folderNames: {},
+		folderNames: Object.fromEntries(
+			[...agents.entries()]
+				.filter(([, a]) => a.customLabel || a.label)
+				.map(([id, a]) => [id, a.customLabel || a.label])
+		),
 	});
 
 	sendCurrentAgentStatuses(agents, emit);
