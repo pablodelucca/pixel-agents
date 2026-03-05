@@ -57,6 +57,7 @@ export interface ExtensionMessageState {
   workspaceFolders: WorkspaceFolder[]
   externalSessionsSettings: ExternalSessionsSettings
   showLabelsAlways: boolean
+  localUserName: string
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -84,6 +85,8 @@ export function useExtensionMessages(
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([])
   const [externalSessionsSettings, setExternalSessionsSettings] = useState<ExternalSessionsSettings>({ enabled: false, scope: 'currentProject' })
   const [showLabelsAlways, setShowLabelsAlways] = useState(false)
+  const [localUserName, setLocalUserName] = useState<string>('')
+  const localUserNameRef = useRef('')
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false)
@@ -115,6 +118,13 @@ export function useExtensionMessages(
         for (const p of pendingAgents) {
           os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName, p.isExternal, p.projectId)
         }
+        // Tag restored agents with local username
+        for (const p of pendingAgents) {
+          if (!p.isExternal) {
+            const ch = os.characters.get(p.id)
+            if (ch) ch.userName = localUserNameRef.current
+          }
+        }
         pendingAgents = []
         layoutReadyRef.current = true
         setLayoutReady(true)
@@ -129,6 +139,11 @@ export function useExtensionMessages(
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]))
         if (!isExternal) setSelectedAgent(id)
         os.addAgent(id, undefined, undefined, undefined, undefined, folderName, isExternal, projectId)
+        // Tag new local agent with local username
+        if (!isExternal) {
+          const ch = os.characters.get(id)
+          if (ch) ch.userName = localUserNameRef.current
+        }
         saveAgentSeats(os)
       } else if (msg.type === 'agentClosed') {
         const id = msg.id as number
@@ -393,6 +408,31 @@ export function useExtensionMessages(
         } catch (err) {
           console.error(`❌ Webview: Error processing furnitureAssetsLoaded:`, err)
         }
+      } else if (msg.type === 'localUserName') {
+        const name = msg.userName as string
+        setLocalUserName(name)
+        localUserNameRef.current = name
+        // Update all local characters with the userName
+        for (const ch of os.characters.values()) {
+          if (!ch.isRemote && !ch.isSubagent) {
+            ch.userName = name
+          }
+        }
+      } else if (msg.type === 'remoteAgents') {
+        const clients = msg.clients as Array<{
+          clientId: string
+          userName: string
+          agents: Array<{
+            id: number
+            name: string
+            status: string
+            activeTool?: string
+            seatId?: string
+            palette: number
+            hueShift: number
+          }>
+        }>
+        os.updateRemoteAgents(clients)
       }
     }
     window.addEventListener('message', handler)
@@ -400,5 +440,5 @@ export function useExtensionMessages(
     return () => window.removeEventListener('message', handler)
   }, [getOfficeState])
 
-  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways }
+  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways, localUserName }
 }

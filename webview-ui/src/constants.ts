@@ -180,6 +180,15 @@ export const BATHROOM_USE_MIN_SEC = 5.0
 export const BATHROOM_USE_MAX_SEC = 12.0
 export const BATHROOM_CHANCE = 0.15
 
+// ── Nick Labels ─────────────────────────────────────────────
+export const NICK_FONT_SIZE_PX = 5
+export const NICK_VERTICAL_OFFSET_PX = 2
+export const NICK_BG_COLOR = 'rgba(30, 30, 46, 0.7)'
+export const NICK_TEXT_COLOR = '#e0e0e0'
+export const NICK_PADDING_X_PX = 2
+export const NICK_PADDING_Y_PX = 1
+export const NICK_REMOTE_TEXT_COLOR = '#90caf9'
+
 // ── Kamehameha ────────────────────────────────────────────────
 export const KAMEHAMEHA_CHANCE_PER_SEC = 0.01
 export const KAMEHAMEHA_CHARGE_SEC = 1.2

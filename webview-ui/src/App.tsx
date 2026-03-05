@@ -163,8 +163,11 @@ function App() {
   }, [])
 
   const handleClick = useCallback((agentId: number) => {
-    // If clicked agent is a sub-agent, focus the parent's terminal instead
     const os = getOfficeState()
+    // Don't focus terminal for remote agents
+    const clickedChar = os.characters.get(agentId)
+    if (clickedChar?.isRemote) return
+    // If clicked agent is a sub-agent, focus the parent's terminal instead
     const meta = os.subagentMeta.get(agentId)
     const focusId = meta ? meta.parentAgentId : agentId
     vscode.postMessage({ type: 'focusAgent', id: focusId })

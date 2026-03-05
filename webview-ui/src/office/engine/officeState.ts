@@ -63,6 +63,10 @@ export class OfficeState {
   subagentMeta: Map<number, { parentAgentId: number; parentToolId: string }> = new Map()
   private nextSubagentId = -1
 
+  /** Track remote character IDs for cleanup. Maps "clientId:agentId" → character ID */
+  remoteCharacterMap: Map<string, number> = new Map()
+  private nextRemoteId = -10000
+
   // ── Zone data ──────────────────────────────────────────────
   /** Per-tile zone assignment (parallel to layout.tiles). null = lobby */
   zoneMap: Array<string | null> = []
@@ -588,6 +592,101 @@ export class OfficeState {
       ch.matrixEffectSeeds = matrixEffectSeeds()
     }
     this.characters.set(id, ch)
+  }
+
+  updateRemoteAgents(clients: Array<{
+    clientId: string
+    userName: string
+    agents: Array<{
+      id: number
+      name: string
+      status: string
+      activeTool?: string
+      seatId?: string
+      palette: number
+      hueShift: number
+    }>
+  }>): void {
+    const expectedKeys = new Set<string>()
+    for (const client of clients) {
+      for (const agent of client.agents) {
+        expectedKeys.add(`${client.clientId}:${agent.id}`)
+      }
+    }
+
+    // Remove remote characters no longer present (start despawn)
+    for (const [key, charId] of this.remoteCharacterMap) {
+      if (!expectedKeys.has(key)) {
+        const ch = this.characters.get(charId)
+        if (ch && !ch.matrixEffect) {
+          ch.matrixEffect = 'despawn'
+          ch.matrixEffectTimer = 0
+          ch.matrixEffectSeeds = matrixEffectSeeds()
+        }
+        this.remoteCharacterMap.delete(key)
+      }
+    }
+
+    // Add or update remote characters
+    for (const client of clients) {
+      for (const agent of client.agents) {
+        const key = `${client.clientId}:${agent.id}`
+        const charId = this.remoteCharacterMap.get(key)
+
+        if (charId !== undefined && this.characters.has(charId)) {
+          // Update existing remote character
+          const ch = this.characters.get(charId)!
+          const wasActive = ch.isActive
+          ch.isActive = agent.status === 'active'
+          ch.currentTool = agent.activeTool || null
+          ch.userName = client.userName
+
+          if (agent.status === 'permission') {
+            ch.bubbleType = 'permission'
+          } else if (agent.status === 'waiting') {
+            if (ch.bubbleType !== 'waiting') {
+              ch.bubbleType = 'waiting'
+              ch.bubbleTimer = 2
+            }
+          } else {
+            if (ch.bubbleType === 'permission' || ch.bubbleType === 'waiting') {
+              ch.bubbleType = null
+            }
+          }
+
+          // Trigger state changes for animation
+          if (ch.isActive && !wasActive && ch.seatId) {
+            // Became active — will pathfind to seat via updateCharacter
+            void wasActive
+          }
+        } else {
+          // Create new remote character
+          const newId = this.nextRemoteId--
+          const seatId = this.findFreeSeat()
+          const seatObj = seatId ? this.seats.get(seatId) : null
+          if (seatObj) seatObj.assigned = true
+
+          const ch = createCharacter(newId, agent.palette, seatId, seatObj || null, agent.hueShift)
+          ch.isRemote = true
+          ch.userName = client.userName
+          ch.isActive = agent.status === 'active'
+          ch.currentTool = agent.activeTool || null
+          ch.matrixEffect = 'spawn'
+          ch.matrixEffectTimer = 0
+          ch.matrixEffectSeeds = matrixEffectSeeds()
+
+          if (agent.status === 'permission') {
+            ch.bubbleType = 'permission'
+          } else if (agent.status === 'waiting') {
+            ch.bubbleType = 'waiting'
+            ch.bubbleTimer = 2
+          }
+
+          this.characters.set(newId, ch)
+          this.remoteCharacterMap.set(key, newId)
+        }
+      }
+    }
   }
 
   removeAgent(id: number): void {

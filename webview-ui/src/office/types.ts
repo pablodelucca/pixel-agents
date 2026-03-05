@@ -222,6 +222,10 @@ export interface Character {
   folderName?: string
   /** Whether this is an external session (not managed by VS Code) */
   isExternal?: boolean
+  /** Whether this character belongs to a remote user (multiuser mode) */
+  isRemote?: boolean
+  /** Display name of the user who owns this character */
+  userName?: string
   /** Project identifier for zone assignment */
   projectId?: string
   /** Active tasks tracked by this agent */

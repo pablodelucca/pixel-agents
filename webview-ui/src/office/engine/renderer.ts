@@ -66,6 +66,13 @@ import {
   TOOL_EMOJI_BG,
   TOOL_EMOJI_BORDER,
   TOOL_EMOJI_PADDING_PX,
+  NICK_FONT_SIZE_PX,
+  NICK_VERTICAL_OFFSET_PX,
+  NICK_BG_COLOR,
+  NICK_TEXT_COLOR,
+  NICK_PADDING_X_PX,
+  NICK_PADDING_Y_PX,
+  NICK_REMOTE_TEXT_COLOR,
 } from '../../constants.js'
 import { OfficeState } from './officeState.js'
 
@@ -843,6 +850,45 @@ export function renderTaskBadges(
   }
 }
 
+// ── Nick labels (below characters) ──────────────────────────
+
+export function renderNicks(
+  ctx: CanvasRenderingContext2D,
+  characters: Character[],
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  const fontSize = Math.max(NICK_FONT_SIZE_PX * zoom, 8)
+  ctx.font = `${fontSize}px "FS Pixel Sans", monospace`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'top'
+
+  for (const ch of characters) {
+    if (!ch.userName) continue
+    if (ch.matrixEffect === 'despawn') continue
+    if (ch.isSubagent) continue
+    if (ch.state === CharacterState.BATHROOM) continue
+
+    const sittingOff = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0
+    const nickX = Math.round(offsetX + ch.x * zoom)
+    const nickY = Math.round(offsetY + (ch.y + sittingOff) * zoom + NICK_VERTICAL_OFFSET_PX * zoom)
+
+    const text = ch.userName
+    const metrics = ctx.measureText(text)
+    const padX = NICK_PADDING_X_PX * zoom
+    const padY = NICK_PADDING_Y_PX * zoom
+    const bgW = metrics.width + padX * 2
+    const bgH = fontSize + padY * 2
+
+    ctx.fillStyle = NICK_BG_COLOR
+    ctx.fillRect(nickX - bgW / 2, nickY, bgW, bgH)
+
+    ctx.fillStyle = ch.isRemote ? NICK_REMOTE_TEXT_COLOR : NICK_TEXT_COLOR
+    ctx.fillText(text, nickX, nickY + padY)
+  }
+}
+
 export interface ButtonBounds {
   /** Center X in device pixels */
   cx: number
@@ -1055,6 +1101,9 @@ export function renderFrame(
 
   // Task progress badges (above-right of characters)
   renderTaskBadges(ctx, characters, offsetX, offsetY, zoom)
+
+  // Nick labels (below characters)
+  renderNicks(ctx, characters, offsetX, offsetY, zoom)
 
   // Restore filter before drawing overlays
   if (zoneDesaturate) {
