@@ -147,6 +147,18 @@ export function BottomToolbar({
         )}
       </div>
       <button
+        onClick={() => vscode.postMessage({ type: 'openEditorTab' })}
+        onMouseEnter={() => setHovered('editor')}
+        onMouseLeave={() => setHovered(null)}
+        style={{
+          ...btnBase,
+          background: hovered === 'editor' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+        }}
+        title="Open in full-screen editor tab"
+      >
+        ⊡ Tab
+      </button>
+      <button
         onClick={onToggleEditMode}
         onMouseEnter={() => setHovered('edit')}
         onMouseLeave={() => setHovered(null)}
