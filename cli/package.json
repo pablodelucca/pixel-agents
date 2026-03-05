@@ -1,0 +1,17 @@
+{
+  "name": "pixel-agents-cli",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "join": "bun join.ts"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "@types/node": "22.x",
+    "typescript": "^5.9.3"
+  }
+}

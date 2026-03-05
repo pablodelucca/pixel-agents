@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "module": "Node16",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "sourceMap": true,
+    "rootDir": "..",
+    "outDir": "../dist/cli",
+    "strict": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "include": [".", "../server/types.ts", "../server/transcriptParser.ts", "../server/timerManager.ts", "../server/constants.ts"],
+  "exclude": ["node_modules"]
+}

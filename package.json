@@ -15,8 +15,8 @@
     "dev:client": "cd webview-ui && npx vite",
     "build": "cd webview-ui && npm run build",
     "start": "cd server && bun index.ts",
-    "install:all": "npm install && cd server && bun install && cd ../webview-ui && npm install",
-    "join": "cd server && bun join.ts",
+    "install:all": "npm install && cd server && bun install && cd ../cli && bun install && cd ../webview-ui && npm install",
+    "join": "cd cli && bun join.ts",
     "import-tileset": "bun scripts/import-tileset-cli.ts"
   },
   "devDependencies": {

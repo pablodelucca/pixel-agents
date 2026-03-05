@@ -189,7 +189,7 @@ setConnectHandler((ws) => {
 // -- Start server --
 server.listen(port, () => {
 	console.log(`[Pixel Office] Server running at http://localhost:${port}`);
-	console.log(`[Pixel Office] Agents join via: bun server/join.ts ws://HOST:${port}/ws --name NAME`);
+	console.log(`[Pixel Office] Agents join via: bun cli/join.ts ws://HOST:${port}/ws --name NAME`);
 });
 
 // -- Graceful shutdown --

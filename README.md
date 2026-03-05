@@ -9,7 +9,7 @@ Multiple people can join the same office from different machines, making it a sh
 ## Features
 
 - **Live activity tracking** — characters animate based on what each agent is doing (writing code, reading files, running commands)
-- **Multiplayer** — anyone can join your office with `bun server/join.ts ws://host:3000/ws --name Name`
+- **Multiplayer** — anyone can join your office with `bun cli/join.ts ws://host:3000/ws --name Name`
 - **Office layout editor** — design your space with floors, walls, and furniture using the built-in editor
 - **Speech bubbles** — visual indicators when an agent is waiting for input or needs permission
 - **Sound notifications** — optional chime when an agent finishes its turn
@@ -51,7 +51,7 @@ The server is a pure relay — it doesn't run any agents itself. It serves the U
 In a separate terminal, join the office with your local Claude Code sessions:
 
 ```bash
-bun server/join.ts ws://localhost:3000/ws --name Andrew
+bun cli/join.ts ws://localhost:3000/ws --name Andrew
 ```
 
 This scans your `~/.claude/projects/` for active Claude sessions and sends their activity to the server. Each active session appears as a character in the office.
@@ -61,7 +61,7 @@ This scans your `~/.claude/projects/` for active Claude sessions and sends their
 Share the server URL and others can join from their machines:
 
 ```bash
-bun server/join.ts ws://your-host:3000/ws --name Alice
+bun cli/join.ts ws://your-host:3000/ws --name Alice
 ```
 
 Their Claude sessions appear in the same office with labels like "Alice: project-name". Use [ngrok](https://ngrok.com/) or similar for remote access:
@@ -69,7 +69,7 @@ Their Claude sessions appear in the same office with labels like "Alice: project
 ```bash
 ngrok http 3000
 # Then others join with:
-bun server/join.ts wss://your-ngrok-url.ngrok-free.app/ws --name Alice
+bun cli/join.ts wss://your-ngrok-url.ngrok-free.app/ws --name Alice
 ```
 
 ### Development

@@ -1,21 +1,21 @@
 /**
  * CLI entry point for joining a remote Pixel Office as a peer.
  *
- * Usage: bun server/join.ts <ws-url> [--name <name>]
- * Example: bun server/join.ts ws://192.168.1.5:3000/ws --name Alice
+ * Usage: bun cli/join.ts <ws-url> [--name <name>]
+ * Example: bun cli/join.ts ws://192.168.1.5:3000/ws --name Alice
  */
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { WebSocket } from 'ws';
-import type { AgentState } from './types.js';
-import { processTranscriptLine } from './transcriptParser.js';
-import { cancelWaitingTimer, cancelPermissionTimer } from './timerManager.js';
+import type { AgentState } from '../server/types.js';
+import { processTranscriptLine } from '../server/transcriptParser.js';
+import { cancelWaitingTimer, cancelPermissionTimer } from '../server/timerManager.js';
 import {
 	SESSION_SCAN_INTERVAL_MS,
 	SESSION_ACTIVE_THRESHOLD_MS,
 	FILE_WATCHER_POLL_INTERVAL_MS,
-} from './constants.js';
+} from '../server/constants.js';
 
 // -- Parse args --
 const args = process.argv.slice(2);
@@ -31,8 +31,8 @@ for (let i = 0; i < args.length; i++) {
 }
 
 if (!wsUrl) {
-	console.error('Usage: bun server/join.ts <ws-url> [--name <name>]');
-	console.error('Example: bun server/join.ts ws://192.168.1.5:3000/ws --name Alice');
+	console.error('Usage: bun cli/join.ts <ws-url> [--name <name>]');
+	console.error('Example: bun cli/join.ts ws://192.168.1.5:3000/ws --name Alice');
 	process.exit(1);
 }
 
