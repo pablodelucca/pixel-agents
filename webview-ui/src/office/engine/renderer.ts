@@ -1,7 +1,7 @@
 import { TileType, TILE_SIZE, CharacterState, Direction } from '../types.js'
 import type { TileType as TileTypeVal, FurnitureInstance, Character, SpriteData, Seat, FloorColor } from '../types.js'
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js'
-import { getCharacterSprites, BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE, BUBBLE_THINKING_SPRITE, VIRTUAL_MONITOR_FRAMES, VIRTUAL_MONITOR_OFF, getEmojiSprite } from '../sprites/spriteData.js'
+import { getCharacterSprites, BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE, BUBBLE_THINKING_SPRITE, VIRTUAL_MONITOR_FRAMES, VIRTUAL_MONITOR_OFF } from '../sprites/spriteData.js'
 import { getCharacterSprite } from './characters.js'
 import { renderMatrixEffect } from './matrixEffect.js'
 import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js'
@@ -558,7 +558,7 @@ export function renderBubbles(
   }
 }
 
-// ── Interaction emoji bubbles ──────────────────────────────────
+// ── Interaction emoji bubbles (real emoji) ───────────────────────
 
 export function renderInteractEmojis(
   ctx: CanvasRenderingContext2D,
@@ -571,13 +571,14 @@ export function renderInteractEmojis(
     if (!ch.interactEmoji || ch.interactEmojiTimer <= 0) continue
     if (ch.bubbleType) continue // don't overlap with speech bubbles
 
-    const sprite = getEmojiSprite(ch.interactEmoji)
-    if (!sprite) continue
+    const emoji = ch.interactEmoji
+    const fontSize = TOOL_EMOJI_SIZE_PX * zoom
+    const pad = TOOL_EMOJI_PADDING_PX * zoom
+    const boxSize = fontSize + pad * 2
 
-    const cached = getCachedSprite(sprite, zoom)
     const sittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0
-    const emojiX = Math.round(offsetX + ch.x * zoom - cached.width / 2)
-    const emojiY = Math.round(offsetY + (ch.y + sittingOff - BUBBLE_VERTICAL_OFFSET_PX) * zoom - cached.height - 1 * zoom)
+    const bx = Math.round(offsetX + ch.x * zoom - boxSize / 2)
+    const by = Math.round(offsetY + (ch.y + sittingOff - BUBBLE_VERTICAL_OFFSET_PX) * zoom - boxSize - 1 * zoom)
 
     // Fade out in last 0.5s
     let alpha = 1.0
@@ -587,7 +588,33 @@ export function renderInteractEmojis(
 
     ctx.save()
     if (alpha < 1.0) ctx.globalAlpha = alpha
-    ctx.drawImage(cached, emojiX, emojiY)
+
+    // Background bubble
+    ctx.fillStyle = TOOL_EMOJI_BG
+    ctx.fillRect(bx, by, boxSize, boxSize)
+    ctx.strokeStyle = TOOL_EMOJI_BORDER
+    ctx.lineWidth = 1
+    ctx.strokeRect(bx + 0.5, by + 0.5, boxSize - 1, boxSize - 1)
+
+    // Tail
+    const tailX = bx + boxSize / 2
+    const tailY = by + boxSize
+    const tailW = 2 * zoom
+    ctx.fillStyle = TOOL_EMOJI_BG
+    ctx.beginPath()
+    ctx.moveTo(tailX - tailW, tailY)
+    ctx.lineTo(tailX + tailW, tailY)
+    ctx.lineTo(tailX, tailY + tailW)
+    ctx.closePath()
+    ctx.fill()
+
+    // Emoji text
+    ctx.font = `${fontSize}px serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText(emoji, bx + boxSize / 2, by + boxSize / 2)
+
     ctx.restore()
   }
 }

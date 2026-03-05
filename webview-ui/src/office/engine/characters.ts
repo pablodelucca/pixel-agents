@@ -17,6 +17,8 @@ import {
   INTERACT_STAY_SEC_MAX,
   SUBAGENT_WALK_SPEED_PX_PER_SEC,
   SUBAGENT_WALK_FRAME_DURATION_SEC,
+  SUBAGENT_PAUSE_MIN_SEC,
+  SUBAGENT_PAUSE_MAX_SEC,
 } from '../../constants.js'
 import { FURNITURE_INTERACT_EMOJIS } from '../sprites/spriteData.js'
 import type { PlacedFurniture } from '../types.js'
@@ -188,6 +190,14 @@ export function updateCharacter(
 
   switch (ch.state) {
     case CharacterState.TYPE: {
+      // Subagents never sit — immediately start running around
+      if (ch.isSubagent) {
+        ch.state = CharacterState.IDLE
+        ch.frame = 0
+        ch.frameTimer = 0
+        ch.wanderTimer = randomRange(SUBAGENT_PAUSE_MIN_SEC, SUBAGENT_PAUSE_MAX_SEC)
+        break
+      }
       if (ch.frameTimer >= TYPE_FRAME_DURATION_SEC) {
         ch.frameTimer -= TYPE_FRAME_DURATION_SEC
         ch.frame = (ch.frame + 1) % 2
@@ -206,6 +216,27 @@ export function updateCharacter(
       // No idle animation — static pose
       ch.frame = 0
       if (ch.seatTimer < 0) ch.seatTimer = 0 // clear turn-end sentinel
+
+      // Subagents always run around — never go to seat
+      if (ch.isSubagent) {
+        ch.wanderTimer -= dt
+        if (ch.wanderTimer <= 0) {
+          if (walkableTiles.length > 0) {
+            const target = walkableTiles[Math.floor(Math.random() * walkableTiles.length)]
+            const path = findPath(ch.tileCol, ch.tileRow, target.col, target.row, tileMap, blockedTiles)
+            if (path.length > 0) {
+              ch.path = path
+              ch.moveProgress = 0
+              ch.state = CharacterState.WALK
+              ch.frame = 0
+              ch.frameTimer = 0
+            }
+          }
+          ch.wanderTimer = randomRange(SUBAGENT_PAUSE_MIN_SEC, SUBAGENT_PAUSE_MAX_SEC)
+        }
+        break
+      }
+
       // If became active, pathfind to seat
       if (ch.isActive) {
         if (!ch.seatId) {
@@ -288,6 +319,15 @@ export function updateCharacter(
         ch.x = center.x
         ch.y = center.y
 
+        // Subagents never sit — just keep running
+        if (ch.isSubagent) {
+          ch.state = CharacterState.IDLE
+          ch.wanderTimer = randomRange(SUBAGENT_PAUSE_MIN_SEC, SUBAGENT_PAUSE_MAX_SEC)
+          ch.frame = 0
+          ch.frameTimer = 0
+          break
+        }
+
         if (ch.isActive) {
           if (!ch.seatId) {
             // No seat — type in place
@@ -365,8 +405,8 @@ export function updateCharacter(
         ch.moveProgress = 0
       }
 
-      // If became active while wandering, repath to seat
-      if (ch.isActive && ch.seatId) {
+      // If became active while wandering, repath to seat (not subagents)
+      if (!ch.isSubagent && ch.isActive && ch.seatId) {
         const seat = seats.get(ch.seatId)
         if (seat) {
           const lastStep = ch.path[ch.path.length - 1]
