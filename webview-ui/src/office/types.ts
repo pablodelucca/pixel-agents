@@ -97,6 +97,10 @@ export const FurnitureType = {
   CHAIR: 'chair',
   PC: 'pc',
   LAMP: 'lamp',
+  SOFA: 'sofa',
+  VENDING_MACHINE: 'vending_machine',
+  COFFEE_TABLE: 'coffee_table',
+  CHESS_TABLE: 'chess_table',
 } as const
 export type FurnitureType = (typeof FurnitureType)[keyof typeof FurnitureType]
 
@@ -217,4 +221,10 @@ export interface Character {
   projectId?: string
   /** Active tasks tracked by this agent */
   tasks: AgentTask[]
+  /** Furniture interaction target when idle-wandering */
+  interactTarget: { uid: string; col: number; row: number } | null
+  /** Emoji key for interaction bubble (shown above character) */
+  interactEmoji: string | null
+  /** Timer for interaction emoji display */
+  interactEmojiTimer: number
 }

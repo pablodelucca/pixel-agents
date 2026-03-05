@@ -989,7 +989,7 @@ export class OfficeState {
       // Use zone-filtered walkable tiles for wander target selection
       const wanderTiles = this.getAgentWalkableTiles(ch)
       this.withOwnSeatUnblocked(ch, () =>
-        updateCharacter(ch, dt, wanderTiles, this.seats, this.tileMap, this.blockedTiles)
+        updateCharacter(ch, dt, wanderTiles, this.seats, this.tileMap, this.blockedTiles, this.layout.furniture)
       )
 
       // Tick bubble timer for waiting bubbles

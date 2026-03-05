@@ -13,7 +13,14 @@ import {
   SEAT_REST_MIN_SEC,
   SEAT_REST_MAX_SEC,
   VIRTUAL_MONITOR_FRAME_DURATION_SEC,
+  INTERACT_CHANCE,
+  INTERACT_EMOJI_DURATION_SEC,
+  INTERACT_STAY_SEC_MIN,
+  INTERACT_STAY_SEC_MAX,
 } from '../../constants.js'
+import { FURNITURE_INTERACT_EMOJIS } from '../sprites/spriteData.js'
+import type { PlacedFurniture } from '../types.js'
+import { getCatalogEntry } from '../layout/furnitureCatalog.js'
 
 /** Tools that show reading animation instead of typing */
 const READING_TOOLS = new Set(['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch'])
@@ -82,7 +89,65 @@ export function createCharacter(
     monitorFrame: 0,
     monitorFrameTimer: 0,
     tasks: [],
+    interactTarget: null,
+    interactEmoji: null,
+    interactEmojiTimer: 0,
   }
+}
+
+/** Find an adjacent walkable tile next to a furniture item */
+function findAdjacentTile(
+  furn: PlacedFurniture,
+  tileMap: TileTypeVal[][],
+  blockedTiles: Set<string>,
+): { col: number; row: number } | null {
+  const entry = getCatalogEntry(furn.type)
+  const fw = entry?.footprintW ?? 1
+  const fh = entry?.footprintH ?? 1
+  const rows = tileMap.length
+  const cols = rows > 0 ? tileMap[0].length : 0
+  // Check tiles around the furniture footprint
+  const candidates: Array<{ col: number; row: number }> = []
+  for (let c = furn.col - 1; c <= furn.col + fw; c++) {
+    for (let r = furn.row - 1; r <= furn.row + fh; r++) {
+      if (c >= furn.col && c < furn.col + fw && r >= furn.row && r < furn.row + fh) continue
+      if (c < 0 || c >= cols || r < 0 || r >= rows) continue
+      if (blockedTiles.has(`${c},${r}`)) continue
+      candidates.push({ col: c, row: r })
+    }
+  }
+  if (candidates.length === 0) return null
+  return candidates[Math.floor(Math.random() * candidates.length)]
+}
+
+/** Pick a random interactable furniture item */
+function pickInteractableFurniture(
+  furniture: PlacedFurniture[],
+  tileMap: TileTypeVal[][],
+  blockedTiles: Set<string>,
+): { furn: PlacedFurniture; tile: { col: number; row: number }; emojis: { going: string; arrived: string } } | null {
+  // Collect furniture that has interaction emojis
+  const interactable = furniture.filter(f => {
+    // Match by checking if any key is a substring of the type
+    for (const key of Object.keys(FURNITURE_INTERACT_EMOJIS)) {
+      if (f.type.toLowerCase().includes(key)) return true
+    }
+    return false
+  })
+  if (interactable.length === 0) return null
+  // Shuffle and try to find one with an adjacent walkable tile
+  const shuffled = [...interactable].sort(() => Math.random() - 0.5)
+  for (const furn of shuffled) {
+    const tile = findAdjacentTile(furn, tileMap, blockedTiles)
+    if (!tile) continue
+    // Find matching emoji
+    for (const [key, emojis] of Object.entries(FURNITURE_INTERACT_EMOJIS)) {
+      if (furn.type.toLowerCase().includes(key)) {
+        return { furn, tile, emojis }
+      }
+    }
+  }
+  return null
 }
 
 export function updateCharacter(
@@ -92,6 +157,7 @@ export function updateCharacter(
   seats: Map<string, Seat>,
   tileMap: TileTypeVal[][],
   blockedTiles: Set<string>,
+  furniture?: PlacedFurniture[],
 ): void {
   ch.frameTimer += dt
 
@@ -102,6 +168,22 @@ export function updateCharacter(
       ch.monitorFrameTimer -= VIRTUAL_MONITOR_FRAME_DURATION_SEC
       ch.monitorFrame = (ch.monitorFrame + 1) % 3
     }
+  }
+
+  // Emoji interaction bubble countdown
+  if (ch.interactEmoji && ch.interactEmojiTimer > 0) {
+    ch.interactEmojiTimer -= dt
+    if (ch.interactEmojiTimer <= 0) {
+      ch.interactEmoji = null
+      ch.interactEmojiTimer = 0
+    }
+  }
+
+  // Clear interaction state when becoming active
+  if (ch.isActive && ch.interactTarget) {
+    ch.interactTarget = null
+    ch.interactEmoji = null
+    ch.interactEmojiTimer = 0
   }
 
   switch (ch.state) {
@@ -177,7 +259,27 @@ export function updateCharacter(
             }
           }
         }
-        if (walkableTiles.length > 0) {
+        // Try to interact with furniture
+        let didInteract = false
+        if (furniture && Math.random() < INTERACT_CHANCE) {
+          const target = pickInteractableFurniture(furniture, tileMap, blockedTiles)
+          if (target) {
+            const path = findPath(ch.tileCol, ch.tileRow, target.tile.col, target.tile.row, tileMap, blockedTiles)
+            if (path.length > 0) {
+              ch.path = path
+              ch.moveProgress = 0
+              ch.state = CharacterState.WALK
+              ch.frame = 0
+              ch.frameTimer = 0
+              ch.wanderCount++
+              ch.interactTarget = { uid: target.furn.uid, col: target.tile.col, row: target.tile.row }
+              ch.interactEmoji = target.emojis.going
+              ch.interactEmojiTimer = INTERACT_EMOJI_DURATION_SEC
+              didInteract = true
+            }
+          }
+        }
+        if (!didInteract && walkableTiles.length > 0) {
           const target = walkableTiles[Math.floor(Math.random() * walkableTiles.length)]
           const path = findPath(ch.tileCol, ch.tileRow, target.col, target.row, tileMap, blockedTiles)
           if (path.length > 0) {
@@ -221,6 +323,38 @@ export function updateCharacter(
             }
           }
         } else {
+          // Check if arrived at furniture interaction target
+          if (ch.interactTarget && ch.tileCol === ch.interactTarget.col && ch.tileRow === ch.interactTarget.row) {
+            // Find the matching furniture to get the arrived emoji
+            if (furniture) {
+              const furn = furniture.find(f => f.uid === ch.interactTarget!.uid)
+              if (furn) {
+                for (const [key, emojis] of Object.entries(FURNITURE_INTERACT_EMOJIS)) {
+                  if (furn.type.toLowerCase().includes(key)) {
+                    ch.interactEmoji = emojis.arrived
+                    ch.interactEmojiTimer = INTERACT_EMOJI_DURATION_SEC
+                    break
+                  }
+                }
+                // Face the furniture
+                const furnCenterCol = furn.col + ((getCatalogEntry(furn.type)?.footprintW ?? 1) - 1) / 2
+                const furnCenterRow = furn.row + ((getCatalogEntry(furn.type)?.footprintH ?? 1) - 1) / 2
+                const dc = furnCenterCol - ch.tileCol
+                const dr = furnCenterRow - ch.tileRow
+                if (Math.abs(dc) > Math.abs(dr)) {
+                  ch.dir = dc > 0 ? Direction.RIGHT : Direction.LEFT
+                } else {
+                  ch.dir = dr > 0 ? Direction.DOWN : Direction.UP
+                }
+              }
+            }
+            ch.interactTarget = null
+            ch.state = CharacterState.IDLE
+            ch.wanderTimer = randomRange(INTERACT_STAY_SEC_MIN, INTERACT_STAY_SEC_MAX)
+            ch.frame = 0
+            ch.frameTimer = 0
+            break
+          }
           // Check if arrived at assigned seat — sit down for a rest before wandering again
           if (ch.seatId) {
             const seat = seats.get(ch.seatId)

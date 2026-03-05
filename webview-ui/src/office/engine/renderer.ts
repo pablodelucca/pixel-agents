@@ -1,7 +1,7 @@
 import { TileType, TILE_SIZE, CharacterState, Direction } from '../types.js'
 import type { TileType as TileTypeVal, FurnitureInstance, Character, SpriteData, Seat, FloorColor } from '../types.js'
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js'
-import { getCharacterSprites, BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE, BUBBLE_THINKING_SPRITE, VIRTUAL_MONITOR_FRAMES, VIRTUAL_MONITOR_OFF } from '../sprites/spriteData.js'
+import { getCharacterSprites, BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE, BUBBLE_THINKING_SPRITE, VIRTUAL_MONITOR_FRAMES, VIRTUAL_MONITOR_OFF, getEmojiSprite } from '../sprites/spriteData.js'
 import { getCharacterSprite } from './characters.js'
 import { renderMatrixEffect } from './matrixEffect.js'
 import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js'
@@ -543,8 +543,39 @@ export function renderBubbles(
   }
 }
 
-// ── Virtual monitors ────────────────────────────────────────────
+// ── Interaction emoji bubbles ──────────────────────────────────
 
+export function renderInteractEmojis(
+  ctx: CanvasRenderingContext2D,
+  characters: Character[],
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  for (const ch of characters) {
+    if (!ch.interactEmoji || ch.interactEmojiTimer <= 0) continue
+    if (ch.bubbleType) continue // don't overlap with speech bubbles
+
+    const sprite = getEmojiSprite(ch.interactEmoji)
+    if (!sprite) continue
+
+    const cached = getCachedSprite(sprite, zoom)
+    const sittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0
+    const emojiX = Math.round(offsetX + ch.x * zoom - cached.width / 2)
+    const emojiY = Math.round(offsetY + (ch.y + sittingOff - BUBBLE_VERTICAL_OFFSET_PX) * zoom - cached.height - 1 * zoom)
+
+    // Fade out in last 0.5s
+    let alpha = 1.0
+    if (ch.interactEmojiTimer < BUBBLE_FADE_DURATION_SEC) {
+      alpha = ch.interactEmojiTimer / BUBBLE_FADE_DURATION_SEC
+    }
+
+    ctx.save()
+    if (alpha < 1.0) ctx.globalAlpha = alpha
+    ctx.drawImage(cached, emojiX, emojiY)
+    ctx.restore()
+  }
+}
 
 // ── Task progress badges ────────────────────────────────────────
 
@@ -790,6 +821,9 @@ export function renderFrame(
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom)
+
+  // Interaction emoji bubbles (when not showing speech bubbles)
+  renderInteractEmojis(ctx, characters, offsetX, offsetY, zoom)
 
   // Task progress badges (above-right of characters)
   renderTaskBadges(ctx, characters, offsetX, offsetY, zoom)

@@ -272,6 +272,139 @@ export const LAMP_SPRITE: SpriteData = (() => {
   ]
 })()
 
+// ── Break Room Furniture ─────────────────────────────────────────
+
+/** Sofa: 32x16 (2 tiles wide, 1 tile tall) — comfy couch */
+export const SOFA_SPRITE: SpriteData = (() => {
+  const F = '#6644AA' // fabric
+  const L = '#7755BB' // fabric light
+  const D = '#553388' // fabric dark
+  const A = '#442266' // arm/back
+  const E = '#3D1F55' // edge dark
+  const W = '#4A3520' // wood leg
+  return [
+    [_, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, _],
+    [A, E, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, E, A],
+    [A, D, F, F, F, F, F, F, F, F, F, F, F, F, F, D, F, F, F, F, F, F, F, F, F, F, F, F, F, F, D, A],
+    [A, D, F, L, L, L, L, L, L, L, L, L, L, F, F, D, F, F, L, L, L, L, L, L, L, L, L, L, F, F, D, A],
+    [A, D, F, L, L, L, L, L, L, L, L, L, L, F, F, D, F, F, L, L, L, L, L, L, L, L, L, L, F, F, D, A],
+    [A, D, F, L, L, L, L, L, L, L, L, L, L, F, F, D, F, F, L, L, L, L, L, L, L, L, L, L, F, F, D, A],
+    [A, D, F, F, F, F, F, F, F, F, F, F, F, F, F, D, F, F, F, F, F, F, F, F, F, F, F, F, F, F, D, A],
+    [A, D, F, F, F, F, F, F, F, F, F, F, F, F, F, D, F, F, F, F, F, F, F, F, F, F, F, F, F, F, D, A],
+    [A, E, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, E, A],
+    [A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A],
+    [_, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, _],
+    [_, E, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, E, _],
+    [_, _, W, W, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W, W, _],
+    [_, _, W, W, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W, W, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+  ]
+})()
+
+/** Vending machine: 16x32 (1 tile wide, 2 tiles tall) — soda machine */
+export const VENDING_MACHINE_SPRITE: SpriteData = (() => {
+  const M = '#CC3333' // metal body red
+  const D = '#AA2222' // darker red
+  const E = '#881818' // edge
+  const G = '#88BBDD' // glass panel
+  const L = '#AADDEE' // glass highlight
+  const S = '#666666' // silver trim
+  const K = '#444444' // dark slot
+  const C = '#33CC55' // green soda can
+  const O = '#FF8833' // orange soda can
+  const B = '#3366CC' // blue soda can
+  return [
+    [_, E, E, E, E, E, E, E, E, E, E, E, E, E, E, _],
+    [E, D, D, D, D, D, D, D, D, D, D, D, D, D, D, E],
+    [E, D, M, M, M, M, M, M, M, M, M, M, M, M, D, E],
+    [E, D, M, S, S, S, S, S, S, S, S, S, S, M, D, E],
+    [E, D, M, S, G, G, G, G, G, G, G, G, S, M, D, E],
+    [E, D, M, S, G, L, G, G, G, G, G, G, S, M, D, E],
+    [E, D, M, S, G, G, G, G, G, G, G, G, S, M, D, E],
+    [E, D, M, S, G, C, O, B, C, O, B, G, S, M, D, E],
+    [E, D, M, S, G, C, O, B, C, O, B, G, S, M, D, E],
+    [E, D, M, S, G, C, O, B, C, O, B, G, S, M, D, E],
+    [E, D, M, S, G, C, O, B, C, O, B, G, S, M, D, E],
+    [E, D, M, S, G, G, G, G, G, G, G, G, S, M, D, E],
+    [E, D, M, S, S, S, S, S, S, S, S, S, S, M, D, E],
+    [E, D, M, M, M, M, M, M, M, M, M, M, M, M, D, E],
+    [E, D, M, M, M, M, M, M, M, M, M, M, M, M, D, E],
+    [E, D, M, M, M, M, M, M, M, M, M, M, M, M, D, E],
+    [E, D, M, M, K, K, K, K, K, M, M, M, M, M, D, E],
+    [E, D, M, M, K, S, S, S, K, M, M, M, M, M, D, E],
+    [E, D, M, M, K, K, K, K, K, M, M, M, M, M, D, E],
+    [E, D, M, M, M, M, M, M, M, M, M, M, M, M, D, E],
+    [E, D, M, M, M, M, M, M, M, K, K, K, M, M, D, E],
+    [E, D, M, M, M, M, M, M, M, K, S, K, M, M, D, E],
+    [E, D, M, M, M, M, M, M, M, K, K, K, M, M, D, E],
+    [E, D, M, M, M, M, M, M, M, M, M, M, M, M, D, E],
+    [E, D, D, D, D, D, D, D, D, D, D, D, D, D, D, E],
+    [E, D, M, M, M, M, M, M, M, M, M, M, M, M, D, E],
+    [E, D, M, K, K, K, K, K, K, K, K, K, K, M, D, E],
+    [E, D, M, K, K, K, K, K, K, K, K, K, K, M, D, E],
+    [E, D, M, M, M, M, M, M, M, M, M, M, M, M, D, E],
+    [E, D, D, D, D, D, D, D, D, D, D, D, D, D, D, E],
+    [E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E],
+    [_, E, E, E, E, E, E, E, E, E, E, E, E, E, E, _],
+  ]
+})()
+
+/** Coffee table: 16x16 (1x1 tile) — small round table */
+export const COFFEE_TABLE_SPRITE: SpriteData = (() => {
+  const W = '#A07828' // wood
+  const L = '#B8922E' // light wood
+  const D = '#6B4E0A' // dark edge
+  const C = '#CCAA66' // cup
+  const T = '#8B6914' // medium wood
+  return [
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, D, D, D, D, D, D, _, _, _, _, _],
+    [_, _, _, _, D, W, W, W, W, W, W, D, _, _, _, _],
+    [_, _, _, D, W, L, L, L, L, L, L, W, D, _, _, _],
+    [_, _, _, D, W, L, L, L, L, L, L, W, D, _, _, _],
+    [_, _, _, D, W, L, L, C, C, L, L, W, D, _, _, _],
+    [_, _, _, D, W, L, L, C, C, L, L, W, D, _, _, _],
+    [_, _, _, D, W, L, L, L, L, L, L, W, D, _, _, _],
+    [_, _, _, D, W, L, L, L, L, L, L, W, D, _, _, _],
+    [_, _, _, _, D, W, W, W, W, W, W, D, _, _, _, _],
+    [_, _, _, _, _, D, D, D, D, D, D, _, _, _, _, _],
+    [_, _, _, _, _, _, T, T, T, T, _, _, _, _, _, _],
+    [_, _, _, _, _, D, D, D, D, D, D, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+  ]
+})()
+
+/** Chess table: 16x16 (1x1 tile) — small table with chess board */
+export const CHESS_TABLE_SPRITE: SpriteData = (() => {
+  const W = '#A07828' // wood frame
+  const D = '#6B4E0A' // dark wood
+  const T = '#8B6914' // table leg
+  const BK = '#333333' // black square
+  const WT = '#EEEEDD' // white square
+  const P = '#CC8844' // piece (generic)
+  return [
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, _, D, D, D, D, D, D, D, D, D, D, _, _, _],
+    [_, _, _, D, WT, BK, WT, BK, WT, BK, WT, BK, D, _, _, _],
+    [_, _, _, D, BK, WT, BK, WT, BK, WT, BK, WT, D, _, _, _],
+    [_, _, _, D, WT, BK, P, BK, WT, BK, WT, BK, D, _, _, _],
+    [_, _, _, D, BK, WT, BK, WT, BK, P, BK, WT, D, _, _, _],
+    [_, _, _, D, WT, BK, WT, BK, WT, BK, WT, BK, D, _, _, _],
+    [_, _, _, D, BK, P, BK, WT, BK, WT, BK, WT, D, _, _, _],
+    [_, _, _, D, WT, BK, WT, BK, P, BK, WT, BK, D, _, _, _],
+    [_, _, _, D, BK, WT, BK, WT, BK, WT, BK, WT, D, _, _, _],
+    [_, _, _, D, D, D, D, D, D, D, D, D, D, _, _, _],
+    [_, _, _, _, _, W, W, W, W, W, W, _, _, _, _, _],
+    [_, _, _, _, _, _, T, T, T, T, _, _, _, _, _, _],
+    [_, _, _, _, _, D, D, D, D, D, D, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+  ]
+})()
+
 // ── Speech Bubble Sprites ───────────────────────────────────────
 
 /** Permission bubble: white square with "..." in amber, and a tail pointer (11x13) */
@@ -339,6 +472,183 @@ export const BUBBLE_THINKING_SPRITE: SpriteData = (() => {
     [_, _, _, _, _, _, _, _, _, _, _],
   ]
 })()
+
+// ── Interaction Emoji Sprites ─────────────────────────────────────
+// 9x9 pixel emojis shown in bubbles during idle furniture interactions
+
+/** Map of furniture type patterns → emoji key used during approach */
+export const FURNITURE_INTERACT_EMOJIS: Record<string, { going: string; arrived: string }> = {
+  sofa: { going: '💤', arrived: '😌' },
+  coffee_table: { going: '☕', arrived: '😊' },
+  chess_table: { going: '♟', arrived: '🤔' },
+  vending_machine: { going: '🥤', arrived: '😋' },
+  cooler: { going: '💧', arrived: '😊' },
+  plant: { going: '🌱', arrived: '😊' },
+}
+
+/** Emoji bubble: border + background + colored emoji symbol */
+function makeEmojiBubble(emojiPixels: string[][]): SpriteData {
+  const B = '#555566'
+  const F = '#EEEEFF'
+  const w = emojiPixels[0].length + 4
+  const rows: string[][] = []
+  // Top border
+  rows.push([_, ...new Array(w - 2).fill(B), _])
+  // Top padding
+  rows.push([B, ...new Array(w - 2).fill(F), B])
+  // Emoji rows
+  for (const eRow of emojiPixels) {
+    rows.push([B, F, ...eRow, F, B])
+  }
+  // Bottom padding
+  rows.push([B, ...new Array(w - 2).fill(F), B])
+  // Bottom border
+  rows.push([_, ...new Array(w - 2).fill(B), _])
+  // Tail
+  const tailRow1 = new Array(w).fill(_); tailRow1[Math.floor(w / 2) - 1] = B; tailRow1[Math.floor(w / 2)] = B; tailRow1[Math.floor(w / 2) + 1] = B
+  rows.push(tailRow1)
+  const tailRow2 = new Array(w).fill(_); tailRow2[Math.floor(w / 2)] = B
+  rows.push(tailRow2)
+  rows.push(new Array(w).fill(_))
+  return rows
+}
+
+// 7x7 emoji pixel art
+const _Y = '#FFDD44' // yellow face
+const _B = '#333333' // black (eyes/outline)
+const _R = '#FF4444' // red (heart/mouth)
+const _M = '#FF8866' // mouth/blush
+const _W = '#FFFFFF' // white
+
+/** 😊 Happy face */
+export const EMOJI_HAPPY: SpriteData = makeEmojiBubble([
+  [_, _Y, _Y, _Y, _Y, _Y, _],
+  [_Y, _Y, _B, _Y, _B, _Y, _Y],
+  [_Y, _Y, _Y, _Y, _Y, _Y, _Y],
+  [_Y, _Y, _M, _M, _M, _Y, _Y],
+  [_Y, _Y, _Y, _M, _Y, _Y, _Y],
+  [_Y, _Y, _Y, _Y, _Y, _Y, _Y],
+  [_, _Y, _Y, _Y, _Y, _Y, _],
+])
+
+/** 😌 Relaxed face */
+export const EMOJI_RELAXED: SpriteData = makeEmojiBubble([
+  [_, _Y, _Y, _Y, _Y, _Y, _],
+  [_Y, _Y, _B, _Y, _B, _Y, _Y],
+  [_Y, _Y, _Y, _Y, _Y, _Y, _Y],
+  [_Y, _Y, _Y, _Y, _Y, _Y, _Y],
+  [_Y, _Y, _M, _M, _M, _Y, _Y],
+  [_Y, _Y, _Y, _Y, _Y, _Y, _Y],
+  [_, _Y, _Y, _Y, _Y, _Y, _],
+])
+
+/** 🤔 Thinking face */
+export const EMOJI_THINKING: SpriteData = makeEmojiBubble([
+  [_, _Y, _Y, _Y, _Y, _Y, _],
+  [_Y, _B, _Y, _Y, _B, _Y, _Y],
+  [_Y, _Y, _Y, _Y, _Y, _Y, _Y],
+  [_Y, _Y, _Y, _Y, _M, _M, _Y],
+  [_Y, _Y, _Y, _Y, _Y, _Y, _Y],
+  [_Y, _M, _M, _Y, _Y, _Y, _Y],
+  [_, _Y, _Y, _Y, _Y, _Y, _],
+])
+
+/** 😋 Yummy face */
+export const EMOJI_YUMMY: SpriteData = makeEmojiBubble([
+  [_, _Y, _Y, _Y, _Y, _Y, _],
+  [_Y, _Y, _B, _Y, _B, _Y, _Y],
+  [_Y, _Y, _Y, _Y, _Y, _Y, _Y],
+  [_Y, _M, _M, _M, _M, _M, _Y],
+  [_Y, _Y, _R, _R, _R, _Y, _Y],
+  [_Y, _Y, _Y, _Y, _Y, _Y, _Y],
+  [_, _Y, _Y, _Y, _Y, _Y, _],
+])
+
+const _C = '#88DDFF' // water blue
+const _G = '#44AA66' // green
+
+/** ☕ Coffee */
+export const EMOJI_COFFEE: SpriteData = makeEmojiBubble([
+  [_, _, _, _, _, _, _],
+  [_, _W, _W, _W, _W, _, _],
+  [_, _W, _M, _M, _W, _W, _],
+  [_, _W, _M, _M, _W, _W, _],
+  [_, _W, _W, _W, _W, _, _],
+  [_, _, _B, _B, _B, _, _],
+  [_, _, _, _, _, _, _],
+])
+
+/** 💧 Water drop */
+export const EMOJI_WATER: SpriteData = makeEmojiBubble([
+  [_, _, _, _C, _, _, _],
+  [_, _, _C, _C, _C, _, _],
+  [_, _C, _C, _W, _C, _, _],
+  [_, _C, _C, _C, _C, _, _],
+  [_, _C, _C, _C, _C, _, _],
+  [_, _, _C, _C, _C, _, _],
+  [_, _, _, _, _, _, _],
+])
+
+/** 🥤 Soda */
+export const EMOJI_SODA: SpriteData = makeEmojiBubble([
+  [_, _, _R, _R, _, _, _],
+  [_, _, _W, _W, _, _, _],
+  [_, _R, _R, _R, _R, _, _],
+  [_, _R, _W, _R, _R, _, _],
+  [_, _R, _R, _R, _R, _, _],
+  [_, _R, _R, _R, _R, _, _],
+  [_, _, _, _, _, _, _],
+])
+
+/** 💤 Sleepy */
+export const EMOJI_SLEEPY: SpriteData = makeEmojiBubble([
+  [_, _, _, _, _, _, _],
+  [_, _, _, _C, _C, _C, _],
+  [_, _, _, _, _C, _, _],
+  [_, _, _C, _C, _, _, _],
+  [_, _C, _C, _C, _, _, _],
+  [_, _, _C, _, _, _, _],
+  [_, _, _, _, _, _, _],
+])
+
+/** 🌱 Sprout */
+export const EMOJI_SPROUT: SpriteData = makeEmojiBubble([
+  [_, _, _, _G, _, _, _],
+  [_, _, _G, _G, _G, _, _],
+  [_, _, _G, _G, _G, _, _],
+  [_, _, _, _G, _, _, _],
+  [_, _, _, _G, _, _, _],
+  [_, _, _M, _M, _M, _, _],
+  [_, _, _, _, _, _, _],
+])
+
+/** ♟ Chess piece */
+export const EMOJI_CHESS: SpriteData = makeEmojiBubble([
+  [_, _, _, _B, _, _, _],
+  [_, _, _B, _B, _B, _, _],
+  [_, _, _, _B, _, _, _],
+  [_, _, _B, _B, _B, _, _],
+  [_, _, _B, _B, _B, _, _],
+  [_, _B, _B, _B, _B, _B, _],
+  [_, _, _, _, _, _, _],
+])
+
+/** Lookup emoji sprite by key */
+export function getEmojiSprite(key: string): SpriteData | null {
+  switch (key) {
+    case '😊': return EMOJI_HAPPY
+    case '😌': return EMOJI_RELAXED
+    case '🤔': return EMOJI_THINKING
+    case '😋': return EMOJI_YUMMY
+    case '☕': return EMOJI_COFFEE
+    case '💧': return EMOJI_WATER
+    case '🥤': return EMOJI_SODA
+    case '💤': return EMOJI_SLEEPY
+    case '🌱': return EMOJI_SPROUT
+    case '♟': return EMOJI_CHESS
+    default: return null
+  }
+}
 
 // ── Virtual Monitor Sprites ───────────────────────────────────────
 // 10x8 mini-monitor with green phosphor screen, 3 animation frames
