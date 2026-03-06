@@ -12,6 +12,7 @@ import {
 	sendLayout,
 	getProjectDirPath,
 } from './agentManager.js';
+import { getTeammatesForLead } from './teamManager.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
 import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
@@ -73,12 +74,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				);
 			} else if (message.type === 'focusAgent') {
 				const agent = this.agents.get(message.id);
-				if (agent) {
+				if (agent?.terminalRef) {
 					agent.terminalRef.show();
 				}
 			} else if (message.type === 'closeAgent') {
 				const agent = this.agents.get(message.id);
-				if (agent) {
+				if (agent?.terminalRef) {
 					agent.terminalRef.dispose();
 				}
 			} else if (message.type === 'saveAgentSeats') {
@@ -284,6 +285,17 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					if (this.activeAgentId.current === id) {
 						this.activeAgentId.current = null;
 					}
+					// Clean up all teammates of this lead first
+					const teammateIds = getTeammatesForLead(id, this.agents);
+					for (const tmId of teammateIds) {
+						removeAgent(
+							tmId, this.agents,
+							this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+							this.jsonlPollTimers, this.persistAgents,
+						);
+						webviewView.webview.postMessage({ type: 'teammateRemoved', id: tmId });
+					}
+					// Then remove the lead
 					removeAgent(
 						id, this.agents,
 						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,

@@ -13,9 +13,32 @@ import {
 	TEXT_IDLE_DELAY_MS,
 	BASH_COMMAND_DISPLAY_MAX_LENGTH,
 	TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
+	AGENT_TOOL_NAME,
+	TEAM_CREATE_TOOL_NAME,
+	TEAM_DELETE_TOOL_NAME,
+	SEND_MESSAGE_TOOL_NAME,
 } from './constants.js';
+import {
+	registerPendingTeammate,
+	markAgentAsLead,
+	handleSendMessage,
+} from './teamManager.js';
 
-export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'AskUserQuestion']);
+export const PERMISSION_EXEMPT_TOOLS = new Set([
+	'Task',
+	'AskUserQuestion',
+	AGENT_TOOL_NAME,
+	TEAM_CREATE_TOOL_NAME,
+	TEAM_DELETE_TOOL_NAME,
+	SEND_MESSAGE_TOOL_NAME,
+	'TaskCreate',
+	'TaskUpdate',
+	'TaskList',
+	'TaskGet',
+	'ExitPlanMode',
+	'EnterPlanMode',
+	'TeamDelete',
+]);
 
 export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
 	const base = (p: unknown) => typeof p === 'string' ? path.basename(p) : '';
@@ -37,7 +60,28 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
 		}
 		case 'AskUserQuestion': return 'Waiting for your answer';
 		case 'EnterPlanMode': return 'Planning';
-		case 'NotebookEdit': return `Editing notebook`;
+		case 'NotebookEdit': return 'Editing notebook';
+		case AGENT_TOOL_NAME: {
+			const name = typeof input.name === 'string' ? input.name : (input.subagent_type as string) || 'agent';
+			return `Spawning: ${name}`;
+		}
+		case TEAM_CREATE_TOOL_NAME: {
+			const teamName = typeof input.team_name === 'string' ? input.team_name : 'team';
+			return `Creating team: ${teamName}`;
+		}
+		case TEAM_DELETE_TOOL_NAME: return 'Closing team';
+		case SEND_MESSAGE_TOOL_NAME: {
+			const recipient = typeof input.recipient === 'string' ? input.recipient : '';
+			const summary = typeof input.summary === 'string' ? input.summary : '';
+			return recipient ? `→ ${recipient}${summary ? ': ' + summary : ''}` : 'Sending message';
+		}
+		case 'TaskCreate': {
+			const subject = typeof input.subject === 'string' ? input.subject : '';
+			return subject ? `Task: ${subject.length > TASK_DESCRIPTION_DISPLAY_MAX_LENGTH ? subject.slice(0, TASK_DESCRIPTION_DISPLAY_MAX_LENGTH) + '\u2026' : subject}` : 'Creating task';
+		}
+		case 'TaskUpdate': return 'Updating task';
+		case 'TaskList': return 'Checking tasks';
+		case 'TaskGet': return 'Reading task';
 		default: return `Using ${toolName}`;
 	}
 }
@@ -56,6 +100,25 @@ export function processTranscriptLine(
 		const record = JSON.parse(line);
 
 		if (record.type === 'assistant' && Array.isArray(record.message?.content)) {
+			// Extract token usage from this assistant turn
+			const usage = record.message?.usage as Record<string, number> | undefined;
+			if (usage) {
+				const inputTokens = (usage.input_tokens ?? 0);
+				const outputTokens = (usage.output_tokens ?? 0);
+				const cacheReadTokens = (usage.cache_read_input_tokens ?? 0);
+				if (inputTokens > 0 || outputTokens > 0) {
+					agent.inputTokens = inputTokens;
+					agent.outputTokens = outputTokens;
+					webview?.postMessage({
+						type: 'agentTokenUsage',
+						id: agentId,
+						inputTokens,
+						outputTokens,
+						cacheReadTokens,
+					});
+				}
+			}
+
 			const blocks = record.message.content as Array<{
 				type: string; id?: string; name?: string; input?: Record<string, unknown>;
 			}>;
@@ -75,6 +138,20 @@ export function processTranscriptLine(
 						agent.activeToolIds.add(block.id);
 						agent.activeToolStatuses.set(block.id, status);
 						agent.activeToolNames.set(block.id, toolName);
+
+						// ── Team tool detection ────────────────────────────────────
+						if (toolName === AGENT_TOOL_NAME && block.input) {
+							const name = typeof block.input.name === 'string' ? block.input.name : (block.input.subagent_type as string) || 'agent';
+							const subagentType = typeof block.input.subagent_type === 'string' ? block.input.subagent_type : '';
+							registerPendingTeammate(agentId, block.id, name, subagentType, agents, webview);
+						} else if (toolName === TEAM_CREATE_TOOL_NAME && block.input) {
+							const teamName = typeof block.input.team_name === 'string' ? block.input.team_name : undefined;
+							markAgentAsLead(agentId, teamName, agents, webview);
+						} else if (toolName === SEND_MESSAGE_TOOL_NAME) {
+							handleSendMessage(agentId, webview);
+						}
+						// ──────────────────────────────────────────────────────────
+
 						if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
 							hasNonExemptTool = true;
 						}
@@ -90,10 +167,7 @@ export function processTranscriptLine(
 					startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
 				}
 			} else if (blocks.some(b => b.type === 'text') && !agent.hadToolsInTurn) {
-				// Text-only response in a turn that hasn't used any tools.
-				// turn_duration handles tool-using turns reliably but is never
-				// emitted for text-only turns, so we use a silence-based timer:
-				// if no new JSONL data arrives within TEXT_IDLE_DELAY_MS, mark as waiting.
+				// Text-only response — use silence-based idle timer
 				startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
 			}
 		} else if (record.type === 'progress') {
@@ -131,8 +205,6 @@ export function processTranscriptLine(
 							}, TOOL_DONE_DELAY_MS);
 						}
 					}
-					// All tools completed — allow text-idle timer as fallback
-					// for turn-end detection when turn_duration is not emitted
 					if (agent.activeToolIds.size === 0) {
 						agent.hadToolsInTurn = false;
 					}
@@ -193,8 +265,6 @@ function processProgressRecord(
 	const data = record.data as Record<string, unknown> | undefined;
 	if (!data) return;
 
-	// bash_progress / mcp_progress: tool is actively executing, not stuck on permission.
-	// Restart the permission timer to give the running tool another window.
 	const dataType = data.type as string | undefined;
 	if (dataType === 'bash_progress' || dataType === 'mcp_progress') {
 		if (agent.activeToolIds.has(parentToolId)) {
@@ -203,7 +273,6 @@ function processProgressRecord(
 		return;
 	}
 
-	// Verify parent is an active Task tool (agent_progress handling)
 	if (agent.activeToolNames.get(parentToolId) !== 'Task') return;
 
 	const msg = data.message as Record<string, unknown> | undefined;
@@ -222,7 +291,6 @@ function processProgressRecord(
 				const status = formatToolStatus(toolName, block.input || {});
 				console.log(`[Pixel Agents] Agent ${agentId} subagent tool start: ${block.id} ${status} (parent: ${parentToolId})`);
 
-				// Track sub-tool IDs
 				let subTools = agent.activeSubagentToolIds.get(parentToolId);
 				if (!subTools) {
 					subTools = new Set();
@@ -230,7 +298,6 @@ function processProgressRecord(
 				}
 				subTools.add(block.id);
 
-				// Track sub-tool names (for permission checking)
 				let subNames = agent.activeSubagentToolNames.get(parentToolId);
 				if (!subNames) {
 					subNames = new Map();
@@ -259,15 +326,10 @@ function processProgressRecord(
 			if (block.type === 'tool_result' && block.tool_use_id) {
 				console.log(`[Pixel Agents] Agent ${agentId} subagent tool done: ${block.tool_use_id} (parent: ${parentToolId})`);
 
-				// Remove from tracking
 				const subTools = agent.activeSubagentToolIds.get(parentToolId);
-				if (subTools) {
-					subTools.delete(block.tool_use_id);
-				}
+				if (subTools) subTools.delete(block.tool_use_id);
 				const subNames = agent.activeSubagentToolNames.get(parentToolId);
-				if (subNames) {
-					subNames.delete(block.tool_use_id);
-				}
+				if (subNames) subNames.delete(block.tool_use_id);
 
 				const toolId = block.tool_use_id;
 				setTimeout(() => {
@@ -280,8 +342,6 @@ function processProgressRecord(
 				}, 300);
 			}
 		}
-		// If there are still active non-exempt sub-agent tools, restart the permission timer
-		// (handles the case where one sub-agent completes but another is still stuck)
 		let stillHasNonExempt = false;
 		for (const [, subNames] of agent.activeSubagentToolNames) {
 			for (const [, toolName] of subNames) {

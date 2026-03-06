@@ -178,8 +178,8 @@ export interface Character {
   /** Assigned seat uid, or null if no seat */
   seatId: string | null
   /** Active speech bubble type, or null if none showing */
-  bubbleType: 'permission' | 'waiting' | null
-  /** Countdown timer for bubble (waiting: 2→0, permission: unused) */
+  bubbleType: 'permission' | 'waiting' | 'message' | null
+  /** Countdown timer for bubble (waiting: 2→0, permission: unused, message: countdown) */
   bubbleTimer: number
   /** Timer to stay seated while inactive after seat reassignment (counts down to 0) */
   seatTimer: number
@@ -195,4 +195,18 @@ export interface Character {
   matrixEffectSeeds: number[]
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string
+  /** Whether this character is a team lead (uses TeamCreate tool) */
+  isTeamLead?: boolean
+  /** Team name for lead characters */
+  teamName?: string
+  /** Whether this character is an Agent Teams teammate (own JSONL, no terminal) */
+  isTeammate?: boolean
+  /** Role/name label for teammate characters */
+  teamRole?: string
+  /** Lead agent ID for teammate characters */
+  leadAgentId?: number
+  /** Cumulative input tokens from last assistant turn (for fuel gauge) */
+  inputTokens: number
+  /** Cumulative output tokens from last assistant turn */
+  outputTokens: number
 }

@@ -40,3 +40,11 @@ export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';
 export const WORKSPACE_KEY_AGENT_SEATS = 'pixel-agents.agentSeats';
 export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
 export const TERMINAL_NAME_PREFIX = 'Claude Code';
+
+// ── Agent Teams ───────────────────────────────────────────────
+export const AGENT_TOOL_NAME = 'Agent';
+export const TEAM_CREATE_TOOL_NAME = 'TeamCreate';
+export const TEAM_DELETE_TOOL_NAME = 'TeamDelete';
+export const SEND_MESSAGE_TOOL_NAME = 'SendMessage';
+/** How long (ms) to wait for a new JSONL file to appear after an Agent tool call */
+export const TEAMMATE_MATCH_WINDOW_MS = 30_000;

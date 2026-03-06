@@ -5,6 +5,7 @@ import type { AgentState } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
+import { tryClaimJsonlForTeammate, clearExpiredPending } from './teamManager.js';
 
 export function startFileWatching(
 	agentId: number,
@@ -103,6 +104,7 @@ export function ensureProjectScan(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
+	persistTeammates?: () => void,
 ): void {
 	if (projectScanTimerRef.current) return;
 	// Seed with all existing JSONL files so we only react to truly new ones
@@ -116,10 +118,11 @@ export function ensureProjectScan(
 	} catch { /* dir may not exist yet */ }
 
 	projectScanTimerRef.current = setInterval(() => {
+		clearExpiredPending();
 		scanForNewJsonlFiles(
 			projectDir, knownJsonlFiles, activeAgentIdRef, nextAgentIdRef,
 			agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-			webview, persistAgents,
+			webview, persistAgents, persistTeammates,
 		);
 	}, PROJECT_SCAN_INTERVAL_MS);
 }
@@ -136,6 +139,7 @@ function scanForNewJsonlFiles(
 	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
+	persistTeammates?: () => void,
 ): void {
 	let files: string[];
 	try {
@@ -145,35 +149,48 @@ function scanForNewJsonlFiles(
 	} catch { return; }
 
 	for (const file of files) {
-		if (!knownJsonlFiles.has(file)) {
-			knownJsonlFiles.add(file);
-			if (activeAgentIdRef.current !== null) {
-				// Active agent focused → /clear reassignment
-				console.log(`[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`);
-				reassignAgentToFile(
-					activeAgentIdRef.current, file,
-					agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-					webview, persistAgents,
-				);
-			} else {
-				// No active agent → try to adopt the focused terminal
-				const activeTerminal = vscode.window.activeTerminal;
-				if (activeTerminal) {
-					let owned = false;
-					for (const agent of agents.values()) {
-						if (agent.terminalRef === activeTerminal) {
-							owned = true;
-							break;
-						}
+		if (knownJsonlFiles.has(file)) continue;
+		knownJsonlFiles.add(file);
+
+		// ── Agent Teams: check if this JSONL belongs to a pending teammate ──
+		const teammateId = tryClaimJsonlForTeammate(
+			file, agents, nextAgentIdRef, webview,
+			persistTeammates ?? persistAgents,
+		);
+		if (teammateId !== null) {
+			// Start file watching for the new teammate (same pattern as regular agents)
+			startFileWatching(teammateId, file, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
+			readNewLines(teammateId, agents, waitingTimers, permissionTimers, webview);
+			continue;
+		}
+		// ────────────────────────────────────────────────────────────────────
+
+		if (activeAgentIdRef.current !== null) {
+			// Active agent focused → /clear reassignment
+			console.log(`[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`);
+			reassignAgentToFile(
+				activeAgentIdRef.current, file,
+				agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+				webview, persistAgents,
+			);
+		} else {
+			// No active agent → try to adopt the focused terminal
+			const activeTerminal = vscode.window.activeTerminal;
+			if (activeTerminal) {
+				let owned = false;
+				for (const agent of agents.values()) {
+					if (agent.terminalRef === activeTerminal) {
+						owned = true;
+						break;
 					}
-					if (!owned) {
-						adoptTerminalForFile(
-							activeTerminal, file, projectDir,
-							nextAgentIdRef, agents, activeAgentIdRef,
-							fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-							webview, persistAgents,
-						);
-					}
+				}
+				if (!owned) {
+					adoptTerminalForFile(
+						activeTerminal, file, projectDir,
+						nextAgentIdRef, agents, activeAgentIdRef,
+						fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+						webview, persistAgents,
+					);
 				}
 			}
 		}
@@ -210,6 +227,8 @@ function adoptTerminalForFile(
 		isWaiting: false,
 		permissionSent: false,
 		hadToolsInTurn: false,
+		inputTokens: 0,
+		outputTokens: 0,
 	};
 
 	agents.set(id, agent);
