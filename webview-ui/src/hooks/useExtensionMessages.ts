@@ -12,7 +12,7 @@ import { playDoneSound, setSoundEnabled } from '../notificationSound.js'
 import { SyncManager } from '../sync/SyncManager.js'
 import { RemoteCharacterManager } from '../sync/RemoteCharacterManager.js'
 import { AvatarIdentity } from '../avatar/AvatarIdentity.js'
-import type { SyncMode, AgentSnapshot } from '../sync/types.js'
+import type { SyncMode, AgentSnapshot, SavedAgentInfo } from '../sync/types.js'
 
 export interface SubagentCharacter {
   id: number
@@ -116,6 +116,30 @@ export function useExtensionMessages(
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false)
 
+  // Server-saved agent data (seat + appearance) — applied as agents are created
+  const pendingSavedAgentsRef = useRef<SavedAgentInfo[]>([])
+
+  const applyPendingSavedAgent = useCallback((os: ReturnType<typeof getOfficeState>) => {
+    const pending = pendingSavedAgentsRef.current
+    if (pending.length === 0) return
+    // Apply to any local agents that don't have saved data yet
+    const localAgents = [...os.characters.values()].filter(ch => !ch.isRemote && !ch.isSubagent)
+    for (const ch of localAgents) {
+      const idx = ch.id - 1 // agents are 1-based
+      if (idx < 0 || idx >= pending.length) continue
+      const saved = pending[idx]
+      ch.palette = saved.palette
+      ch.hueShift = saved.hueShift
+      if (saved.seatId) {
+        const seat = os.seats.get(saved.seatId)
+        if (seat && !seat.assigned) {
+          ch.seatId = saved.seatId
+          seat.assigned = true
+        }
+      }
+    }
+  }, [getOfficeState])
+
   useEffect(() => {
     // Buffer agents from existingAgents until layout is loaded
     let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string; folderName?: string; isExternal?: boolean; projectId?: string }> = []
@@ -180,6 +204,8 @@ export function useExtensionMessages(
           const ch = os.characters.get(id)
           if (ch) ch.userName = localUserNameRef.current
         }
+        // Apply server-saved seat + appearance if available
+        applyPendingSavedAgent(os)
         saveAgentSeats(os)
       } else if (msg.type === 'agentClosed') {
         const id = msg.id as number
@@ -544,23 +570,10 @@ export function useExtensionMessages(
         remoteCharManagerRef.current?.applyChat(clientId, agentId, chatMsg)
       },
       onSavedAgents: (savedAgents) => {
-        const os = getOfficeState()
-        for (const saved of savedAgents) {
-          for (const [id, ch] of os.characters) {
-            if (ch.isRemote || ch.isSubagent) continue
-            if (id === saved.agentId) {
-              ch.palette = saved.palette
-              ch.hueShift = saved.hueShift
-              if (saved.seatId) {
-                const seat = os.seats.get(saved.seatId)
-                if (seat && !seat.assigned) {
-                  ch.seatId = saved.seatId
-                  seat.assigned = true
-                }
-              }
-            }
-          }
-        }
+        // Store for applying when agents are created
+        pendingSavedAgentsRef.current = savedAgents
+        // Also apply to any agents that already exist
+        applyPendingSavedAgent(getOfficeState())
       },
       onRemoteLayout: (layout) => {
         if (isEditDirtyRef.current?.()) return
