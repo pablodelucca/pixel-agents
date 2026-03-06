@@ -29,6 +29,7 @@ export type ClientMessage =
   | { type: 'join'; userName: string }
   | { type: 'heartbeat'; agents: AgentSnapshot[] }
   | { type: 'layoutPut'; layout: string }
+  | { type: 'chat'; agentId: number; msg: string }
 
 // ── Server -> Client messages ──────────────────────────
 export type ServerMessage =
@@ -36,6 +37,7 @@ export type ServerMessage =
   | { type: 'presence'; clients: PresenceClient[] }
   | { type: 'layoutFull'; layoutJson: string; layoutEtag: string }
   | { type: 'layoutChanged'; etag: string }
+  | { type: 'chat'; clientId: string; agentId: number; userName: string; msg: string }
 
 // ── SyncTransport event callbacks ──────────────────────
 export interface SyncTransportCallbacks {
@@ -54,4 +56,5 @@ export interface SyncManagerConfig {
   onPresence: (clients: PresenceClient[]) => void
   onRemoteLayout: (layout: unknown) => void
   isEditDirty?: () => boolean
+  onChat?: (clientId: string, agentId: number, userName: string, msg: string) => void
 }

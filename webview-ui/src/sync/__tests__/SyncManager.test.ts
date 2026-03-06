@@ -175,4 +175,32 @@ describe('SyncManager', () => {
     expect(layoutMsg).toBeUndefined()
     mgr.dispose()
   })
+
+  it('sendChat sends via transport', () => {
+    const mgr = new SyncManager(makeConfig())
+    mgr.activate()
+    mockTransportInstance.simulateOpen()
+
+    mgr.sendChat(1, 'Hello!')
+    const chatMsg = mockTransportInstance.sent.find((m: any) => m.type === 'chat')
+    expect(chatMsg).toEqual({ type: 'chat', agentId: 1, msg: 'Hello!' })
+    mgr.dispose()
+  })
+
+  it('calls onChat when chat message arrives', () => {
+    const onChat = vi.fn()
+    const mgr = new SyncManager(makeConfig({ onChat }))
+    mgr.activate()
+    mockTransportInstance.simulateOpen()
+
+    mockTransportInstance.simulateMessage({
+      type: 'chat',
+      clientId: 'c1',
+      agentId: 1,
+      userName: 'Alice',
+      msg: 'Hello!',
+    })
+    expect(onChat).toHaveBeenCalledWith('c1', 1, 'Alice', 'Hello!')
+    mgr.dispose()
+  })
 })

@@ -22,6 +22,10 @@ export class SyncManager {
     this.transport.connect()
   }
 
+  sendChat(agentId: number, msg: string): void {
+    this.transport?.send({ type: 'chat', agentId, msg })
+  }
+
   putLayout(layout: unknown): void {
     if (this.config.mode === 'guest') return
     this.transport?.send({
@@ -62,6 +66,9 @@ export class SyncManager {
         break
       case 'layoutChanged':
         this.fetchLayout()
+        break
+      case 'chat':
+        this.config.onChat?.(msg.clientId, msg.agentId, msg.userName, msg.msg)
         break
     }
   }
