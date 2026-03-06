@@ -4,7 +4,15 @@ import * as vscode from 'vscode';
 import type { AgentState } from './types.js';
 import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
-import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
+import {
+	FILE_WATCHER_POLL_INTERVAL_MS,
+	PROJECT_SCAN_INTERVAL_MS,
+	EXTERNAL_SCAN_INTERVAL_MS,
+	EXTERNAL_ACTIVE_THRESHOLD_MS,
+	EXTERNAL_STALE_TIMEOUT_MS,
+	EXTERNAL_STALE_CHECK_INTERVAL_MS,
+} from './constants.js';
+import { removeAgent } from './agentManager.js';
 
 export function startFileWatching(
 	agentId: number,
@@ -158,6 +166,7 @@ function scanForNewJsonlFiles(
 			} else {
 				// No active agent → try to adopt the focused terminal
 				const activeTerminal = vscode.window.activeTerminal;
+				let adopted = false;
 				if (activeTerminal) {
 					let owned = false;
 					for (const agent of agents.values()) {
@@ -173,7 +182,23 @@ function scanForNewJsonlFiles(
 							fileWatchers, pollingTimers, waitingTimers, permissionTimers,
 							webview, persistAgents,
 						);
+						adopted = true;
 					}
+				}
+				// No terminal to adopt → check if this is an external session
+				// (e.g., Claude Code VS Code extension panel)
+				if (!adopted) {
+					try {
+						const stat = fs.statSync(file);
+						if (Date.now() - stat.mtimeMs < EXTERNAL_ACTIVE_THRESHOLD_MS) {
+							adoptExternalSession(
+								file, projectDir,
+								nextAgentIdRef, agents,
+								fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+								webview, persistAgents,
+							);
+						}
+					} catch { /* ignore stat errors */ }
 				}
 			}
 		}
@@ -198,6 +223,7 @@ function adoptTerminalForFile(
 	const agent: AgentState = {
 		id,
 		terminalRef: terminal,
+		isExternal: false,
 		projectDir,
 		jsonlFile,
 		fileOffset: 0,
@@ -221,6 +247,143 @@ function adoptTerminalForFile(
 
 	startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
 	readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+}
+
+// ── External session support (VS Code extension panel, etc.) ──
+
+function adoptExternalSession(
+	jsonlFile: string,
+	projectDir: string,
+	nextAgentIdRef: { current: number },
+	agents: Map<number, AgentState>,
+	fileWatchers: Map<number, fs.FSWatcher>,
+	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	webview: vscode.Webview | undefined,
+	persistAgents: () => void,
+): void {
+	const id = nextAgentIdRef.current++;
+	const agent: AgentState = {
+		id,
+		terminalRef: undefined,
+		isExternal: true,
+		projectDir,
+		jsonlFile,
+		fileOffset: 0,
+		lineBuffer: '',
+		activeToolIds: new Set(),
+		activeToolStatuses: new Map(),
+		activeToolNames: new Map(),
+		activeSubagentToolIds: new Map(),
+		activeSubagentToolNames: new Map(),
+		isWaiting: false,
+		permissionSent: false,
+		hadToolsInTurn: false,
+	};
+
+	agents.set(id, agent);
+	persistAgents();
+
+	console.log(`[Pixel Agents] Agent ${id}: detected external session ${path.basename(jsonlFile)}`);
+	webview?.postMessage({ type: 'agentCreated', id, isExternal: true });
+
+	startFileWatching(id, jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
+	readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+}
+
+/**
+ * Periodically scans for external sessions (VS Code extension panel, etc.)
+ * that produce JSONL files without an associated terminal.
+ */
+export function startExternalSessionScanning(
+	projectDir: string,
+	knownJsonlFiles: Set<string>,
+	nextAgentIdRef: { current: number },
+	agents: Map<number, AgentState>,
+	fileWatchers: Map<number, fs.FSWatcher>,
+	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
+	webview: vscode.Webview | undefined,
+	persistAgents: () => void,
+): ReturnType<typeof setInterval> {
+	return setInterval(() => {
+		let files: string[];
+		try {
+			files = fs.readdirSync(projectDir)
+				.filter(f => f.endsWith('.jsonl'))
+				.map(f => path.join(projectDir, f));
+		} catch { return; }
+
+		const now = Date.now();
+
+		for (const file of files) {
+			if (knownJsonlFiles.has(file)) continue;
+
+			// Check if already tracked by an agent
+			let tracked = false;
+			for (const agent of agents.values()) {
+				if (agent.jsonlFile === file) { tracked = true; break; }
+			}
+			if (tracked) continue;
+
+			// Only adopt recently-active files
+			try {
+				const stat = fs.statSync(file);
+				if (now - stat.mtimeMs > EXTERNAL_ACTIVE_THRESHOLD_MS) continue;
+			} catch { continue; }
+
+			knownJsonlFiles.add(file);
+			adoptExternalSession(
+				file, projectDir,
+				nextAgentIdRef, agents,
+				fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+				webview, persistAgents,
+			);
+		}
+	}, EXTERNAL_SCAN_INTERVAL_MS);
+}
+
+/**
+ * Periodically removes stale external agents whose JSONL files
+ * haven't been modified recently.
+ */
+export function startStaleExternalAgentCheck(
+	agents: Map<number, AgentState>,
+	fileWatchers: Map<number, fs.FSWatcher>,
+	pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
+	webview: vscode.Webview | undefined,
+	persistAgents: () => void,
+): ReturnType<typeof setInterval> {
+	return setInterval(() => {
+		const now = Date.now();
+		const toRemove: number[] = [];
+
+		for (const [id, agent] of agents) {
+			if (!agent.isExternal) continue;
+
+			try {
+				const stat = fs.statSync(agent.jsonlFile);
+				if (now - stat.mtimeMs > EXTERNAL_STALE_TIMEOUT_MS) {
+					toRemove.push(id);
+				}
+			} catch {
+				// File deleted — remove agent
+				toRemove.push(id);
+			}
+		}
+
+		for (const id of toRemove) {
+			console.log(`[Pixel Agents] Removing stale external agent ${id}`);
+			removeAgent(id, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, jsonlPollTimers, persistAgents);
+			webview?.postMessage({ type: 'agentClosed', id });
+		}
+	}, EXTERNAL_STALE_CHECK_INTERVAL_MS);
 }
 
 export function reassignAgentToFile(
