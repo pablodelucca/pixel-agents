@@ -52,11 +52,12 @@ export class ChatWatcher {
 		if (!fs.existsSync(dir)) {
 			fs.mkdirSync(dir, { recursive: true });
 		}
-		// Truncate old messages on start
+		// Seek to end — don't truncate, multiple agents append concurrently
 		try {
-			fs.writeFileSync(this.chatFile, '', 'utf-8');
+			if (fs.existsSync(this.chatFile)) {
+				this.offset = fs.statSync(this.chatFile).size;
+			}
 		} catch { /* ignore */ }
-		this.offset = 0;
 		this.lineBuffer = '';
 
 		console.log(`[ChatWatcher] Started watching ${this.chatFile}`);

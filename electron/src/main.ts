@@ -934,9 +934,12 @@ function startChatWatcher(): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
   }
-  // Truncate old messages
-  try { fs.writeFileSync(CHAT_FILE, '', 'utf-8') } catch { /* ignore */ }
-  chatOffset = 0
+  // Seek to end — don't truncate, multiple agents append concurrently
+  try {
+    if (fs.existsSync(CHAT_FILE)) {
+      chatOffset = fs.statSync(CHAT_FILE).size
+    }
+  } catch { /* ignore */ }
   chatLineBuffer = ''
 
   console.log(`[ChatWatcher] Started watching ${CHAT_FILE}`)
