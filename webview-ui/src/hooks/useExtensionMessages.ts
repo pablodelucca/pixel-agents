@@ -81,7 +81,7 @@ export function useExtensionMessages(
 
   useEffect(() => {
     // Buffer agents from existingAgents until layout is loaded
-    let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string; folderName?: string }> = []
+    let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string; folderName?: string; teamFields?: { isTeamLead?: boolean; teamName?: string; isTeammate?: boolean; teamRole?: string; leadAgentId?: number } }> = []
 
     const handler = (e: MessageEvent) => {
       const msg = e.data
@@ -104,7 +104,7 @@ export function useExtensionMessages(
         }
         // Add buffered agents now that layout (and seats) are correct
         for (const p of pendingAgents) {
-          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName)
+          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName, p.teamFields)
         }
         pendingAgents = []
         layoutReadyRef.current = true
@@ -145,14 +145,50 @@ export function useExtensionMessages(
         os.removeAllSubagents(id)
         setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id))
         os.removeAgent(id)
+      } else if (msg.type === 'agentIsLead') {
+        const id = msg.id as number
+        const teamName = msg.teamName as string | undefined
+        os.markAsLead(id, teamName)
+      } else if (msg.type === 'teammateCreated') {
+        const id = msg.id as number
+        const leadId = msg.leadId as number
+        const role = msg.role as string | undefined
+        const folderName = msg.folderName as string | undefined
+        setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]))
+        if (layoutReadyRef.current) {
+          os.addAgent(id, undefined, undefined, undefined, false, folderName, { isTeammate: true, teamRole: role, leadAgentId: leadId })
+          saveAgentSeats(os)
+        } else {
+          pendingAgents.push({ id, folderName, teamFields: { isTeammate: true, teamRole: role, leadAgentId: leadId } })
+        }
+      } else if (msg.type === 'teammateRemoved') {
+        const id = msg.id as number
+        setAgents((prev) => prev.filter((a) => a !== id))
+        setSelectedAgent((prev) => (prev === id ? null : prev))
+        os.removeAgent(id)
+      } else if (msg.type === 'agentSendMessage') {
+        const id = msg.id as number
+        os.showSendMessageBubble(id)
+      } else if (msg.type === 'agentTokenUsage') {
+        const id = msg.id as number
+        const inputTokens = msg.inputTokens as number
+        const outputTokens = msg.outputTokens as number
+        os.setAgentTokens(id, inputTokens, outputTokens)
       } else if (msg.type === 'existingAgents') {
         const incoming = msg.agents as number[]
-        const meta = (msg.agentMeta || {}) as Record<number, { palette?: number; hueShift?: number; seatId?: string }>
+        const meta = (msg.agentMeta || {}) as Record<number, { palette?: number; hueShift?: number; seatId?: string; isTeamLead?: boolean; teamName?: string; isTeammate?: boolean; teamRole?: string; leadAgentId?: number }>
         const folderNames = (msg.folderNames || {}) as Record<number, string>
         // Buffer agents — they'll be added in layoutLoaded after seats are built
         for (const id of incoming) {
           const m = meta[id]
-          pendingAgents.push({ id, palette: m?.palette, hueShift: m?.hueShift, seatId: m?.seatId, folderName: folderNames[id] })
+          const teamFields = (m?.isTeamLead || m?.isTeammate) ? {
+            isTeamLead: m.isTeamLead,
+            teamName: m.teamName,
+            isTeammate: m.isTeammate,
+            teamRole: m.teamRole,
+            leadAgentId: m.leadAgentId,
+          } : undefined
+          pendingAgents.push({ id, palette: m?.palette, hueShift: m?.hueShift, seatId: m?.seatId, folderName: folderNames[id], teamFields })
         }
         setAgents((prev) => {
           const ids = new Set(prev)

@@ -52,11 +52,9 @@ export async function launchNewTerminal(
 		return;
 	}
 
-	// Pre-register expected JSONL file so project scan won't treat it as a /clear file
 	const expectedFile = path.join(projectDir, `${sessionId}.jsonl`);
 	knownJsonlFiles.add(expectedFile);
 
-	// Create agent immediately (before JSONL file exists)
 	const id = nextAgentIdRef.current++;
 	const folderName = isMultiRoot && cwd ? path.basename(cwd) : undefined;
 	const agent: AgentState = {
@@ -74,6 +72,8 @@ export async function launchNewTerminal(
 		isWaiting: false,
 		permissionSent: false,
 		hadToolsInTurn: false,
+		inputTokens: 0,
+		outputTokens: 0,
 		folderName,
 	};
 
@@ -89,7 +89,6 @@ export async function launchNewTerminal(
 		webview, persistAgents,
 	);
 
-	// Poll for the specific JSONL file to appear
 	const pollTimer = setInterval(() => {
 		try {
 			if (fs.existsSync(agent.jsonlFile)) {
@@ -117,12 +116,10 @@ export function removeAgent(
 	const agent = agents.get(agentId);
 	if (!agent) return;
 
-	// Stop JSONL poll timer
 	const jpTimer = jsonlPollTimers.get(agentId);
 	if (jpTimer) { clearInterval(jpTimer); }
 	jsonlPollTimers.delete(agentId);
 
-	// Stop file watching
 	fileWatchers.get(agentId)?.close();
 	fileWatchers.delete(agentId);
 	const pt = pollingTimers.get(agentId);
@@ -130,11 +127,9 @@ export function removeAgent(
 	pollingTimers.delete(agentId);
 	try { fs.unwatchFile(agent.jsonlFile); } catch { /* ignore */ }
 
-	// Cancel timers
 	cancelWaitingTimer(agentId, waitingTimers);
 	cancelPermissionTimer(agentId, permissionTimers);
 
-	// Remove from maps
 	agents.delete(agentId);
 	persistAgents();
 }
@@ -147,10 +142,15 @@ export function persistAgents(
 	for (const agent of agents.values()) {
 		persisted.push({
 			id: agent.id,
-			terminalName: agent.terminalRef.name,
+			terminalName: agent.terminalRef?.name ?? '',
 			jsonlFile: agent.jsonlFile,
 			projectDir: agent.projectDir,
 			folderName: agent.folderName,
+			isTeamLead: agent.isTeamLead,
+			teamName: agent.teamName,
+			isTeammate: agent.isTeammate,
+			teamRole: agent.teamRole,
+			leadAgentId: agent.leadAgentId,
 		});
 	}
 	context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
@@ -181,7 +181,51 @@ export function restoreAgents(
 	let restoredProjectDir: string | null = null;
 
 	for (const p of persisted) {
-		const terminal = liveTerminals.find(t => t.name === p.terminalName);
+		let terminal: vscode.Terminal | undefined;
+
+		if (p.isTeammate) {
+			// Teammates have no terminal — restore directly without terminal matching
+			const agent: AgentState = {
+				id: p.id,
+				terminalRef: undefined,
+				projectDir: p.projectDir,
+				jsonlFile: p.jsonlFile,
+				fileOffset: 0,
+				lineBuffer: '',
+				activeToolIds: new Set(),
+				activeToolStatuses: new Map(),
+				activeToolNames: new Map(),
+				activeSubagentToolIds: new Map(),
+				activeSubagentToolNames: new Map(),
+				isWaiting: false,
+				permissionSent: false,
+				hadToolsInTurn: false,
+				inputTokens: 0,
+				outputTokens: 0,
+				isTeammate: true,
+				teamRole: p.teamRole,
+				leadAgentId: p.leadAgentId,
+				folderName: p.folderName,
+			};
+			agents.set(p.id, agent);
+			knownJsonlFiles.add(p.jsonlFile);
+			console.log(`[Pixel Agents] Restored teammate ${p.id} (${p.teamRole ?? '?'}, lead: ${p.leadAgentId ?? '?'})`);
+
+			if (p.id > maxId) maxId = p.id;
+			restoredProjectDir = p.projectDir;
+
+			try {
+				if (fs.existsSync(p.jsonlFile)) {
+					const stat = fs.statSync(p.jsonlFile);
+					agent.fileOffset = stat.size;
+					startFileWatching(p.id, p.jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
+				}
+			} catch { /* ignore */ }
+			continue;
+		}
+
+		// Regular agent — find matching terminal by name
+		terminal = liveTerminals.find(t => t.name === p.terminalName);
 		if (!terminal) continue;
 
 		const agent: AgentState = {
@@ -199,7 +243,11 @@ export function restoreAgents(
 			isWaiting: false,
 			permissionSent: false,
 			hadToolsInTurn: false,
+			inputTokens: 0,
+			outputTokens: 0,
 			folderName: p.folderName,
+			isTeamLead: p.isTeamLead,
+			teamName: p.teamName,
 		};
 
 		agents.set(p.id, agent);
@@ -207,7 +255,6 @@ export function restoreAgents(
 		console.log(`[Pixel Agents] Restored agent ${p.id} → terminal "${p.terminalName}"`);
 
 		if (p.id > maxId) maxId = p.id;
-		// Extract terminal index from name like "Claude Code #3"
 		const match = p.terminalName.match(/#(\d+)$/);
 		if (match) {
 			const idx = parseInt(match[1], 10);
@@ -216,14 +263,12 @@ export function restoreAgents(
 
 		restoredProjectDir = p.projectDir;
 
-		// Start file watching if JSONL exists, skipping to end of file
 		try {
 			if (fs.existsSync(p.jsonlFile)) {
 				const stat = fs.statSync(p.jsonlFile);
 				agent.fileOffset = stat.size;
 				startFileWatching(p.id, p.jsonlFile, agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers, webview);
 			} else {
-				// Poll for the file to appear
 				const pollTimer = setInterval(() => {
 					try {
 						if (fs.existsSync(agent.jsonlFile)) {
@@ -241,7 +286,6 @@ export function restoreAgents(
 		} catch { /* ignore errors during restore */ }
 	}
 
-	// Advance counters past restored IDs
 	if (maxId >= nextAgentIdRef.current) {
 		nextAgentIdRef.current = maxId + 1;
 	}
@@ -249,10 +293,8 @@ export function restoreAgents(
 		nextTerminalIndexRef.current = maxIdx + 1;
 	}
 
-	// Re-persist cleaned-up list (removes entries whose terminals are gone)
 	doPersist();
 
-	// Start project scan for /clear detection
 	if (restoredProjectDir) {
 		ensureProjectScan(
 			restoredProjectDir, knownJsonlFiles, projectScanTimerRef, activeAgentIdRef,
@@ -274,10 +316,27 @@ export function sendExistingAgents(
 	}
 	agentIds.sort((a, b) => a - b);
 
-	// Include persisted palette/seatId from separate key
-	const agentMeta = context.workspaceState.get<Record<string, { palette?: number; seatId?: string }>>(WORKSPACE_KEY_AGENT_SEATS, {});
+	// Base seat/palette data
+	const agentSeatMeta = context.workspaceState.get<Record<string, { palette?: number; hueShift?: number; seatId?: string }>>(WORKSPACE_KEY_AGENT_SEATS, {});
 
-	// Include folderName per agent
+	// Build enhanced metadata including team fields
+	const agentMeta: Record<number, {
+		palette?: number; hueShift?: number; seatId?: string;
+		isTeamLead?: boolean; teamName?: string;
+		isTeammate?: boolean; teamRole?: string; leadAgentId?: number;
+	}> = {};
+	for (const [id, agent] of agents) {
+		const seats = agentSeatMeta[id] ?? {};
+		agentMeta[id] = {
+			...seats,
+			isTeamLead: agent.isTeamLead,
+			teamName: agent.teamName,
+			isTeammate: agent.isTeammate,
+			teamRole: agent.teamRole,
+			leadAgentId: agent.leadAgentId,
+		};
+	}
+
 	const folderNames: Record<number, string> = {};
 	for (const [id, agent] of agents) {
 		if (agent.folderName) {
@@ -302,7 +361,6 @@ export function sendCurrentAgentStatuses(
 ): void {
 	if (!webview) return;
 	for (const [agentId, agent] of agents) {
-		// Re-send active tools
 		for (const [toolId, status] of agent.activeToolStatuses) {
 			webview.postMessage({
 				type: 'agentToolStart',
@@ -311,13 +369,26 @@ export function sendCurrentAgentStatuses(
 				status,
 			});
 		}
-		// Re-send waiting status
 		if (agent.isWaiting) {
 			webview.postMessage({
 				type: 'agentStatus',
 				id: agentId,
 				status: 'waiting',
 			});
+		}
+		// Re-send token usage on reconnect
+		if (agent.inputTokens > 0 || agent.outputTokens > 0) {
+			webview.postMessage({
+				type: 'agentTokenUsage',
+				id: agentId,
+				inputTokens: agent.inputTokens,
+				outputTokens: agent.outputTokens,
+				cacheReadTokens: 0,
+			});
+		}
+		// Re-send team lead status
+		if (agent.isTeamLead) {
+			webview.postMessage({ type: 'agentIsLead', id: agentId, teamName: agent.teamName });
 		}
 	}
 }

@@ -111,3 +111,18 @@ export const CHARACTER_HIT_HALF_WIDTH = 8
 export const CHARACTER_HIT_HEIGHT = 24
 export const TOOL_OVERLAY_VERTICAL_OFFSET = 32
 export const PULSE_ANIMATION_DURATION_SEC = 1.5
+
+// ── Agent Teams ───────────────────────────────────────────────
+/** Duration (s) for the SendMessage speech bubble */
+export const SEND_MESSAGE_BUBBLE_DURATION_SEC = 2.0
+/** Label font size in sprite-pixels (scaled by zoom at render time) */
+export const TEAM_LABEL_FONT_SIZE_SP = 4
+/** Fuel gauge dimensions in sprite-pixels */
+export const FUEL_GAUGE_WIDTH_SP = 16
+export const FUEL_GAUGE_HEIGHT_SP = 2
+/** Context window token limit (all current Claude models) */
+export const MAX_CONTEXT_TOKENS = 200_000
+/** Fuel gauge fill color thresholds (fractions of MAX_CONTEXT_TOKENS) */
+export const TOKEN_WARN_THRESHOLD = 0.6
+export const TOKEN_DANGER_THRESHOLD = 0.8
+export const TOKEN_CRITICAL_THRESHOLD = 0.95

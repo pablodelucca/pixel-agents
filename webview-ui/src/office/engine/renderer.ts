@@ -38,6 +38,13 @@ import {
   SELECTION_HIGHLIGHT_COLOR,
   DELETE_BUTTON_BG,
   ROTATE_BUTTON_BG,
+  TEAM_LABEL_FONT_SIZE_SP,
+  FUEL_GAUGE_WIDTH_SP,
+  FUEL_GAUGE_HEIGHT_SP,
+  MAX_CONTEXT_TOKENS,
+  TOKEN_WARN_THRESHOLD,
+  TOKEN_DANGER_THRESHOLD,
+  TOKEN_CRITICAL_THRESHOLD,
 } from '../../constants.js'
 
 // ── Render functions ────────────────────────────────────────────
@@ -482,6 +489,74 @@ export function renderBubbles(
   }
 }
 
+/** Render team role labels and token fuel gauges above/below characters. */
+export function renderCharacterLabels(
+  ctx: CanvasRenderingContext2D,
+  characters: Character[],
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  for (const ch of characters) {
+    if (ch.matrixEffect === 'despawn') continue
+
+    const sittingOff = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0
+    const charCenterX = Math.round(offsetX + ch.x * zoom)
+    // Top of the 24px-tall character sprite (anchor is bottom-center)
+    const charTopY = Math.round(offsetY + (ch.y + sittingOff) * zoom) - Math.round(24 * zoom)
+
+    // ── Team label (LEAD or role) ──────────────────────────────
+    const label = ch.isTeamLead ? 'LEAD' : (ch.teamRole ?? null)
+    if (label) {
+      const fontSize = Math.max(6, Math.round(TEAM_LABEL_FONT_SIZE_SP * zoom))
+      ctx.save()
+      ctx.font = `bold ${fontSize}px monospace`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'bottom'
+      const textW = ctx.measureText(label).width
+      const bgPad = Math.max(1, Math.round(zoom * 0.5))
+      const bgX = charCenterX - textW / 2 - bgPad
+      const bgY = charTopY - fontSize - bgPad * 2
+      const bgW = textW + bgPad * 2
+      const bgH = fontSize + bgPad * 2
+      ctx.fillStyle = ch.isTeamLead ? 'rgba(255, 200, 50, 0.88)' : 'rgba(80, 180, 255, 0.88)'
+      ctx.fillRect(bgX, bgY, bgW, bgH)
+      ctx.fillStyle = '#0a0a14'
+      ctx.fillText(label, charCenterX, charTopY - bgPad)
+      ctx.restore()
+    }
+
+    // ── Fuel gauge (token usage) ───────────────────────────────
+    if (ch.inputTokens > 0) {
+      const fraction = Math.min(ch.inputTokens / MAX_CONTEXT_TOKENS, 1)
+      const gaugeW = Math.round(FUEL_GAUGE_WIDTH_SP * zoom)
+      const gaugeH = Math.max(2, Math.round(FUEL_GAUGE_HEIGHT_SP * zoom))
+      const gaugeX = charCenterX - Math.floor(gaugeW / 2)
+      // 2 sprite-pixels below the character anchor
+      const gaugeY = Math.round(offsetY + (ch.y + sittingOff) * zoom) + Math.round(2 * zoom)
+
+      ctx.save()
+      // Background track
+      ctx.fillStyle = 'rgba(20, 20, 30, 0.75)'
+      ctx.fillRect(gaugeX, gaugeY, gaugeW, gaugeH)
+      // Filled portion
+      let fillColor: string
+      if (fraction >= TOKEN_CRITICAL_THRESHOLD) {
+        fillColor = '#ef4444'
+      } else if (fraction >= TOKEN_DANGER_THRESHOLD) {
+        fillColor = '#f97316'
+      } else if (fraction >= TOKEN_WARN_THRESHOLD) {
+        fillColor = '#fbbf24'
+      } else {
+        fillColor = '#4ade80'
+      }
+      ctx.fillStyle = fillColor
+      ctx.fillRect(gaugeX, gaugeY, Math.max(1, Math.round(gaugeW * fraction)), gaugeH)
+      ctx.restore()
+    }
+  }
+}
+
 export interface ButtonBounds {
   /** Center X in device pixels */
   cx: number
@@ -578,6 +653,9 @@ export function renderFrame(
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom)
+
+  // Team labels + fuel gauges (always on top)
+  renderCharacterLabels(ctx, characters, offsetX, offsetY, zoom)
 
   // Editor overlays
   if (editor) {

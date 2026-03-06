@@ -12,6 +12,7 @@ import {
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_HIT_HALF_WIDTH,
   CHARACTER_HIT_HEIGHT,
+  SEND_MESSAGE_BUBBLE_DURATION_SEC,
 } from '../../constants.js'
 import type { Character, Seat, FurnitureInstance, TileType as TileTypeVal, OfficeLayout, PlacedFurniture } from '../types.js'
 import { createCharacter, updateCharacter } from './characters.js'
@@ -193,7 +194,7 @@ export class OfficeState {
     return { palette, hueShift }
   }
 
-  addAgent(id: number, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean, folderName?: string): void {
+  addAgent(id: number, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean, folderName?: string, teamFields?: { isTeamLead?: boolean; teamName?: string; isTeammate?: boolean; teamRole?: string; leadAgentId?: number }): void {
     if (this.characters.has(id)) return
 
     let palette: number
@@ -238,6 +239,13 @@ export class OfficeState {
 
     if (folderName) {
       ch.folderName = folderName
+    }
+    if (teamFields) {
+      if (teamFields.isTeamLead) ch.isTeamLead = true
+      if (teamFields.teamName) ch.teamName = teamFields.teamName
+      if (teamFields.isTeammate) ch.isTeammate = true
+      if (teamFields.teamRole) ch.teamRole = teamFields.teamRole
+      if (teamFields.leadAgentId !== undefined) ch.leadAgentId = teamFields.leadAgentId
     }
     if (!skipSpawnEffect) {
       ch.matrixEffect = 'spawn'
@@ -613,6 +621,32 @@ export class OfficeState {
     }
   }
 
+  /** Mark an existing agent as a team lead */
+  markAsLead(id: number, teamName?: string): void {
+    const ch = this.characters.get(id)
+    if (!ch) return
+    ch.isTeamLead = true
+    if (teamName) ch.teamName = teamName
+  }
+
+  /** Update token usage for a character (for fuel gauge rendering) */
+  setAgentTokens(id: number, inputTokens: number, outputTokens: number): void {
+    const ch = this.characters.get(id)
+    if (ch) {
+      ch.inputTokens = inputTokens
+      ch.outputTokens = outputTokens
+    }
+  }
+
+  /** Show a brief SendMessage speech bubble on a character */
+  showSendMessageBubble(id: number): void {
+    const ch = this.characters.get(id)
+    if (ch) {
+      ch.bubbleType = 'message'
+      ch.bubbleTimer = SEND_MESSAGE_BUBBLE_DURATION_SEC
+    }
+  }
+
   update(dt: number): void {
     const toDelete: number[] = []
     for (const ch of this.characters.values()) {
@@ -638,8 +672,8 @@ export class OfficeState {
         updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles)
       )
 
-      // Tick bubble timer for waiting bubbles
-      if (ch.bubbleType === 'waiting') {
+      // Tick bubble timer for waiting and message bubbles
+      if (ch.bubbleType === 'waiting' || ch.bubbleType === 'message') {
         ch.bubbleTimer -= dt
         if (ch.bubbleTimer <= 0) {
           ch.bubbleType = null
