@@ -12,6 +12,7 @@ import {
   COFFEE_TABLE_SPRITE,
   CHESS_TABLE_SPRITE,
   PORTA_POTTY_SPRITE,
+  KEYBOARD_SPRITE,
 } from '../sprites/spriteData.js'
 import {
   TS_TABLE_WOOD_SM_VERTICAL,
@@ -57,6 +58,7 @@ export const FURNITURE_CATALOG: CatalogEntryWithCategory[] = [
   { type: FurnitureType.WHITEBOARD, label: 'Whiteboard', footprintW: 2, footprintH: 1, sprite: WHITEBOARD_SPRITE,   isDesk: false, category: 'decor' },
   { type: FurnitureType.CHAIR,      label: 'Chair',      footprintW: 1, footprintH: 1, sprite: CHAIR_SPRITE,        isDesk: false, category: 'chairs' },
   { type: FurnitureType.PC,         label: 'PC',         footprintW: 1, footprintH: 1, sprite: PC_SPRITE,           isDesk: false, category: 'electronics' },
+  { type: FurnitureType.KEYBOARD,   label: 'Keyboard',   footprintW: 1, footprintH: 1, sprite: KEYBOARD_SPRITE,     isDesk: false, category: 'electronics', canPlaceOnSurfaces: true },
   { type: FurnitureType.LAMP,       label: 'Lamp',       footprintW: 1, footprintH: 1, sprite: LAMP_SPRITE,         isDesk: false, category: 'decor' },
   { type: FurnitureType.SOFA,       label: 'Sofa',       footprintW: 2, footprintH: 1, sprite: SOFA_SPRITE,         isDesk: false, category: 'chairs' },
   // Vending Machine removed — use TS layout version (ASSET_40) when available

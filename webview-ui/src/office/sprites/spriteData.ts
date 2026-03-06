@@ -433,6 +433,33 @@ export const CHESS_TABLE_SPRITE: SpriteData = (() => {
   ]
 })()
 
+/** Keyboard: 16x16 — top-down compact keyboard for desk surfaces */
+export const KEYBOARD_SPRITE: SpriteData = (() => {
+  const F = '#3A3A3A' // frame / body
+  const K = '#555555' // keycaps dark
+  const L = '#6A6A6A' // keycaps light
+  const S = '#4A4A4A' // spacebar
+  const H = '#7A7A7A' // keycap highlight
+  return [
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, F, F, F, F, F, F, F, F, F, F, F, F, _, _],
+    [_, _, F, H, K, H, K, H, K, H, K, H, K, F, _, _],
+    [_, _, F, K, H, K, H, K, H, K, H, K, H, F, _, _],
+    [_, _, F, H, K, H, K, H, K, H, K, H, K, F, _, _],
+    [_, _, F, K, L, K, L, K, L, K, L, K, L, F, _, _],
+    [_, _, F, K, S, S, S, S, S, S, S, S, K, F, _, _],
+    [_, _, F, F, F, F, F, F, F, F, F, F, F, F, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+  ]
+})()
+
 // ── Speech Bubble Sprites ───────────────────────────────────────
 
 /** Permission bubble: white square with "..." in amber, and a tail pointer (11x13) */
