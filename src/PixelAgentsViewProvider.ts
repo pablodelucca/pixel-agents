@@ -12,7 +12,7 @@ import {
 	sendLayout,
 	getProjectDirPath,
 } from './agentManager.js';
-import { ensureProjectScan } from './fileWatcher.js';
+import { ensureProjectScan, startExternalSessionScanning, startStaleExternalAgentCheck } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
 import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
@@ -35,6 +35,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	activeAgentId = { current: null as number | null };
 	knownJsonlFiles = new Set<string>();
 	projectScanTimer = { current: null as ReturnType<typeof setInterval> | null };
+
+	// External session detection (VS Code extension panel, etc.)
+	externalScanTimer: ReturnType<typeof setInterval> | null = null;
+	staleCheckTimer: ReturnType<typeof setInterval> | null = null;
 
 	// Bundled default layout (loaded from assets/default-layout.json)
 	defaultLayout: Record<string, unknown> | null = null;
@@ -74,12 +78,25 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			} else if (message.type === 'focusAgent') {
 				const agent = this.agents.get(message.id);
 				if (agent) {
-					agent.terminalRef.show();
+					if (agent.terminalRef) {
+						agent.terminalRef.show();
+					}
+					// External agents (extension panel) have no terminal to focus
 				}
 			} else if (message.type === 'closeAgent') {
 				const agent = this.agents.get(message.id);
 				if (agent) {
-					agent.terminalRef.dispose();
+					if (agent.terminalRef) {
+						agent.terminalRef.dispose();
+					} else {
+						// External agent — just remove from tracking
+						removeAgent(
+							message.id, this.agents,
+							this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+							this.jsonlPollTimers, this.persistAgents,
+						);
+						webviewView.webview.postMessage({ type: 'agentClosed', id: message.id });
+					}
 				}
 			} else if (message.type === 'saveAgentSeats') {
 				// Store seat assignments in a separate key (never touched by persistAgents)
@@ -124,6 +141,25 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 						this.webview, this.persistAgents,
 					);
+
+					// Start external session scanning (detects VS Code extension panel sessions)
+					if (!this.externalScanTimer) {
+						this.externalScanTimer = startExternalSessionScanning(
+							projectDir, this.knownJsonlFiles,
+							this.nextAgentId, this.agents,
+							this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+							this.jsonlPollTimers,
+							this.webview, this.persistAgents,
+						);
+					}
+					if (!this.staleCheckTimer) {
+						this.staleCheckTimer = startStaleExternalAgentCheck(
+							this.agents,
+							this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+							this.jsonlPollTimers,
+							this.webview, this.persistAgents,
+						);
+					}
 
 					// Load furniture assets BEFORE sending layout
 					(async () => {
@@ -334,6 +370,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		if (this.projectScanTimer.current) {
 			clearInterval(this.projectScanTimer.current);
 			this.projectScanTimer.current = null;
+		}
+		if (this.externalScanTimer) {
+			clearInterval(this.externalScanTimer);
+			this.externalScanTimer = null;
+		}
+		if (this.staleCheckTimer) {
+			clearInterval(this.staleCheckTimer);
+			this.staleCheckTimer = null;
 		}
 	}
 }

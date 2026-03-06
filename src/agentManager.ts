@@ -62,6 +62,7 @@ export async function launchNewTerminal(
 	const agent: AgentState = {
 		id,
 		terminalRef: terminal,
+		isExternal: false,
 		projectDir,
 		jsonlFile: expectedFile,
 		fileOffset: 0,
@@ -147,7 +148,8 @@ export function persistAgents(
 	for (const agent of agents.values()) {
 		persisted.push({
 			id: agent.id,
-			terminalName: agent.terminalRef.name,
+			terminalName: agent.terminalRef?.name ?? '',
+			isExternal: agent.isExternal || undefined,
 			jsonlFile: agent.jsonlFile,
 			projectDir: agent.projectDir,
 			folderName: agent.folderName,
@@ -181,12 +183,26 @@ export function restoreAgents(
 	let restoredProjectDir: string | null = null;
 
 	for (const p of persisted) {
-		const terminal = liveTerminals.find(t => t.name === p.terminalName);
-		if (!terminal) continue;
+		let terminal: vscode.Terminal | undefined;
+		const isExternal = p.isExternal ?? false;
+
+		if (isExternal) {
+			// External agents (extension panel sessions) — restore if JSONL file was recently active
+			try {
+				if (!fs.existsSync(p.jsonlFile)) continue;
+				const stat = fs.statSync(p.jsonlFile);
+				if (Date.now() - stat.mtimeMs > 300_000) continue; // Skip if stale (>5 min)
+			} catch { continue; }
+		} else {
+			// Terminal agents — find matching terminal by name
+			terminal = liveTerminals.find(t => t.name === p.terminalName);
+			if (!terminal) continue;
+		}
 
 		const agent: AgentState = {
 			id: p.id,
 			terminalRef: terminal,
+			isExternal,
 			projectDir: p.projectDir,
 			jsonlFile: p.jsonlFile,
 			fileOffset: 0,
@@ -204,7 +220,11 @@ export function restoreAgents(
 
 		agents.set(p.id, agent);
 		knownJsonlFiles.add(p.jsonlFile);
-		console.log(`[Pixel Agents] Restored agent ${p.id} → terminal "${p.terminalName}"`);
+		if (isExternal) {
+			console.log(`[Pixel Agents] Restored external agent ${p.id} → ${path.basename(p.jsonlFile)}`);
+		} else {
+			console.log(`[Pixel Agents] Restored agent ${p.id} → terminal "${p.terminalName}"`);
+		}
 
 		if (p.id > maxId) maxId = p.id;
 		// Extract terminal index from name like "Claude Code #3"
@@ -277,11 +297,15 @@ export function sendExistingAgents(
 	// Include persisted palette/seatId from separate key
 	const agentMeta = context.workspaceState.get<Record<string, { palette?: number; seatId?: string }>>(WORKSPACE_KEY_AGENT_SEATS, {});
 
-	// Include folderName per agent
+	// Include folderName and isExternal per agent
 	const folderNames: Record<number, string> = {};
+	const externalAgents: Record<number, boolean> = {};
 	for (const [id, agent] of agents) {
 		if (agent.folderName) {
 			folderNames[id] = agent.folderName;
+		}
+		if (agent.isExternal) {
+			externalAgents[id] = true;
 		}
 	}
 	console.log(`[Pixel Agents] sendExistingAgents: agents=${JSON.stringify(agentIds)}, meta=${JSON.stringify(agentMeta)}`);
@@ -291,6 +315,7 @@ export function sendExistingAgents(
 		agents: agentIds,
 		agentMeta,
 		folderNames,
+		externalAgents,
 	});
 
 	sendCurrentAgentStatuses(agents, webview);
