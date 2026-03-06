@@ -461,6 +461,13 @@ export function useExtensionMessages(
             ch.userName = name
           }
         }
+      } else if (msg.type === 'agentChat') {
+        const id = msg.id as number
+        const chatMsg = msg.msg as string
+        // Show bubble locally immediately
+        os.showChatMessage(id, chatMsg)
+        // Relay to server for other clients
+        syncManagerRef.current?.sendChat(id, chatMsg)
       }
     }
     window.addEventListener('message', handler)
@@ -529,6 +536,9 @@ export function useExtensionMessages(
       },
       onPresence: (clients) => {
         remoteCharManagerRef.current?.updatePresence(clients)
+      },
+      onChat: (clientId, agentId, _userName, chatMsg) => {
+        remoteCharManagerRef.current?.applyChat(clientId, agentId, chatMsg)
       },
       onRemoteLayout: (layout) => {
         if (isEditDirtyRef.current?.()) return
