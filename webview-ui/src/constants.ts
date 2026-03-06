@@ -96,6 +96,12 @@ export const NOTIFICATION_NOTE_2_START_SEC = 0.1
 export const NOTIFICATION_NOTE_DURATION_SEC = 0.18
 export const NOTIFICATION_VOLUME = 0.14
 
+// ── Welcome Overlay ─────────────────────────────────────────
+// Shell command shown in the first-run overlay to guide users who haven't
+// installed Claude Code yet. Centralised here so it's easy to update if the
+// install URL ever changes.
+export const CLAUDE_CODE_INSTALL_CMD = 'curl -fsSL https://claude.ai/install.sh | bash'
+
 // ── Game Logic ───────────────────────────────────────────────
 export const MAX_DELTA_TIME_SEC = 0.1
 export const WAITING_BUBBLE_DURATION_SEC = 2.0

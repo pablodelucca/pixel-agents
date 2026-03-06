@@ -14,6 +14,7 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard.js'
 import { ZoomControls } from './components/ZoomControls.js'
 import { BottomToolbar } from './components/BottomToolbar.js'
 import { DebugView } from './components/DebugView.js'
+import { WelcomeOverlay } from './components/WelcomeOverlay.js'
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null }
@@ -222,6 +223,8 @@ function App() {
           zIndex: 40,
         }}
       />
+
+      {agents.length === 0 && !editor.isEditMode && <WelcomeOverlay />}
 
       <BottomToolbar
         isEditMode={editor.isEditMode}
