@@ -222,7 +222,8 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
             const targetY = mapH / 2 - followCh.y * zoom
             const dx = targetX - panRef.current.x
             const dy = targetY - panRef.current.y
-            if (Math.abs(dx) < CAMERA_FOLLOW_SNAP_THRESHOLD && Math.abs(dy) < CAMERA_FOLLOW_SNAP_THRESHOLD) {
+            // Snap immediately when zoom popup is active (need character visible for capture)
+            if (officeState.chatZoomAgentId !== null || (Math.abs(dx) < CAMERA_FOLLOW_SNAP_THRESHOLD && Math.abs(dy) < CAMERA_FOLLOW_SNAP_THRESHOLD)) {
               panRef.current = { x: targetX, y: targetY }
             } else {
               panRef.current = {

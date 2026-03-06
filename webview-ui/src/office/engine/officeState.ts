@@ -989,6 +989,8 @@ export class OfficeState {
     ch.chatMessage = msg
     ch.chatMessageTimer = CHAT_MESSAGE_DURATION_SEC
     this.chatZoomAgentId = agentId
+    // Center camera on the character so zoom popup captures the scene
+    this.cameraFollowId = agentId
   }
 
   dismissChatZoom(): void {
