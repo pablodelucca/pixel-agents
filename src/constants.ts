@@ -58,7 +58,7 @@ export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
 export const TERMINAL_NAME_PREFIX = 'Claude Code';
 
 // ── Multiuser Sync ────────────────────────────────────────
-export const SYNC_HEARTBEAT_INTERVAL_MS = 2000;
+export const SYNC_HEARTBEAT_INTERVAL_MS = 1000;
 export const SYNC_LAYOUT_POLL_INTERVAL_MS = 3000;
 export const SYNC_RECONNECT_BASE_MS = 1000;
 export const SYNC_RECONNECT_MAX_MS = 10000;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { OfficeState } from '../office/engine/officeState.js'
 import type { OfficeLayout, ToolActivity } from '../office/types.js'
 import { extractToolName } from '../office/toolUtils.js'
@@ -9,6 +9,10 @@ import { setWallSprites } from '../office/wallTiles.js'
 import { setCharacterTemplates } from '../office/sprites/spriteData.js'
 import { vscode } from '../vscodeApi.js'
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js'
+import { SyncManager } from '../sync/SyncManager.js'
+import { RemoteCharacterManager } from '../sync/RemoteCharacterManager.js'
+import { AvatarIdentity } from '../avatar/AvatarIdentity.js'
+import type { SyncMode, AgentSnapshot } from '../sync/types.js'
 
 export interface SubagentCharacter {
   id: number
@@ -60,6 +64,11 @@ export interface ExtensionMessageState {
   localUserName: string
   serverUrl: string
   userName: string
+  settingsReady: boolean
+  putLayout: (layout: unknown) => void
+  syncMode: SyncMode
+  activateSync: (mode: SyncMode) => void
+  remoteCharManagerRef: React.RefObject<RemoteCharacterManager | null>
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -91,6 +100,18 @@ export function useExtensionMessages(
   const localUserNameRef = useRef('')
   const [serverUrl, setServerUrl] = useState<string>('')
   const [userName, setUserName] = useState<string>('')
+  const [settingsReady, setSettingsReady] = useState(false)
+  const [syncMode, setSyncMode] = useState<SyncMode>('offline')
+  const syncModeRef = useRef<SyncMode>('offline')
+
+  const syncManagerRef = useRef<SyncManager | null>(null)
+  const remoteCharManagerRef = useRef<RemoteCharacterManager | null>(null)
+
+  // Stable refs for callbacks used by the sync client (avoid re-creating on every render)
+  const onLayoutLoadedRef = useRef(onLayoutLoaded)
+  onLayoutLoadedRef.current = onLayoutLoaded
+  const isEditDirtyRef = useRef(isEditDirty)
+  isEditDirtyRef.current = isEditDirty
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false)
@@ -102,6 +123,13 @@ export function useExtensionMessages(
     const handler = (e: MessageEvent) => {
       const msg = e.data
       const os = getOfficeState()
+
+      // Guest mode: ignore all local agent activity messages
+      const agentMessages = new Set([
+        'agentCreated', 'agentClosed', 'agentToolStart', 'agentToolDone', 'agentToolClear',
+        'agentStatus', 'focusAgent', 'existingAgents', 'agentTasks',
+      ])
+      if (syncModeRef.current === 'guest' && agentMessages.has(msg.type as string)) return
 
       if (msg.type === 'layoutLoaded') {
         // Skip external layout updates while editor has unsaved changes
@@ -118,15 +146,17 @@ export function useExtensionMessages(
           // Default layout — snapshot whatever OfficeState built
           onLayoutLoaded?.(os.getLayout())
         }
-        // Add buffered agents now that layout (and seats) are correct
-        for (const p of pendingAgents) {
-          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName, p.isExternal, p.projectId)
-        }
-        // Tag restored agents with local username
-        for (const p of pendingAgents) {
-          if (!p.isExternal) {
-            const ch = os.characters.get(p.id)
-            if (ch) ch.userName = localUserNameRef.current
+        // Add buffered agents now that layout (and seats) are correct (skip in guest mode)
+        if (syncModeRef.current !== 'guest') {
+          for (const p of pendingAgents) {
+            os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName, p.isExternal, p.projectId)
+          }
+          // Tag restored agents with local username
+          for (const p of pendingAgents) {
+            if (!p.isExternal) {
+              const ch = os.characters.get(p.id)
+              if (ch) ch.userName = localUserNameRef.current
+            }
           }
         }
         pendingAgents = []
@@ -142,7 +172,9 @@ export function useExtensionMessages(
         const projectId = msg.projectId as string | undefined
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]))
         if (!isExternal) setSelectedAgent(id)
-        os.addAgent(id, undefined, undefined, undefined, undefined, folderName, isExternal, projectId)
+        // Use deterministic palette based on userName for consistent appearance across clients
+        const userPalette = localUserNameRef.current ? AvatarIdentity.fromUserName(localUserNameRef.current) : undefined
+        os.addAgent(id, userPalette?.palette, userPalette?.hueShift, undefined, undefined, folderName, isExternal, projectId)
         // Tag new local agent with local username
         if (!isExternal) {
           const ch = os.characters.get(id)
@@ -397,6 +429,7 @@ export function useExtensionMessages(
         if (msg.userName !== undefined) {
           setUserName(msg.userName as string)
         }
+        setSettingsReady(true)
       } else if (msg.type === 'settingChanged') {
         const key = msg.key as string
         const value = msg.value
@@ -428,21 +461,6 @@ export function useExtensionMessages(
             ch.userName = name
           }
         }
-      } else if (msg.type === 'remoteAgents') {
-        const clients = msg.clients as Array<{
-          clientId: string
-          userName: string
-          agents: Array<{
-            id: number
-            name: string
-            status: string
-            activeTool?: string
-            seatId?: string
-            palette: number
-            hueShift: number
-          }>
-        }>
-        os.updateRemoteAgents(clients)
       }
     }
     window.addEventListener('message', handler)
@@ -450,5 +468,80 @@ export function useExtensionMessages(
     return () => window.removeEventListener('message', handler)
   }, [getOfficeState])
 
-  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways, localUserName, serverUrl, userName }
+  // Cleanup sync resources on unmount
+  useEffect(() => {
+    return () => {
+      syncManagerRef.current?.dispose()
+      syncManagerRef.current = null
+      remoteCharManagerRef.current?.dispose()
+      remoteCharManagerRef.current = null
+    }
+  }, [])
+
+  const putLayout = useCallback((layout: unknown) => {
+    syncManagerRef.current?.putLayout(layout)
+  }, [])
+
+  /** Called when user makes a choice in the WelcomeModal (Connect/Guest/Offline) */
+  const activateSync = useCallback((mode: SyncMode) => {
+    setSyncMode(mode)
+    syncModeRef.current = mode
+    // When entering guest mode, remove all local characters
+    if (mode === 'guest') {
+      const os = getOfficeState()
+      for (const ch of [...os.characters.values()]) {
+        if (!ch.isRemote) {
+          os.removeAgent(ch.id)
+        }
+      }
+      setAgents([])
+    }
+    if (mode === 'offline') return
+
+    // Create RemoteCharacterManager and SyncManager
+    const os = getOfficeState()
+    remoteCharManagerRef.current = new RemoteCharacterManager(os)
+
+    syncManagerRef.current = new SyncManager({
+      serverUrl,
+      userName: userName || 'Anonymous',
+      mode,
+      heartbeatIntervalMs: 250,
+      getLocalAgents: () => {
+        const os = getOfficeState()
+        const result: AgentSnapshot[] = []
+        for (const ch of os.characters.values()) {
+          if (ch.isRemote || ch.isSubagent) continue
+          result.push({
+            id: ch.id,
+            name: `Agent ${ch.id}`,
+            status: ch.isActive ? 'active' : (ch.bubbleType === 'permission' ? 'permission' : (ch.bubbleType === 'waiting' ? 'waiting' : 'idle')),
+            activeTool: ch.currentTool || undefined,
+            appearance: { palette: ch.palette, hueShift: ch.hueShift },
+            x: ch.x,
+            y: ch.y,
+            dir: ch.dir,
+            state: ch.state,
+            frame: ch.frame,
+          })
+        }
+        return result
+      },
+      onPresence: (clients) => {
+        remoteCharManagerRef.current?.updatePresence(clients)
+      },
+      onRemoteLayout: (layout) => {
+        if (isEditDirtyRef.current?.()) return
+        const os = getOfficeState()
+        const migrated = migrateLayoutColors(layout as OfficeLayout)
+        if (migrated) {
+          os.rebuildFromLayout(migrated)
+          onLayoutLoadedRef.current?.(migrated)
+        }
+      },
+    })
+    syncManagerRef.current.activate()
+  }, [getOfficeState, serverUrl, userName])
+
+  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways, localUserName, serverUrl, userName, settingsReady, putLayout, syncMode, activateSync, remoteCharManagerRef }
 }

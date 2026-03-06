@@ -41,7 +41,6 @@ const BASH_COMMAND_DISPLAY_MAX_LENGTH = 30
 const TASK_DESCRIPTION_DISPLAY_MAX_LENGTH = 40
 
 const SYNC_HEARTBEAT_INTERVAL_MS = 2000
-const SYNC_LAYOUT_POLL_INTERVAL_MS = 3000
 const SYNC_RECONNECT_BASE_MS = 1000
 const SYNC_RECONNECT_MAX_MS = 10000
 
@@ -69,6 +68,11 @@ interface AgentState {
   hadToolsInTurn: boolean
   tasks: Map<string, { taskId: string; subject: string; status: string }>
   folderName?: string
+  palette?: number
+  hueShift?: number
+  charX?: number
+  charY?: number
+  charDir?: number
 }
 
 // ── Global State ────────────────────────────────────────────
@@ -916,6 +920,18 @@ function handleOpenClaude(): void {
 }
 
 // ── Multiuser Sync ──────────────────────────────────────
+function pickPaletteForUser(userName: string): { palette: number; hueShift: number } {
+  let hash = 0
+  for (let i = 0; i < userName.length; i++) {
+    hash = ((hash << 5) - hash + userName.charCodeAt(i)) | 0
+  }
+  const PALETTE_COUNT = 6
+  const palette = ((hash % PALETTE_COUNT) + PALETTE_COUNT) % PALETTE_COUNT
+  const hueHash = ((hash >>> 16) ^ hash) & 0xffff
+  const hueShift = hueHash % 360
+  return { palette, hueShift }
+}
+
 function getSyncHttpBase(): string {
   const settings = loadSettings()
   return settings.serverUrl.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:')
@@ -992,7 +1008,14 @@ function syncSendHeartbeat(): void {
     activeTool?: string
     palette: number
     hueShift: number
+    x?: number
+    y?: number
+    dir?: number
   }
+
+  const syncSettings = loadSettings()
+  const syncUserName = syncSettings.userName || os.userInfo().username || 'Anonymous'
+  const userPalette = pickPaletteForUser(syncUserName)
 
   const remoteAgents: SyncRemoteAgent[] = []
   for (const [id, agent] of agents) {
@@ -1006,7 +1029,7 @@ function syncSendHeartbeat(): void {
     let activeTool: string | undefined
     for (const toolName of agent.activeToolNames.values()) { activeTool = toolName; break }
 
-    remoteAgents.push({ id, name: `Agent ${id}`, status, activeTool, palette: 0, hueShift: 0 })
+    remoteAgents.push({ id, name: `Agent ${id}`, status, activeTool, palette: agent.palette ?? userPalette.palette, hueShift: agent.hueShift ?? userPalette.hueShift, x: agent.charX, y: agent.charY, dir: agent.charDir })
   }
 
   syncWs.send(JSON.stringify({ type: 'heartbeat', agents: remoteAgents }))
@@ -1042,46 +1065,11 @@ function syncFetchLayout(): void {
   req.on('error', (err: Error) => { console.error('[SyncClient] Layout fetch error:', err) })
 }
 
-function syncPutLayout(layout: Record<string, unknown>): void {
-  const httpBase = getSyncHttpBase()
-  if (!httpBase) return
-  const json = JSON.stringify(layout)
-  const url = new URL('/layout', httpBase)
-  const mod = url.protocol === 'https:' ? require('https') : require('http')
-
-  const req = mod.request(url.toString(), {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(json).toString() },
-  }, (res: import('http').IncomingMessage) => {
-    let body = ''
-    res.on('data', (chunk: string) => { body += chunk })
-    res.on('end', () => {
-      if (res.statusCode === 200) {
-        try { syncLayoutEtag = JSON.parse(body).etag } catch { /* ignore */ }
-      }
-    })
-  })
-  req.on('error', (err: Error) => { console.error('[SyncClient] Layout PUT error:', err) })
-  req.write(json)
-  req.end()
-}
-
-function syncStartLayoutPolling(): void {
-  if (syncLayoutPollTimer) return
-  syncLayoutPollTimer = setInterval(syncFetchLayout, SYNC_LAYOUT_POLL_INTERVAL_MS)
-}
+// syncPutLayout and syncStartLayoutPolling removed — handled by webview's SyncManager
 
 function syncInit(): void {
+  // Sync is handled directly by the webview's SyncManager — no Electron middleman
   const settings = loadSettings()
-  if (!settings.serverUrl) {
-    console.log('[SyncClient] No server URL — offline mode')
-    return
-  }
-  console.log(`[SyncClient] Connecting to ${settings.serverUrl}`)
-  syncConnect()
-  syncStartLayoutPolling()
-
-  // Send local userName to webview
   const userName = settings.userName || os.userInfo().username || 'Anonymous'
   getEmitter()?.postMessage({ type: 'localUserName', userName })
 }
@@ -1120,7 +1108,7 @@ function setupIPC(): void {
       }
     } else if (message.type === 'saveLayout') {
       writeLayoutToFile(message.layout as Record<string, unknown>)
-      syncPutLayout(message.layout as Record<string, unknown>)
+      // Layout sync to server is handled by the webview's SyncManager
     } else if (message.type === 'setSoundEnabled') {
       setSetting('soundEnabled', message.enabled as boolean)
     } else if (message.type === 'setShowLabelsAlways') {
@@ -1191,8 +1179,26 @@ function setupIPC(): void {
       setSetting('externalSessionsScope', message.scope as 'currentProject' | 'allProjects')
     } else if (message.type === 'openSessionsFolder') {
       // No-op in standalone (no VS Code to open explorer)
+    } else if (message.type === 'syncPositions') {
+      const positions = message.positions as Array<{ id: number; x: number; y: number; dir: number }>
+      for (const pos of positions) {
+        const agent = agents.get(pos.id)
+        if (agent) {
+          agent.charX = pos.x
+          agent.charY = pos.y
+          agent.charDir = pos.dir
+        }
+      }
     } else if (message.type === 'saveAgentSeats') {
-      // Persisted in memory only for standalone (no workspace state)
+      // Sync palette/hueShift to agent state for heartbeat broadcasting
+      const seats = message.seats as Record<number, { palette: number; hueShift: number; seatId: string | null }>
+      for (const [idStr, data] of Object.entries(seats)) {
+        const agent = agents.get(Number(idStr))
+        if (agent) {
+          agent.palette = data.palette
+          agent.hueShift = data.hueShift
+        }
+      }
     } else if (message.type === 'setServerUrl') {
       setSetting('serverUrl', (message.url as string) || '')
     } else if (message.type === 'setUserName') {

@@ -8,6 +8,9 @@ export interface RemoteAgent {
   seatId?: string;
   palette: number;
   hueShift: number;
+  x?: number;
+  y?: number;
+  dir?: number;
 }
 
 export interface ClientState {
@@ -34,7 +37,12 @@ export interface HeartbeatMessage {
   agents: RemoteAgent[];
 }
 
-export type ClientMessage = JoinMessage | HeartbeatMessage;
+export interface LayoutPutMessage {
+  type: 'layoutPut';
+  layout: string;
+}
+
+export type ClientMessage = JoinMessage | HeartbeatMessage | LayoutPutMessage;
 
 export interface PresenceMessage {
   type: 'presence';
@@ -46,4 +54,17 @@ export interface LayoutChangedMessage {
   etag: string;
 }
 
-export type ServerMessage = PresenceMessage | LayoutChangedMessage;
+export interface WelcomeMessage {
+  type: 'welcome';
+  clientId: string;
+  layoutJson: string;
+  layoutEtag: string;
+}
+
+export interface LayoutFullMessage {
+  type: 'layoutFull';
+  layoutJson: string;
+  layoutEtag: string;
+}
+
+export type ServerMessage = PresenceMessage | LayoutChangedMessage | WelcomeMessage | LayoutFullMessage;

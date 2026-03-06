@@ -15,10 +15,6 @@ import {
   INTERACT_EMOJI_DURATION_SEC,
   INTERACT_STAY_SEC_MIN,
   INTERACT_STAY_SEC_MAX,
-  SUBAGENT_WALK_SPEED_PX_PER_SEC,
-  SUBAGENT_WALK_FRAME_DURATION_SEC,
-  SUBAGENT_PAUSE_MIN_SEC,
-  SUBAGENT_PAUSE_MAX_SEC,
   BATHROOM_USE_MIN_SEC,
   BATHROOM_USE_MAX_SEC,
   BATHROOM_CHANCE,
@@ -216,12 +212,12 @@ export function updateCharacter(
 
   switch (ch.state) {
     case CharacterState.TYPE: {
-      // Subagents never sit — immediately start running around
+      // Subagents never sit — immediately start wandering
       if (ch.isSubagent) {
         ch.state = CharacterState.IDLE
         ch.frame = 0
         ch.frameTimer = 0
-        ch.wanderTimer = randomRange(SUBAGENT_PAUSE_MIN_SEC, SUBAGENT_PAUSE_MAX_SEC)
+        ch.wanderTimer = randomRange(WANDER_PAUSE_MIN_SEC, WANDER_PAUSE_MAX_SEC)
         break
       }
       if (ch.frameTimer >= TYPE_FRAME_DURATION_SEC) {
@@ -243,28 +239,8 @@ export function updateCharacter(
       ch.frame = 0
       if (ch.seatTimer < 0) ch.seatTimer = 0 // clear turn-end sentinel
 
-      // Subagents always run around — never go to seat
-      if (ch.isSubagent) {
-        ch.wanderTimer -= dt
-        if (ch.wanderTimer <= 0) {
-          if (walkableTiles.length > 0) {
-            const target = walkableTiles[Math.floor(Math.random() * walkableTiles.length)]
-            const path = findPath(ch.tileCol, ch.tileRow, target.col, target.row, tileMap, blockedTiles)
-            if (path.length > 0) {
-              ch.path = path
-              ch.moveProgress = 0
-              ch.state = CharacterState.WALK
-              ch.frame = 0
-              ch.frameTimer = 0
-            }
-          }
-          ch.wanderTimer = randomRange(SUBAGENT_PAUSE_MIN_SEC, SUBAGENT_PAUSE_MAX_SEC)
-        }
-        break
-      }
-
-      // If became active, pathfind to seat
-      if (ch.isActive) {
+      // If became active, pathfind to seat (subagents skip — they never sit)
+      if (ch.isActive && !ch.isSubagent) {
         if (!ch.seatId) {
           // No seat assigned — type in place
           ch.state = CharacterState.TYPE
@@ -449,10 +425,8 @@ export function updateCharacter(
     }
 
     case CharacterState.WALK: {
-      // Walk animation — subagents animate faster (kids running)
-      const walkFrameDur = ch.isSubagent ? SUBAGENT_WALK_FRAME_DURATION_SEC : WALK_FRAME_DURATION_SEC
-      if (ch.frameTimer >= walkFrameDur) {
-        ch.frameTimer -= walkFrameDur
+      if (ch.frameTimer >= WALK_FRAME_DURATION_SEC) {
+        ch.frameTimer -= WALK_FRAME_DURATION_SEC
         ch.frame = (ch.frame + 1) % 4
       }
 
@@ -462,16 +436,7 @@ export function updateCharacter(
         ch.x = center.x
         ch.y = center.y
 
-        // Subagents never sit — just keep running
-        if (ch.isSubagent) {
-          ch.state = CharacterState.IDLE
-          ch.wanderTimer = randomRange(SUBAGENT_PAUSE_MIN_SEC, SUBAGENT_PAUSE_MAX_SEC)
-          ch.frame = 0
-          ch.frameTimer = 0
-          break
-        }
-
-        if (ch.isActive) {
+        if (ch.isActive && !ch.isSubagent) {
           ch.bathroomTarget = null // cancel bathroom trip if became active
           if (!ch.seatId) {
             // No seat — type in place
@@ -560,8 +525,7 @@ export function updateCharacter(
       const nextTile = ch.path[0]
       ch.dir = directionBetween(ch.tileCol, ch.tileRow, nextTile.col, nextTile.row)
 
-      const walkSpeed = ch.isSubagent ? SUBAGENT_WALK_SPEED_PX_PER_SEC : WALK_SPEED_PX_PER_SEC
-      ch.moveProgress += (walkSpeed / TILE_SIZE) * dt
+      ch.moveProgress += (WALK_SPEED_PX_PER_SEC / TILE_SIZE) * dt
 
       const fromCenter = tileCenter(ch.tileCol, ch.tileRow)
       const toCenter = tileCenter(nextTile.col, nextTile.row)

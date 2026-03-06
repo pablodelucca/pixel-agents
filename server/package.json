@@ -4,18 +4,23 @@
   "description": "Multiuser sync server for Pixel Agents",
   "type": "module",
   "main": "dist/index.js",
-  "bin": { "pixel-agents-server": "dist/index.js" },
+  "bin": {
+    "pixel-agents-server": "dist/index.js"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.13",
     "@types/node": "^22.0.0",
-    "typescript": "^5.7.0"
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
   }
 }

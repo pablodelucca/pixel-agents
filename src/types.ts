@@ -24,6 +24,14 @@ export interface AgentState {
 	tasks: Map<string, { taskId: string; subject: string; status: string }>;
 	/** Workspace folder name (only set for multi-root workspaces) */
 	folderName?: string;
+	/** Visual palette index (0-5), synced from webview */
+	palette?: number;
+	/** Hue shift in degrees, synced from webview */
+	hueShift?: number;
+	/** Character pixel position and direction, synced from webview for multiuser broadcast */
+	charX?: number;
+	charY?: number;
+	charDir?: number;
 }
 
 export interface PersistedAgent {

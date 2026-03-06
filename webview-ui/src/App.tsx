@@ -13,6 +13,7 @@ import { useEditorActions } from './hooks/useEditorActions.js'
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js'
 import { ZoomControls } from './components/ZoomControls.js'
 import { BottomToolbar } from './components/BottomToolbar.js'
+import { WelcomeModal } from './components/WelcomeModal.js'
 import { DebugView } from './components/DebugView.js'
 
 // Game state lives outside React — updated imperatively by message handlers
@@ -124,13 +125,21 @@ function App() {
   os.onLayoutChanged = (layout) => {
     vscode.postMessage({ type: 'saveLayout', layout })
     editor.setLastSavedLayout(layout)
+    putLayout(layout)
   }
 
   const isEditDirty = useCallback(() => editor.isEditMode && editor.isDirty, [editor.isEditMode, editor.isDirty])
 
-  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways, localUserName, serverUrl, userName } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
+  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways, localUserName, serverUrl, userName, settingsReady, putLayout, activateSync, remoteCharManagerRef } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
+
+  // Wire up remote character interpolation into the game loop
+  os.onInterpolateRemote = (dt) => {
+    remoteCharManagerRef.current?.interpolate(dt)
+  }
 
   const [isDebugMode, setIsDebugMode] = useState(false)
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false)
+  const showWelcome = settingsReady && !welcomeDismissed
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
 
@@ -207,6 +216,23 @@ function App() {
         }
         .pixel-agents-pulse { animation: pixel-agents-pulse ${PULSE_ANIMATION_DURATION_SEC}s ease-in-out infinite; }
       `}</style>
+
+      {showWelcome && (
+        <WelcomeModal
+          initialServerUrl={serverUrl}
+          initialUserName={userName}
+          onDone={(opts) => {
+            if (!opts) {
+              activateSync('offline')
+            } else if (opts.guestMode) {
+              activateSync('guest')
+            } else {
+              activateSync('connect')
+            }
+            setWelcomeDismissed(true)
+          }}
+        />
+      )}
 
       <OfficeCanvas
         officeState={officeState}

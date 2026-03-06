@@ -77,6 +77,11 @@
           "type": "string",
           "default": "",
           "description": "Your display name shown under your agents in the shared office."
+        },
+        "pixel-agents.guestMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Guest mode: only shows remote agents wandering. Does not watch Claude activity or emit agent data to the server."
         }
       }
     }

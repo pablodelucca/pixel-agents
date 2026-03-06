@@ -1,8 +1,5 @@
 import { TILE_SIZE, MATRIX_EFFECT_DURATION, CharacterState, Direction, TileType, FurnitureType, MAX_COLS, MAX_ROWS } from '../types.js'
 import {
-  PALETTE_COUNT,
-  HUE_SHIFT_MIN_DEG,
-  HUE_SHIFT_RANGE_DEG,
   WAITING_BUBBLE_DURATION_SEC,
   DISMISS_BUBBLE_FAST_FADE_SEC,
   INACTIVE_SEAT_TIMER_MIN_SEC,
@@ -42,6 +39,7 @@ import {
 } from '../layout/layoutSerializer.js'
 import { getCatalogEntry, getOnStateType } from '../layout/furnitureCatalog.js'
 import { expandLayout } from '../editor/editorActions.js'
+import { AvatarIdentity } from '../../avatar/AvatarIdentity.js'
 
 export class OfficeState {
   layout: OfficeLayout
@@ -63,10 +61,6 @@ export class OfficeState {
   subagentMeta: Map<number, { parentAgentId: number; parentToolId: string }> = new Map()
   private nextSubagentId = -1
 
-  /** Track remote character IDs for cleanup. Maps "clientId:agentId" → character ID */
-  remoteCharacterMap: Map<string, number> = new Map()
-  private nextRemoteId = -10000
-
   // ── Zone data ──────────────────────────────────────────────
   /** Per-tile zone assignment (parallel to layout.tiles). null = lobby */
   zoneMap: Array<string | null> = []
@@ -78,6 +72,7 @@ export class OfficeState {
   knownProjects: Set<string> = new Set()
   /** Callback to save layout when rooms are generated */
   onLayoutChanged?: (layout: OfficeLayout) => void
+  onInterpolateRemote?: (dt: number) => void
   /** Callback when a kamehameha is initiated (to play sound) */
   onKamehameha?: () => void
 
@@ -502,33 +497,6 @@ export class OfficeState {
     return null
   }
 
-  /**
-   * Pick a diverse palette for a new agent based on currently active agents.
-   * First 6 agents each get a unique skin (random order). Beyond 6, skins
-   * repeat in balanced rounds with a random hue shift (≥45°).
-   */
-  private pickDiversePalette(): { palette: number; hueShift: number } {
-    // Count how many non-sub-agents use each base palette (0-5)
-    const counts = new Array(PALETTE_COUNT).fill(0) as number[]
-    for (const ch of this.characters.values()) {
-      if (ch.isSubagent) continue
-      counts[ch.palette]++
-    }
-    const minCount = Math.min(...counts)
-    // Available = palettes at the minimum count (least used)
-    const available: number[] = []
-    for (let i = 0; i < PALETTE_COUNT; i++) {
-      if (counts[i] === minCount) available.push(i)
-    }
-    const palette = available[Math.floor(Math.random() * available.length)]
-    // First round (minCount === 0): no hue shift. Subsequent rounds: random ≥45°.
-    let hueShift = 0
-    if (minCount > 0) {
-      hueShift = HUE_SHIFT_MIN_DEG + Math.floor(Math.random() * HUE_SHIFT_RANGE_DEG)
-    }
-    return { palette, hueShift }
-  }
-
   addAgent(id: number, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean, folderName?: string, isExternal?: boolean, projectId?: string): void {
     if (this.characters.has(id)) return
 
@@ -543,7 +511,10 @@ export class OfficeState {
       palette = preferredPalette
       hueShift = preferredHueShift ?? 0
     } else {
-      const pick = this.pickDiversePalette()
+      const existing = [...this.characters.values()]
+        .filter(ch => !ch.isSubagent)
+        .map(ch => ({ palette: ch.palette, hueShift: ch.hueShift }))
+      const pick = AvatarIdentity.pickDiverse(existing)
       palette = pick.palette
       hueShift = pick.hueShift
     }
@@ -592,101 +563,6 @@ export class OfficeState {
       ch.matrixEffectSeeds = matrixEffectSeeds()
     }
     this.characters.set(id, ch)
-  }
-
-  updateRemoteAgents(clients: Array<{
-    clientId: string
-    userName: string
-    agents: Array<{
-      id: number
-      name: string
-      status: string
-      activeTool?: string
-      seatId?: string
-      palette: number
-      hueShift: number
-    }>
-  }>): void {
-    const expectedKeys = new Set<string>()
-    for (const client of clients) {
-      for (const agent of client.agents) {
-        expectedKeys.add(`${client.clientId}:${agent.id}`)
-      }
-    }
-
-    // Remove remote characters no longer present (start despawn)
-    for (const [key, charId] of this.remoteCharacterMap) {
-      if (!expectedKeys.has(key)) {
-        const ch = this.characters.get(charId)
-        if (ch && !ch.matrixEffect) {
-          ch.matrixEffect = 'despawn'
-          ch.matrixEffectTimer = 0
-          ch.matrixEffectSeeds = matrixEffectSeeds()
-        }
-        this.remoteCharacterMap.delete(key)
-      }
-    }
-
-    // Add or update remote characters
-    for (const client of clients) {
-      for (const agent of client.agents) {
-        const key = `${client.clientId}:${agent.id}`
-        const charId = this.remoteCharacterMap.get(key)
-
-        if (charId !== undefined && this.characters.has(charId)) {
-          // Update existing remote character
-          const ch = this.characters.get(charId)!
-          const wasActive = ch.isActive
-          ch.isActive = agent.status === 'active'
-          ch.currentTool = agent.activeTool || null
-          ch.userName = client.userName
-
-          if (agent.status === 'permission') {
-            ch.bubbleType = 'permission'
-          } else if (agent.status === 'waiting') {
-            if (ch.bubbleType !== 'waiting') {
-              ch.bubbleType = 'waiting'
-              ch.bubbleTimer = 2
-            }
-          } else {
-            if (ch.bubbleType === 'permission' || ch.bubbleType === 'waiting') {
-              ch.bubbleType = null
-            }
-          }
-
-          // Trigger state changes for animation
-          if (ch.isActive && !wasActive && ch.seatId) {
-            // Became active — will pathfind to seat via updateCharacter
-            void wasActive
-          }
-        } else {
-          // Create new remote character
-          const newId = this.nextRemoteId--
-          const seatId = this.findFreeSeat()
-          const seatObj = seatId ? this.seats.get(seatId) : null
-          if (seatObj) seatObj.assigned = true
-
-          const ch = createCharacter(newId, agent.palette, seatId, seatObj || null, agent.hueShift)
-          ch.isRemote = true
-          ch.userName = client.userName
-          ch.isActive = agent.status === 'active'
-          ch.currentTool = agent.activeTool || null
-          ch.matrixEffect = 'spawn'
-          ch.matrixEffectTimer = 0
-          ch.matrixEffectSeeds = matrixEffectSeeds()
-
-          if (agent.status === 'permission') {
-            ch.bubbleType = 'permission'
-          } else if (agent.status === 'waiting') {
-            ch.bubbleType = 'waiting'
-            ch.bubbleTimer = 2
-          }
-
-          this.characters.set(newId, ch)
-          this.remoteCharacterMap.set(key, newId)
-        }
-      }
-    }
   }
 
   removeAgent(id: number): void {
@@ -981,7 +857,7 @@ export class OfficeState {
     // Collect tiles where active agents face desks
     const autoOnTiles = new Set<string>()
     for (const ch of this.characters.values()) {
-      if (!ch.isActive || !ch.seatId) continue
+      if (!ch.isActive || !ch.seatId || ch.isRemote) continue
       const seat = this.seats.get(ch.seatId)
       if (!seat) continue
       // Find the desk tile(s) the agent faces from their seat
@@ -1123,12 +999,15 @@ export class OfficeState {
         continue // skip normal FSM while effect is active
       }
 
-      // Temporarily unblock own seat so character can pathfind to it
-      // Subagents (kids) roam the entire office; others use zone-filtered tiles
-      const wanderTiles = ch.isSubagent ? this.walkableTiles : this.getAgentWalkableTiles(ch)
-      this.withOwnSeatUnblocked(ch, () =>
-        updateCharacter(ch, dt, wanderTiles, this.seats, this.tileMap, this.blockedTiles, this.layout.furniture, this.bathroomTiles)
-      )
+      // Remote characters are driven by RemoteCharacterManager.interpolate()
+      if (ch.isRemote) continue
+
+      {
+        const wanderTiles = ch.isSubagent ? this.walkableTiles : this.getAgentWalkableTiles(ch)
+        this.withOwnSeatUnblocked(ch, () =>
+          updateCharacter(ch, dt, wanderTiles, this.seats, this.tileMap, this.blockedTiles, this.layout.furniture, this.bathroomTiles)
+        )
+      }
 
       // Tick bubble timer for waiting bubbles
       if (ch.bubbleType === 'waiting') {
@@ -1139,6 +1018,10 @@ export class OfficeState {
         }
       }
     }
+
+    // Interpolate remote characters (driven by RemoteCharacterManager)
+    this.onInterpolateRemote?.(dt)
+
     // Kamehameha: check for fire phase transitions → start knockback on targets
     for (const ch of this.characters.values()) {
       if (ch.state !== CharacterState.KAMEHAMEHA || ch.kamehamehaPhase !== 'fire') continue

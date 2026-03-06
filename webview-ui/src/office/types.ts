@@ -224,6 +224,10 @@ export interface Character {
   isExternal?: boolean
   /** Whether this character belongs to a remote user (multiuser mode) */
   isRemote?: boolean
+  /** Target position for remote character interpolation */
+  remoteTargetX?: number
+  remoteTargetY?: number
+  remoteTargetDir?: Direction
   /** Display name of the user who owns this character */
   userName?: string
   /** Project identifier for zone assignment */
