@@ -111,3 +111,14 @@ export const CHARACTER_HIT_HALF_WIDTH = 8
 export const CHARACTER_HIT_HEIGHT = 24
 export const TOOL_OVERLAY_VERTICAL_OFFSET = 32
 export const PULSE_ANIMATION_DURATION_SEC = 1.5
+
+// ── Foosball ─────────────────────────────────────────────────
+export const FOOSBALL_BALL_SPEED_PX_PER_SEC = 40
+export const FOOSBALL_BALL_RADIUS = 1.5
+export const FOOSBALL_WINNING_SCORE = 3
+export const FOOSBALL_GAME_IDLE_CHECK_SEC = 2.0
+export const FOOSBALL_POST_GAME_PAUSE_SEC = 3.0
+export const FOOSBALL_BALL_COLOR = '#FFFFFF'
+export const FOOSBALL_SCORE_COLOR = '#FFFFFF'
+export const FOOSBALL_TABLE_INNER_MARGIN = 3
+export const FOOSBALL_SCORE_FONT_SIZE = 5

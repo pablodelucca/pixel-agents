@@ -1120,3 +1120,52 @@ export function getCharacterSprites(paletteIndex: number, hueShift = 0): Charact
   spriteCache.set(cacheKey, sprites)
   return sprites
 }
+
+/** Foosball table: 32x16 pixels (2 tiles wide × 1 tile tall), top-down view */
+export const FOOSBALL_TABLE_SPRITE: SpriteData = (() => {
+  const B = '#5C3A1E' // brown border
+  const D = '#4A2E14' // dark wood edge
+  const G = '#2E8B3E' // green field
+  const F = '#3AA54E' // lighter green field
+  const R = '#8B8B8B' // rod (silver)
+  const W = '#FFFFFF' // goal line / markings
+  const T = ''        // transparent
+
+  // 16 rows × 32 cols
+  const rows: string[][] = []
+
+  // Row 0: top edge
+  rows.push([T, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, T])
+  // Row 1: border with goal openings
+  rows.push([T, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, T])
+  // Row 2: border top inner
+  rows.push([T, B, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, B, T])
+  // Row 3: field start - goal area
+  rows.push([T, B, D, W, G, G, F, G, G, G, F, G, G, G, G, G, G, G, G, F, G, G, G, F, G, G, G, G, W, D, B, T])
+  // Row 4: field with rod 1
+  rows.push([T, B, D, W, G, G, R, G, G, G, R, G, G, G, G, G, G, G, G, R, G, G, G, R, G, G, G, G, W, D, B, T])
+  // Row 5: field
+  rows.push([T, B, D, W, G, G, F, G, G, G, F, G, G, G, G, G, G, G, G, F, G, G, G, F, G, G, G, G, W, D, B, T])
+  // Row 6: field with center line
+  rows.push([T, B, D, W, G, G, F, G, G, G, F, G, G, G, G, W, W, G, G, F, G, G, G, F, G, G, G, G, W, D, B, T])
+  // Row 7: center - center circle area
+  rows.push([T, B, D, G, G, G, F, G, G, G, F, G, G, W, W, G, G, W, W, F, G, G, G, F, G, G, G, G, G, D, B, T])
+  // Row 8: center - center circle area
+  rows.push([T, B, D, G, G, G, F, G, G, G, F, G, G, W, W, G, G, W, W, F, G, G, G, F, G, G, G, G, G, D, B, T])
+  // Row 9: field with center line
+  rows.push([T, B, D, W, G, G, F, G, G, G, F, G, G, G, G, W, W, G, G, F, G, G, G, F, G, G, G, G, W, D, B, T])
+  // Row 10: field
+  rows.push([T, B, D, W, G, G, F, G, G, G, F, G, G, G, G, G, G, G, G, F, G, G, G, F, G, G, G, G, W, D, B, T])
+  // Row 11: field with rod 2
+  rows.push([T, B, D, W, G, G, R, G, G, G, R, G, G, G, G, G, G, G, G, R, G, G, G, R, G, G, G, G, W, D, B, T])
+  // Row 12: field end - goal area
+  rows.push([T, B, D, W, G, G, F, G, G, G, F, G, G, G, G, G, G, G, G, F, G, G, G, F, G, G, G, G, W, D, B, T])
+  // Row 13: border bottom inner
+  rows.push([T, B, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, B, T])
+  // Row 14: border bottom
+  rows.push([T, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, B, T])
+  // Row 15: bottom edge
+  rows.push([T, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, T])
+
+  return rows
+})()

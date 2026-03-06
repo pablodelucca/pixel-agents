@@ -6,6 +6,7 @@ import { getCharacterSprite } from './characters.js'
 import { renderMatrixEffect } from './matrixEffect.js'
 import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js'
 import { hasWallSprites, getWallInstances, wallColorToHex } from '../wallTiles.js'
+import type { FoosballManager } from './foosball.js'
 import {
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_Z_SORT_OFFSET,
@@ -24,6 +25,10 @@ import {
   BUBBLE_SITTING_OFFSET_PX,
   BUBBLE_VERTICAL_OFFSET_PX,
   FALLBACK_FLOOR_COLOR,
+  FOOSBALL_BALL_RADIUS,
+  FOOSBALL_BALL_COLOR,
+  FOOSBALL_SCORE_COLOR,
+  FOOSBALL_SCORE_FONT_SIZE,
   SEAT_OWN_COLOR,
   SEAT_AVAILABLE_COLOR,
   SEAT_BUSY_COLOR,
@@ -494,6 +499,44 @@ export interface ButtonBounds {
 export type DeleteButtonBounds = ButtonBounds
 export type RotateButtonBounds = ButtonBounds
 
+// ── Foosball overlay ────────────────────────────────────────────
+
+export function renderFoosball(
+  ctx: CanvasRenderingContext2D,
+  foosballManager: FoosballManager,
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  for (const game of foosballManager.getGames()) {
+    if (game.phase === 'walking') continue
+
+    // Draw ball
+    const bx = offsetX + game.ballX * zoom
+    const by = offsetY + game.ballY * zoom
+    const br = FOOSBALL_BALL_RADIUS * zoom
+    ctx.save()
+    ctx.fillStyle = FOOSBALL_BALL_COLOR
+    ctx.beginPath()
+    ctx.arc(bx, by, br, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+
+    // Draw scoreboard above table
+    const tablePixelX = game.tableCol * TILE_SIZE
+    const tableCenterX = offsetX + (tablePixelX + TILE_SIZE) * zoom
+    const scoreY = offsetY + (game.tableRow * TILE_SIZE - 2) * zoom
+
+    ctx.save()
+    ctx.fillStyle = FOOSBALL_SCORE_COLOR
+    ctx.font = `${Math.max(FOOSBALL_SCORE_FONT_SIZE * zoom, 6)}px monospace`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'bottom'
+    ctx.fillText(`${game.scores[0]} - ${game.scores[1]}`, tableCenterX, scoreY)
+    ctx.restore()
+  }
+}
+
 export interface EditorRenderState {
   showGrid: boolean
   ghostSprite: SpriteData | null
@@ -541,6 +584,7 @@ export function renderFrame(
   tileColors?: Array<FloorColor | null>,
   layoutCols?: number,
   layoutRows?: number,
+  foosballManager?: FoosballManager,
 ): { offsetX: number; offsetY: number } {
   // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
@@ -578,6 +622,11 @@ export function renderFrame(
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom)
+
+  // Foosball ball and scoreboard overlay
+  if (foosballManager) {
+    renderFoosball(ctx, foosballManager, offsetX, offsetY, zoom)
+  }
 
   // Editor overlays
   if (editor) {
