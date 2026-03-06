@@ -2,7 +2,7 @@ import type { Character, Direction } from '../office/types.js'
 import type { OfficeState } from '../office/engine/officeState.js'
 import type { PresenceClient, AgentSnapshot } from './types.js'
 import { CharacterState } from '../office/types.js'
-import { TILE_SIZE, WALK_SPEED_PX_PER_SEC } from '../constants.js'
+import { TILE_SIZE, WALK_SPEED_PX_PER_SEC, CHAT_MESSAGE_DURATION_SEC } from '../constants.js'
 import { createCharacter } from '../office/engine/characters.js'
 import { matrixEffectSeeds } from '../office/engine/matrixEffect.js'
 
@@ -88,6 +88,16 @@ export class RemoteCharacterManager {
 
   completeDespawn(charId: number): void {
     this.despawning.delete(charId)
+  }
+
+  applyChat(clientId: string, agentId: number, msg: string): void {
+    const key = `${clientId}:${agentId}`
+    const charId = this.remoteMap.get(key)
+    if (charId === undefined) return
+    const ch = this.os.characters.get(charId)
+    if (!ch) return
+    ch.chatMessage = msg
+    ch.chatMessageTimer = CHAT_MESSAGE_DURATION_SEC
   }
 
   dispose(): void {

@@ -55,6 +55,8 @@ vi.mock('../../office/engine/characters.js', () => ({
     chatEmojis: [],
     chatEmojiIndex: 0,
     chatEmojiTimer: 0,
+    chatMessage: null,
+    chatMessageTimer: 0,
   }),
 }))
 
@@ -211,5 +213,26 @@ describe('RemoteCharacterManager', () => {
     mgr.updatePresence([makePresence('c1', [makeAgent({ x: 48.5, y: 48 })])])
     mgr.interpolate(0.01)
     expect(ch.x).toBe(48.5)
+  })
+
+  it('applyChat sets chatMessage on remote character', () => {
+    const clients: PresenceClient[] = [{
+      clientId: 'c1',
+      userName: 'Alice',
+      agents: [{ id: 1, name: 'A1', status: 'idle' as const, appearance: { palette: 0, hueShift: 0 }, x: 50, y: 50, dir: 0, state: 'idle', frame: 0 }],
+    }]
+    mgr.updatePresence(clients)
+
+    mgr.applyChat('c1', 1, 'Hello world!')
+
+    const remoteChars = [...os.characters.values()].filter(ch => ch.isRemote)
+    expect(remoteChars).toHaveLength(1)
+    expect(remoteChars[0].chatMessage).toBe('Hello world!')
+    expect(remoteChars[0].chatMessageTimer).toBeGreaterThan(0)
+  })
+
+  it('applyChat ignores unknown clientId:agentId', () => {
+    mgr.applyChat('unknown', 99, 'No target')
+    expect(os.characters.size).toBe(0)
   })
 })
