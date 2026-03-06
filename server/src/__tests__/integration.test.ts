@@ -74,6 +74,30 @@ describe('Server Integration', () => {
     b.ws.close()
   })
 
+  it('layoutPut sender does not receive layoutFull echo', async () => {
+    const a = await connectClient()
+    const b = await connectClient()
+
+    a.ws.send(JSON.stringify({ type: 'join', userName: 'Alice' }))
+    await waitForMessage(a.messages, 'presence')
+
+    a.ws.send(JSON.stringify({ type: 'layoutPut', layout: '{"version":1,"tiles":[]}' }))
+
+    // B should get layoutFull
+    await waitForMessage(b.messages, 'layoutFull')
+    const bLayout = b.messages.find(m => m.type === 'layoutFull')
+    expect(bLayout).toBeDefined()
+    expect(JSON.parse(bLayout.layoutJson)).toEqual({ version: 1, tiles: [] })
+
+    // A should NOT get layoutFull (wait a bit then check)
+    await new Promise(r => setTimeout(r, 200))
+    const aLayout = a.messages.find(m => m.type === 'layoutFull')
+    expect(aLayout).toBeUndefined()
+
+    a.ws.close()
+    b.ws.close()
+  })
+
   it('client disconnect triggers updated presence', async () => {
     const a = await connectClient()
     const b = await connectClient()

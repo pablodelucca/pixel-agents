@@ -187,6 +187,85 @@ describe('SyncManager', () => {
     mgr.dispose()
   })
 
+  it('skips layoutFull when etag matches cached value', () => {
+    const onRemoteLayout = vi.fn()
+    const mgr = new SyncManager(makeConfig({ onRemoteLayout }))
+    mgr.activate()
+    mockTransportInstance.simulateOpen()
+
+    // First layoutFull should be applied
+    mockTransportInstance.simulateMessage({
+      type: 'layoutFull',
+      layoutJson: '{"version":1}',
+      layoutEtag: 'etag-1',
+    })
+    expect(onRemoteLayout).toHaveBeenCalledTimes(1)
+
+    // Same etag again — should be skipped
+    mockTransportInstance.simulateMessage({
+      type: 'layoutFull',
+      layoutJson: '{"version":1}',
+      layoutEtag: 'etag-1',
+    })
+    expect(onRemoteLayout).toHaveBeenCalledTimes(1) // still 1
+
+    // Different etag — should be applied
+    mockTransportInstance.simulateMessage({
+      type: 'layoutFull',
+      layoutJson: '{"version":2}',
+      layoutEtag: 'etag-2',
+    })
+    expect(onRemoteLayout).toHaveBeenCalledTimes(2)
+    mgr.dispose()
+  })
+
+  it('applies welcome layout only on first connect, not on reconnect', () => {
+    const onRemoteLayout = vi.fn()
+    const mgr = new SyncManager(makeConfig({ onRemoteLayout }))
+    mgr.activate()
+    mockTransportInstance.simulateOpen()
+
+    // First welcome — should apply layout
+    mockTransportInstance.simulateMessage({
+      type: 'welcome',
+      clientId: 'c1',
+      layoutJson: '{"version":1}',
+      layoutEtag: 'etag-1',
+    })
+    expect(onRemoteLayout).toHaveBeenCalledTimes(1)
+
+    // Simulate disconnect + reconnect
+    mockTransportInstance.simulateClose()
+    vi.advanceTimersByTime(2000)
+    mockTransportInstance.simulateOpen()
+
+    // Second welcome (reconnect) — should NOT apply layout
+    mockTransportInstance.simulateMessage({
+      type: 'welcome',
+      clientId: 'c2',
+      layoutJson: '{"version":99}',
+      layoutEtag: 'etag-99',
+    })
+    expect(onRemoteLayout).toHaveBeenCalledTimes(1) // still 1
+    mgr.dispose()
+  })
+
+  it('skips welcome layout when layoutJson is empty object', () => {
+    const onRemoteLayout = vi.fn()
+    const mgr = new SyncManager(makeConfig({ onRemoteLayout }))
+    mgr.activate()
+    mockTransportInstance.simulateOpen()
+
+    mockTransportInstance.simulateMessage({
+      type: 'welcome',
+      clientId: 'c1',
+      layoutJson: '{}',
+      layoutEtag: '',
+    })
+    expect(onRemoteLayout).not.toHaveBeenCalled()
+    mgr.dispose()
+  })
+
   it('calls onChat when chat message arrives', () => {
     const onChat = vi.fn()
     const mgr = new SyncManager(makeConfig({ onChat }))

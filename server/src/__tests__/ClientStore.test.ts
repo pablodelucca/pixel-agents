@@ -87,4 +87,31 @@ describe('ClientStore', () => {
     expect(removed).toBe(false)
     expect(store.size).toBe(1)
   })
+
+  it('broadcastToAll excludes a specific client when excludeClientId is set', () => {
+    const ws1 = mockWs()
+    const ws2 = mockWs()
+    const ws3 = mockWs()
+    const id1 = store.add(ws1)
+    store.add(ws2)
+    store.add(ws3)
+
+    store.broadcastToAll('hello', id1)
+
+    expect(ws1.send).not.toHaveBeenCalled()
+    expect(ws2.send).toHaveBeenCalledWith('hello')
+    expect(ws3.send).toHaveBeenCalledWith('hello')
+  })
+
+  it('broadcastToAll sends to all when no excludeClientId', () => {
+    const ws1 = mockWs()
+    const ws2 = mockWs()
+    store.add(ws1)
+    store.add(ws2)
+
+    store.broadcastToAll('hello')
+
+    expect(ws1.send).toHaveBeenCalledWith('hello')
+    expect(ws2.send).toHaveBeenCalledWith('hello')
+  })
 })
