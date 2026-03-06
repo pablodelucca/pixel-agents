@@ -10,13 +10,11 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "pngjs": "^7.0.0",
-    "ws": "^8.19.0"
+    "pngjs": "^7.0.0"
   },
   "devDependencies": {
     "@types/node": "22.x",
     "@types/pngjs": "^6.0.5",
-    "@types/ws": "^8.18.1",
     "electron": "^33.0.0",
     "electron-builder": "^25.0.0",
     "typescript": "^5.9.3"

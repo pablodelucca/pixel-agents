@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { OfficeState } from './office/engine/officeState.js'
 import { OfficeCanvas } from './office/components/OfficeCanvas.js'
 import { ToolOverlay } from './office/components/ToolOverlay.js'
@@ -118,19 +118,25 @@ function EditActionBar({ editor, editorState: es }: { editor: ReturnType<typeof 
 }
 
 function App() {
-  const editor = useEditorActions(getOfficeState, editorState)
+  const putLayoutRef = useRef<(layout: unknown) => void>(() => {})
+  const syncLayout = useCallback((layout: unknown) => putLayoutRef.current(layout), [])
+
+  const editor = useEditorActions(getOfficeState, editorState, syncLayout)
 
   // Wire up the layout-changed callback for auto-generated rooms
   const os = getOfficeState()
   os.onLayoutChanged = (layout) => {
     vscode.postMessage({ type: 'saveLayout', layout })
     editor.setLastSavedLayout(layout)
-    putLayout(layout)
+    putLayoutRef.current(layout)
   }
 
   const isEditDirty = useCallback(() => editor.isEditMode && editor.isDirty, [editor.isEditMode, editor.isDirty])
 
-  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways, localUserName, serverUrl, userName, settingsReady, putLayout, activateSync, remoteCharManagerRef } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
+  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways, localUserName, serverUrl, userName, settingsReady, putLayout, guestMode, activateSync, remoteCharManagerRef } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
+
+  // Update ref so editor save and onLayoutChanged can reach putLayout
+  putLayoutRef.current = putLayout
 
   // Wire up remote character interpolation into the game loop
   os.onInterpolateRemote = (dt) => {
@@ -139,6 +145,22 @@ function App() {
 
   const [isDebugMode, setIsDebugMode] = useState(false)
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
+  const autoActivatedRef = useRef(false)
+
+  // Auto-activate sync from persisted settings (skip WelcomeModal on reload)
+  useEffect(() => {
+    if (!settingsReady || autoActivatedRef.current) return
+    if (serverUrl) {
+      autoActivatedRef.current = true
+      if (guestMode) {
+        activateSync('guest')
+      } else {
+        activateSync('connect')
+      }
+      setWelcomeDismissed(true)
+    }
+  }, [settingsReady, serverUrl, guestMode, activateSync])
+
   const showWelcome = settingsReady && !welcomeDismissed
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])

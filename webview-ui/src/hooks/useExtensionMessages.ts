@@ -66,6 +66,7 @@ export interface ExtensionMessageState {
   userName: string
   settingsReady: boolean
   putLayout: (layout: unknown) => void
+  guestMode: boolean
   syncMode: SyncMode
   activateSync: (mode: SyncMode) => void
   remoteCharManagerRef: React.RefObject<RemoteCharacterManager | null>
@@ -103,6 +104,7 @@ export function useExtensionMessages(
   const [settingsReady, setSettingsReady] = useState(false)
   const [syncMode, setSyncMode] = useState<SyncMode>('offline')
   const syncModeRef = useRef<SyncMode>('offline')
+  const [guestMode, setGuestMode] = useState(false)
 
   const syncManagerRef = useRef<SyncManager | null>(null)
   const remoteCharManagerRef = useRef<RemoteCharacterManager | null>(null)
@@ -455,6 +457,9 @@ export function useExtensionMessages(
         if (msg.userName !== undefined) {
           setUserName(msg.userName as string)
         }
+        if (msg.guestMode !== undefined) {
+          setGuestMode(msg.guestMode as boolean)
+        }
         setSettingsReady(true)
       } else if (msg.type === 'settingChanged') {
         const key = msg.key as string
@@ -588,5 +593,5 @@ export function useExtensionMessages(
     syncManagerRef.current.activate()
   }, [getOfficeState, serverUrl, userName])
 
-  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways, localUserName, serverUrl, userName, settingsReady, putLayout, syncMode, activateSync, remoteCharManagerRef }
+  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders, externalSessionsSettings, showLabelsAlways, localUserName, serverUrl, userName, settingsReady, putLayout, guestMode, syncMode, activateSync, remoteCharManagerRef }
 }

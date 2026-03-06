@@ -13,6 +13,7 @@ interface StoreData {
   windowBounds?: { x: number; y: number; width: number; height: number }
   serverUrl: string
   userName: string
+  guestMode: boolean
 }
 
 const defaults: StoreData = {
@@ -22,6 +23,7 @@ const defaults: StoreData = {
   externalSessionsScope: 'allProjects',
   serverUrl: '',
   userName: '',
+  guestMode: false,
 }
 
 let data: StoreData = { ...defaults }

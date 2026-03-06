@@ -48,6 +48,7 @@ export interface EditorActions {
 export function useEditorActions(
   getOfficeState: () => OfficeState,
   editorState: EditorState,
+  onSyncLayout?: (layout: OfficeLayout) => void,
 ): EditorActions {
   const [isEditMode, setIsEditMode] = useState(false)
   const [editorTick, setEditorTick] = useState(0)
@@ -309,9 +310,10 @@ export function useEditorActions(
     const layout = os.getLayout()
     lastSavedLayoutRef.current = structuredClone(layout)
     vscode.postMessage({ type: 'saveLayout', layout })
+    onSyncLayout?.(layout)
     editorState.isDirty = false
     setIsDirty(false)
-  }, [getOfficeState, editorState])
+  }, [getOfficeState, editorState, onSyncLayout])
 
   // Notify React that imperative editor selection changed (e.g., from OfficeCanvas mouseUp)
   const handleEditorSelectionChange = useCallback(() => {
