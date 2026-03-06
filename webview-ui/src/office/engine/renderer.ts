@@ -80,6 +80,11 @@ import {
   CHAT_BUBBLE_BORDER,
   CHAT_BUBBLE_TEXT_COLOR,
   CHAT_BUBBLE_TAIL_SIZE_PX,
+  CHAT_ZOOM_SCALE,
+  CHAT_ZOOM_PADDING_PX,
+  CHAT_ZOOM_BG,
+  CHAT_ZOOM_BORDER_COLOR,
+  CHAT_ZOOM_BORDER_WIDTH,
 } from '../../constants.js'
 import { OfficeState } from './officeState.js'
 
@@ -894,6 +899,123 @@ export function renderAgentChatBubbles(
 
     ctx.restore()
   }
+}
+
+// ── Chat Zoom Popup ─────────────────────────────────────────────
+
+export function renderChatZoomPopup(
+  ctx: CanvasRenderingContext2D,
+  ch: Character,
+  canvasWidth: number,
+  canvasHeight: number,
+): void {
+  const zoomScale = CHAT_ZOOM_SCALE
+  const pad = CHAT_ZOOM_PADDING_PX
+
+  // Get character sprite
+  const spriteSet = getCharacterSprites(ch.palette, ch.hueShift)
+  if (!spriteSet) return
+  const sprite = getCharacterSprite(ch, spriteSet)
+  if (!sprite) return
+
+  const spriteW = sprite[0].length
+  const spriteH = sprite.length
+  const scaledW = spriteW * zoomScale
+  const scaledH = spriteH * zoomScale
+
+  // Bubble text layout
+  const text = ch.chatMessage || ''
+  const fontSize = 14
+  ctx.save()
+  ctx.font = `${fontSize}px "FS Pixel Sans", monospace`
+  ctx.textBaseline = 'top'
+  ctx.textAlign = 'left'
+
+  const bubbleMaxW = 280
+  const bubblePad = 10
+  const words = text.split(' ')
+  const lines: string[] = []
+  let currentLine = ''
+  for (const word of words) {
+    const testLine = currentLine ? currentLine + ' ' + word : word
+    if (ctx.measureText(testLine).width > bubbleMaxW - bubblePad * 2 && currentLine) {
+      lines.push(currentLine)
+      currentLine = word
+    } else {
+      currentLine = testLine
+    }
+  }
+  if (currentLine) lines.push(currentLine)
+
+  const lineHeight = fontSize * 1.4
+  const textHeight = lines.length * lineHeight
+  const textWidth = Math.min(
+    bubbleMaxW - bubblePad * 2,
+    Math.max(...lines.map(l => ctx.measureText(l).width)),
+  )
+  const bubbleW = textWidth + bubblePad * 2
+  const bubbleH = textHeight + bubblePad * 2
+  const tailSize = 6
+
+  // Total popup size: character + gap + bubble
+  const gap = 8
+  const totalH = scaledH + gap + tailSize + bubbleH
+  const totalW = Math.max(scaledW, bubbleW)
+
+  // Center popup on screen
+  const cx = Math.floor(canvasWidth / 2)
+  const cy = Math.floor(canvasHeight / 2)
+
+  // Dark overlay
+  ctx.fillStyle = CHAT_ZOOM_BG
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+
+  // Character position (centered, below bubble)
+  const charX = cx - Math.floor(scaledW / 2)
+  const charY = cy - Math.floor(totalH / 2) + bubbleH + tailSize + gap
+
+  // Draw character sprite (pixel-perfect scaling)
+  const cached = getCachedSprite(sprite, zoomScale)
+  if (cached) {
+    ctx.drawImage(cached, charX, charY)
+  }
+
+  // Bubble position (above character, centered)
+  const bx = cx - Math.floor(bubbleW / 2)
+  const by = charY - gap - tailSize - bubbleH
+
+  // Fade
+  let alpha = 1.0
+  if (ch.chatMessageTimer < BUBBLE_FADE_DURATION_SEC) {
+    alpha = ch.chatMessageTimer / BUBBLE_FADE_DURATION_SEC
+  }
+  if (alpha < 1.0) ctx.globalAlpha = alpha
+
+  // Bubble background
+  ctx.fillStyle = CHAT_BUBBLE_BG
+  ctx.fillRect(bx, by, bubbleW, bubbleH)
+  ctx.strokeStyle = CHAT_ZOOM_BORDER_COLOR
+  ctx.lineWidth = CHAT_ZOOM_BORDER_WIDTH
+  ctx.strokeRect(bx + 0.5, by + 0.5, bubbleW - 1, bubbleH - 1)
+
+  // Tail
+  const tailX = cx
+  const tailY = by + bubbleH
+  ctx.fillStyle = CHAT_BUBBLE_BG
+  ctx.beginPath()
+  ctx.moveTo(tailX - tailSize, tailY)
+  ctx.lineTo(tailX + tailSize, tailY)
+  ctx.lineTo(tailX, tailY + tailSize)
+  ctx.closePath()
+  ctx.fill()
+
+  // Text
+  ctx.fillStyle = CHAT_BUBBLE_TEXT_COLOR
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], bx + bubblePad, by + bubblePad + i * lineHeight)
+  }
+
+  ctx.restore()
 }
 
 // ── Task progress badges ────────────────────────────────────────

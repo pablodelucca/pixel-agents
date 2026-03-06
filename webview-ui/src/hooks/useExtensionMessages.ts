@@ -464,6 +464,8 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentChat') {
         const id = msg.id as number
         const chatMsg = msg.msg as string
+        console.log(`[Webview] agentChat received: agent=${id} msg="${chatMsg}"`)
+        console.log(`[Webview] Characters: ${[...os.characters.keys()].join(', ')}`)
         // Show bubble locally immediately
         os.showChatMessage(id, chatMsg)
         // Relay to server for other clients

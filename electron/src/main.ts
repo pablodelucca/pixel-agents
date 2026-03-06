@@ -23,6 +23,8 @@ const CHARACTER_DIRECTIONS = ['down', 'up', 'right'] as const
 
 const LAYOUT_FILE_DIR = '.pixel-agents'
 const LAYOUT_FILE_NAME = 'layout.json'
+const CHAT_FILE = path.join(os.homedir(), '.pixel-agents', 'chat.jsonl')
+const CHAT_POLL_INTERVAL_MS = 500
 const LAYOUT_FILE_POLL_INTERVAL_MS = 2000
 
 const JSONL_POLL_INTERVAL_MS = 1000
@@ -91,6 +93,12 @@ const externalTrackedFiles = new Map<string, number>()
 
 let layoutWatchTimer: ReturnType<typeof setInterval> | null = null
 let lastLayoutMtime = 0
+
+// ── Chat Watcher State ─────────────────────────────────
+let chatWatcher: fs.FSWatcher | null = null
+let chatPollTimer: ReturnType<typeof setInterval> | null = null
+let chatOffset = 0
+let chatLineBuffer = ''
 
 // ── Multiuser Sync State ────────────────────────────────
 let syncWs: WebSocket | null = null
@@ -871,6 +879,83 @@ function startExternalScan(): void {
   externalScanTimer = setInterval(runExternalScan, EXTERNAL_SESSION_SCAN_INTERVAL_MS)
 }
 
+// ── Chat Watcher ─────────────────────────────────────────────
+function chatReadNewLines(): void {
+  try {
+    if (!fs.existsSync(CHAT_FILE)) return
+    const stat = fs.statSync(CHAT_FILE)
+    if (stat.size <= chatOffset) return
+
+    console.log(`[ChatWatcher] File changed: ${stat.size} bytes (offset was ${chatOffset})`)
+
+    const fd = fs.openSync(CHAT_FILE, 'r')
+    const buf = Buffer.alloc(stat.size - chatOffset)
+    fs.readSync(fd, buf, 0, buf.length, chatOffset)
+    fs.closeSync(fd)
+    chatOffset = stat.size
+
+    const text = chatLineBuffer + buf.toString('utf-8')
+    const lines = text.split('\n')
+    chatLineBuffer = lines.pop() || ''
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      try {
+        const obj = JSON.parse(trimmed)
+        if (typeof obj.session !== 'string' || typeof obj.msg !== 'string' || !obj.msg) continue
+
+        console.log(`[ChatWatcher] Parsed: session=${obj.session.slice(0, 8)}... msg="${obj.msg}"`)
+
+        // Find agent by session ID
+        let matchedId: number | null = null
+        for (const [id, agent] of agents) {
+          const basename = path.basename(agent.jsonlFile, '.jsonl')
+          console.log(`[ChatWatcher]   Agent ${id}: session=${basename.slice(0, 8)}...`)
+          if (basename === obj.session) {
+            matchedId = id
+            break
+          }
+        }
+
+        if (matchedId !== null) {
+          console.log(`[ChatWatcher] Matched agent ${matchedId}, sending to webview`)
+          const emitter = getEmitter()
+          emitter?.postMessage({ type: 'agentChat', id: matchedId, msg: obj.msg })
+        } else {
+          console.log(`[ChatWatcher] No agent matched session ${obj.session.slice(0, 8)}...`)
+        }
+      } catch { /* ignore bad JSON */ }
+    }
+  } catch (err) {
+    console.log(`[ChatWatcher] Read error: ${err}`)
+  }
+}
+
+function startChatWatcher(): void {
+  if (chatWatcher || chatPollTimer) return
+
+  const dir = path.dirname(CHAT_FILE)
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
+  // Truncate old messages
+  try { fs.writeFileSync(CHAT_FILE, '', 'utf-8') } catch { /* ignore */ }
+  chatOffset = 0
+  chatLineBuffer = ''
+
+  console.log(`[ChatWatcher] Started watching ${CHAT_FILE}`)
+
+  try {
+    chatWatcher = fs.watch(CHAT_FILE, () => chatReadNewLines())
+    console.log(`[ChatWatcher] fs.watch active`)
+  } catch (err) {
+    console.log(`[ChatWatcher] fs.watch failed: ${err}, using polling only`)
+  }
+
+  chatPollTimer = setInterval(() => chatReadNewLines(), CHAT_POLL_INTERVAL_MS)
+}
+
 // ── Agent Launch ────────────────────────────────────────────
 function handleOpenClaude(): void {
   const cwd = process.cwd()
@@ -1148,6 +1233,7 @@ function setupIPC(): void {
 
       startLayoutWatcher()
       startExternalScan()
+      startChatWatcher()
       syncInit()
     } else if (message.type === 'exportLayout') {
       const layout = readLayoutFromFile()

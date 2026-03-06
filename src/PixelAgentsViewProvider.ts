@@ -433,10 +433,20 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
 	private startChatWatcher(): void {
 		if (this.chatWatcher) return;
+		console.log(`[Pixel Agents] Starting chat watcher, ${this.agents.size} agents registered`);
 		this.chatWatcher = new ChatWatcher(ChatWatcher.defaultPath(), (line) => {
+			console.log(`[Pixel Agents] Chat line received: session=${line.session.slice(0, 8)}... msg="${line.msg}"`);
+			// Log all agent sessions for debugging
+			for (const [id, agent] of this.agents) {
+				const basename = path.basename(agent.jsonlFile, '.jsonl');
+				console.log(`[Pixel Agents]   Agent ${id}: session=${basename.slice(0, 8)}...`);
+			}
 			const agentId = findAgentBySession(this.agents.values(), line.session);
 			if (agentId !== null) {
+				console.log(`[Pixel Agents] Chat matched agent ${agentId}, posting to webview`);
 				this.webview?.postMessage({ type: 'agentChat', id: agentId, msg: line.msg });
+			} else {
+				console.log(`[Pixel Agents] Chat session not matched to any agent`);
 			}
 		});
 		this.chatWatcher.start();

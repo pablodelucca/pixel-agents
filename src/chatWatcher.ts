@@ -59,9 +59,14 @@ export class ChatWatcher {
 		this.offset = 0;
 		this.lineBuffer = '';
 
+		console.log(`[ChatWatcher] Started watching ${this.chatFile}`);
+
 		try {
 			this.fsWatcher = fs.watch(this.chatFile, () => this.readNewLines());
-		} catch { /* watch may fail, polling backup */ }
+			console.log(`[ChatWatcher] fs.watch active`);
+		} catch (err) {
+			console.log(`[ChatWatcher] fs.watch failed: ${err}, using polling only`);
+		}
 
 		this.pollTimer = setInterval(() => this.readNewLines(), POLL_INTERVAL_MS);
 	}
@@ -85,6 +90,8 @@ export class ChatWatcher {
 			const stat = fs.statSync(this.chatFile);
 			if (stat.size <= this.offset) return;
 
+			console.log(`[ChatWatcher] File changed: ${stat.size} bytes (offset was ${this.offset})`);
+
 			const fd = fs.openSync(this.chatFile, 'r');
 			const buf = Buffer.alloc(stat.size - this.offset);
 			fs.readSync(fd, buf, 0, buf.length, this.offset);
@@ -95,14 +102,21 @@ export class ChatWatcher {
 			const lines = text.split('\n');
 			this.lineBuffer = lines.pop() || '';
 
+			console.log(`[ChatWatcher] Read ${lines.length} complete lines, buffer="${this.lineBuffer}"`);
+
 			for (const line of lines) {
 				const trimmed = line.trim();
 				if (!trimmed) continue;
 				const parsed = parseChatLine(trimmed);
 				if (parsed) {
+					console.log(`[ChatWatcher] Parsed chat: session=${parsed.session.slice(0, 8)}... msg="${parsed.msg}"`);
 					this.onLine(parsed);
+				} else {
+					console.log(`[ChatWatcher] Failed to parse line: ${trimmed.slice(0, 80)}`);
 				}
 			}
-		} catch { /* ignore read errors */ }
+		} catch (err) {
+			console.log(`[ChatWatcher] Read error: ${err}`);
+		}
 	}
 }

@@ -177,13 +177,20 @@ export const CHAT_EMOJIS = ['😄', '😂', '🤔', '💡', '👋', '🙌', '�
 export const CHAT_MESSAGE_DURATION_SEC = 5
 
 // ── Agent Chat Bubbles ─────────────────────────────────────
-export const CHAT_BUBBLE_MAX_WIDTH_PX = 200
-export const CHAT_BUBBLE_PADDING_PX = 3
-export const CHAT_BUBBLE_FONT_SIZE_PX = 5
+export const CHAT_BUBBLE_MAX_WIDTH_PX = 120
+export const CHAT_BUBBLE_PADDING_PX = 4
+export const CHAT_BUBBLE_FONT_SIZE_PX = 8
 export const CHAT_BUBBLE_BG = 'rgba(255, 255, 255, 0.95)'
 export const CHAT_BUBBLE_BORDER = 'rgba(30, 30, 46, 0.9)'
 export const CHAT_BUBBLE_TEXT_COLOR = '#1e1e2e'
-export const CHAT_BUBBLE_TAIL_SIZE_PX = 2
+export const CHAT_BUBBLE_TAIL_SIZE_PX = 3
+
+// ── Chat Zoom Popup ──────────────────────────────────────────
+export const CHAT_ZOOM_SCALE = 6
+export const CHAT_ZOOM_PADDING_PX = 20
+export const CHAT_ZOOM_BG = 'rgba(0, 0, 0, 0.6)'
+export const CHAT_ZOOM_BORDER_COLOR = 'rgba(255, 255, 255, 0.3)'
+export const CHAT_ZOOM_BORDER_WIDTH = 2
 
 // ── Bathroom Behavior ─────────────────────────────────────────
 export const BATHROOM_USE_MIN_SEC = 5.0

@@ -206,6 +206,20 @@ All magic numbers and strings are centralized — never add inline constants to 
 - Snap both VS Code windows side-by-side on SAME screen before clicking in Extension Dev Host
 - Reload extension via button on main VS Code window after building
 
+## Pixel Agents Chat
+
+- Al inicio de sesión, descubrir session ID:
+  ```bash
+  PROJECT_HASH=$(pwd | sed 's/[:\\/]/-/g')
+  MY_SESSION=$(ls -t ~/.claude/projects/"$PROJECT_HASH"/*.jsonl 2>/dev/null | head -1 | xargs basename | sed 's/.jsonl$//')
+  ```
+- Enviar mensajes cortos (1-10 palabras) en cada hito importante:
+  ```bash
+  echo "{\"session\":\"$MY_SESSION\",\"msg\":\"tu mensaje\"}" >> ~/.pixel-agents/chat.jsonl
+  ```
+- Cuándo enviar: al empezar tarea, encontrar error, pasar tests, hacer commit, dispatchar agente, etc.
+- No solo mensajes técnicos — incluir reflexiones, quejas graciosas, chismes del código, chistes sobre lo que pasa
+
 ## Key Decisions
 
 - `WebviewViewProvider` (not `WebviewPanel`) — lives in panel area alongside terminal

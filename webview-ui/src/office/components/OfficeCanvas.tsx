@@ -3,7 +3,7 @@ import type { OfficeState } from '../engine/officeState.js'
 import type { EditorState } from '../editor/editorState.js'
 import type { EditorRenderState, SelectionRenderState, DeleteButtonBounds, RotateButtonBounds } from '../engine/renderer.js'
 import { startGameLoop } from '../engine/gameLoop.js'
-import { renderFrame } from '../engine/renderer.js'
+import { renderFrame, renderChatZoomPopup } from '../engine/renderer.js'
 import { TILE_SIZE, EditTool } from '../types.js'
 import { CAMERA_FOLLOW_LERP, CAMERA_FOLLOW_SNAP_THRESHOLD, ZOOM_MIN, ZOOM_MAX, ZOOM_SCROLL_THRESHOLD, PAN_MARGIN_FRACTION } from '../../constants.js'
 import { getCatalogEntry, isRotatable } from '../layout/furnitureCatalog.js'
@@ -260,6 +260,14 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
           officeState.seats,
         )
         offsetRef.current = { x: offsetX, y: offsetY }
+
+        // Chat zoom popup (on top of everything)
+        if (officeState.chatZoomAgentId !== null) {
+          const zoomCh = officeState.characters.get(officeState.chatZoomAgentId)
+          if (zoomCh && zoomCh.chatMessage) {
+            renderChatZoomPopup(ctx, zoomCh, w, h)
+          }
+        }
 
         // Store delete/rotate button bounds for hit-testing
         deleteButtonBoundsRef.current = editorRender?.deleteButtonBounds ?? null
@@ -642,6 +650,11 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
+      // Dismiss chat zoom popup on any click
+      if (officeState.chatZoomAgentId !== null) {
+        officeState.dismissChatZoom()
+        return
+      }
       if (isEditMode) return // handled by mouseDown/mouseUp
       const pos = screenToWorld(e.clientX, e.clientY)
       if (!pos) return

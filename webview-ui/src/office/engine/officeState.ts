@@ -980,11 +980,19 @@ export class OfficeState {
     }
   }
 
+  /** Chat zoom popup: shows zoomed view of character when they post a chat message */
+  chatZoomAgentId: number | null = null
+
   showChatMessage(agentId: number, msg: string): void {
     const ch = this.characters.get(agentId)
     if (!ch) return
     ch.chatMessage = msg
     ch.chatMessageTimer = CHAT_MESSAGE_DURATION_SEC
+    this.chatZoomAgentId = agentId
+  }
+
+  dismissChatZoom(): void {
+    this.chatZoomAgentId = null
   }
 
   update(dt: number): void {
@@ -1032,6 +1040,9 @@ export class OfficeState {
         if (ch.chatMessageTimer <= 0) {
           ch.chatMessage = null
           ch.chatMessageTimer = 0
+          if (this.chatZoomAgentId === ch.id) {
+            this.chatZoomAgentId = null
+          }
         }
       }
     }
