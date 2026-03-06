@@ -174,6 +174,7 @@ export const CHAT_DURATION_MIN_SEC = 3.0
 export const CHAT_DURATION_MAX_SEC = 7.0
 export const CHAT_EMOJI_INTERVAL_SEC = 1.2
 export const CHAT_EMOJIS = ['😄', '😂', '🤔', '💡', '👋', '🙌', '😮', '🎉', '👍', '💬', '🤝', '😎']
+export const CHAT_MESSAGE_DURATION_SEC = 5
 
 // ── Bathroom Behavior ─────────────────────────────────────────
 export const BATHROOM_USE_MIN_SEC = 5.0

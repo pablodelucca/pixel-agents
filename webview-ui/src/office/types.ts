@@ -265,4 +265,8 @@ export interface Character {
   chatEmojiIndex: number
   /** Timer for cycling to next emoji */
   chatEmojiTimer: number
+  /** Agent chat message text (from CLI) */
+  chatMessage: string | null
+  /** Countdown timer for chat message bubble */
+  chatMessageTimer: number
 }

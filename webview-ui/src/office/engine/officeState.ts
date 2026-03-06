@@ -25,6 +25,7 @@ import {
   CHAT_DURATION_MAX_SEC,
   CHAT_EMOJI_INTERVAL_SEC,
   CHAT_EMOJIS,
+  CHAT_MESSAGE_DURATION_SEC,
 } from '../../constants.js'
 import type { Character, Seat, FurnitureInstance, TileType as TileTypeVal, OfficeLayout, PlacedFurniture, FloorColor } from '../types.js'
 import { createCharacter, updateCharacter } from './characters.js'
@@ -979,6 +980,13 @@ export class OfficeState {
     }
   }
 
+  showChatMessage(agentId: number, msg: string): void {
+    const ch = this.characters.get(agentId)
+    if (!ch) return
+    ch.chatMessage = msg
+    ch.chatMessageTimer = CHAT_MESSAGE_DURATION_SEC
+  }
+
   update(dt: number): void {
     const toDelete: number[] = []
     for (const ch of this.characters.values()) {
@@ -1015,6 +1023,15 @@ export class OfficeState {
         if (ch.bubbleTimer <= 0) {
           ch.bubbleType = null
           ch.bubbleTimer = 0
+        }
+      }
+
+      // Tick chat message timer
+      if (ch.chatMessage) {
+        ch.chatMessageTimer -= dt
+        if (ch.chatMessageTimer <= 0) {
+          ch.chatMessage = null
+          ch.chatMessageTimer = 0
         }
       }
     }

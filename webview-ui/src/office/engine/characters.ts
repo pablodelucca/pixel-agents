@@ -115,6 +115,8 @@ export function createCharacter(
     chatEmojis: [],
     chatEmojiIndex: 0,
     chatEmojiTimer: 0,
+    chatMessage: null,
+    chatMessageTimer: 0,
   }
 }
 
