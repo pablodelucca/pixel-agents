@@ -17,6 +17,8 @@
 		"out",
 		"scripts",
 		"electron",
-		"server"
+		"server",
+		"vitest.extension.config.ts",
+		"src/__tests__"
 	]
 }
