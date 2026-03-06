@@ -13,8 +13,8 @@ interface ZoomControlsProps {
 }
 
 const btnBase: React.CSSProperties = {
-  width: 40,
-  height: 40,
+  width: 44,
+  height: 44,
   padding: 0,
   background: 'var(--pixel-bg)',
   color: 'var(--pixel-text)',

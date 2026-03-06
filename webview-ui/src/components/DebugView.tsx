@@ -100,7 +100,7 @@ export function DebugView({
             }}
             title="Close agent"
           >
-            ✕
+            ×
           </button>
         </span>
         {(tools.length > 0 || status === 'waiting') && (
@@ -164,7 +164,7 @@ export function DebugView({
         left: 0,
         width: '100%',
         height: '100%',
-        background: 'var(--vscode-editor-background)',
+        background: 'var(--vscode-editor-background, var(--pixel-bg))',
         zIndex: DEBUG_Z,
         overflow: 'auto',
       }}

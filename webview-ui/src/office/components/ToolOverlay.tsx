@@ -3,7 +3,7 @@ import type { ToolActivity } from '../types.js'
 import type { OfficeState } from '../engine/officeState.js'
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js'
 import { TILE_SIZE, CharacterState } from '../types.js'
-import { TOOL_OVERLAY_VERTICAL_OFFSET, CHARACTER_SITTING_OFFSET_PX } from '../../constants.js'
+import { TOOL_OVERLAY_VERTICAL_OFFSET, CHARACTER_SITTING_OFFSET_PX, TOOL_OVERLAY_LABEL_Y_OFFSET } from '../../constants.js'
 
 interface ToolOverlayProps {
   officeState: OfficeState
@@ -130,7 +130,7 @@ export function ToolOverlay({
             style={{
               position: 'absolute',
               left: screenX,
-              top: screenY - 24,
+              top: screenY - TOOL_OVERLAY_LABEL_Y_OFFSET,
               transform: 'translateX(-50%)',
               display: 'flex',
               flexDirection: 'column',
@@ -159,8 +159,8 @@ export function ToolOverlay({
                 <span
                   className={isActive && !hasPermission ? 'pixel-agents-pulse' : undefined}
                   style={{
-                    width: 6,
-                    height: 6,
+                    width: 8,
+                    height: 8,
                     borderRadius: '50%',
                     background: dotColor,
                     flexShrink: 0,
@@ -172,7 +172,7 @@ export function ToolOverlay({
                   style={{
                     fontSize: isSub ? '20px' : '22px',
                     fontStyle: isSub ? 'italic' : undefined,
-                    color: 'var(--vscode-foreground)',
+                    color: 'var(--vscode-foreground, var(--pixel-text))',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     display: 'block',
@@ -201,6 +201,7 @@ export function ToolOverlay({
                     onCloseAgent(id)
                   }}
                   title="Close agent"
+                  aria-label="Close agent"
                   style={{
                     background: 'none',
                     border: 'none',

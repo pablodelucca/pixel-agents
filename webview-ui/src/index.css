@@ -60,6 +60,11 @@ html, body, #root {
   font-family: 'FS Pixel Sans', sans-serif;
 }
 
-* {
-  font-family: 'FS Pixel Sans', sans-serif;
+button:focus-visible {
+  outline: 2px solid var(--pixel-accent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pixel-agents-pulse { animation: none; }
 }

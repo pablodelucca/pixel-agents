@@ -28,7 +28,7 @@ const panelStyle: React.CSSProperties = {
 }
 
 const btnBase: React.CSSProperties = {
-  padding: '5px 10px',
+  padding: '8px 14px',
   fontSize: '24px',
   color: 'var(--pixel-text)',
   background: 'var(--pixel-btn-bg)',
@@ -94,11 +94,11 @@ export function BottomToolbar({
           onMouseLeave={() => setHovered(null)}
           style={{
             ...btnBase,
-            padding: '5px 12px',
+            padding: '8px 14px',
             background:
               hovered === 'agent' || isFolderPickerOpen
                 ? 'var(--pixel-agent-hover-bg)'
-                : 'var(--pixel-agent-bg)',
+                : 'rgba(90, 200, 140, 0.22)',
             border: '2px solid var(--pixel-agent-border)',
             color: 'var(--pixel-agent-text)',
           }}

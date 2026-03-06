@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { vscode } from '../vscodeApi.js'
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js'
 
@@ -27,6 +27,15 @@ const menuItemBase: React.CSSProperties = {
 export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [isOpen, onClose])
 
   if (!isOpen) return null
 
@@ -84,11 +93,11 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
               color: 'rgba(255, 255, 255, 0.6)',
               fontSize: '24px',
               cursor: 'pointer',
-              padding: '0 4px',
+              padding: '4px 8px',
               lineHeight: 1,
             }}
           >
-            X
+            ×
           </button>
         </div>
         {/* Menu items */}
@@ -165,7 +174,7 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
               color: '#fff',
             }}
           >
-            {soundLocal ? 'X' : ''}
+            {soundLocal ? '✓' : ''}
           </span>
         </button>
         <button
