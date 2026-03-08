@@ -25,18 +25,18 @@ export const CHAR_FRAMES_PER_ROW = 7;
 export const CHAR_COUNT = 6;
 
 // ── User-Level Layout Persistence ─────────────────────────────
-export const LAYOUT_FILE_DIR = '.pixel-agents';
+export const LAYOUT_FILE_DIR = '.wholesale-agents';
 export const LAYOUT_FILE_NAME = 'layout.json';
 export const LAYOUT_FILE_POLL_INTERVAL_MS = 2000;
 
 // ── Settings Persistence ────────────────────────────────────
-export const GLOBAL_KEY_SOUND_ENABLED = 'pixel-agents.soundEnabled';
+export const GLOBAL_KEY_SOUND_ENABLED = 'wholesale-agents.soundEnabled';
 
 // ── VS Code Identifiers ─────────────────────────────────────
-export const VIEW_ID = 'pixel-agents.panelView';
-export const COMMAND_SHOW_PANEL = 'pixel-agents.showPanel';
-export const COMMAND_EXPORT_DEFAULT_LAYOUT = 'pixel-agents.exportDefaultLayout';
-export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';
-export const WORKSPACE_KEY_AGENT_SEATS = 'pixel-agents.agentSeats';
-export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
-export const TERMINAL_NAME_PREFIX = 'Claude Code';
+export const VIEW_ID = 'wholesale-agents.panelView';
+export const COMMAND_SHOW_PANEL = 'wholesale-agents.showPanel';
+export const COMMAND_EXPORT_DEFAULT_LAYOUT = 'wholesale-agents.exportDefaultLayout';
+export const WORKSPACE_KEY_AGENTS = 'wholesale-agents.agents';
+export const WORKSPACE_KEY_AGENT_SEATS = 'wholesale-agents.agentSeats';
+export const WORKSPACE_KEY_LAYOUT = 'wholesale-agents.layout';
+export const TERMINAL_NAME_PREFIX = 'Wholesale Agent';
