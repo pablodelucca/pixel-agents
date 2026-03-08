@@ -1,15 +1,3 @@
-// ── Timing (ms) ──────────────────────────────────────────────
-export const JSONL_POLL_INTERVAL_MS = 1000;
-export const FILE_WATCHER_POLL_INTERVAL_MS = 1000;
-export const PROJECT_SCAN_INTERVAL_MS = 1000;
-export const TOOL_DONE_DELAY_MS = 300;
-export const PERMISSION_TIMER_DELAY_MS = 7000;
-export const TEXT_IDLE_DELAY_MS = 5000;
-
-// ── Display Truncation ──────────────────────────────────────
-export const BASH_COMMAND_DISPLAY_MAX_LENGTH = 30;
-export const TASK_DESCRIPTION_DISPLAY_MAX_LENGTH = 40;
-
 // ── PNG / Asset Parsing ─────────────────────────────────────
 export const PNG_ALPHA_THRESHOLD = 128;
 export const WALL_PIECE_WIDTH = 16;
@@ -36,7 +24,4 @@ export const GLOBAL_KEY_SOUND_ENABLED = 'wholesale-agents.soundEnabled';
 export const VIEW_ID = 'wholesale-agents.panelView';
 export const COMMAND_SHOW_PANEL = 'wholesale-agents.showPanel';
 export const COMMAND_EXPORT_DEFAULT_LAYOUT = 'wholesale-agents.exportDefaultLayout';
-export const WORKSPACE_KEY_AGENTS = 'wholesale-agents.agents';
-export const WORKSPACE_KEY_AGENT_SEATS = 'wholesale-agents.agentSeats';
 export const WORKSPACE_KEY_LAYOUT = 'wholesale-agents.layout';
-export const TERMINAL_NAME_PREFIX = 'Wholesale Agent';

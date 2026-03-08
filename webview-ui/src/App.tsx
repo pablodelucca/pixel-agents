@@ -2,19 +2,19 @@ import { useCallback, useRef, useState } from 'react';
 
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { DebugView } from './components/DebugView.js';
+import { StatusOverlay } from './components/StatusOverlay.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
 import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
 import { useExtensionMessages } from './hooks/useExtensionMessages.js';
 import { OfficeCanvas } from './office/components/OfficeCanvas.js';
-import { ToolOverlay } from './office/components/ToolOverlay.js';
+import { WholesaleToolOverlay } from './office/components/ToolOverlay.js';
 import { EditorState } from './office/editor/editorState.js';
 import { EditorToolbar } from './office/editor/EditorToolbar.js';
 import { OfficeState } from './office/engine/officeState.js';
 import { isRotatable } from './office/layout/furnitureCatalog.js';
 import { EditTool } from './office/types.js';
-import { vscode } from './vscodeApi.js';
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null };
@@ -127,25 +127,12 @@ function App() {
     [editor.isEditMode, editor.isDirty],
   );
 
-  const {
-    agents,
-    selectedAgent,
-    agentTools,
-    agentStatuses,
-    subagentTools,
-    subagentCharacters,
-    layoutReady,
-    loadedAssets,
-    workspaceFolders,
-  } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
+  const { agents, agentNames, agentStates, dbSnapshot, layoutReady, loadedAssets } =
+    useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   const [isDebugMode, setIsDebugMode] = useState(false);
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), []);
-
-  const handleSelectAgent = useCallback((id: number) => {
-    vscode.postMessage({ type: 'focusAgent', id });
-  }, []);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -162,24 +149,17 @@ function App() {
     editor.handleToggleEditMode,
   );
 
-  const handleCloseAgent = useCallback((id: number) => {
-    vscode.postMessage({ type: 'closeAgent', id });
-  }, []);
-
-  const handleClick = useCallback((agentId: number) => {
-    // If clicked agent is a sub-agent, focus the parent's terminal instead
-    const os = getOfficeState();
-    const meta = os.subagentMeta.get(agentId);
-    const focusId = meta ? meta.parentAgentId : agentId;
-    vscode.postMessage({ type: 'focusAgent', id: focusId });
+  const handleClick = useCallback((_agentId: number) => {
+    // In wholesale mode, clicking a character doesn't open a terminal
+    // It just selects the character for visual feedback
   }, []);
 
   const officeState = getOfficeState();
 
-  // Force dependency on editorTickForKeyboard to propagate keyboard-triggered re-renders
+  // Force dependency on editorTickForKeyboard
   void editorTickForKeyboard;
 
-  // Show "Press R to rotate" hint when a rotatable item is selected or being placed
+  // Show "Press R to rotate" hint when a rotatable item is selected
   const showRotateHint =
     editor.isEditMode &&
     (() => {
@@ -258,13 +238,14 @@ function App() {
         }}
       />
 
+      {/* Status overlay — pipeline metrics */}
+      <StatusOverlay dbSnapshot={dbSnapshot} agentStates={agentStates} />
+
       <BottomToolbar
         isEditMode={editor.isEditMode}
-        onOpenClaude={editor.handleOpenClaude}
         onToggleEditMode={editor.handleToggleEditMode}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
-        workspaceFolders={workspaceFolders}
       />
 
       {editor.isEditMode && editor.isDirty && (
@@ -296,7 +277,6 @@ function App() {
 
       {editor.isEditMode &&
         (() => {
-          // Compute selected furniture color from current layout
           const selUid = editorState.selectedFurnitureUid;
           const selColor = selUid
             ? (officeState.getLayout().furniture.find((f) => f.uid === selUid)?.color ?? null)
@@ -321,26 +301,18 @@ function App() {
           );
         })()}
 
-      <ToolOverlay
+      <WholesaleToolOverlay
         officeState={officeState}
         agents={agents}
-        agentTools={agentTools}
-        subagentCharacters={subagentCharacters}
+        agentNames={agentNames}
+        agentStates={agentStates}
         containerRef={containerRef}
         zoom={editor.zoom}
         panRef={editor.panRef}
-        onCloseAgent={handleCloseAgent}
       />
 
       {isDebugMode && (
-        <DebugView
-          agents={agents}
-          selectedAgent={selectedAgent}
-          agentTools={agentTools}
-          agentStatuses={agentStatuses}
-          subagentTools={subagentTools}
-          onSelectAgent={handleSelectAgent}
-        />
+        <DebugView agents={agents} agentStates={agentStates} dbSnapshot={dbSnapshot} />
       )}
     </div>
   );
