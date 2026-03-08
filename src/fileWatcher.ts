@@ -17,10 +17,20 @@ export function startFileWatching(
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
 ): void {
-  // Primary: fs.watch (unreliable on macOS — may miss events)
+  // Primary: fs.watch (unreliable on macOS — may miss events; may hit inotify limits on Linux)
   try {
     const watcher = fs.watch(filePath, () => {
       readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
+    });
+    watcher.on('error', (err) => {
+      console.log(
+        `[Pixel Agents] fs.watch error for agent ${agentId}: ${err.message}` +
+          (process.platform === 'linux'
+            ? ' (if ENOSPC, try increasing fs.inotify.max_user_watches)'
+            : ''),
+      );
+      watcher.close();
+      fileWatchers.delete(agentId);
     });
     fileWatchers.set(agentId, watcher);
   } catch (e) {

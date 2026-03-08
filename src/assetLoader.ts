@@ -75,11 +75,12 @@ export async function loadFurnitureAssets(workspaceRoot: string): Promise<Loaded
     for (const asset of catalog) {
       try {
         // Ensure file path includes 'assets/' prefix if not already present
-        let filePath = asset.file;
+        // Normalize to forward slashes for consistent comparison (catalog uses POSIX paths)
+        let filePath = asset.file.split(path.win32.sep).join(path.posix.sep);
         if (!filePath.startsWith('assets/')) {
           filePath = `assets/${filePath}`;
         }
-        const assetPath = path.join(workspaceRoot, filePath);
+        const assetPath = path.join(workspaceRoot, ...filePath.split('/'));
 
         if (!fs.existsSync(assetPath)) {
           console.warn(`  ⚠️  Asset file not found: ${asset.file}`);
