@@ -1,0 +1,14 @@
+{
+  "construct": "Echolumen",
+  "last_interaction_date": "2026-02-28T15:03:18.684Z",
+  "interaction_count": 1,
+  "last_topic": null,
+  "mood": null,
+  "interactions": [
+    {
+      "date": "2026-02-28T15:03:18.684Z",
+      "greeting_used": "first_meeting",
+      "dialogue_shown": "I speak in currents and echoes."
+    }
+  ]
+}

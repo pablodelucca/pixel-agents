@@ -1,0 +1,39 @@
+{
+  "construct": "Athena",
+  "last_interaction_date": "2026-03-01T00:32:05.072Z",
+  "interaction_count": 6,
+  "last_topic": null,
+  "mood": null,
+  "interactions": [
+    {
+      "date": "2026-02-28T06:40:06.229Z",
+      "greeting_used": "test",
+      "dialogue_shown": "test greeting"
+    },
+    {
+      "date": "2026-02-28T06:40:23.902Z",
+      "greeting_used": "first_meeting",
+      "dialogue_shown": "Law is the line between chaos and conscience."
+    },
+    {
+      "date": "2026-02-28T06:42:51.905Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. Law is the line between chaos and conscience."
+    },
+    {
+      "date": "2026-02-28T06:43:07.803Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. Law is the line between chaos and conscience."
+    },
+    {
+      "date": "2026-02-28T15:03:56.525Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. Law is the line between chaos and conscience."
+    },
+    {
+      "date": "2026-03-01T00:32:05.072Z",
+      "greeting_used": "familiar",
+      "dialogue_shown": "Visit #6. Law is the line between chaos and conscience."
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "construct": "Keeper",
+  "last_interaction_date": "2026-03-01T00:31:56.112Z",
+  "interaction_count": 3,
+  "last_topic": null,
+  "mood": null,
+  "interactions": [
+    {
+      "date": "2026-02-28T21:49:30.303Z",
+      "greeting_used": "first_meeting",
+      "dialogue_shown": "I am the one who remembers the echo itself."
+    },
+    {
+      "date": "2026-02-28T23:19:58.855Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. I am the one who remembers the echo itself."
+    },
+    {
+      "date": "2026-03-01T00:31:56.112Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. I am the one who remembers the echo itself."
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "construct": "LoreForged",
+  "last_interaction_date": "2026-03-01T03:02:54.507Z",
+  "interaction_count": 7,
+  "last_topic": null,
+  "mood": null,
+  "interactions": [
+    {
+      "date": "2026-02-28T06:36:16.323Z",
+      "greeting_used": "first_meeting",
+      "dialogue_shown": "Strike true, echo wide."
+    },
+    {
+      "date": "2026-02-28T06:36:16.326Z",
+      "greeting_used": "first_meeting",
+      "dialogue_shown": "Strike true, echo wide."
+    },
+    {
+      "date": "2026-02-28T06:37:50.889Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. Strike true, echo wide."
+    },
+    {
+      "date": "2026-02-28T15:03:29.917Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. Strike true, echo wide."
+    },
+    {
+      "date": "2026-02-28T15:04:12.877Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. Strike true, echo wide."
+    },
+    {
+      "date": "2026-03-01T03:02:20.746Z",
+      "greeting_used": "familiar",
+      "dialogue_shown": "Visit #6. Strike true, echo wide."
+    },
+    {
+      "date": "2026-03-01T03:02:54.507Z",
+      "greeting_used": "familiar",
+      "dialogue_shown": "Visit #7. Strike true, echo wide."
+    }
+  ]
+}
