@@ -187,6 +187,14 @@ export function readNewLines(
   }
 }
 
+// Track all project directories to scan (supports multi-root workspaces)
+const trackedProjectDirs = new Set<string>();
+
+/**
+ * Seed a project directory's known files and register it for periodic scanning.
+ * Can be called multiple times with different directories — all will be scanned
+ * by the single shared interval timer.
+ */
 export function ensureProjectScan(
   projectDir: string,
   knownJsonlFiles: Set<string>,
@@ -201,24 +209,23 @@ export function ensureProjectScan(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
 ): void {
-  if (projectScanTimerRef.current) return;
+  // Set deps for per-agent /clear detection (only on first call)
+  if (!clearDetectionDeps) {
+    clearDetectionDeps = {
+      projectDir,
+      knownJsonlFiles,
+      activeAgentIdRef,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
+      webview,
+      persistAgents,
+    };
+  }
 
-  // Set deps for per-agent /clear detection (used by startFileWatching poll loop)
-  clearDetectionDeps = {
-    projectDir,
-    knownJsonlFiles,
-    activeAgentIdRef,
-    fileWatchers,
-    pollingTimers,
-    waitingTimers,
-    permissionTimers,
-    webview,
-    persistAgents,
-  };
-
-  // Seed with existing JSONL files so we only react to truly new ones.
-  // Skip recently-active files not owned by any agent — these may be
-  // external sessions (VS Code extension panel) that should be adopted.
+  // Always seed this directory's files (even if timer is already running,
+  // supports multi-root workspaces where ensureProjectScan is called per folder).
   try {
     const files = fs
       .readdirSync(projectDir)
@@ -247,20 +254,27 @@ export function ensureProjectScan(
     /* dir may not exist yet */
   }
 
+  // Register for periodic scanning
+  trackedProjectDirs.add(projectDir);
+
+  // Start the shared timer only once
+  if (projectScanTimerRef.current) return;
   projectScanTimerRef.current = setInterval(() => {
-    scanForNewJsonlFiles(
-      projectDir,
-      knownJsonlFiles,
-      activeAgentIdRef,
-      nextAgentIdRef,
-      agents,
-      fileWatchers,
-      pollingTimers,
-      waitingTimers,
-      permissionTimers,
-      webview,
-      persistAgents,
-    );
+    for (const dir of trackedProjectDirs) {
+      scanForNewJsonlFiles(
+        dir,
+        knownJsonlFiles,
+        activeAgentIdRef,
+        nextAgentIdRef,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+        persistAgents,
+      );
+    }
   }, PROJECT_SCAN_INTERVAL_MS);
 }
 

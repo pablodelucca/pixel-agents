@@ -230,6 +230,33 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             this.webview,
             this.persistAgents,
           );
+
+          // In multi-root workspaces, also scan project dirs for all other folders
+          // so agents running in any workspace folder are discovered
+          if (wsFolders && wsFolders.length > 1) {
+            for (const folder of wsFolders) {
+              const folderProjectDir = getProjectDirPath(folder.uri.fsPath);
+              if (folderProjectDir && folderProjectDir !== projectDir) {
+                console.log(
+                  `[Pixel Agents] Registering additional project dir: ${folderProjectDir}`,
+                );
+                ensureProjectScan(
+                  folderProjectDir,
+                  this.knownJsonlFiles,
+                  this.projectScanTimer,
+                  this.activeAgentId,
+                  this.nextAgentId,
+                  this.agents,
+                  this.fileWatchers,
+                  this.pollingTimers,
+                  this.waitingTimers,
+                  this.permissionTimers,
+                  this.webview,
+                  this.persistAgents,
+                );
+              }
+            }
+          }
         }
         if (!this.staleCheckTimer) {
           this.staleCheckTimer = startStaleExternalAgentCheck(
