@@ -183,10 +183,11 @@ export function persistAgents(
   for (const agent of agents.values()) {
     persisted.push({
       id: agent.id,
-      terminalName: agent.terminalRef.name,
+      terminalName: agent.terminalRef?.name,
       jsonlFile: agent.jsonlFile,
       projectDir: agent.projectDir,
       folderName: agent.folderName,
+      isHeadless: agent.isHeadless,
     });
   }
   context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
@@ -217,12 +218,17 @@ export function restoreAgents(
   let restoredProjectDir: string | null = null;
 
   for (const p of persisted) {
-    const terminal = liveTerminals.find((t) => t.name === p.terminalName);
-    if (!terminal) continue;
+    // For headless agents, skip terminal lookup — they don't have one
+    let terminal: vscode.Terminal | undefined;
+    if (!p.isHeadless) {
+      terminal = p.terminalName ? liveTerminals.find((t) => t.name === p.terminalName) : undefined;
+      if (!terminal) continue; // Terminal-based agent whose terminal is gone
+    }
 
     const agent: AgentState = {
       id: p.id,
       terminalRef: terminal,
+      isHeadless: p.isHeadless,
       projectDir: p.projectDir,
       jsonlFile: p.jsonlFile,
       fileOffset: 0,
@@ -236,15 +242,18 @@ export function restoreAgents(
       permissionSent: false,
       hadToolsInTurn: false,
       folderName: p.folderName,
+      lastActivityMs: Date.now(),
     };
 
     agents.set(p.id, agent);
     knownJsonlFiles.add(p.jsonlFile);
-    console.log(`[Pixel Agents] Restored agent ${p.id} → terminal "${p.terminalName}"`);
+    console.log(
+      `[Pixel Agents] Restored agent ${p.id} → ${p.isHeadless ? 'headless' : `terminal "${p.terminalName}"`}`,
+    );
 
     if (p.id > maxId) maxId = p.id;
     // Extract terminal index from name like "Claude Code #3"
-    const match = p.terminalName.match(/#(\d+)$/);
+    const match = p.terminalName?.match(/#(\d+)$/);
     if (match) {
       const idx = parseInt(match[1], 10);
       if (idx > maxIdx) maxIdx = idx;
