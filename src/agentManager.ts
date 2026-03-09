@@ -12,7 +12,7 @@ import {
 import { ensureProjectScan, readNewLines, startFileWatching } from './fileWatcher.js';
 import { migrateAndLoadLayout } from './layoutPersistence.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
-import type { AgentState, PersistedAgent } from './types.js';
+import type { AgentState, MessageSender, PersistedAgent } from './types.js';
 
 export function getProjectDirPath(cwd?: string): string | null {
   const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -35,7 +35,7 @@ export async function launchNewTerminal(
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
   projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
-  webview: vscode.Webview | undefined,
+  sender: MessageSender | undefined,
   persistAgents: () => void,
   folderPath?: string,
 ): Promise<void> {
@@ -87,7 +87,7 @@ export async function launchNewTerminal(
   activeAgentIdRef.current = id;
   persistAgents();
   console.log(`[Pixel Agents] Agent ${id}: created for terminal ${terminal.name}`);
-  webview?.postMessage({ type: 'agentCreated', id, folderName });
+  sender?.postMessage({ type: 'agentCreated', id, folderName });
 
   ensureProjectScan(
     projectDir,
@@ -100,8 +100,9 @@ export async function launchNewTerminal(
     pollingTimers,
     waitingTimers,
     permissionTimers,
-    webview,
+    sender,
     persistAgents,
+    () => vscode.window.activeTerminal ?? null,
   );
 
   // Poll for the specific JSONL file to appear
@@ -121,9 +122,9 @@ export async function launchNewTerminal(
           pollingTimers,
           waitingTimers,
           permissionTimers,
-          webview,
+          sender,
         );
-        readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+        readNewLines(id, agents, waitingTimers, permissionTimers, sender);
       }
     } catch {
       /* file may not exist yet */
@@ -205,7 +206,7 @@ export function restoreAgents(
   jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
   projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
   activeAgentIdRef: { current: number | null },
-  webview: vscode.Webview | undefined,
+  sender: MessageSender | undefined,
   doPersist: () => void,
 ): void {
   const persisted = context.workspaceState.get<PersistedAgent[]>(WORKSPACE_KEY_AGENTS, []);
@@ -265,7 +266,7 @@ export function restoreAgents(
           pollingTimers,
           waitingTimers,
           permissionTimers,
-          webview,
+          sender,
         );
       } else {
         // Poll for the file to appear
@@ -285,7 +286,7 @@ export function restoreAgents(
                 pollingTimers,
                 waitingTimers,
                 permissionTimers,
-                webview,
+                sender,
               );
             }
           } catch {
@@ -323,8 +324,9 @@ export function restoreAgents(
       pollingTimers,
       waitingTimers,
       permissionTimers,
-      webview,
+      sender,
       doPersist,
+      () => vscode.window.activeTerminal ?? null,
     );
   }
 }
@@ -332,9 +334,9 @@ export function restoreAgents(
 export function sendExistingAgents(
   agents: Map<number, AgentState>,
   context: vscode.ExtensionContext,
-  webview: vscode.Webview | undefined,
+  sender: MessageSender | undefined,
 ): void {
-  if (!webview) return;
+  if (!sender) return;
   const agentIds: number[] = [];
   for (const id of agents.keys()) {
     agentIds.push(id);
@@ -357,25 +359,25 @@ export function sendExistingAgents(
     `[Pixel Agents] sendExistingAgents: agents=${JSON.stringify(agentIds)}, meta=${JSON.stringify(agentMeta)}`,
   );
 
-  webview.postMessage({
+  sender.postMessage({
     type: 'existingAgents',
     agents: agentIds,
     agentMeta,
     folderNames,
   });
 
-  sendCurrentAgentStatuses(agents, webview);
+  sendCurrentAgentStatuses(agents, sender);
 }
 
 export function sendCurrentAgentStatuses(
   agents: Map<number, AgentState>,
-  webview: vscode.Webview | undefined,
+  sender: MessageSender | undefined,
 ): void {
-  if (!webview) return;
+  if (!sender) return;
   for (const [agentId, agent] of agents) {
     // Re-send active tools
     for (const [toolId, status] of agent.activeToolStatuses) {
-      webview.postMessage({
+      sender.postMessage({
         type: 'agentToolStart',
         id: agentId,
         toolId,
@@ -384,7 +386,7 @@ export function sendCurrentAgentStatuses(
     }
     // Re-send waiting status
     if (agent.isWaiting) {
-      webview.postMessage({
+      sender.postMessage({
         type: 'agentStatus',
         id: agentId,
         status: 'waiting',
@@ -395,12 +397,12 @@ export function sendCurrentAgentStatuses(
 
 export function sendLayout(
   context: vscode.ExtensionContext,
-  webview: vscode.Webview | undefined,
+  sender: MessageSender | undefined,
   defaultLayout?: Record<string, unknown> | null,
 ): void {
-  if (!webview) return;
+  if (!sender) return;
   const layout = migrateAndLoadLayout(context, defaultLayout);
-  webview.postMessage({
+  sender.postMessage({
     type: 'layoutLoaded',
     layout,
   });

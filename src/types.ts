@@ -1,8 +1,18 @@
-import type * as vscode from 'vscode';
+/** Minimal postMessage interface satisfied by both vscode.Webview and Electron IPC */
+export interface MessageSender {
+  postMessage(message: unknown): void;
+}
+
+/** Minimal terminal interface satisfied by both vscode.Terminal and AgentHandle */
+export interface TerminalHandle {
+  name: string;
+  show(): void;
+  dispose(): void;
+}
 
 export interface AgentState {
   id: number;
-  terminalRef: vscode.Terminal;
+  terminalRef: TerminalHandle;
   projectDir: string;
   jsonlFile: string;
   fileOffset: number;

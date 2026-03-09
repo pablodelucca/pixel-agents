@@ -158,6 +158,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             this.permissionTimers,
             this.webview,
             this.persistAgents,
+            () => vscode.window.activeTerminal ?? null,
           );
 
           // Load furniture assets BEFORE sending layout

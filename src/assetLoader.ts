@@ -8,7 +8,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { PNG } from 'pngjs';
-import * as vscode from 'vscode';
 
 import {
   CHAR_COUNT,
@@ -24,6 +23,7 @@ import {
   WALL_PIECE_HEIGHT,
   WALL_PIECE_WIDTH,
 } from './constants.js';
+import type { MessageSender } from './types.js';
 
 export interface FurnitureAsset {
   id: string;
@@ -252,8 +252,8 @@ export async function loadWallTiles(assetsRoot: string): Promise<LoadedWallTiles
 /**
  * Send wall tiles to webview
  */
-export function sendWallTilesToWebview(webview: vscode.Webview, wallTiles: LoadedWallTiles): void {
-  webview.postMessage({
+export function sendWallTilesToWebview(sender: MessageSender, wallTiles: LoadedWallTiles): void {
+  sender.postMessage({
     type: 'wallTilesLoaded',
     sprites: wallTiles.sprites,
   });
@@ -316,11 +316,8 @@ export async function loadFloorTiles(assetsRoot: string): Promise<LoadedFloorTil
 /**
  * Send floor tiles to webview
  */
-export function sendFloorTilesToWebview(
-  webview: vscode.Webview,
-  floorTiles: LoadedFloorTiles,
-): void {
-  webview.postMessage({
+export function sendFloorTilesToWebview(sender: MessageSender, floorTiles: LoadedFloorTiles): void {
+  sender.postMessage({
     type: 'floorTilesLoaded',
     sprites: floorTiles.sprites,
   });
@@ -413,10 +410,10 @@ export async function loadCharacterSprites(
  * Send character sprites to webview
  */
 export function sendCharacterSpritesToWebview(
-  webview: vscode.Webview,
+  sender: MessageSender,
   charSprites: LoadedCharacterSprites,
 ): void {
-  webview.postMessage({
+  sender.postMessage({
     type: 'characterSpritesLoaded',
     characters: charSprites.characters,
   });
@@ -426,7 +423,7 @@ export function sendCharacterSpritesToWebview(
 /**
  * Send loaded assets to webview
  */
-export function sendAssetsToWebview(webview: vscode.Webview, assets: LoadedAssets): void {
+export function sendAssetsToWebview(sender: MessageSender, assets: LoadedAssets): void {
   if (!assets) {
     console.log('[AssetLoader] ⚠️  No assets to send');
     return;
@@ -442,7 +439,7 @@ export function sendAssetsToWebview(webview: vscode.Webview, assets: LoadedAsset
   console.log(
     `[AssetLoader] Posting furnitureAssetsLoaded message with ${assets.catalog.length} assets`,
   );
-  webview.postMessage({
+  sender.postMessage({
     type: 'furnitureAssetsLoaded',
     catalog: assets.catalog,
     sprites: spritesObj,
