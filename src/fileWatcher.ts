@@ -109,10 +109,9 @@ export function ensureProjectScan(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
 ): void {
-  if (projectScanTimerRef.current) return;
-  // Seed with existing JSONL files so we only react to truly new ones.
-  // Skip recently active files (large + recently modified) so they can
-  // still be picked up by terminal scanning during the current session.
+  // Always seed this directory's existing JSONL files (even if timer is already running)
+  // so we only react to truly new ones. Skip recently active files (large + recently
+  // modified) so they can still be picked up by terminal scanning during the current session.
   try {
     const now = Date.now();
     const files = fs
@@ -138,6 +137,8 @@ export function ensureProjectScan(
     /* dir may not exist yet */
   }
 
+  // Start the scan timer only once
+  if (projectScanTimerRef.current) return;
   projectScanTimerRef.current = setInterval(() => {
     scanForNewJsonlFiles(
       projectDir,
