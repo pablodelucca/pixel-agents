@@ -224,22 +224,14 @@ export function ensureProjectScan(
     };
   }
 
-  // Always seed this directory's files (even if timer is already running,
-  // supports multi-root workspaces where ensureProjectScan is called per folder).
+  // Always seed this directory's files (supports multi-root workspaces).
   try {
+    const now = Date.now();
     const files = fs
       .readdirSync(projectDir)
       .filter((f) => f.endsWith('.jsonl'))
       .map((f) => path.join(projectDir, f));
     for (const f of files) {
-      // Check if this file is already tracked by a restored agent
-      let owned = false;
-      for (const agent of agents.values()) {
-        if (agent.jsonlFile === f) {
-          owned = true;
-          break;
-        }
-      }
       // Seed all files and track mtime. External scanner detects --resume
       // by comparing current mtime to seeded mtime (changed = new writes).
       knownJsonlFiles.add(f);
@@ -312,7 +304,6 @@ function scanForNewJsonlFiles(
 
     // Try to adopt the focused terminal (for manually-opened Claude terminals)
     const activeTerminal = vscode.window.activeTerminal;
-    let adopted = false;
     if (activeTerminal) {
       let owned = false;
       for (const agent of agents.values()) {
@@ -337,7 +328,36 @@ function scanForNewJsonlFiles(
           webview,
           persistAgents,
         );
-        adopted = true;
+      } else {
+        // No active agent -- scan all terminals (not just the focused one)
+        // to find an untracked Claude terminal that may own this JSONL file
+        for (const terminal of vscode.window.terminals) {
+          let owned = false;
+          for (const agent of agents.values()) {
+            if (agent.terminalRef === terminal) {
+              owned = true;
+              break;
+            }
+          }
+          if (!owned) {
+            knownJsonlFiles.add(file); // Claimed by terminal adoption
+            adoptTerminalForFile(
+              terminal,
+              file,
+              projectDir,
+              nextAgentIdRef,
+              agents,
+              activeAgentIdRef,
+              fileWatchers,
+              pollingTimers,
+              waitingTimers,
+              permissionTimers,
+              webview,
+              persistAgents,
+            );
+            break;
+          }
+        }
       }
     }
   }
