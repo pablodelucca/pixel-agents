@@ -412,47 +412,47 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     if (this.globalScanTimer) return;
     console.log('[Pixel Agents] Starting global agent discovery');
 
-    // Initial scan
-    globalScanForAgents(
-      this.knownJsonlFiles,
-      this.nextAgentId,
-      this.agents,
-      this.fileWatchers,
-      this.pollingTimers,
-      this.waitingTimers,
-      this.permissionTimers,
-      this.webview,
-      this.persistAgents,
-    );
+    const doScan = (): void => {
+      try {
+        globalScanForAgents(
+          this.knownJsonlFiles,
+          this.nextAgentId,
+          this.agents,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.webview,
+          this.persistAgents,
+        );
+      } catch (err) {
+        console.error('[Pixel Agents] Global scan error:', err);
+      }
+    };
+
+    // Initial scan (delayed to let normal agent restore complete first)
+    setTimeout(doScan, 3000);
 
     // Periodic scan for new agents
-    this.globalScanTimer = setInterval(() => {
-      globalScanForAgents(
-        this.knownJsonlFiles,
-        this.nextAgentId,
-        this.agents,
-        this.fileWatchers,
-        this.pollingTimers,
-        this.waitingTimers,
-        this.permissionTimers,
-        this.webview,
-        this.persistAgents,
-      );
-    }, GLOBAL_SCAN_INTERVAL_MS);
+    this.globalScanTimer = setInterval(doScan, GLOBAL_SCAN_INTERVAL_MS);
 
     // Periodic headless activity check (auto-despawn inactive headless agents)
     this.headlessCheckTimer = setInterval(() => {
-      checkHeadlessActivity(
-        this.agents,
-        this.fileWatchers,
-        this.pollingTimers,
-        this.waitingTimers,
-        this.permissionTimers,
-        this.jsonlPollTimers,
-        this.webview,
-        this.persistAgents,
-        HEADLESS_INACTIVITY_TIMEOUT_MS,
-      );
+      try {
+        checkHeadlessActivity(
+          this.agents,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.jsonlPollTimers,
+          this.webview,
+          this.persistAgents,
+          HEADLESS_INACTIVITY_TIMEOUT_MS,
+        );
+      } catch (err) {
+        console.error('[Pixel Agents] Headless activity check error:', err);
+      }
     }, HEADLESS_ACTIVITY_CHECK_INTERVAL_MS);
   }
 
