@@ -95,6 +95,14 @@ export function readNewLines(
   }
 }
 
+// Track all project directories to scan (supports multi-root workspaces)
+const trackedProjectDirs = new Set<string>();
+
+/**
+ * Seed a project directory's known files and register it for periodic scanning.
+ * Can be called multiple times with different directories — all will be scanned
+ * by the single shared interval timer.
+ */
 export function ensureProjectScan(
   projectDir: string,
   knownJsonlFiles: Set<string>,
@@ -109,8 +117,7 @@ export function ensureProjectScan(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
 ): void {
-  if (projectScanTimerRef.current) return;
-  // Seed with all existing JSONL files so we only react to truly new ones
+  // Always seed this directory (even if timer is already running)
   try {
     const files = fs
       .readdirSync(projectDir)
@@ -123,20 +130,27 @@ export function ensureProjectScan(
     /* dir may not exist yet */
   }
 
+  // Register for periodic scanning
+  trackedProjectDirs.add(projectDir);
+
+  // Start the shared timer only once
+  if (projectScanTimerRef.current) return;
   projectScanTimerRef.current = setInterval(() => {
-    scanForNewJsonlFiles(
-      projectDir,
-      knownJsonlFiles,
-      activeAgentIdRef,
-      nextAgentIdRef,
-      agents,
-      fileWatchers,
-      pollingTimers,
-      waitingTimers,
-      permissionTimers,
-      webview,
-      persistAgents,
-    );
+    for (const dir of trackedProjectDirs) {
+      scanForNewJsonlFiles(
+        dir,
+        knownJsonlFiles,
+        activeAgentIdRef,
+        nextAgentIdRef,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+        persistAgents,
+      );
+    }
   }, PROJECT_SCAN_INTERVAL_MS);
 }
 
