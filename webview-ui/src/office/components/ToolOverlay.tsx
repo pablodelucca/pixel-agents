@@ -15,6 +15,7 @@ interface ToolOverlayProps {
   zoom: number;
   panRef: React.RefObject<{ x: number; y: number }>;
   onCloseAgent: (id: number) => void;
+  alwaysShowOverlay: boolean;
 }
 
 /** Derive a short human-readable activity string from tools/status */
@@ -50,6 +51,7 @@ export function ToolOverlay({
   zoom,
   panRef,
   onCloseAgent,
+  alwaysShowOverlay,
 }: ToolOverlayProps) {
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -90,8 +92,8 @@ export function ToolOverlay({
         const isHovered = hoveredId === id;
         const isSub = ch.isSubagent;
 
-        // Only show for hovered or selected agents
-        if (!isSelected && !isHovered) return null;
+        // Only show for hovered or selected agents (unless always-show is on)
+        if (!alwaysShowOverlay && !isSelected && !isHovered) return null;
 
         // Position above character
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
