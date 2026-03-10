@@ -10,6 +10,8 @@ interface BottomToolbarProps {
   onToggleEditMode: () => void;
   isDebugMode: boolean;
   onToggleDebugMode: () => void;
+  alwaysShowOverlay: boolean;
+  onToggleAlwaysShowOverlay: () => void;
   workspaceFolders: WorkspaceFolder[];
 }
 
@@ -50,6 +52,8 @@ export function BottomToolbar({
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
+  alwaysShowOverlay,
+  onToggleAlwaysShowOverlay,
   workspaceFolders,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
@@ -185,6 +189,8 @@ export function BottomToolbar({
           onClose={() => setIsSettingsOpen(false)}
           isDebugMode={isDebugMode}
           onToggleDebugMode={onToggleDebugMode}
+          alwaysShowOverlay={alwaysShowOverlay}
+          onToggleAlwaysShowOverlay={onToggleAlwaysShowOverlay}
         />
       </div>
     </div>
