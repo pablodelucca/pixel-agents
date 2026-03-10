@@ -32,6 +32,13 @@ export const LAYOUT_FILE_POLL_INTERVAL_MS = 2000;
 // ── Settings Persistence ────────────────────────────────────
 export const GLOBAL_KEY_SOUND_ENABLED = 'pixel-agents.soundEnabled';
 
+// ── Global Agent Discovery ──────────────────────────────────
+export const GLOBAL_SCAN_INTERVAL_MS = 2000;
+export const HEADLESS_INACTIVITY_TIMEOUT_MS = 300_000; // 5 minutes → despawn
+export const HEADLESS_ACTIVITY_CHECK_INTERVAL_MS = 30_000; // check every 30s
+export const ACTIVE_JSONL_MIN_SIZE = 3000; // 3KB minimum to be considered active
+export const ACTIVE_JSONL_MAX_AGE_MS = 600_000; // 10 minutes
+
 // ── VS Code Identifiers ─────────────────────────────────────
 export const VIEW_ID = 'pixel-agents.panelView';
 export const COMMAND_SHOW_PANEL = 'pixel-agents.showPanel';

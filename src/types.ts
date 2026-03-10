@@ -2,7 +2,10 @@ import type * as vscode from 'vscode';
 
 export interface AgentState {
   id: number;
-  terminalRef: vscode.Terminal;
+  /** VS Code terminal reference — undefined for headless agents */
+  terminalRef?: vscode.Terminal;
+  /** True for agents discovered via JSONL scanning without a terminal */
+  isHeadless?: boolean;
   projectDir: string;
   jsonlFile: string;
   fileOffset: number;
@@ -17,13 +20,16 @@ export interface AgentState {
   hadToolsInTurn: boolean;
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+  /** Last time the JSONL file was seen growing (for headless auto-despawn) */
+  lastActivityMs?: number;
 }
 
 export interface PersistedAgent {
   id: number;
-  terminalName: string;
+  terminalName?: string;
   jsonlFile: string;
   projectDir: string;
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+  isHeadless?: boolean;
 }

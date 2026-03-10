@@ -23,8 +23,14 @@ import {
   sendFloorTilesToWebview,
   sendWallTilesToWebview,
 } from './assetLoader.js';
-import { GLOBAL_KEY_SOUND_ENABLED, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
-import { ensureProjectScan } from './fileWatcher.js';
+import {
+  GLOBAL_KEY_SOUND_ENABLED,
+  GLOBAL_SCAN_INTERVAL_MS,
+  HEADLESS_ACTIVITY_CHECK_INTERVAL_MS,
+  HEADLESS_INACTIVITY_TIMEOUT_MS,
+  WORKSPACE_KEY_AGENT_SEATS,
+} from './constants.js';
+import { checkHeadlessActivity, ensureProjectScan, globalScanForAgents } from './fileWatcher.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
 import type { AgentState } from './types.js';
@@ -46,6 +52,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   activeAgentId = { current: null as number | null };
   knownJsonlFiles = new Set<string>();
   projectScanTimer = { current: null as ReturnType<typeof setInterval> | null };
+
+  // Global agent discovery timers
+  globalScanTimer: ReturnType<typeof setInterval> | null = null;
+  headlessCheckTimer: ReturnType<typeof setInterval> | null = null;
 
   // Bundled default layout (loaded from assets/default-layout.json)
   defaultLayout: Record<string, unknown> | null = null;
@@ -93,12 +103,33 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       } else if (message.type === 'focusAgent') {
         const agent = this.agents.get(message.id);
         if (agent) {
-          agent.terminalRef.show();
+          if (agent.terminalRef) {
+            agent.terminalRef.show();
+          } else if (agent.isHeadless) {
+            // Headless agent — open JSONL file in editor as read-only preview
+            const uri = vscode.Uri.file(agent.jsonlFile);
+            vscode.window.showTextDocument(uri, { preview: true });
+          }
         }
       } else if (message.type === 'closeAgent') {
         const agent = this.agents.get(message.id);
         if (agent) {
-          agent.terminalRef.dispose();
+          if (agent.terminalRef) {
+            agent.terminalRef.dispose();
+          } else {
+            // Headless agent — remove directly (no terminal to dispose)
+            removeAgent(
+              message.id,
+              this.agents,
+              this.fileWatchers,
+              this.pollingTimers,
+              this.waitingTimers,
+              this.permissionTimers,
+              this.jsonlPollTimers,
+              this.persistAgents,
+            );
+            this.webview?.postMessage({ type: 'agentClosed', id: message.id });
+          }
         }
       } else if (message.type === 'saveAgentSeats') {
         // Store seat assignments in a separate key (never touched by persistAgents)
@@ -261,6 +292,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           })();
         }
         sendExistingAgents(this.agents, this.context, this.webview);
+
+        // Start global agent discovery — scan ALL ~/.claude/projects/ for active sessions
+        this.startGlobalScan();
       } else if (message.type === 'openSessionsFolder') {
         const projectDir = getProjectDirPath();
         if (projectDir && fs.existsSync(projectDir)) {
@@ -369,9 +403,70 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  /**
+   * Start global agent discovery — scans ALL ~/.claude/projects/ directories
+   * for active JSONL files and creates headless agents for untracked sessions.
+   * Also periodically checks headless agents for inactivity and despawns them.
+   */
+  private startGlobalScan(): void {
+    if (this.globalScanTimer) return;
+    console.log('[Pixel Agents] Starting global agent discovery');
+
+    const doScan = (): void => {
+      try {
+        globalScanForAgents(
+          this.knownJsonlFiles,
+          this.nextAgentId,
+          this.agents,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.webview,
+          this.persistAgents,
+        );
+      } catch (err) {
+        console.error('[Pixel Agents] Global scan error:', err);
+      }
+    };
+
+    // Initial scan (delayed to let normal agent restore complete first)
+    setTimeout(doScan, 3000);
+
+    // Periodic scan for new agents
+    this.globalScanTimer = setInterval(doScan, GLOBAL_SCAN_INTERVAL_MS);
+
+    // Periodic headless activity check (auto-despawn inactive headless agents)
+    this.headlessCheckTimer = setInterval(() => {
+      try {
+        checkHeadlessActivity(
+          this.agents,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.jsonlPollTimers,
+          this.webview,
+          this.persistAgents,
+          HEADLESS_INACTIVITY_TIMEOUT_MS,
+        );
+      } catch (err) {
+        console.error('[Pixel Agents] Headless activity check error:', err);
+      }
+    }, HEADLESS_ACTIVITY_CHECK_INTERVAL_MS);
+  }
+
   dispose() {
     this.layoutWatcher?.dispose();
     this.layoutWatcher = null;
+    if (this.globalScanTimer) {
+      clearInterval(this.globalScanTimer);
+      this.globalScanTimer = null;
+    }
+    if (this.headlessCheckTimer) {
+      clearInterval(this.headlessCheckTimer);
+      this.headlessCheckTimer = null;
+    }
     for (const id of [...this.agents.keys()]) {
       removeAgent(
         id,
