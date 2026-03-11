@@ -51,6 +51,9 @@ export interface ExtensionMessageState {
   layoutReady: boolean;
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> };
   workspaceFolders: WorkspaceFolder[];
+  agentProvider: 'copilot' | 'claude';
+  provider: 'copilot' | 'claude';
+  setProvider: (p: 'copilot' | 'claude') => void;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -74,6 +77,7 @@ export function useExtensionMessages(
   const [subagentTools, setSubagentTools] = useState<
     Record<number, Record<string, ToolActivity[]>>
   >({});
+  const [agentProvider, setAgentProvider] = useState<'copilot' | 'claude'>('copilot');
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([]);
   const [layoutReady, setLayoutReady] = useState(false);
   const [loadedAssets, setLoadedAssets] = useState<
@@ -374,6 +378,10 @@ export function useExtensionMessages(
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean;
         setSoundEnabled(soundOn);
+        const p = (msg.provider ?? msg.agentProvider) as string | undefined;
+        if (p === 'copilot' || p === 'claude') {
+          setAgentProvider(p as 'copilot' | 'claude');
+        }
       } else if (msg.type === 'furnitureAssetsLoaded') {
         try {
           const catalog = msg.catalog as FurnitureAsset[];
@@ -402,5 +410,8 @@ export function useExtensionMessages(
     layoutReady,
     loadedAssets,
     workspaceFolders,
+    agentProvider,
+    provider: agentProvider,
+    setProvider: setAgentProvider,
   };
 }

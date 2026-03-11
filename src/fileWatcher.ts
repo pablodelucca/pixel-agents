@@ -2,7 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
+import {
+  type AgentProvider,
+  FILE_WATCHER_POLL_INTERVAL_MS,
+  PROJECT_SCAN_INTERVAL_MS,
+} from './constants.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import type { AgentState } from './types.js';
@@ -96,7 +100,8 @@ export function readNewLines(
 }
 
 export function ensureProjectScan(
-  projectDir: string,
+  sessionDir: string,
+  provider: AgentProvider,
   knownJsonlFiles: Set<string>,
   projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
   activeAgentIdRef: { current: number | null },
@@ -110,35 +115,168 @@ export function ensureProjectScan(
   persistAgents: () => void,
 ): void {
   if (projectScanTimerRef.current) return;
-  // Seed with all existing JSONL files so we only react to truly new ones
+
+  // Seed known files so we only react to truly new ones
   try {
-    const files = fs
-      .readdirSync(projectDir)
-      .filter((f) => f.endsWith('.jsonl'))
-      .map((f) => path.join(projectDir, f));
-    for (const f of files) {
-      knownJsonlFiles.add(f);
+    if (provider === 'copilot') {
+      const subdirs = fs.readdirSync(sessionDir, { withFileTypes: true });
+      for (const entry of subdirs) {
+        if (entry.isDirectory()) {
+          const eventsFile = path.join(sessionDir, entry.name, 'events.jsonl');
+          if (fs.existsSync(eventsFile)) {
+            knownJsonlFiles.add(eventsFile);
+          }
+        }
+      }
+    } else {
+      const files = fs
+        .readdirSync(sessionDir)
+        .filter((f) => f.endsWith('.jsonl'))
+        .map((f) => path.join(sessionDir, f));
+      for (const f of files) {
+        knownJsonlFiles.add(f);
+      }
     }
   } catch {
     /* dir may not exist yet */
   }
 
   projectScanTimerRef.current = setInterval(() => {
-    scanForNewJsonlFiles(
-      projectDir,
-      knownJsonlFiles,
-      activeAgentIdRef,
-      nextAgentIdRef,
-      agents,
-      fileWatchers,
-      pollingTimers,
-      waitingTimers,
-      permissionTimers,
-      webview,
-      persistAgents,
-    );
+    if (provider === 'copilot') {
+      scanForNewSessionFiles(
+        sessionDir,
+        knownJsonlFiles,
+        activeAgentIdRef,
+        nextAgentIdRef,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+        persistAgents,
+      );
+    } else {
+      scanForNewJsonlFiles(
+        sessionDir,
+        knownJsonlFiles,
+        activeAgentIdRef,
+        nextAgentIdRef,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+        persistAgents,
+      );
+    }
   }, PROJECT_SCAN_INTERVAL_MS);
 }
+
+// ── Copilot: scan nested subdirectories for new events.jsonl files ──────────
+
+function scanForNewSessionFiles(
+  sessionStateDir: string,
+  knownJsonlFiles: Set<string>,
+  activeAgentIdRef: { current: number | null },
+  nextAgentIdRef: { current: number },
+  agents: Map<number, AgentState>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+): void {
+  let subdirs: fs.Dirent[];
+  try {
+    subdirs = fs.readdirSync(sessionStateDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of subdirs) {
+    if (!entry.isDirectory()) continue;
+    const eventsFile = path.join(sessionStateDir, entry.name, 'events.jsonl');
+    if (!knownJsonlFiles.has(eventsFile)) {
+      try {
+        if (!fs.existsSync(eventsFile)) continue;
+      } catch {
+        continue;
+      }
+      knownJsonlFiles.add(eventsFile);
+
+      // Check if any agent has an active 'task' tool — if so, this new session
+      // is a sub-agent spawned by that tool. The virtual sub-agent character created
+      // from the parent's agentToolStart ("Subtask: ...") handles display; don't
+      // reassign the main agent or it will kill that tracking.
+      let hasActiveTask = false;
+      for (const agent of agents.values()) {
+        for (const toolName of agent.activeToolNames.values()) {
+          if (toolName === 'task') {
+            hasActiveTask = true;
+            break;
+          }
+        }
+        if (hasActiveTask) break;
+      }
+
+      if (hasActiveTask) {
+        console.log(
+          `[Pixel Agents] New session detected: ${entry.name} — skipping (sub-agent of active task tool)`,
+        );
+      } else if (activeAgentIdRef.current !== null) {
+        // Active agent focused + no task running → session switch (e.g. /resume)
+        console.log(
+          `[Pixel Agents] New session detected: ${entry.name}, reassigning to agent ${activeAgentIdRef.current}`,
+        );
+        reassignAgentToFile(
+          activeAgentIdRef.current,
+          eventsFile,
+          agents,
+          fileWatchers,
+          pollingTimers,
+          waitingTimers,
+          permissionTimers,
+          webview,
+          persistAgents,
+        );
+      } else {
+        // No active agent → try to adopt the focused terminal
+        const activeTerminal = vscode.window.activeTerminal;
+        if (activeTerminal) {
+          let owned = false;
+          for (const agent of agents.values()) {
+            if (agent.terminalRef === activeTerminal) {
+              owned = true;
+              break;
+            }
+          }
+          if (!owned) {
+            adoptTerminalForFile(
+              activeTerminal,
+              eventsFile,
+              sessionStateDir,
+              'copilot',
+              nextAgentIdRef,
+              agents,
+              activeAgentIdRef,
+              fileWatchers,
+              pollingTimers,
+              waitingTimers,
+              permissionTimers,
+              webview,
+              persistAgents,
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
+// ── Claude: scan flat directory for new .jsonl files ────────────────────────
 
 function scanForNewJsonlFiles(
   projectDir: string,
@@ -198,6 +336,7 @@ function scanForNewJsonlFiles(
               activeTerminal,
               file,
               projectDir,
+              'claude',
               nextAgentIdRef,
               agents,
               activeAgentIdRef,
@@ -215,10 +354,13 @@ function scanForNewJsonlFiles(
   }
 }
 
+// ── Shared helpers ───────────────────────────────────────────────────────────
+
 function adoptTerminalForFile(
   terminal: vscode.Terminal,
   jsonlFile: string,
   projectDir: string,
+  provider: AgentProvider,
   nextAgentIdRef: { current: number },
   agents: Map<number, AgentState>,
   activeAgentIdRef: { current: number | null },
@@ -232,6 +374,7 @@ function adoptTerminalForFile(
   const id = nextAgentIdRef.current++;
   const agent: AgentState = {
     id,
+    provider,
     terminalRef: terminal,
     projectDir,
     jsonlFile,

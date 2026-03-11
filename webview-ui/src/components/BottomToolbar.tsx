@@ -10,6 +10,8 @@ interface BottomToolbarProps {
   onToggleEditMode: () => void;
   isDebugMode: boolean;
   onToggleDebugMode: () => void;
+  provider: 'copilot' | 'claude';
+  onSetProvider: (p: 'copilot' | 'claude') => void;
   workspaceFolders: WorkspaceFolder[];
 }
 
@@ -50,6 +52,8 @@ export function BottomToolbar({
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
+  provider,
+  onSetProvider,
   workspaceFolders,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
@@ -82,7 +86,7 @@ export function BottomToolbar({
 
   const handleFolderSelect = (folder: WorkspaceFolder) => {
     setIsFolderPickerOpen(false);
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path });
+    vscode.postMessage({ type: 'openAgent', folderPath: folder.path });
   };
 
   return (
@@ -185,6 +189,8 @@ export function BottomToolbar({
           onClose={() => setIsSettingsOpen(false)}
           isDebugMode={isDebugMode}
           onToggleDebugMode={onToggleDebugMode}
+          provider={provider}
+          onSetProvider={onSetProvider}
         />
       </div>
     </div>

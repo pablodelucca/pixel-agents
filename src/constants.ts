@@ -29,6 +29,13 @@ export const LAYOUT_FILE_DIR = '.pixel-agents';
 export const LAYOUT_FILE_NAME = 'layout.json';
 export const LAYOUT_FILE_POLL_INTERVAL_MS = 2000;
 
+// ── Provider Selection ─────────────────────────────────────
+export const AGENT_PROVIDERS = { copilot: 'copilot', claude: 'claude' } as const;
+export type AgentProvider = (typeof AGENT_PROVIDERS)[keyof typeof AGENT_PROVIDERS];
+export const GLOBAL_KEY_AGENT_PROVIDER = 'pixel-agents.agentProvider';
+export const COPILOT_TERMINAL_NAME_PREFIX = 'GitHub Copilot';
+export const CLAUDE_TERMINAL_NAME_PREFIX = 'Claude Code';
+
 // ── Settings Persistence ────────────────────────────────────
 export const GLOBAL_KEY_SOUND_ENABLED = 'pixel-agents.soundEnabled';
 
@@ -39,4 +46,5 @@ export const COMMAND_EXPORT_DEFAULT_LAYOUT = 'pixel-agents.exportDefaultLayout';
 export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';
 export const WORKSPACE_KEY_AGENT_SEATS = 'pixel-agents.agentSeats';
 export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
-export const TERMINAL_NAME_PREFIX = 'Claude Code';
+export const TERMINAL_NAME_PREFIX = 'GitHub Copilot'; // kept for backward-compat restoration matching
+export const COPILOT_TURN_END_DELAY_MS = 500;

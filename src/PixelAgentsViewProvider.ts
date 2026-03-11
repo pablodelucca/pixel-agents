@@ -23,7 +23,13 @@ import {
   sendFloorTilesToWebview,
   sendWallTilesToWebview,
 } from './assetLoader.js';
-import { GLOBAL_KEY_SOUND_ENABLED, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
+import {
+  AGENT_PROVIDERS,
+  type AgentProvider,
+  GLOBAL_KEY_AGENT_PROVIDER,
+  GLOBAL_KEY_SOUND_ENABLED,
+  WORKSPACE_KEY_AGENT_SEATS,
+} from './constants.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
@@ -53,7 +59,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   // Cross-window layout sync
   layoutWatcher: LayoutWatcher | null = null;
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  // Current agent provider (persisted in globalState)
+  agentProvider: AgentProvider;
+
+  constructor(private readonly context: vscode.ExtensionContext) {
+    this.agentProvider = context.globalState.get<AgentProvider>(
+      GLOBAL_KEY_AGENT_PROVIDER,
+      AGENT_PROVIDERS.copilot,
+    );
+  }
 
   private get extensionUri(): vscode.Uri {
     return this.context.extensionUri;
@@ -73,8 +87,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
-      if (message.type === 'openClaude') {
+      if (message.type === 'openAgent') {
         await launchNewTerminal(
+          this.agentProvider,
           this.nextAgentId,
           this.nextTerminalIndex,
           this.agents,
@@ -90,6 +105,37 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.persistAgents,
           message.folderPath as string | undefined,
         );
+      } else if (message.type === 'setSoundEnabled') {
+        this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
+      } else if (message.type === 'setAgentProvider') {
+        const newProvider = message.provider as AgentProvider;
+        if (newProvider === 'copilot' || newProvider === 'claude') {
+          this.agentProvider = newProvider;
+          this.context.globalState.update(GLOBAL_KEY_AGENT_PROVIDER, newProvider);
+          // Restart scan for new provider
+          if (this.projectScanTimer.current) {
+            clearInterval(this.projectScanTimer.current);
+            this.projectScanTimer.current = null;
+          }
+          const newProjectDir = getProjectDirPath(newProvider);
+          if (newProjectDir) {
+            ensureProjectScan(
+              newProjectDir,
+              newProvider,
+              this.knownJsonlFiles,
+              this.projectScanTimer,
+              this.activeAgentId,
+              this.nextAgentId,
+              this.agents,
+              this.fileWatchers,
+              this.pollingTimers,
+              this.waitingTimers,
+              this.permissionTimers,
+              this.webview,
+              this.persistAgents,
+            );
+          }
+        }
       } else if (message.type === 'focusAgent') {
         const agent = this.agents.get(message.id);
         if (agent) {
@@ -107,10 +153,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       } else if (message.type === 'saveLayout') {
         this.layoutWatcher?.markOwnWrite();
         writeLayoutToFile(message.layout as Record<string, unknown>);
-      } else if (message.type === 'setSoundEnabled') {
-        this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
       } else if (message.type === 'webviewReady') {
         restoreAgents(
+          this.agentProvider,
           this.context,
           this.nextAgentId,
           this.nextTerminalIndex,
@@ -128,7 +173,11 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         );
         // Send persisted settings to webview
         const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
-        this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled });
+        this.webview?.postMessage({
+          type: 'settingsLoaded',
+          soundEnabled,
+          agentProvider: this.agentProvider,
+        });
 
         // Send workspace folders to webview (only when multi-root)
         const wsFolders = vscode.workspace.workspaceFolders;
@@ -140,13 +189,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
 
         // Ensure project scan runs even with no restored agents (to adopt external terminals)
-        const projectDir = getProjectDirPath();
+        const projectDir = getProjectDirPath(this.agentProvider);
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         console.log('[Extension] workspaceRoot:', workspaceRoot);
         console.log('[Extension] projectDir:', projectDir);
         if (projectDir) {
           ensureProjectScan(
             projectDir,
+            this.agentProvider,
             this.knownJsonlFiles,
             this.projectScanTimer,
             this.activeAgentId,
@@ -262,7 +312,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
         sendExistingAgents(this.agents, this.context, this.webview);
       } else if (message.type === 'openSessionsFolder') {
-        const projectDir = getProjectDirPath();
+        const projectDir = getProjectDirPath(this.agentProvider);
         if (projectDir && fs.existsSync(projectDir)) {
           vscode.env.openExternal(vscode.Uri.file(projectDir));
         }

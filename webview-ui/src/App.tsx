@@ -137,6 +137,8 @@ function App() {
     layoutReady,
     loadedAssets,
     workspaceFolders,
+    provider,
+    setProvider,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   const [isDebugMode, setIsDebugMode] = useState(false);
@@ -264,6 +266,8 @@ function App() {
         onToggleEditMode={editor.handleToggleEditMode}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
+        provider={provider}
+        onSetProvider={setProvider}
         workspaceFolders={workspaceFolders}
       />
 
