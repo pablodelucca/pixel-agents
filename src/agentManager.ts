@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import {
   JSONL_POLL_INTERVAL_MS,
   TERMINAL_NAME_PREFIX,
+  WORKSPACE_KEY_AGENT_NAMES,
   WORKSPACE_KEY_AGENT_SEATS,
   WORKSPACE_KEY_AGENTS,
 } from './constants.js';
@@ -353,6 +354,10 @@ export function sendExistingAgents(
       folderNames[id] = agent.folderName;
     }
   }
+
+  // Include custom names
+  const agentNames = context.workspaceState.get<Record<number, string>>(WORKSPACE_KEY_AGENT_NAMES, {});
+
   console.log(
     `[Pixel Agents] sendExistingAgents: agents=${JSON.stringify(agentIds)}, meta=${JSON.stringify(agentMeta)}`,
   );
@@ -362,6 +367,7 @@ export function sendExistingAgents(
     agents: agentIds,
     agentMeta,
     folderNames,
+    agentNames,
   });
 
   sendCurrentAgentStatuses(agents, webview);

@@ -23,7 +23,7 @@ import {
   sendFloorTilesToWebview,
   sendWallTilesToWebview,
 } from './assetLoader.js';
-import { GLOBAL_KEY_SOUND_ENABLED, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
+import { GLOBAL_KEY_SOUND_ENABLED, WORKSPACE_KEY_AGENT_NAMES, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
@@ -100,6 +100,16 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         if (agent) {
           agent.terminalRef.dispose();
         }
+      } else if (message.type === 'setAgentName') {
+        const names = this.context.workspaceState.get<Record<number, string>>(WORKSPACE_KEY_AGENT_NAMES, {});
+        const id = message.id as number;
+        const name = message.name as string;
+        if (name) {
+          names[id] = name;
+        } else {
+          delete names[id];
+        }
+        this.context.workspaceState.update(WORKSPACE_KEY_AGENT_NAMES, names);
       } else if (message.type === 'saveAgentSeats') {
         // Store seat assignments in a separate key (never touched by persistAgents)
         console.log(`[Pixel Agents] saveAgentSeats:`, JSON.stringify(message.seats));

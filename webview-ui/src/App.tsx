@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 
+import { AgentLabels } from './components/AgentLabels.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { DebugView } from './components/DebugView.js';
 import { ZoomControls } from './components/ZoomControls.js';
@@ -132,6 +133,8 @@ function App() {
     selectedAgent,
     agentTools,
     agentStatuses,
+    agentNames,
+    setAgentName,
     subagentTools,
     subagentCharacters,
     layoutReady,
@@ -321,15 +324,28 @@ function App() {
           );
         })()}
 
+      <AgentLabels
+        officeState={officeState}
+        agents={agents}
+        agentStatuses={agentStatuses}
+        agentNames={agentNames}
+        subagentCharacters={subagentCharacters}
+        containerRef={containerRef}
+        zoom={editor.zoom}
+        panRef={editor.panRef}
+      />
+
       <ToolOverlay
         officeState={officeState}
         agents={agents}
         agentTools={agentTools}
+        agentNames={agentNames}
         subagentCharacters={subagentCharacters}
         containerRef={containerRef}
         zoom={editor.zoom}
         panRef={editor.panRef}
         onCloseAgent={handleCloseAgent}
+        onSetAgentName={setAgentName}
       />
 
       {isDebugMode && (
