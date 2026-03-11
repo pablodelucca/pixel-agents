@@ -10,11 +10,13 @@ interface ToolOverlayProps {
   officeState: OfficeState;
   agents: number[];
   agentTools: Record<number, ToolActivity[]>;
+  agentNames: Record<number, string>;
   subagentCharacters: SubagentCharacter[];
   containerRef: React.RefObject<HTMLDivElement | null>;
   zoom: number;
   panRef: React.RefObject<{ x: number; y: number }>;
   onCloseAgent: (id: number) => void;
+  onSetAgentName: (id: number, name: string) => void;
 }
 
 /** Derive a short human-readable activity string from tools/status */
@@ -45,13 +47,20 @@ export function ToolOverlay({
   officeState,
   agents,
   agentTools,
+  agentNames,
   subagentCharacters,
   containerRef,
   zoom,
   panRef,
   onCloseAgent,
+  onSetAgentName,
 }: ToolOverlayProps) {
   const [, setTick] = useState(0);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [pinnedId, setPinnedId] = useState<number | null>(null);
+
+
   useEffect(() => {
     let rafId = 0;
     const tick = () => {
@@ -80,6 +89,11 @@ export function ToolOverlay({
   // All character IDs
   const allIds = [...agents, ...subagentCharacters.map((s) => s.id)];
 
+  const commitEdit = (id: number) => {
+    onSetAgentName(id, editValue.trim())
+    setEditingId(null)
+  }
+
   return (
     <>
       {allIds.map((id) => {
@@ -90,8 +104,10 @@ export function ToolOverlay({
         const isHovered = hoveredId === id;
         const isSub = ch.isSubagent;
 
-        // Only show for hovered or selected agents
-        if (!isSelected && !isHovered) return null;
+        const isPinned = pinnedId === id;
+
+        // Only show for hovered, pinned, or selected agents
+        if (!isSelected && !isHovered && !isPinned) return null;
 
         // Position above character
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
@@ -126,9 +142,14 @@ export function ToolOverlay({
           dotColor = 'var(--pixel-status-active)';
         }
 
+        const customName = !isSub ? agentNames[id] : undefined
+        const isEditing = editingId === id
+
         return (
           <div
             key={id}
+            onMouseEnter={() => setPinnedId(id)}
+            onMouseLeave={() => setPinnedId(null)}
             style={{
               position: 'absolute',
               left: screenX,
@@ -137,7 +158,7 @@ export function ToolOverlay({
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              pointerEvents: isSelected ? 'auto' : 'none',
+              pointerEvents: isSelected || isHovered || isPinned ? 'auto' : 'none',
               zIndex: isSelected ? 'var(--pixel-overlay-selected-z)' : 'var(--pixel-overlay-z)',
             }}
           >
@@ -170,6 +191,71 @@ export function ToolOverlay({
                 />
               )}
               <div style={{ overflow: 'hidden' }}>
+                {!isSub && (
+                  isEditing ? (
+                    <input
+                      autoFocus
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={() => commitEdit(id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitEdit(id)
+                        if (e.key === 'Escape') setEditingId(null)
+                        e.stopPropagation()
+                      }}
+                      placeholder={`Agent #${id}`}
+                      style={{
+                        fontSize: '22px',
+                        background: 'var(--vscode-input-background)',
+                        color: 'var(--vscode-input-foreground)',
+                        border: '1px solid var(--pixel-accent)',
+                        borderRadius: 0,
+                        padding: '0 2px',
+                        width: 120,
+                        outline: 'none',
+                        fontFamily: 'inherit',
+                        display: 'block',
+                        marginBottom: 2,
+                      }}
+                    />
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 1 }}>
+                      <span
+                        style={{
+                          fontSize: '18px',
+                          color: customName ? 'var(--pixel-accent)' : 'var(--pixel-text-dim)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {customName || `Agent #${id}`}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setEditValue(customName || '')
+                          setEditingId(id)
+                        }}
+                        title="Rename agent"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--pixel-text-dim)',
+                          cursor: 'pointer',
+                          padding: 0,
+                          fontSize: '14px',
+                          lineHeight: 1,
+                          flexShrink: 0,
+                          opacity: 0.6,
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.6' }}
+                      >
+                        ✎
+                      </button>
+                    </div>
+                  )
+                )}
                 <span
                   style={{
                     fontSize: isSub ? '20px' : '22px',

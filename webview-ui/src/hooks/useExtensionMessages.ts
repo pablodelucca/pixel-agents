@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js';
 import type { OfficeState } from '../office/engine/officeState.js';
@@ -46,11 +46,13 @@ export interface ExtensionMessageState {
   selectedAgent: number | null;
   agentTools: Record<number, ToolActivity[]>;
   agentStatuses: Record<number, string>;
+  agentNames: Record<number, string>;
   subagentTools: Record<number, Record<string, ToolActivity[]>>;
   subagentCharacters: SubagentCharacter[];
   layoutReady: boolean;
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> };
   workspaceFolders: WorkspaceFolder[];
+  setAgentName: (id: number, name: string) => void;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -71,6 +73,7 @@ export function useExtensionMessages(
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null);
   const [agentTools, setAgentTools] = useState<Record<number, ToolActivity[]>>({});
   const [agentStatuses, setAgentStatuses] = useState<Record<number, string>>({});
+  const [agentNames, setAgentNames] = useState<Record<number, string>>({});
   const [subagentTools, setSubagentTools] = useState<
     Record<number, Record<string, ToolActivity[]>>
   >({});
@@ -80,6 +83,19 @@ export function useExtensionMessages(
     { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> } | undefined
   >();
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([]);
+
+  const setAgentName = useCallback((id: number, name: string) => {
+    setAgentNames((prev) => {
+      if (!name) {
+        if (!(id in prev)) return prev
+        const next = { ...prev }
+        delete next[id]
+        return next
+      }
+      return { ...prev, [id]: name }
+    })
+    vscode.postMessage({ type: 'setAgentName', id, name })
+  }, [])
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -163,6 +179,7 @@ export function useExtensionMessages(
           { palette?: number; hueShift?: number; seatId?: string }
         >;
         const folderNames = (msg.folderNames || {}) as Record<number, string>;
+        const incomingNames = (msg.agentNames || {}) as Record<number, string>;
         // Buffer agents — they'll be added in layoutLoaded after seats are built
         for (const id of incoming) {
           const m = meta[id];
@@ -173,6 +190,9 @@ export function useExtensionMessages(
             seatId: m?.seatId,
             folderName: folderNames[id],
           });
+        }
+        if (Object.keys(incomingNames).length > 0) {
+          setAgentNames((prev) => ({ ...prev, ...incomingNames }))
         }
         setAgents((prev) => {
           const ids = new Set(prev);
@@ -397,10 +417,12 @@ export function useExtensionMessages(
     selectedAgent,
     agentTools,
     agentStatuses,
+    agentNames,
     subagentTools,
     subagentCharacters,
     layoutReady,
     loadedAssets,
     workspaceFolders,
+    setAgentName,
   };
 }
