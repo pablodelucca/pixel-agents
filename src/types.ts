@@ -1,7 +1,10 @@
 import type * as vscode from 'vscode';
 
+import type { AgentProvider } from './constants.js';
+
 export interface AgentState {
   id: number;
+  provider: AgentProvider;
   terminalRef: vscode.Terminal;
   projectDir: string;
   jsonlFile: string;
@@ -24,6 +27,7 @@ export interface PersistedAgent {
   terminalName: string;
   jsonlFile: string;
   projectDir: string;
+  provider?: AgentProvider;
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
 }

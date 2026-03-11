@@ -8,6 +8,8 @@ interface SettingsModalProps {
   onClose: () => void;
   isDebugMode: boolean;
   onToggleDebugMode: () => void;
+  provider: 'copilot' | 'claude';
+  onSetProvider: (p: 'copilot' | 'claude') => void;
 }
 
 const menuItemBase: React.CSSProperties = {
@@ -30,6 +32,8 @@ export function SettingsModal({
   onClose,
   isDebugMode,
   onToggleDebugMode,
+  provider,
+  onSetProvider,
 }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
@@ -97,6 +101,54 @@ export function SettingsModal({
             X
           </button>
         </div>
+
+        {/* Agent Provider toggle — Claude first */}
+        <div
+          style={{
+            padding: '6px 10px',
+            borderBottom: '1px solid rgba(255,255,255,0.1)',
+            marginBottom: '2px',
+          }}
+        >
+          <div style={{ fontSize: '20px', color: 'rgba(255,255,255,0.5)', marginBottom: '6px' }}>
+            Agent Provider
+          </div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {(['claude', 'copilot'] as const).map((p) => {
+              const active = provider === p;
+              const hovKey = `provider-${p}`;
+              return (
+                <button
+                  key={p}
+                  onClick={() => {
+                    onSetProvider(p);
+                    vscode.postMessage({ type: 'setAgentProvider', provider: p });
+                  }}
+                  onMouseEnter={() => setHovered(hovKey)}
+                  onMouseLeave={() => setHovered(null)}
+                  style={{
+                    flex: 1,
+                    padding: '4px 8px',
+                    fontSize: '20px',
+                    color: active ? '#fff' : 'rgba(255,255,255,0.5)',
+                    background: active
+                      ? 'rgba(90, 140, 255, 0.25)'
+                      : hovered === hovKey
+                        ? 'rgba(255,255,255,0.08)'
+                        : 'transparent',
+                    border: `2px solid ${active ? 'rgba(90,140,255,0.8)' : 'rgba(255,255,255,0.2)'}`,
+                    borderRadius: 0,
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                  }}
+                >
+                  {p === 'copilot' ? 'Copilot' : 'Claude'}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Menu items */}
         <button
           onClick={() => {

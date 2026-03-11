@@ -103,7 +103,7 @@ export function useEditorActions(
   );
 
   const handleOpenClaude = useCallback(() => {
-    vscode.postMessage({ type: 'openClaude' });
+    vscode.postMessage({ type: 'openAgent' });
   }, []);
 
   const handleToggleEditMode = useCallback(() => {
