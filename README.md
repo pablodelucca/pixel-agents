@@ -48,7 +48,7 @@ This is the source code for the free [Pixel Agents extension for VS Code](https:
 
 ## Requirements
 
-- VS Code 1.109.0 or later
+- VS Code 1.107.0 or later
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
 
 ## Getting Started

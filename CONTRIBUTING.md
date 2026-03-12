@@ -8,8 +8,8 @@ This project is licensed under the [MIT License](LICENSE), so your contributions
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (LTS recommended)
-- [VS Code](https://code.visualstudio.com/) (v1.109.0 or later)
+- [Node.js](https://nodejs.org/) (v22 recommended)
+- [VS Code](https://code.visualstudio.com/) (v1.107.0 or later)
 
 ### Setup
 
@@ -45,9 +45,10 @@ This starts parallel watchers for both the extension backend (esbuild) and TypeS
 | `assets/` | Bundled sprites, catalog, and default layout |
 
 ## Code Guidelines
+
 ### Constants
 
-**No unused locals or parameters** (`noUnusedLocals` and `noUnusedParameters` are enabled): All magic numbers and strings are centralized — don't add inline constants to source files:
+**No unused locals or parameters** (`noUnusedLocals` and `noUnusedParameters` are enabled). All magic numbers and strings are centralized — don't add inline constants to source files:
 
 - **Extension backend:** `src/constants.ts`
 - **Webview:** `webview-ui/src/constants.ts`
@@ -59,18 +60,30 @@ The project uses a pixel art aesthetic. All overlays should use:
 
 - Sharp corners (`border-radius: 0`)
 - Solid backgrounds and `2px solid` borders
-- Hard offset shadows (`2px 2px 0px`, no blur)
+- Hard offset shadows (`2px 2px 0px`, no blur) — use `var(--pixel-shadow)`
 - The FS Pixel Sans font (loaded in `index.css`)
+
+These conventions are enforced by custom ESLint rules (`eslint-rules/pixel-agents-rules.mjs`):
+
+| Rule | Scope | What it checks |
+|---|---|---|
+| `no-inline-colors` | Extension + Webview | No hex/rgb/rgba/hsl/hsla literals outside `constants.ts` |
+| `pixel-shadow` | Webview only | Box shadows must use `var(--pixel-shadow)` or `2px 2px 0px` |
+| `pixel-font` | Webview only | Font family must reference FS Pixel Sans |
+
+These rules are set to `warn` — they won't block your PR but will flag violations for cleanup.
 
 ## Submitting a Pull Request
 
 1. Fork the repo and create a feature branch from `main`
 2. Make your changes
-3. Run the full build to verify everything passes:
+3. Verify everything passes locally:
    ```bash
-   npm run build
+   npm run lint                         # Extension lint
+   cd webview-ui && npm run lint && cd ..  # Webview lint
+   npm run build                        # Type check + esbuild + Vite
    ```
-   This runs type-checking, linting, esbuild (extension), and Vite (webview).
+   CI runs these same checks automatically on every PR.
 4. Open a pull request against `main` with:
    - A clear description of what changed and why
    - How you tested the changes (steps to reproduce / verify)
