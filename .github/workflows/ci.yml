@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install webview dependencies
+        run: npm ci
+        working-directory: webview-ui
+
+      - name: Lint
+        run: npm run lint && npm run lint:webview
+
+      - name: Build
+        run: npm run build
+
+      - name: Audit root
+        run: npm audit --audit-level=high
+
+      - name: Audit webview
+        run: npm audit --audit-level=high
+        working-directory: webview-ui
