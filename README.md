@@ -1,11 +1,33 @@
-# Pixel Agents
+<h1 align="center">
+    <a href="https://github.com/pablodelucca/pixel-agents/discussions">
+        <img src="webview-ui/public/banner.png" alt="Pixel Agents">
+    </a>
+</h1>
 
-A VS Code extension that turns your AI coding agents into animated pixel art characters in a virtual office.
+<h2 align="center" style="padding-bottom: 20px;">
+  The game interface where AI agents build real things
+</h2>
 
-Each Claude Code terminal you open spawns a character that walks around, sits at desks, and visually reflects what the agent is doing — typing when writing code, reading when searching files, waiting when it needs your attention.
+<div align="center" style="margin-top: 25px;">
+
+[![vscode-version](https://img.shields.io/visual-studio-marketplace/v/pablodelucca.pixel-agents?logo=visualstudiocode&color=0183ff)](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents)
+[![installs](https://img.shields.io/visual-studio-marketplace/i/pablodelucca.pixel-agents?color=0183ff&style=flat)](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents)
+[![stars](https://img.shields.io/github/stars/pablodelucca/pixel-agents?logo=github&color=0183ff&style=flat)](https://github.com/pablodelucca/pixel-agents/stargazers)
+[![license](https://img.shields.io/github/license/pablodelucca/pixel-agents?color=0183ff&style=flat)](https://github.com/pablodelucca/pixel-agents/blob/main/LICENSE)
+
+</div>
+
+<div align="center">
+<a href="https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents">🛒 VS Code Marketplace</a> • <a href="https://github.com/pablodelucca/pixel-agents/discussions">💬 Discussions</a> • <a href="https://github.com/pablodelucca/pixel-agents/issues">🐛 Issues</a> • <a href="CONTRIBUTING.md">🤝 Contributing</a>
+</div>
+
+<br/>
+
+Pixel Agents turns multi-agent AI systems into something you can actually see and manage. Each agent becomes a character in a pixel art office. They walk around, sit at their desk, and visually reflect what they are doing — typing when writing code, reading when searching files, waiting when it needs your attention.
+
+Right now it works as a VS Code extension with Claude Code. The vision though, is a fully agent-agnostic, platform-agnostic interface for orchestrating any AI agents, deployable anywhere.
 
 This is the source code for the free [Pixel Agents extension for VS Code](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents) — you can install it directly from the marketplace with the full furniture catalog included.
-
 
 ![Pixel Agents screenshot](webview-ui/public/Screenshot.jpg)
 
@@ -67,9 +89,11 @@ The grid is expandable up to 64×64 tiles. Click the ghost border outside the cu
 
 ### Office Assets
 
-The office tileset used in this project and available via the extension is **[Office Interior Tileset (16x16)](https://donarg.itch.io/officetileset)** by **Donarg**, available on itch.io for **$2 USD**.
+**Free assets are COMING VERY SOON!**
 
-This is the only part of the project that is not freely available. The tileset is not included in this repository due to its license. To use Pixel Agents locally with the full set of office furniture and decorations, purchase the tileset and run the asset import pipeline:
+The office tileset currently used in this project and available via the extension is **[Office Interior Tileset (16x16)](https://donarg.itch.io/officetileset)** by **Donarg**, available on itch.io for **$2 USD**.
+
+This is the only part of the project that is currently not freely available. The tileset is not included in this repository due to its license. To use Pixel Agents locally with the full set of office furniture and decorations, purchase the tileset and run the asset import pipeline:
 
 ```bash
 npm run import-tileset
@@ -96,24 +120,33 @@ The webview runs a lightweight game loop with canvas rendering, BFS pathfinding,
 - **Heuristic-based status detection** — Claude Code's JSONL transcript format does not provide clear signals for when an agent is waiting for user input or when it has finished its turn. The current detection is based on heuristics (idle timers, turn-duration events) and often misfires — agents may briefly show the wrong status or miss transitions.
 - **Windows-only testing** — the extension has only been tested on Windows 11. It may work on macOS or Linux, but there could be unexpected issues with file watching, paths, or terminal behavior on those platforms.
 
-## Roadmap
+## Where This Is Going
 
-There are several areas where contributions would be very welcome:
+The long-term vision is an interface where managing AI agents feels like playing the Sims, but the results are real things built.
 
-- **Improve agent-terminal reliability** — more robust connection and sync between characters and Claude Code instances
-- **Better status detection** — find or propose clearer signals for agent state transitions (waiting, done, permission needed)
-- **Community assets** — freely usable pixel art tilesets or characters that anyone can use without purchasing third-party assets
-- **Agent creation and definition** — define agents with custom skills, system prompts, names, and skins before launching them
-- **Desks as directories** — click on a desk to select a working directory, drag and drop agents or click-to-assign to move them to specific desks/projects
-- **Claude Code agent teams** — native support for [agent teams](https://code.claude.com/docs/en/agent-teams), visualizing multi-agent coordination and communication
-- **Git worktree support** — agents working in different worktrees to avoid conflict from parallel work on the same files
-- **Support for other agentic frameworks** — [OpenCode](https://github.com/nichochar/opencode), or really any kind of agentic experiment you'd want to run inside a pixel art interface (see [simile.ai](https://simile.ai/) for inspiration)
+- **Agents as characters** you can see, assign, monitor, and redirect, each with visible roles (designer, coder, writer, reviewer), stats, context usage, and tools.
+- **Desks as directories** — drag an agent to a desk to assign it to a project or working directory.
+- **An office as a project** — with a Kanban board on the wall where idle agents can pick up tasks autonomously.
+- **Deep inspection** — click any agent to see its model, branch, system prompt, and full work history. Interrupt it, chat with it, or redirect it.
+- **Token health bars** — rate limits and context windows visualized as in-game stats.
+- **Fully customizable** — upload your own character sprites, themes, and office assets. Eventually maybe even move beyond pixel art into 3D or VR.
 
-If any of these interest you, feel free to open an issue or submit a PR.
+For this to work, the architecture needs to be modular at every level:
 
-## Contributions
+- **Platform-agnostic**: VS Code extension today, Electron app, web app, or any other host environment tomorrow.
+- **Agent-agnostic**: Claude Code today, but built to support Codex, OpenCode, Gemini, Cursor, Copilot, and others through composable adapters.
+- **Theme-agnostic**: community-created assets, skins, and themes from any contributor.
 
-See [CONTRIBUTORS.md](CONTRIBUTORS.md) for instructions on how to contribute to this project.
+We're actively working on the core module and adapter architecture that makes this possible. If you're interested to talk about this further, please visit our [Discussions Section](https://github.com/pablodelucca/pixel-agents/discussions).
+
+
+## Community & Contributing
+
+We use **[GitHub Discussions](https://github.com/pablodelucca/pixel-agents/discussions)** for questions, feature ideas, and conversations. **[Issues](https://github.com/pablodelucca/pixel-agents/issues)** are for bug reports only.
+
+If something is broken, open an issue. For everything else, start a discussion.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on how to contribute.
 
 Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
 
@@ -127,6 +160,10 @@ If you find Pixel Agents useful, consider supporting its development:
 <a href="https://ko-fi.com/pablodelucca">
   <img src="https://img.shields.io/badge/Support-Ko--fi-ff5e5b?logo=ko-fi" alt="Ko-fi">
 </a>
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=pablodelucca/pixel-agents&type=Date)](https://www.star-history.com/?repos=pablodelucca%2Fpixel-agents&type=date&legend=bottom-right)
 
 ## License
 
