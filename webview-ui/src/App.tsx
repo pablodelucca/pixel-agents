@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 
 import { AgentLabels } from './components/AgentLabels.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
+import { NewAgentModal } from './components/NewAgentModal.js';
 import { DebugView } from './components/DebugView.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
@@ -134,13 +135,19 @@ function App() {
     agentTools,
     agentStatuses,
     agentNames,
+    agentTitles,
+    agentRoles,
     setAgentName,
+    saveAgentRole,
+    deleteAgentRole,
     subagentTools,
     subagentCharacters,
     layoutReady,
     loadedAssets,
     workspaceFolders,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
+
+  const [isNewAgentModalOpen, setIsNewAgentModalOpen] = useState(false);
 
   const [isDebugMode, setIsDebugMode] = useState(false);
 
@@ -263,11 +270,10 @@ function App() {
 
       <BottomToolbar
         isEditMode={editor.isEditMode}
-        onOpenClaude={editor.handleOpenClaude}
+        onAddAgent={() => setIsNewAgentModalOpen(true)}
         onToggleEditMode={editor.handleToggleEditMode}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
-        workspaceFolders={workspaceFolders}
       />
 
       {editor.isEditMode && editor.isDirty && (
@@ -329,6 +335,7 @@ function App() {
         agents={agents}
         agentStatuses={agentStatuses}
         agentNames={agentNames}
+        agentTitles={agentTitles}
         subagentCharacters={subagentCharacters}
         containerRef={containerRef}
         zoom={editor.zoom}
@@ -340,6 +347,7 @@ function App() {
         agents={agents}
         agentTools={agentTools}
         agentNames={agentNames}
+        agentTitles={agentTitles}
         subagentCharacters={subagentCharacters}
         containerRef={containerRef}
         zoom={editor.zoom}
@@ -347,6 +355,26 @@ function App() {
         onCloseAgent={handleCloseAgent}
         onSetAgentName={setAgentName}
       />
+
+      {isNewAgentModalOpen && (
+        <NewAgentModal
+          agentRoles={agentRoles}
+          workspaceFolders={workspaceFolders}
+          onLaunch={(folderPath, agentName, title, description, prompt) => {
+            vscode.postMessage({
+              type: 'openClaude',
+              folderPath,
+              agentName,
+              title,
+              description,
+              prompt,
+            });
+          }}
+          onSaveRole={saveAgentRole}
+          onDeleteRole={deleteAgentRole}
+          onClose={() => setIsNewAgentModalOpen(false)}
+        />
+      )}
 
       {isDebugMode && (
         <DebugView

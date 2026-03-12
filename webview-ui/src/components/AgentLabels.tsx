@@ -9,6 +9,7 @@ interface AgentLabelsProps {
   agents: number[];
   agentStatuses: Record<number, string>;
   agentNames: Record<number, string>;
+  agentTitles: Record<number, string>;
   containerRef: React.RefObject<HTMLDivElement | null>;
   zoom: number;
   panRef: React.RefObject<{ x: number; y: number }>;
@@ -20,6 +21,7 @@ export function AgentLabels({
   agents,
   agentStatuses,
   agentNames,
+  agentTitles,
   containerRef,
   zoom,
   panRef,
@@ -82,6 +84,7 @@ export function AgentLabels({
         }
 
         const labelText = subLabelMap.get(id) || agentNames[id] || `Agent #${id}`;
+        const jobTitle = !isSub ? agentTitles[id] : undefined;
 
         return (
           <div
@@ -116,8 +119,8 @@ export function AgentLabels({
                 fontStyle: isSub ? 'italic' : undefined,
                 color: 'var(--vscode-foreground)',
                 background: 'rgba(30,30,46,0.7)',
-                padding: '1px 4px',
-                borderRadius: 2,
+                padding: jobTitle ? '1px 4px 0' : '1px 4px',
+                borderRadius: jobTitle ? '2px 2px 0 0' : 2,
                 whiteSpace: 'nowrap',
                 maxWidth: isSub ? 120 : undefined,
                 overflow: isSub ? 'hidden' : undefined,
@@ -126,6 +129,21 @@ export function AgentLabels({
             >
               {labelText}
             </span>
+            {jobTitle && (
+              <span
+                style={{
+                  fontSize: '14px',
+                  fontStyle: 'italic',
+                  color: 'var(--pixel-text-dim)',
+                  background: 'rgba(30,30,46,0.7)',
+                  padding: '0 4px 2px',
+                  borderRadius: '0 0 2px 2px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {jobTitle}
+              </span>
+            )}
           </div>
         );
       })}

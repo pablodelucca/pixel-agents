@@ -27,6 +27,7 @@ export const CHAR_COUNT = 6;
 // ── User-Level Layout Persistence ─────────────────────────────
 export const LAYOUT_FILE_DIR = '.pixel-agents';
 export const LAYOUT_FILE_NAME = 'layout.json';
+export const AGENT_ROLES_FILE_NAME = 'agent-roles.json';
 export const LAYOUT_FILE_POLL_INTERVAL_MS = 2000;
 
 // ── Settings Persistence ────────────────────────────────────
@@ -39,5 +40,6 @@ export const COMMAND_EXPORT_DEFAULT_LAYOUT = 'pixel-agents.exportDefaultLayout';
 export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';
 export const WORKSPACE_KEY_AGENT_SEATS = 'pixel-agents.agentSeats';
 export const WORKSPACE_KEY_AGENT_NAMES = 'pixel-agents.agentNames';
+export const WORKSPACE_KEY_AGENT_TITLES = 'pixel-agents.agentTitles';
 export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
 export const TERMINAL_NAME_PREFIX = 'Claude Code';

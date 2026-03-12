@@ -41,18 +41,29 @@ export interface WorkspaceFolder {
   path: string;
 }
 
+export interface AgentRole {
+  title: string;
+  description: string;
+  prompt: string;
+}
+
 export interface ExtensionMessageState {
   agents: number[];
   selectedAgent: number | null;
   agentTools: Record<number, ToolActivity[]>;
   agentStatuses: Record<number, string>;
   agentNames: Record<number, string>;
+  agentTitles: Record<number, string>;
+  agentRoles: Record<string, AgentRole>;
   subagentTools: Record<number, Record<string, ToolActivity[]>>;
   subagentCharacters: SubagentCharacter[];
   layoutReady: boolean;
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> };
   workspaceFolders: WorkspaceFolder[];
   setAgentName: (id: number, name: string) => void;
+  saveAgentRole: (key: string, title: string, description: string, prompt: string) => void;
+  deleteAgentRole: (key: string) => void;
+  applyAgentRole: (agentId: number, prompt: string) => void;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -74,6 +85,8 @@ export function useExtensionMessages(
   const [agentTools, setAgentTools] = useState<Record<number, ToolActivity[]>>({});
   const [agentStatuses, setAgentStatuses] = useState<Record<number, string>>({});
   const [agentNames, setAgentNames] = useState<Record<number, string>>({});
+  const [agentTitles, setAgentTitles] = useState<Record<number, string>>({});
+  const [agentRoles, setAgentRoles] = useState<Record<string, AgentRole>>({});
   const [subagentTools, setSubagentTools] = useState<
     Record<number, Record<string, ToolActivity[]>>
   >({});
@@ -84,18 +97,40 @@ export function useExtensionMessages(
   >();
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([]);
 
+  const saveAgentRole = useCallback(
+    (key: string, title: string, description: string, prompt: string) => {
+      setAgentRoles((prev) => ({ ...prev, [key]: { title, description, prompt } }));
+      vscode.postMessage({ type: 'saveAgentRole', key, title, description, prompt });
+    },
+    [],
+  );
+
+  const deleteAgentRole = useCallback((key: string) => {
+    setAgentRoles((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    vscode.postMessage({ type: 'deleteAgentRole', key });
+  }, []);
+
+  const applyAgentRole = useCallback((agentId: number, prompt: string) => {
+    vscode.postMessage({ type: 'applyAgentRole', agentId, prompt });
+  }, []);
+
   const setAgentName = useCallback((id: number, name: string) => {
     setAgentNames((prev) => {
       if (!name) {
-        if (!(id in prev)) return prev
-        const next = { ...prev }
-        delete next[id]
-        return next
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
       }
-      return { ...prev, [id]: name }
-    })
-    vscode.postMessage({ type: 'setAgentName', id, name })
-  }, [])
+      return { ...prev, [id]: name };
+    });
+    vscode.postMessage({ type: 'setAgentName', id, name });
+  }, []);
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -142,8 +177,12 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentCreated') {
         const id = msg.id as number;
         const folderName = msg.folderName as string | undefined;
+        const name = msg.name as string | undefined;
+        const jobTitle = msg.jobTitle as string | undefined;
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
         setSelectedAgent(id);
+        if (name) setAgentNames((prev) => ({ ...prev, [id]: name }));
+        if (jobTitle) setAgentTitles((prev) => ({ ...prev, [id]: jobTitle }));
         os.addAgent(id, undefined, undefined, undefined, undefined, folderName);
         saveAgentSeats(os);
       } else if (msg.type === 'agentClosed') {
@@ -180,6 +219,7 @@ export function useExtensionMessages(
         >;
         const folderNames = (msg.folderNames || {}) as Record<number, string>;
         const incomingNames = (msg.agentNames || {}) as Record<number, string>;
+        const incomingTitles = (msg.agentTitles || {}) as Record<number, string>;
         // Buffer agents — they'll be added in layoutLoaded after seats are built
         for (const id of incoming) {
           const m = meta[id];
@@ -192,7 +232,10 @@ export function useExtensionMessages(
           });
         }
         if (Object.keys(incomingNames).length > 0) {
-          setAgentNames((prev) => ({ ...prev, ...incomingNames }))
+          setAgentNames((prev) => ({ ...prev, ...incomingNames }));
+        }
+        if (Object.keys(incomingTitles).length > 0) {
+          setAgentTitles((prev) => ({ ...prev, ...incomingTitles }));
         }
         setAgents((prev) => {
           const ids = new Set(prev);
@@ -391,6 +434,8 @@ export function useExtensionMessages(
       } else if (msg.type === 'workspaceFolders') {
         const folders = msg.folders as WorkspaceFolder[];
         setWorkspaceFolders(folders);
+      } else if (msg.type === 'agentRolesLoaded') {
+        setAgentRoles(msg.roles as Record<string, AgentRole>);
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean;
         setSoundEnabled(soundOn);
@@ -418,11 +463,16 @@ export function useExtensionMessages(
     agentTools,
     agentStatuses,
     agentNames,
+    agentTitles,
+    agentRoles,
     subagentTools,
     subagentCharacters,
     layoutReady,
     loadedAssets,
     workspaceFolders,
     setAgentName,
+    saveAgentRole,
+    deleteAgentRole,
+    applyAgentRole,
   };
 }

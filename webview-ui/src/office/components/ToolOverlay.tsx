@@ -11,6 +11,7 @@ interface ToolOverlayProps {
   agents: number[];
   agentTools: Record<number, ToolActivity[]>;
   agentNames: Record<number, string>;
+  agentTitles: Record<number, string>;
   subagentCharacters: SubagentCharacter[];
   containerRef: React.RefObject<HTMLDivElement | null>;
   zoom: number;
@@ -48,6 +49,7 @@ export function ToolOverlay({
   agents,
   agentTools,
   agentNames,
+  agentTitles,
   subagentCharacters,
   containerRef,
   zoom,
@@ -59,7 +61,6 @@ export function ToolOverlay({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
   const [pinnedId, setPinnedId] = useState<number | null>(null);
-
 
   useEffect(() => {
     let rafId = 0;
@@ -90,9 +91,9 @@ export function ToolOverlay({
   const allIds = [...agents, ...subagentCharacters.map((s) => s.id)];
 
   const commitEdit = (id: number) => {
-    onSetAgentName(id, editValue.trim())
-    setEditingId(null)
-  }
+    onSetAgentName(id, editValue.trim());
+    setEditingId(null);
+  };
 
   return (
     <>
@@ -142,8 +143,9 @@ export function ToolOverlay({
           dotColor = 'var(--pixel-status-active)';
         }
 
-        const customName = !isSub ? agentNames[id] : undefined
-        const isEditing = editingId === id
+        const customName = !isSub ? agentNames[id] : undefined;
+        const jobTitle = !isSub ? agentTitles[id] : undefined;
+        const isEditing = editingId === id;
 
         return (
           <div
@@ -191,17 +193,17 @@ export function ToolOverlay({
                 />
               )}
               <div style={{ overflow: 'hidden' }}>
-                {!isSub && (
-                  isEditing ? (
+                {!isSub &&
+                  (isEditing ? (
                     <input
                       autoFocus
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       onBlur={() => commitEdit(id)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') commitEdit(id)
-                        if (e.key === 'Escape') setEditingId(null)
-                        e.stopPropagation()
+                        if (e.key === 'Enter') commitEdit(id);
+                        if (e.key === 'Escape') setEditingId(null);
+                        e.stopPropagation();
                       }}
                       placeholder={`Agent #${id}`}
                       style={{
@@ -219,7 +221,14 @@ export function ToolOverlay({
                       }}
                     />
                   ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 1 }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        marginBottom: jobTitle ? 0 : 1,
+                      }}
+                    >
                       <span
                         style={{
                           fontSize: '18px',
@@ -232,9 +241,9 @@ export function ToolOverlay({
                       </span>
                       <button
                         onClick={(e) => {
-                          e.stopPropagation()
-                          setEditValue(customName || '')
-                          setEditingId(id)
+                          e.stopPropagation();
+                          setEditValue(customName || '');
+                          setEditingId(id);
                         }}
                         title="Rename agent"
                         style={{
@@ -248,13 +257,31 @@ export function ToolOverlay({
                           flexShrink: 0,
                           opacity: 0.6,
                         }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.6' }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLElement).style.opacity = '1';
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLElement).style.opacity = '0.6';
+                        }}
                       >
                         ✎
                       </button>
                     </div>
-                  )
+                  ))}
+                {jobTitle && (
+                  <span
+                    style={{
+                      fontSize: '15px',
+                      color: 'var(--pixel-text-dim)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: 'block',
+                      marginBottom: 1,
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    {jobTitle}
+                  </span>
                 )}
                 <span
                   style={{

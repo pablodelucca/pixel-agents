@@ -12,6 +12,7 @@ import {
   sendExistingAgents,
   sendLayout,
 } from './agentManager.js';
+import { readAgentRoles, writeAgentRoles } from './agentRoles.js';
 import {
   loadCharacterSprites,
   loadDefaultLayout,
@@ -23,7 +24,12 @@ import {
   sendFloorTilesToWebview,
   sendWallTilesToWebview,
 } from './assetLoader.js';
-import { GLOBAL_KEY_SOUND_ENABLED, WORKSPACE_KEY_AGENT_NAMES, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
+import {
+  GLOBAL_KEY_SOUND_ENABLED,
+  WORKSPACE_KEY_AGENT_NAMES,
+  WORKSPACE_KEY_AGENT_SEATS,
+  WORKSPACE_KEY_AGENT_TITLES,
+} from './constants.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
@@ -74,7 +80,19 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
       if (message.type === 'openClaude') {
-        await launchNewTerminal(
+        const msgTitle = (message.title as string) || '';
+        const msgPrompt = (message.prompt as string) || '';
+        const initialRole =
+          msgTitle || msgPrompt
+            ? {
+                title: msgTitle,
+                description: (message.description as string) || '',
+                prompt: msgPrompt,
+              }
+            : undefined;
+        const agentName = (message.agentName as string | undefined) || undefined;
+        const agentTitle = msgTitle || undefined;
+        const newId = await launchNewTerminal(
           this.nextAgentId,
           this.nextTerminalIndex,
           this.agents,
@@ -89,7 +107,26 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.webview,
           this.persistAgents,
           message.folderPath as string | undefined,
+          initialRole,
+          agentName,
+          agentTitle,
         );
+        if (agentName) {
+          const names = this.context.workspaceState.get<Record<number, string>>(
+            WORKSPACE_KEY_AGENT_NAMES,
+            {},
+          );
+          names[newId] = agentName;
+          void this.context.workspaceState.update(WORKSPACE_KEY_AGENT_NAMES, names);
+        }
+        if (agentTitle) {
+          const titles = this.context.workspaceState.get<Record<number, string>>(
+            WORKSPACE_KEY_AGENT_TITLES,
+            {},
+          );
+          titles[newId] = agentTitle;
+          void this.context.workspaceState.update(WORKSPACE_KEY_AGENT_TITLES, titles);
+        }
       } else if (message.type === 'focusAgent') {
         const agent = this.agents.get(message.id);
         if (agent) {
@@ -100,8 +137,34 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         if (agent) {
           agent.terminalRef.dispose();
         }
+      } else if (message.type === 'saveAgentRole') {
+        const roles = readAgentRoles();
+        const key = message.key as string;
+        roles[key] = {
+          title: message.title as string,
+          description: message.description as string,
+          prompt: message.prompt as string,
+        };
+        writeAgentRoles(roles);
+      } else if (message.type === 'deleteAgentRole') {
+        const roles = readAgentRoles();
+        delete roles[message.key as string];
+        writeAgentRoles(roles);
+      } else if (message.type === 'applyAgentRole') {
+        const agent = this.agents.get(message.agentId as number);
+        if (agent) {
+          const prompt = message.prompt as string;
+          if (prompt) {
+            agent.terminalRef.sendText(
+              `${prompt}\n\nPlease acknowledge with only "✓" and nothing else.`,
+            );
+          }
+        }
       } else if (message.type === 'setAgentName') {
-        const names = this.context.workspaceState.get<Record<number, string>>(WORKSPACE_KEY_AGENT_NAMES, {});
+        const names = this.context.workspaceState.get<Record<number, string>>(
+          WORKSPACE_KEY_AGENT_NAMES,
+          {},
+        );
         const id = message.id as number;
         const name = message.name as string;
         if (name) {
@@ -271,6 +334,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           })();
         }
         sendExistingAgents(this.agents, this.context, this.webview);
+        this.webview?.postMessage({ type: 'agentRolesLoaded', roles: readAgentRoles() });
       } else if (message.type === 'openSessionsFolder') {
         const projectDir = getProjectDirPath();
         if (projectDir && fs.existsSync(projectDir)) {

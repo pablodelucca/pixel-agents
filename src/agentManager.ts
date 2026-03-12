@@ -8,6 +8,7 @@ import {
   TERMINAL_NAME_PREFIX,
   WORKSPACE_KEY_AGENT_NAMES,
   WORKSPACE_KEY_AGENT_SEATS,
+  WORKSPACE_KEY_AGENT_TITLES,
   WORKSPACE_KEY_AGENTS,
 } from './constants.js';
 import { ensureProjectScan, readNewLines, startFileWatching } from './fileWatcher.js';
@@ -39,7 +40,10 @@ export async function launchNewTerminal(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
   folderPath?: string,
-): Promise<void> {
+  initialRole?: { title: string; description: string; prompt: string },
+  agentName?: string,
+  agentTitle?: string,
+): Promise<number> {
   const folders = vscode.workspace.workspaceFolders;
   const cwd = folderPath || folders?.[0]?.uri.fsPath;
   const isMultiRoot = !!(folders && folders.length > 1);
@@ -53,10 +57,24 @@ export async function launchNewTerminal(
   const sessionId = crypto.randomUUID();
   terminal.sendText(`claude --session-id ${sessionId}`);
 
+  // Send role prompt after Claude has had time to fully initialize.
+  // All parts are joined into one line — inner \n in sendText acts like
+  // pressing Enter and would submit early, so newlines are collapsed to spaces.
+  if (initialRole && (initialRole.title || initialRole.prompt)) {
+    const parts: string[] = [];
+    if (initialRole.title) parts.push(`You are a ${initialRole.title}.`);
+    if (initialRole.prompt) parts.push(initialRole.prompt.replace(/\n+/g, ' ').trim());
+    parts.push('Please acknowledge with only "✓" and nothing else.');
+    const rolePrompt = parts.join(' ');
+    setTimeout(() => {
+      terminal.sendText(rolePrompt);
+    }, 5000);
+  }
+
   const projectDir = getProjectDirPath(cwd);
   if (!projectDir) {
     console.log(`[Pixel Agents] No project dir, cannot track agent`);
-    return;
+    return -1;
   }
 
   // Pre-register expected JSONL file so project scan won't treat it as a /clear file
@@ -88,7 +106,13 @@ export async function launchNewTerminal(
   activeAgentIdRef.current = id;
   persistAgents();
   console.log(`[Pixel Agents] Agent ${id}: created for terminal ${terminal.name}`);
-  webview?.postMessage({ type: 'agentCreated', id, folderName });
+  webview?.postMessage({
+    type: 'agentCreated',
+    id,
+    folderName,
+    name: agentName || undefined,
+    jobTitle: agentTitle || undefined,
+  });
 
   ensureProjectScan(
     projectDir,
@@ -131,6 +155,7 @@ export async function launchNewTerminal(
     }
   }, JSONL_POLL_INTERVAL_MS);
   jsonlPollTimers.set(id, pollTimer);
+  return id;
 }
 
 export function removeAgent(
@@ -355,8 +380,15 @@ export function sendExistingAgents(
     }
   }
 
-  // Include custom names
-  const agentNames = context.workspaceState.get<Record<number, string>>(WORKSPACE_KEY_AGENT_NAMES, {});
+  // Include custom names and job titles
+  const agentNames = context.workspaceState.get<Record<number, string>>(
+    WORKSPACE_KEY_AGENT_NAMES,
+    {},
+  );
+  const agentTitles = context.workspaceState.get<Record<number, string>>(
+    WORKSPACE_KEY_AGENT_TITLES,
+    {},
+  );
 
   console.log(
     `[Pixel Agents] sendExistingAgents: agents=${JSON.stringify(agentIds)}, meta=${JSON.stringify(agentMeta)}`,
@@ -368,6 +400,7 @@ export function sendExistingAgents(
     agentMeta,
     folderNames,
     agentNames,
+    agentTitles,
   });
 
   sendCurrentAgentStatuses(agents, webview);
