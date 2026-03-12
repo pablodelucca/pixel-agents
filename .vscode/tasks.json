@@ -55,6 +55,18 @@
                 "group": "watch",
                 "reveal": "never"
             }
+        },
+        {
+            "label": "Run CI (act)",
+            "type": "shell",
+            "command": "act push -j ci --container-architecture linux/amd64",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": []
         }
 	]
 }
