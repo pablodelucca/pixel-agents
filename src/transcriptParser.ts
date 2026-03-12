@@ -101,6 +101,7 @@ export function processTranscriptLine(
               id: agentId,
               toolId: block.id,
               status,
+              toolName,
             });
           }
         }
