@@ -92,7 +92,8 @@ function treeClassify(pid: number): string {
 function detectExternalTerminalName(jsonlFile: string): string | null | undefined {
   try {
     const sessionId = path.basename(jsonlFile, '.jsonl');
-    const psOutput = execSync('ps aux', { encoding: 'utf-8', timeout: 2000 });
+    // ps auxww: wide output so long arg lists (e.g. --output-format) aren't truncated
+    const psOutput = execSync('ps auxww', { encoding: 'utf-8', timeout: 2000 });
     const lines = psOutput.split('\n');
 
     // Fast path: claude process that explicitly carries this session UUID in its args.
@@ -141,7 +142,12 @@ function detectExternalTerminalName(jsonlFile: string): string | null | undefine
     const extensionLines = candidateLines.filter((l) => l.includes('--output-format'));
     const bareLines = candidateLines.filter((l) => !l.includes('--output-format'));
 
-    // Check bare claudes first — they might be Ghostty, VS Code terminal, etc.
+    // If both extension and bare claudes are running, we can't reliably attribute
+    // this JSONL to one type without lsof. Default to headless Ext to avoid
+    // adopting the wrong terminal.
+    if (extensionLines.length > 0 && bareLines.length > 0) return EXTERNAL_AGENT_FOLDER_NAME;
+
+    // Only bare claudes — classify by process tree.
     for (const l of bareLines) {
       const pid = parseInt(l.trim().split(/\s+/)[1]);
       if (!pid || isNaN(pid)) continue;
@@ -151,7 +157,7 @@ function detectExternalTerminalName(jsonlFile: string): string | null | undefine
       if (result !== null) return result; // specific terminal (Ghostty, etc.)
     }
 
-    // Extension claudes exist → this JSONL likely belongs to one.
+    // Only extension claudes exist → this JSONL belongs to one.
     if (extensionLines.length > 0) return EXTERNAL_AGENT_FOLDER_NAME;
 
     // Bare claudes exist but no specific terminal identified → external unknown.
