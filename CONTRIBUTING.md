@@ -91,16 +91,15 @@ These rules are set to `warn` — they won't block your PR but will flag violati
 
 ## Reporting Bugs
 
-[Open an issue](https://github.com/pablodelucca/pixel-agents/issues) with:
-
-- What you expected to happen
-- What actually happened
-- Steps to reproduce
-- VS Code version and OS
+[Open a bug report](https://github.com/pablodelucca/pixel-agents/issues/new?template=bug_report.yml) — the form will guide you through providing the details we need.
 
 ## Feature Requests
 
-Have an idea? [Open an issue](https://github.com/pablodelucca/pixel-agents/issues) to discuss it before building. This helps avoid duplicate work and ensures the feature fits the project's direction.
+Have an idea? [Start a discussion](https://github.com/pablodelucca/pixel-agents/discussions/categories/ideas) in the Ideas category. We love hearing new ideas, and discussing them first helps us collaborate on the best approach together.
+
+## Security Issues
+
+Please report security vulnerabilities privately — see [SECURITY.md](SECURITY.md) for details.
 
 ## Code of Conduct
 
