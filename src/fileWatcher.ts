@@ -73,102 +73,94 @@ function walkProcessTree(pid: number): 'vscode_terminal' | 'ignore' | string | n
   return null;
 }
 
+/** Classify a claude PID to a result string.
+ * Returns VSCODE_TERMINAL_SESSION, EXTERNAL_AGENT_FOLDER_NAME, a terminal name, or null on error. */
+function treeClassify(pid: number): string {
+  const result = walkProcessTree(pid);
+  if (result === 'vscode_terminal') return VSCODE_TERMINAL_SESSION;
+  if (result === 'ignore') return EXTERNAL_AGENT_FOLDER_NAME; // extension-host parent → Ext agent
+  if (result !== null) return result; // Ghostty, iTerm2, etc.
+  return EXTERNAL_AGENT_FOLDER_NAME; // unrecognised ancestor
+}
+
 /** Try to identify the terminal emulator running a claude session by walking the process tree.
  * Returns:
- *   null                  — ignore (Claude Code extension / extension-host session)
+ *   null                  — already tracked (+button --session-id agent); skip entirely
  *   VSCODE_TERMINAL_SESSION — VS Code terminal session; caller should adopt an unowned terminal
- *   string (other)        — external terminal name (or EXTERNAL_AGENT_FOLDER_NAME); create headless
+ *   string (other)        — external/extension name (create headless agent with that label)
  *   undefined             — ps error; caller should create headless as a safe fallback */
 function detectExternalTerminalName(jsonlFile: string): string | null | undefined {
   try {
     const sessionId = path.basename(jsonlFile, '.jsonl');
     const psOutput = execSync('ps aux', { encoding: 'utf-8', timeout: 2000 });
-    const line = psOutput.split('\n').find((l) => l.includes('claude') && l.includes(sessionId));
+    const lines = psOutput.split('\n');
 
-    if (!line) {
-      // Process not found by UUID — claude was started without a session ID in its args
-      // (bare `claude` in Ghostty, manually typed in a VS Code terminal, or the Claude Code
-      // extension which uses --output-format stream-json instead of --session-id).
-      //
-      // Use lsof to find which process actually has the JSONL file open for writing,
-      // then classify that process directly.
-      try {
-        const lsofOut = execSync(`lsof -t -- "${jsonlFile}"`, {
-          encoding: 'utf-8',
-          timeout: 2000,
-        }).trim();
-        for (const pidStr of lsofOut.split('\n')) {
-          const writePid = parseInt(pidStr.trim());
-          if (!writePid || isNaN(writePid)) continue;
-          try {
-            const ownComm = execSync(`ps -p ${writePid} -o comm=`, {
-              encoding: 'utf-8',
-              timeout: 1000,
-            })
-              .trim()
-              .toLowerCase();
-            // Code Helper (Plugin) is the extension host — it reads/monitors the file,
-            // meaning this JSONL belongs to a Claude Code extension session → ignore.
-            if (ownComm.includes('plugin')) return null;
-            const procArgs = execSync(`ps -p ${writePid} -o args=`, {
-              encoding: 'utf-8',
-              timeout: 1000,
-            }).trim();
-            // Extension fast-path: --output-format stream-json → ignore
-            if (procArgs.includes('--output-format')) return null;
-            // Walk tree to classify
-            const treeResult = walkProcessTree(writePid);
-            if (treeResult === 'vscode_terminal') return VSCODE_TERMINAL_SESSION;
-            if (treeResult === 'ignore') return null;
-            if (treeResult !== null) return treeResult; // known external terminal
-          } catch {
-            /* this PID may have exited, try next */
-          }
-        }
-      } catch {
-        /* lsof unavailable or file not open yet — fall through */
-      }
-      // lsof found nothing (file not open, or lsof unavailable).
-      // Last resort: check if any unaccounted claude process has a VS Code terminal parent.
-      const unaccounted = psOutput
-        .split('\n')
-        .filter(
-          (l) =>
-            l.includes(' claude') &&
-            !l.includes('--session-id') &&
-            !l.includes('--output-format') &&
-            !l.includes('grep'),
-        );
-      for (const uLine of unaccounted) {
-        const uPid = parseInt(uLine.trim().split(/\s+/)[1]);
-        if (!uPid || isNaN(uPid)) continue;
-        const result = walkProcessTree(uPid);
-        if (result === 'vscode_terminal') return VSCODE_TERMINAL_SESSION;
-      }
-      return EXTERNAL_AGENT_FOLDER_NAME;
+    // Fast path: claude process that explicitly carries this session UUID in its args.
+    const uuidLine = lines.find((l) => l.includes('claude') && l.includes(sessionId));
+    if (uuidLine) {
+      // + button agents use --session-id → already tracked by launchNewTerminal
+      if (uuidLine.includes('--session-id')) return null;
+      // Extension uses --output-format → headless Ext agent
+      if (uuidLine.includes('--output-format')) return EXTERNAL_AGENT_FOLDER_NAME;
+      const pid = parseInt(uuidLine.trim().split(/\s+/)[1]);
+      if (!pid || isNaN(pid)) return EXTERNAL_AGENT_FOLDER_NAME;
+      return treeClassify(pid);
     }
 
-    // Fast path: VS Code's launchNewTerminal always passes --session-id.
-    // These are already tracked by launchNewTerminal — should never reach the scanner,
-    // but return null (ignore) as a safety net.
-    if (line.includes('--session-id')) return null;
+    // UUID not in args — bare `claude`, extension, or external terminal.
+    // Collect all claude processes that aren't already tracked by launchNewTerminal.
+    const candidateLines = lines.filter(
+      (l) => l.includes(' claude') && !l.includes('--session-id') && !l.includes('grep'),
+    );
 
-    // Fast path: Claude Code IDE extension uses --output-format stream-json.
-    // Must be ignored, NOT adopted as a terminal agent.
-    if (line.includes('--output-format')) return null;
+    if (candidateLines.length === 0) return undefined;
 
-    const pid = parseInt(line.trim().split(/\s+/)[1]);
-    if (!pid || isNaN(pid)) return EXTERNAL_AGENT_FOLDER_NAME;
+    // Try to pinpoint which process created this specific JSONL using per-process lsof.
+    // lsof -p <pid> only reports that process's open files — unlike lsof -t -- <file>
+    // which also returns unrelated readers (e.g. Pixel Agents' own file watchers).
+    const fileBase = path.basename(jsonlFile);
+    for (const l of candidateLines) {
+      const pid = parseInt(l.trim().split(/\s+/)[1]);
+      if (!pid || isNaN(pid)) continue;
+      try {
+        const openFiles = execSync(`lsof -p ${pid}`, {
+          encoding: 'utf-8',
+          timeout: 2000,
+        });
+        if (!openFiles.includes(fileBase)) continue;
+        // This process has our JSONL open — classify it.
+        if (l.includes('--output-format')) return EXTERNAL_AGENT_FOLDER_NAME;
+        return treeClassify(pid);
+      } catch {
+        /* lsof failed for this PID — try next */
+      }
+    }
 
-    const result = walkProcessTree(pid);
-    if (result === 'vscode_terminal') return VSCODE_TERMINAL_SESSION;
-    if (result === 'ignore') return null;
-    if (result !== null) return result; // known terminal name
+    // Per-process lsof found nothing (claude closed the fd between writes, or lsof failed).
+    // Fall back: classify by process tree heuristics.
+    const extensionLines = candidateLines.filter((l) => l.includes('--output-format'));
+    const bareLines = candidateLines.filter((l) => !l.includes('--output-format'));
+
+    // Check bare claudes first — they might be Ghostty, VS Code terminal, etc.
+    for (const l of bareLines) {
+      const pid = parseInt(l.trim().split(/\s+/)[1]);
+      if (!pid || isNaN(pid)) continue;
+      const result = walkProcessTree(pid);
+      if (result === 'vscode_terminal') return VSCODE_TERMINAL_SESSION;
+      if (result === 'ignore') continue; // skip extension-spawned bare claude
+      if (result !== null) return result; // specific terminal (Ghostty, etc.)
+    }
+
+    // Extension claudes exist → this JSONL likely belongs to one.
+    if (extensionLines.length > 0) return EXTERNAL_AGENT_FOLDER_NAME;
+
+    // Bare claudes exist but no specific terminal identified → external unknown.
+    if (bareLines.length > 0) return EXTERNAL_AGENT_FOLDER_NAME;
+
+    return undefined;
   } catch {
     return undefined;
   }
-  // Process found but no recognised ancestor — probably external, unknown terminal type
-  return EXTERNAL_AGENT_FOLDER_NAME;
 }
 
 export function startFileWatching(
@@ -545,16 +537,16 @@ export function adoptExistingJsonlFiles(
       if (isLarge && isRecent) {
         const terminalName = detectExternalTerminalName(f);
         if (terminalName === null) {
-          // Definitely VS Code/Cursor — skip
-          console.log(
-            `[Pixel Agents] Skipping VS Code extension session on startup: ${path.basename(f)}`,
-          );
+          // Already tracked (+button --session-id agent restored via restoreAgents) — skip.
           knownJsonlFiles.add(f);
           continue;
         }
-        // undefined = can't determine, but it passed the size+recency filter so it's
-        // likely an active external session (e.g. Ghostty `claude` with no UUID in args)
-        const resolvedName = terminalName ?? EXTERNAL_AGENT_FOLDER_NAME;
+        // At startup there are no terminals to adopt yet, so treat VSCODE_TERMINAL_SESSION
+        // the same as an external session (create headless Ext agent).
+        const resolvedName =
+          terminalName === undefined || terminalName === VSCODE_TERMINAL_SESSION
+            ? EXTERNAL_AGENT_FOLDER_NAME
+            : terminalName;
         console.log(
           `[Pixel Agents] Adopting pre-existing session: ${path.basename(f)} (${resolvedName})`,
         );
