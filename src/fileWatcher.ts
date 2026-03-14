@@ -23,24 +23,23 @@ const KNOWN_TERMINALS = [
   'Alacritty',
   'kitty',
   'tmux',
+  'Cursor', // Cursor IDE treated as external app — shows as headless agent
 ];
-const VS_CODE_PROCESSES = ['code', 'code-insiders', 'electron', 'cursor'];
+const VS_CODE_PROCESSES = ['code', 'code-insiders', 'electron'];
 
-/** Try to identify the terminal emulator running a claude session by walking the process tree.
- * Returns the terminal name, EXTERNAL_AGENT_FOLDER_NAME for unknown external terminals,
- * or null if the session belongs to a VS Code instance (should be skipped). */
-function detectExternalTerminalName(jsonlFile: string): string | null {
-  try {
-    const sessionId = path.basename(jsonlFile, '.jsonl');
-    const psOutput = execSync('ps aux', { encoding: 'utf-8', timeout: 2000 });
-    const line = psOutput.split('\n').find((l) => l.includes('claude') && l.includes(sessionId));
-    if (!line) return EXTERNAL_AGENT_FOLDER_NAME;
+// Sentinel: the JSONL belongs to a VS Code terminal (not extension host).
+// Caller should look for an unowned VS Code terminal and adopt it.
+const VSCODE_TERMINAL_SESSION = '__vscode_terminal__';
 
-    const pid = parseInt(line.trim().split(/\s+/)[1]);
-    if (!pid || isNaN(pid)) return EXTERNAL_AGENT_FOLDER_NAME;
-
-    let checkPid = pid;
-    for (let i = 0; i < 8; i++) {
+/** Walk the process tree upward from pid.
+ * Returns 'vscode_terminal' if a regular Code Helper (non-plugin) ancestor is found,
+ * 'ignore' if an extension-host (Plugin) or other VS Code process is found,
+ * the terminal name if a known external terminal is found,
+ * or null if nothing matched within the depth limit. */
+function walkProcessTree(pid: number): 'vscode_terminal' | 'ignore' | string | null {
+  let checkPid = pid;
+  for (let i = 0; i < 8; i++) {
+    try {
       const ppidStr = execSync(`ps -p ${checkPid} -o ppid=`, {
         encoding: 'utf-8',
         timeout: 1000,
@@ -52,18 +51,123 @@ function detectExternalTerminalName(jsonlFile: string): string | null {
         timeout: 1000,
       }).trim();
       const commLower = comm.toLowerCase();
-      // VS Code extension sessions — signal to skip
+
+      // Extension host process (Code Helper (Plugin), Cursor Helper (Plugin)) → ignore
+      if (commLower.includes('plugin')) return 'ignore';
+
+      // Regular VS Code / Cursor terminal process → adopt as terminal agent
       for (const vs of VS_CODE_PROCESSES) {
-        if (commLower.includes(vs)) return null;
+        if (commLower.includes(vs)) return 'vscode_terminal';
       }
+
+      // Known external terminal emulator → headless agent
       for (const term of KNOWN_TERMINALS) {
         if (commLower.includes(term.toLowerCase())) return term;
       }
+
       checkPid = ppid;
+    } catch {
+      break;
     }
-  } catch {
-    /* detection failed — fall back to generic label */
   }
+  return null;
+}
+
+/** Try to identify the terminal emulator running a claude session by walking the process tree.
+ * Returns:
+ *   null                  — ignore (Claude Code extension / extension-host session)
+ *   VSCODE_TERMINAL_SESSION — VS Code terminal session; caller should adopt an unowned terminal
+ *   string (other)        — external terminal name (or EXTERNAL_AGENT_FOLDER_NAME); create headless
+ *   undefined             — ps error; caller should create headless as a safe fallback */
+function detectExternalTerminalName(jsonlFile: string): string | null | undefined {
+  try {
+    const sessionId = path.basename(jsonlFile, '.jsonl');
+    const psOutput = execSync('ps aux', { encoding: 'utf-8', timeout: 2000 });
+    const line = psOutput.split('\n').find((l) => l.includes('claude') && l.includes(sessionId));
+
+    if (!line) {
+      // Process not found by UUID — claude was started without a session ID in its args
+      // (bare `claude` in Ghostty, manually typed in a VS Code terminal, or the Claude Code
+      // extension which uses --output-format stream-json instead of --session-id).
+      //
+      // Use lsof to find which process actually has the JSONL file open for writing,
+      // then classify that process directly.
+      try {
+        const lsofOut = execSync(`lsof -t -- "${jsonlFile}"`, {
+          encoding: 'utf-8',
+          timeout: 2000,
+        }).trim();
+        for (const pidStr of lsofOut.split('\n')) {
+          const writePid = parseInt(pidStr.trim());
+          if (!writePid || isNaN(writePid)) continue;
+          try {
+            const ownComm = execSync(`ps -p ${writePid} -o comm=`, {
+              encoding: 'utf-8',
+              timeout: 1000,
+            })
+              .trim()
+              .toLowerCase();
+            // Code Helper (Plugin) is the extension host — it reads/monitors the file,
+            // meaning this JSONL belongs to a Claude Code extension session → ignore.
+            if (ownComm.includes('plugin')) return null;
+            const procArgs = execSync(`ps -p ${writePid} -o args=`, {
+              encoding: 'utf-8',
+              timeout: 1000,
+            }).trim();
+            // Extension fast-path: --output-format stream-json → ignore
+            if (procArgs.includes('--output-format')) return null;
+            // Walk tree to classify
+            const treeResult = walkProcessTree(writePid);
+            if (treeResult === 'vscode_terminal') return VSCODE_TERMINAL_SESSION;
+            if (treeResult === 'ignore') return null;
+            if (treeResult !== null) return treeResult; // known external terminal
+          } catch {
+            /* this PID may have exited, try next */
+          }
+        }
+      } catch {
+        /* lsof unavailable or file not open yet — fall through */
+      }
+      // lsof found nothing (file not open, or lsof unavailable).
+      // Last resort: check if any unaccounted claude process has a VS Code terminal parent.
+      const unaccounted = psOutput
+        .split('\n')
+        .filter(
+          (l) =>
+            l.includes(' claude') &&
+            !l.includes('--session-id') &&
+            !l.includes('--output-format') &&
+            !l.includes('grep'),
+        );
+      for (const uLine of unaccounted) {
+        const uPid = parseInt(uLine.trim().split(/\s+/)[1]);
+        if (!uPid || isNaN(uPid)) continue;
+        const result = walkProcessTree(uPid);
+        if (result === 'vscode_terminal') return VSCODE_TERMINAL_SESSION;
+      }
+      return EXTERNAL_AGENT_FOLDER_NAME;
+    }
+
+    // Fast path: VS Code's launchNewTerminal always passes --session-id.
+    // These are already tracked by launchNewTerminal — should never reach the scanner,
+    // but return null (ignore) as a safety net.
+    if (line.includes('--session-id')) return null;
+
+    // Fast path: Claude Code IDE extension uses --output-format stream-json.
+    // Must be ignored, NOT adopted as a terminal agent.
+    if (line.includes('--output-format')) return null;
+
+    const pid = parseInt(line.trim().split(/\s+/)[1]);
+    if (!pid || isNaN(pid)) return EXTERNAL_AGENT_FOLDER_NAME;
+
+    const result = walkProcessTree(pid);
+    if (result === 'vscode_terminal') return VSCODE_TERMINAL_SESSION;
+    if (result === 'ignore') return null;
+    if (result !== null) return result; // known terminal name
+  } catch {
+    return undefined;
+  }
+  // Process found but no recognised ancestor — probably external, unknown terminal type
   return EXTERNAL_AGENT_FOLDER_NAME;
 }
 
@@ -239,40 +343,18 @@ function scanForNewJsonlFiles(
       knownJsonlFiles.add(file);
 
       // Detect the terminal emulator that owns this session.
-      // Returns null = VS Code process (skip as extension session or treat as /clear).
-      // Returns a string (including EXTERNAL_AGENT_FOLDER_NAME) = external terminal.
+      // null                  = extension/plugin-host session → ignore completely
+      // VSCODE_TERMINAL_SESSION = VS Code terminal session → adopt unowned terminal
+      // string (other)        = external terminal → headless agent
+      // undefined             = ps error → headless agent (safe fallback)
       const externalName = detectExternalTerminalName(file);
 
-      if (externalName !== null) {
-        // External terminal (Ghostty, iTerm2, etc.) — always create a new agent,
-        // even if a VS Code agent is active (avoids misidentifying as /clear).
-        let currentOffset = 0;
-        try {
-          currentOffset = fs.statSync(file).size;
-        } catch {
-          /* use 0 if stat fails */
-        }
-        console.log(
-          `[Pixel Agents] New external session: ${path.basename(file)} (${externalName}), offset=${currentOffset}`,
-        );
-        adoptTerminalForFile(
-          null,
-          file,
-          projectDir,
-          nextAgentIdRef,
-          agents,
-          activeAgentIdRef,
-          fileWatchers,
-          pollingTimers,
-          waitingTimers,
-          permissionTimers,
-          webview,
-          persistAgents,
-          currentOffset,
-          externalName,
-        );
-      } else {
-        // VS Code session: search for an unowned terminal first, then fall back to /clear.
+      if (externalName === null) {
+        // Claude Code extension or other plugin-host session — ignore silently.
+        console.log(`[Pixel Agents] Ignoring extension session: ${path.basename(file)}`);
+      } else if (externalName === VSCODE_TERMINAL_SESSION) {
+        // VS Code terminal running `claude` manually — find an unowned terminal to adopt,
+        // or fall back to /clear reassignment.
         let adoptedTerminal: vscode.Terminal | null = null;
         for (const t of vscode.window.terminals) {
           let owned = false;
@@ -289,7 +371,6 @@ function scanForNewJsonlFiles(
         }
 
         if (adoptedTerminal !== null) {
-          // Unowned VS Code terminal found — adopt it as new agent
           console.log(
             `[Pixel Agents] New VS Code session: ${path.basename(file)}, adopting terminal "${adoptedTerminal.name}"`,
           );
@@ -310,9 +391,9 @@ function scanForNewJsonlFiles(
             undefined,
           );
         } else if (activeAgentIdRef.current !== null) {
-          // No unowned terminal and active agent exists → /clear reassignment
+          // /clear — reassign active agent to the new file
           console.log(
-            `[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`,
+            `[Pixel Agents] /clear detected: ${path.basename(file)}, reassigning agent ${activeAgentIdRef.current}`,
           );
           reassignAgentToFile(
             activeAgentIdRef.current,
@@ -326,7 +407,34 @@ function scanForNewJsonlFiles(
             persistAgents,
           );
         }
-        // else: VS Code session, no unowned terminal, no active agent → skip
+      } else {
+        // External terminal (Ghostty, iTerm2, etc.) or ps error — create headless agent.
+        let currentOffset = 0;
+        try {
+          currentOffset = fs.statSync(file).size;
+        } catch {
+          /* use 0 if stat fails */
+        }
+        const label = externalName ?? EXTERNAL_AGENT_FOLDER_NAME;
+        console.log(
+          `[Pixel Agents] New external session: ${path.basename(file)} (${label}), offset=${currentOffset}`,
+        );
+        adoptTerminalForFile(
+          null,
+          file,
+          projectDir,
+          nextAgentIdRef,
+          agents,
+          activeAgentIdRef,
+          fileWatchers,
+          pollingTimers,
+          waitingTimers,
+          permissionTimers,
+          webview,
+          persistAgents,
+          currentOffset,
+          label,
+        );
       }
     }
   }
@@ -437,14 +545,18 @@ export function adoptExistingJsonlFiles(
       if (isLarge && isRecent) {
         const terminalName = detectExternalTerminalName(f);
         if (terminalName === null) {
+          // Definitely VS Code/Cursor — skip
           console.log(
             `[Pixel Agents] Skipping VS Code extension session on startup: ${path.basename(f)}`,
           );
           knownJsonlFiles.add(f);
           continue;
         }
+        // undefined = can't determine, but it passed the size+recency filter so it's
+        // likely an active external session (e.g. Ghostty `claude` with no UUID in args)
+        const resolvedName = terminalName ?? EXTERNAL_AGENT_FOLDER_NAME;
         console.log(
-          `[Pixel Agents] Adopting pre-existing session: ${path.basename(f)} (${terminalName})`,
+          `[Pixel Agents] Adopting pre-existing session: ${path.basename(f)} (${resolvedName})`,
         );
         adoptTerminalForFile(
           null,
@@ -460,7 +572,7 @@ export function adoptExistingJsonlFiles(
           webview,
           persistAgents,
           stat.size, // skip history — only watch for new activity
-          terminalName,
+          resolvedName,
           true, // silent — sendExistingAgents will notify the webview
         );
         knownJsonlFiles.add(f);
