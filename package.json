@@ -68,7 +68,7 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\""
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.74.0",
+    "@anthropic-ai/sdk": "^0.78.0",
     "@types/node": "22.x",
     "@types/pngjs": "^6.0.5",
     "@types/vscode": "^1.105.0",
