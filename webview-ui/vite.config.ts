@@ -215,11 +215,14 @@ function buildAssetIndex(assetsDir: string) {
 
 // ── Vite plugin ───────────────────────────────────────────────────────────────
 
-function browserMockAssetsPlugin(): Plugin {
+function browserMockAssetsPlugin(isBrowserMockBuild: boolean): Plugin {
   const assetsDir = path.resolve(__dirname, 'public/assets');
+  // dist/assets/ lives next to dist/webview/ — same parent as outDir
+  const distAssetsDir = path.resolve(__dirname, '../dist/assets');
 
   return {
     name: 'browser-mock-assets',
+    // Dev server: serve the JSON files dynamically via middleware
     configureServer(server) {
       server.middlewares.use('/assets/furniture-catalog.json', (_req, res) => {
         res.setHeader('Content-Type', 'application/json');
@@ -230,14 +233,37 @@ function browserMockAssetsPlugin(): Plugin {
         res.end(JSON.stringify(buildAssetIndex(assetsDir)));
       });
     },
+    // build:browser: write the JSON files into dist/assets/ so they're
+    // accessible at /assets/ when serving the dist/ folder statically
+    closeBundle() {
+      if (!isBrowserMockBuild) return;
+      fs.mkdirSync(distAssetsDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(distAssetsDir, 'furniture-catalog.json'),
+        JSON.stringify(buildFurnitureCatalog(assetsDir)),
+      );
+      fs.writeFileSync(
+        path.join(distAssetsDir, 'asset-index.json'),
+        JSON.stringify(buildAssetIndex(assetsDir)),
+      );
+      console.log(
+        '[browser-mock-assets] Wrote furniture-catalog.json + asset-index.json to dist/assets/',
+      );
+    },
   };
 }
 
-export default defineConfig({
-  plugins: [react(), browserMockAssetsPlugin()],
-  build: {
-    outDir: '../dist/webview',
-    emptyOutDir: true,
-  },
-  base: './',
+export default defineConfig(({ mode }) => {
+  const isBrowserMock = mode === 'browser-mock';
+  return {
+    plugins: [react(), browserMockAssetsPlugin(isBrowserMock)],
+    define: {
+      __BROWSER_MOCK__: JSON.stringify(isBrowserMock),
+    },
+    build: {
+      outDir: '../dist/webview',
+      emptyOutDir: true,
+    },
+    base: './',
+  };
 });

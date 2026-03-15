@@ -123,7 +123,7 @@ function App() {
   // Browser dev mode: dispatch preloaded asset messages after the window
   // message listener in useExtensionMessages has been registered.
   useEffect(() => {
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV || __BROWSER_MOCK__) {
       void import('./browserMock.js').then(({ dispatchMockMessages }) => dispatchMockMessages());
     }
   }, []);

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:browser": "tsc -b && vite build --mode browser-mock",
     "lint": "eslint .",
     "preview": "vite preview"
   },
