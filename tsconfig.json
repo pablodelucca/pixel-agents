@@ -6,9 +6,13 @@
 			"ES2022"
 		],
 		"sourceMap": true,
-		"rootDir": "src",
+		"rootDir": ".",
 		"strict": true
 	},
+	"include": [
+		"src",
+		"shared"
+	],
 	"exclude": [
 		"node_modules",
 		"webview-ui",
