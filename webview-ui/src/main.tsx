@@ -5,8 +5,16 @@ import { createRoot } from 'react-dom/client';
 
 import App from './App.tsx';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+async function main() {
+  if (import.meta.env.DEV) {
+    const { initBrowserMock } = await import('./browserMock.js');
+    await initBrowserMock();
+  }
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}
+
+main().catch(console.error);

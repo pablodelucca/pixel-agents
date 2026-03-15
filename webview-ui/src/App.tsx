@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { DebugView } from './components/DebugView.js';
@@ -120,6 +120,14 @@ function EditActionBar({
 }
 
 function App() {
+  // Browser dev mode: dispatch preloaded asset messages after the window
+  // message listener in useExtensionMessages has been registered.
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      void import('./browserMock.js').then(({ dispatchMockMessages }) => dispatchMockMessages());
+    }
+  }, []);
+
   const editor = useEditorActions(getOfficeState, editorState);
 
   const isEditDirty = useCallback(
