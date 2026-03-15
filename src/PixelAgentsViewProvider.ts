@@ -156,7 +156,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       } else if (message.type === 'setSoundEnabled') {
         this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
       } else if (message.type === 'webviewReady') {
-        restoreAgents(
+        await restoreAgents(
           this.context,
           this.nextAgentId,
           this.nextTerminalIndex,
