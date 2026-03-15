@@ -21,6 +21,8 @@ export interface AgentState {
   isExternal?: boolean;
   /** Path of git worktree directory, if agent was launched in a worktree */
   worktreePath?: string;
+  /** PID of the claude process that owns this agent's JSONL (used to avoid re-matching) */
+  claudePid?: number;
 }
 
 export interface PersistedAgent {
@@ -34,4 +36,6 @@ export interface PersistedAgent {
   isExternal?: boolean;
   /** Path of git worktree directory, if agent was launched in a worktree */
   worktreePath?: string;
+  /** PID of the claude process that owns this agent's JSONL (used to avoid re-matching) */
+  claudePid?: number;
 }

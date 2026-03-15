@@ -268,12 +268,13 @@ export function persistAgents(
       folderName: agent.folderName,
       isExternal: agent.isExternal,
       worktreePath: agent.worktreePath,
+      claudePid: agent.claudePid,
     });
   }
   context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
 }
 
-export function restoreAgents(
+export async function restoreAgents(
   context: vscode.ExtensionContext,
   nextAgentIdRef: { current: number },
   nextTerminalIndexRef: { current: number },
@@ -288,7 +289,7 @@ export function restoreAgents(
   activeAgentIdRef: { current: number | null },
   webview: vscode.Webview | undefined,
   doPersist: () => void,
-): void {
+): Promise<void> {
   const persisted = context.workspaceState.get<PersistedAgent[]>(WORKSPACE_KEY_AGENTS, []);
   if (persisted.length === 0) return;
 
@@ -297,16 +298,61 @@ export function restoreAgents(
   let maxIdx = 0;
   let restoredProjectDir: string | null = null;
 
+  // Resolve all terminal shell PIDs up front (async) to avoid multiple awaits in the loop
+  const terminalShellPids = new Map<vscode.Terminal, number | undefined>();
+  for (const t of liveTerminals) {
+    terminalShellPids.set(t, await t.processId);
+  }
+
+  // Track which terminals have already been claimed to avoid assigning the same
+  // terminal to two agents (critical when multiple terminals share the same name).
+  const claimedTerminals = new Set<vscode.Terminal>();
+
   for (const p of persisted) {
+    // Skip agents already in the map — prevents duplicate file watchers on re-entry
+    // (webviewReady fires on every panel focus, re-calling restoreAgents each time)
+    if (agents.has(p.id)) {
+      // Just make sure the JSONL is tracked and update terminalRef if we can improve the match
+      knownJsonlFiles.add(p.jsonlFile);
+      const existing = agents.get(p.id)!;
+      if (existing.terminalRef) claimedTerminals.add(existing.terminalRef);
+      continue;
+    }
+
     let terminalRef: vscode.Terminal | null = null;
 
     if (p.isExternal) {
       // External agent: restore headlessly if JSONL still exists
       if (!fs.existsSync(p.jsonlFile)) continue;
     } else {
-      // Regular VS Code terminal-based agent
-      terminalRef = liveTerminals.find((t) => t.name === p.terminalName) ?? null;
+      // Try PID-based matching first (reliable even when multiple terminals share the same name)
+      if (p.claudePid) {
+        try {
+          const shellPid = parseInt(
+            execSync(`ps -p ${p.claudePid} -o ppid=`, { encoding: 'utf-8', timeout: 500 }).trim(),
+          );
+          if (shellPid && !isNaN(shellPid)) {
+            for (const t of liveTerminals) {
+              if (claimedTerminals.has(t)) continue;
+              if (terminalShellPids.get(t) === shellPid) {
+                terminalRef = t;
+                break;
+              }
+            }
+          }
+        } catch {
+          /* process may be gone — fall through to name matching */
+        }
+      }
+
+      // Fall back to name matching (e.g. claudePid not set, or process gone)
+      if (!terminalRef) {
+        terminalRef =
+          liveTerminals.find((t) => !claimedTerminals.has(t) && t.name === p.terminalName) ?? null;
+      }
+
       if (!terminalRef) continue;
+      claimedTerminals.add(terminalRef);
     }
 
     const agent: AgentState = {
@@ -327,6 +373,7 @@ export function restoreAgents(
       folderName: p.folderName,
       isExternal: p.isExternal,
       worktreePath: p.worktreePath,
+      claudePid: p.claudePid,
     };
 
     agents.set(p.id, agent);
