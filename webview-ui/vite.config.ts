@@ -215,10 +215,9 @@ function buildAssetIndex(assetsDir: string) {
 
 // ── Vite plugin ───────────────────────────────────────────────────────────────
 
-function browserMockAssetsPlugin(isBrowserMockBuild: boolean): Plugin {
+function browserMockAssetsPlugin(isBrowserMockBuild: boolean, outDir: string): Plugin {
   const assetsDir = path.resolve(__dirname, 'public/assets');
-  // dist/assets/ lives next to dist/webview/ — same parent as outDir
-  const distAssetsDir = path.resolve(__dirname, '../dist/assets');
+  const distAssetsDir = path.resolve(__dirname, outDir, 'assets');
 
   return {
     name: 'browser-mock-assets',
@@ -233,8 +232,8 @@ function browserMockAssetsPlugin(isBrowserMockBuild: boolean): Plugin {
         res.end(JSON.stringify(buildAssetIndex(assetsDir)));
       });
     },
-    // build:browser: write the JSON files into dist/assets/ so they're
-    // accessible at /assets/ when serving the dist/ folder statically
+    // build:browser: write the JSON files into <outDir>/assets/ alongside
+    // the PNGs that Vite copies from public/
     closeBundle() {
       if (!isBrowserMockBuild) return;
       fs.mkdirSync(distAssetsDir, { recursive: true });
@@ -246,24 +245,26 @@ function browserMockAssetsPlugin(isBrowserMockBuild: boolean): Plugin {
         path.join(distAssetsDir, 'asset-index.json'),
         JSON.stringify(buildAssetIndex(assetsDir)),
       );
-      console.log(
-        '[browser-mock-assets] Wrote furniture-catalog.json + asset-index.json to dist/assets/',
-      );
+      console.log('[browser-mock-assets] Wrote JSON files to', distAssetsDir);
     },
   };
 }
 
 export default defineConfig(({ mode }) => {
   const isBrowserMock = mode === 'browser-mock';
+  // browser-mock builds output to dist/browser/ so the app is served at
+  // root (/). Vite copies public/ into outDir, so all PNGs end up at
+  // /assets/... alongside the JSON files written by closeBundle.
+  const outDir = isBrowserMock ? '../dist/browser' : '../dist/webview';
   return {
-    plugins: [react(), browserMockAssetsPlugin(isBrowserMock)],
+    plugins: [react(), browserMockAssetsPlugin(isBrowserMock, outDir)],
     define: {
       __BROWSER_MOCK__: JSON.stringify(isBrowserMock),
     },
     build: {
-      outDir: '../dist/webview',
+      outDir,
       emptyOutDir: true,
     },
-    base: './',
+    base: isBrowserMock ? '/' : './',
   };
 });
