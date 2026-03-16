@@ -138,6 +138,7 @@ function App() {
     layoutWasReset,
     loadedAssets,
     workspaceFolders,
+    isGitRepo,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -271,6 +272,7 @@ function App() {
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
         workspaceFolders={workspaceFolders}
+        isGitRepo={isGitRepo}
       />
 
       {editor.isEditMode && editor.isDirty && (

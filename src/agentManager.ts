@@ -1,3 +1,4 @@
+import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -38,6 +39,8 @@ export async function launchNewTerminal(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
   folderPath?: string,
+  overrideFolderName?: string,
+  worktreePath?: string,
 ): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   const cwd = folderPath || folders?.[0]?.uri.fsPath;
@@ -64,7 +67,7 @@ export async function launchNewTerminal(
 
   // Create agent immediately (before JSONL file exists)
   const id = nextAgentIdRef.current++;
-  const folderName = isMultiRoot && cwd ? path.basename(cwd) : undefined;
+  const folderName = overrideFolderName ?? (isMultiRoot && cwd ? path.basename(cwd) : undefined);
   const agent: AgentState = {
     id,
     terminalRef: terminal,
@@ -81,6 +84,7 @@ export async function launchNewTerminal(
     permissionSent: false,
     hadToolsInTurn: false,
     folderName,
+    worktreePath,
   };
 
   agents.set(id, agent);
@@ -130,6 +134,81 @@ export async function launchNewTerminal(
     }
   }, JSONL_POLL_INTERVAL_MS);
   jsonlPollTimers.set(id, pollTimer);
+}
+
+export async function launchWorktreeAgent(
+  branchName: string,
+  nextAgentIdRef: { current: number },
+  nextTerminalIndexRef: { current: number },
+  agents: Map<number, AgentState>,
+  activeAgentIdRef: { current: number | null },
+  knownJsonlFiles: Set<string>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
+  projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+): Promise<void> {
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!workspaceRoot) {
+    vscode.window.showErrorMessage('Pixel Agents: No workspace folder found.');
+    return;
+  }
+
+  // Validate git repository
+  let repoRoot: string;
+  try {
+    repoRoot = execSync('git rev-parse --show-toplevel', {
+      cwd: workspaceRoot,
+      encoding: 'utf-8',
+    }).trim();
+  } catch {
+    vscode.window.showErrorMessage('Pixel Agents: Not a git repository.');
+    return;
+  }
+
+  // Build worktree path inside the repo under .worktrees/
+  const worktreePath = path.join(repoRoot, '.worktrees', branchName);
+
+  // Create worktree
+  try {
+    execSync(`git worktree add "${worktreePath}" -b "${branchName}"`, {
+      cwd: repoRoot,
+      encoding: 'utf-8',
+    });
+  } catch (e) {
+    const msg = String(e);
+    if (msg.includes('already exists')) {
+      vscode.window.showErrorMessage(`Pixel Agents: Branch '${branchName}' already exists.`);
+    } else {
+      vscode.window.showErrorMessage(`Pixel Agents: Failed to create worktree: ${msg}`);
+    }
+    return;
+  }
+
+  console.log(`[Pixel Agents] Created worktree at ${worktreePath} for branch '${branchName}'`);
+
+  await launchNewTerminal(
+    nextAgentIdRef,
+    nextTerminalIndexRef,
+    agents,
+    activeAgentIdRef,
+    knownJsonlFiles,
+    fileWatchers,
+    pollingTimers,
+    waitingTimers,
+    permissionTimers,
+    jsonlPollTimers,
+    projectScanTimerRef,
+    webview,
+    persistAgents,
+    worktreePath, // folderPath = worktree dir
+    branchName, // overrideFolderName = branch name as label
+    worktreePath, // worktreePath stored on agent
+  );
 }
 
 export function removeAgent(
@@ -183,16 +262,19 @@ export function persistAgents(
   for (const agent of agents.values()) {
     persisted.push({
       id: agent.id,
-      terminalName: agent.terminalRef.name,
+      terminalName: agent.terminalRef?.name ?? '',
       jsonlFile: agent.jsonlFile,
       projectDir: agent.projectDir,
       folderName: agent.folderName,
+      isExternal: agent.isExternal,
+      worktreePath: agent.worktreePath,
+      claudePid: agent.claudePid,
     });
   }
   context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
 }
 
-export function restoreAgents(
+export async function restoreAgents(
   context: vscode.ExtensionContext,
   nextAgentIdRef: { current: number },
   nextTerminalIndexRef: { current: number },
@@ -207,7 +289,7 @@ export function restoreAgents(
   activeAgentIdRef: { current: number | null },
   webview: vscode.Webview | undefined,
   doPersist: () => void,
-): void {
+): Promise<void> {
   const persisted = context.workspaceState.get<PersistedAgent[]>(WORKSPACE_KEY_AGENTS, []);
   if (persisted.length === 0) return;
 
@@ -216,13 +298,66 @@ export function restoreAgents(
   let maxIdx = 0;
   let restoredProjectDir: string | null = null;
 
+  // Resolve all terminal shell PIDs up front (async) to avoid multiple awaits in the loop
+  const terminalShellPids = new Map<vscode.Terminal, number | undefined>();
+  for (const t of liveTerminals) {
+    terminalShellPids.set(t, await t.processId);
+  }
+
+  // Track which terminals have already been claimed to avoid assigning the same
+  // terminal to two agents (critical when multiple terminals share the same name).
+  const claimedTerminals = new Set<vscode.Terminal>();
+
   for (const p of persisted) {
-    const terminal = liveTerminals.find((t) => t.name === p.terminalName);
-    if (!terminal) continue;
+    // Skip agents already in the map — prevents duplicate file watchers on re-entry
+    // (webviewReady fires on every panel focus, re-calling restoreAgents each time)
+    if (agents.has(p.id)) {
+      // Just make sure the JSONL is tracked and update terminalRef if we can improve the match
+      knownJsonlFiles.add(p.jsonlFile);
+      const existing = agents.get(p.id)!;
+      if (existing.terminalRef) claimedTerminals.add(existing.terminalRef);
+      continue;
+    }
+
+    let terminalRef: vscode.Terminal | null = null;
+
+    if (p.isExternal) {
+      // External agent: restore headlessly if JSONL still exists
+      if (!fs.existsSync(p.jsonlFile)) continue;
+    } else {
+      // Try PID-based matching first (reliable even when multiple terminals share the same name)
+      if (p.claudePid) {
+        try {
+          const shellPid = parseInt(
+            execSync(`ps -p ${p.claudePid} -o ppid=`, { encoding: 'utf-8', timeout: 500 }).trim(),
+          );
+          if (shellPid && !isNaN(shellPid)) {
+            for (const t of liveTerminals) {
+              if (claimedTerminals.has(t)) continue;
+              if (terminalShellPids.get(t) === shellPid) {
+                terminalRef = t;
+                break;
+              }
+            }
+          }
+        } catch {
+          /* process may be gone — fall through to name matching */
+        }
+      }
+
+      // Fall back to name matching (e.g. claudePid not set, or process gone)
+      if (!terminalRef) {
+        terminalRef =
+          liveTerminals.find((t) => !claimedTerminals.has(t) && t.name === p.terminalName) ?? null;
+      }
+
+      if (!terminalRef) continue;
+      claimedTerminals.add(terminalRef);
+    }
 
     const agent: AgentState = {
       id: p.id,
-      terminalRef: terminal,
+      terminalRef,
       projectDir: p.projectDir,
       jsonlFile: p.jsonlFile,
       fileOffset: 0,
@@ -236,11 +371,18 @@ export function restoreAgents(
       permissionSent: false,
       hadToolsInTurn: false,
       folderName: p.folderName,
+      isExternal: p.isExternal,
+      worktreePath: p.worktreePath,
+      claudePid: p.claudePid,
     };
 
     agents.set(p.id, agent);
     knownJsonlFiles.add(p.jsonlFile);
-    console.log(`[Pixel Agents] Restored agent ${p.id} → terminal "${p.terminalName}"`);
+    if (p.isExternal) {
+      console.log(`[Pixel Agents] Restored external agent ${p.id} → ${path.basename(p.jsonlFile)}`);
+    } else {
+      console.log(`[Pixel Agents] Restored agent ${p.id} → terminal "${p.terminalName}"`);
+    }
 
     if (p.id > maxId) maxId = p.id;
     // Extract terminal index from name like "Claude Code #3"
@@ -363,8 +505,8 @@ export function sendExistingAgents(
     agentMeta,
     folderNames,
   });
-
-  sendCurrentAgentStatuses(agents, webview);
+  // Note: sendCurrentAgentStatuses is called separately AFTER layoutLoaded
+  // so that agentStatus/agentToolStart messages arrive after characters are created.
 }
 
 export function sendCurrentAgentStatuses(

@@ -11,6 +11,7 @@ interface BottomToolbarProps {
   isDebugMode: boolean;
   onToggleDebugMode: () => void;
   workspaceFolders: WorkspaceFolder[];
+  isGitRepo?: boolean;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -51,6 +52,7 @@ export function BottomToolbar({
   isDebugMode,
   onToggleDebugMode,
   workspaceFolders,
+  isGitRepo,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -146,6 +148,21 @@ export function BottomToolbar({
           </div>
         )}
       </div>
+      {isGitRepo && (
+        <button
+          onClick={() => vscode.postMessage({ type: 'requestWorktreeAgent' })}
+          onMouseEnter={() => setHovered('worktree')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...btnBase,
+            padding: '5px 10px',
+            background: hovered === 'worktree' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+          }}
+          title="Launch agent in a new git worktree"
+        >
+          ⊕ Worktree
+        </button>
+      )}
       <button
         onClick={onToggleEditMode}
         onMouseEnter={() => setHovered('edit')}
