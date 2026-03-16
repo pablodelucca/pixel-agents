@@ -1,5 +1,4 @@
 import react from '@vitejs/plugin-react';
-import * as fs from 'fs';
 import * as path from 'path';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vite';
@@ -23,9 +22,8 @@ interface DecodedCache {
 
 // ── Vite plugin ───────────────────────────────────────────────────────────────
 
-function browserMockAssetsPlugin(isBrowserMockBuild: boolean, outDir: string): Plugin {
+function browserMockAssetsPlugin(): Plugin {
   const assetsDir = path.resolve(__dirname, 'public/assets');
-  const distAssetsDir = path.resolve(__dirname, outDir, 'assets');
 
   const cache: DecodedCache = { characters: null, floors: null, walls: null, furniture: null };
 
@@ -38,7 +36,6 @@ function browserMockAssetsPlugin(isBrowserMockBuild: boolean, outDir: string): P
 
   return {
     name: 'browser-mock-assets',
-    // Dev server: serve JSON files dynamically via middleware
     configureServer(server) {
       // Catalog & index (existing)
       server.middlewares.use('/assets/furniture-catalog.json', (_req, res) => {
@@ -82,60 +79,14 @@ function browserMockAssetsPlugin(isBrowserMockBuild: boolean, outDir: string): P
         }
       });
     },
-    // build:browser: write JSON files into <outDir>/assets/ alongside
-    // the PNGs that Vite copies from public/
-    closeBundle() {
-      if (!isBrowserMockBuild) return;
-      fs.mkdirSync(distAssetsDir, { recursive: true });
-
-      // Catalog & index
-      const catalog = buildFurnitureCatalog(assetsDir);
-      fs.writeFileSync(path.join(distAssetsDir, 'furniture-catalog.json'), JSON.stringify(catalog));
-      fs.writeFileSync(
-        path.join(distAssetsDir, 'asset-index.json'),
-        JSON.stringify(buildAssetIndex(assetsDir)),
-      );
-
-      // Pre-decoded sprites
-      const decodedDir = path.join(distAssetsDir, 'decoded');
-      fs.mkdirSync(decodedDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(decodedDir, 'characters.json'),
-        JSON.stringify(decodeAllCharacters(assetsDir)),
-      );
-      fs.writeFileSync(
-        path.join(decodedDir, 'floors.json'),
-        JSON.stringify(decodeAllFloors(assetsDir)),
-      );
-      fs.writeFileSync(
-        path.join(decodedDir, 'walls.json'),
-        JSON.stringify(decodeAllWalls(assetsDir)),
-      );
-      fs.writeFileSync(
-        path.join(decodedDir, 'furniture.json'),
-        JSON.stringify(decodeAllFurniture(assetsDir, catalog)),
-      );
-
-      console.log('[browser-mock-assets] Wrote JSON files to', distAssetsDir);
-    },
   };
 }
 
-export default defineConfig(({ mode }) => {
-  const isBrowserMock = mode === 'browser-mock';
-  // browser-mock builds output to dist/browser/ so the app is served at
-  // root (/). Vite copies public/ into outDir, so all PNGs end up at
-  // /assets/... alongside the JSON files written by closeBundle.
-  const outDir = isBrowserMock ? '../dist/browser' : '../dist/webview';
-  return {
-    plugins: [react(), browserMockAssetsPlugin(isBrowserMock, outDir)],
-    define: {
-      __BROWSER_MOCK__: JSON.stringify(isBrowserMock),
-    },
-    build: {
-      outDir,
-      emptyOutDir: true,
-    },
-    base: isBrowserMock ? '/' : './',
-  };
+export default defineConfig({
+  plugins: [react(), browserMockAssetsPlugin()],
+  build: {
+    outDir: '../dist/webview',
+    emptyOutDir: true,
+  },
+  base: './',
 });

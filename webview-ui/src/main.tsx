@@ -6,13 +6,9 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 
 async function main() {
-  if (import.meta.env.DEV || __BROWSER_MOCK__) {
-    try {
-      const { initBrowserMock } = await import('./browserMock.js');
-      await initBrowserMock();
-    } catch (err) {
-      console.error('[BrowserMock] Asset loading failed:', err);
-    }
+  if (import.meta.env.DEV) {
+    const { initBrowserMock } = await import('./browserMock.js');
+    await initBrowserMock();
   }
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
