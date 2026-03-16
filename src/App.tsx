@@ -1,12 +1,15 @@
 import { useCallback, useRef, useState } from 'react';
 
+import { AuthCard } from './components/AuthCard.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { DebugView } from './components/DebugView.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
+import { useAuth } from './hooks/useAuth.js';
 import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
 import { useExtensionMessages } from './hooks/useExtensionMessages.js';
+import { supabase } from './lib/supabase.js';
 import { OfficeCanvas } from './office/components/OfficeCanvas.js';
 import { ToolOverlay } from './office/components/ToolOverlay.js';
 import { EditorState } from './office/editor/editorState.js';
@@ -120,6 +123,10 @@ function EditActionBar({
 }
 
 function App() {
+  // Auth state - require authentication if Supabase is configured
+  const { user, loading: authLoading } = useAuth();
+  const requireAuth = supabase !== null;
+
   const editor = useEditorActions(getOfficeState, editorState);
 
   const isEditDirty = useCallback(
@@ -208,6 +215,9 @@ function App() {
       }
       return false;
     })();
+
+  // Show auth card if authentication is required and user is not logged in
+  const showAuthCard = requireAuth && !authLoading && !user;
 
   if (!layoutReady) {
     return (
@@ -421,6 +431,9 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Auth Card Overlay */}
+      {showAuthCard && <AuthCard />}
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import { useAuth } from '../hooks/useAuth.js';
+
 // TODO: Re-enable when settings are restored
 // import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js';
 // import { isStandalone, vscode } from '../vscodeApi.js';
@@ -33,12 +35,12 @@ export function SettingsModal({
   onToggleDebugMode: _onToggleDebugMode,
 }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null);
+  const { signOut } = useAuth();
 
   if (!isOpen) return null;
 
-  const handleLogout = () => {
-    // TODO: Implement logout logic
-    console.log('Logout clicked');
+  const handleLogout = async () => {
+    await signOut();
     onClose();
   };
 

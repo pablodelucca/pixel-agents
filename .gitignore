@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Environment variables (keep .env.example for reference)
+.env
+!.env.example
+
 # Editor directories and files
 .idea
 .DS_Store
