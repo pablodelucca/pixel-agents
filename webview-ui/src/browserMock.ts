@@ -5,7 +5,11 @@
  * Only imported in dev mode or browser-mock builds; tree-shaken from the VS Code webview production build.
  */
 
-import type { AssetIndex, CatalogEntry, CharacterDirectionSprites } from './browserMockTypes.js';
+import type {
+  AssetIndex,
+  CatalogEntry,
+  CharacterDirectionSprites,
+} from '../../shared/assets/types.ts';
 
 interface MockPayload {
   characters: CharacterDirectionSprites[];

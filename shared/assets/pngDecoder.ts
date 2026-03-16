@@ -19,14 +19,8 @@ import {
   WALL_PIECE_HEIGHT,
   WALL_PIECE_WIDTH,
 } from './constants.js';
-
-// ── Types ────────────────────────────────────────────────────
-
-export interface CharacterDirectionSprites {
-  down: string[][][];
-  up: string[][][];
-  right: string[][][];
-}
+import type { CharacterDirectionSprites } from './types.js';
+export type { CharacterDirectionSprites } from './types.js';
 
 // ── Pixel conversion ─────────────────────────────────────────
 

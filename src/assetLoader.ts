@@ -9,22 +9,22 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { CHAR_COUNT, CHAR_FRAMES_PER_ROW, WALL_BITMASK_COUNT } from '../shared/constants.js';
+import { CHAR_COUNT, CHAR_FRAMES_PER_ROW, WALL_BITMASK_COUNT } from '../shared/assets/constants.js';
 import type {
   FurnitureAsset,
   FurnitureManifest,
   InheritedProps,
   ManifestGroup,
-} from '../shared/manifestUtils.js';
-import { flattenManifest } from '../shared/manifestUtils.js';
-import type { CharacterDirectionSprites } from '../shared/pngDecoder.js';
+} from '../shared/assets/manifestUtils.js';
+import { flattenManifest } from '../shared/assets/manifestUtils.js';
 import {
   decodeCharacterPng,
   decodeFloorPng,
   parseWallPng,
   pngToSpriteData,
-} from '../shared/pngDecoder.js';
-export type { CharacterDirectionSprites } from '../shared/pngDecoder.js';
+} from '../shared/assets/pngDecoder.js';
+import type { CharacterDirectionSprites } from '../shared/assets/types.js';
+export type { CharacterDirectionSprites } from '../shared/assets/types.js';
 
 import { LAYOUT_REVISION_KEY } from './constants.js';
 

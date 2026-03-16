@@ -1,20 +1,17 @@
 /**
- * Build-time asset generators for the browser mock Vite plugin.
+ * Build-time asset generators — shared between Vite plugin, extension host,
+ * and future standalone backends.
  *
- * Reads furniture manifests and asset directories from public/assets/
- * and produces JSON structures consumed by browserMock.ts at runtime.
+ * Reads furniture manifests and asset directories and produces
+ * catalog and index structures.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 
-import type {
-  FurnitureManifest,
-  InheritedProps,
-  ManifestGroup,
-} from '../../shared/manifestUtils.ts';
-import { flattenManifest } from '../../shared/manifestUtils.ts';
-import type { CatalogEntry } from '../src/browserMockTypes.ts';
+import type { CatalogEntry } from './types.js';
+import type { FurnitureManifest, InheritedProps, ManifestGroup } from './manifestUtils.js';
+import { flattenManifest } from './manifestUtils.js';
 
 // ── Furniture catalog ─────────────────────────────────────────────────────────
 

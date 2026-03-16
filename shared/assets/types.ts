@@ -1,19 +1,19 @@
 /**
- * Shared types for browser-mock asset loading.
- * Used by both browserMock.ts (webview) and vite.config.ts (Node.js build).
+ * Asset pipeline types — shared between the extension host, Vite build
+ * scripts, browser mock, and future standalone backends.
  */
+
+export interface CharacterDirectionSprites {
+  down: string[][][];
+  up: string[][][];
+  right: string[][][];
+}
 
 export interface AssetIndex {
   floors: string[];
   walls: string[];
   characters: string[];
   defaultLayout: string | null;
-}
-
-export interface CharacterDirectionSprites {
-  down: string[][][];
-  up: string[][][];
-  right: string[][][];
 }
 
 export interface CatalogEntry {

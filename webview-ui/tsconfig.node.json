@@ -22,5 +22,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["vite.config.ts", "scripts/buildAssets.ts", "scripts/decodeAssets.ts", "../shared/manifestUtils.ts", "../shared/pngDecoder.ts", "../shared/constants.ts", "src/browserMockTypes.ts"]
+  "include": ["vite.config.ts", "../shared/assets/**/*.ts"]
 }

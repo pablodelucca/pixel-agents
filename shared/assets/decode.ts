@@ -1,22 +1,16 @@
 /**
- * Server-side asset decoders for the browser mock Vite plugin.
+ * Server-side asset decoders — shared between Vite plugin, extension host,
+ * and future standalone backends.
  *
- * Reads PNG files from public/assets/ and decodes them into SpriteData
- * format using the shared pngDecoder module. Results are served as JSON
- * by the Vite dev server middleware.
+ * Reads PNG files from an assets directory and decodes them into SpriteData
+ * format using the shared pngDecoder module.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 
-import type { CharacterDirectionSprites } from '../../shared/pngDecoder.ts';
-import {
-  decodeCharacterPng,
-  decodeFloorPng,
-  parseWallPng,
-  pngToSpriteData,
-} from '../../shared/pngDecoder.ts';
-import type { CatalogEntry } from '../src/browserMockTypes.ts';
+import { decodeCharacterPng, decodeFloorPng, parseWallPng, pngToSpriteData } from './pngDecoder.js';
+import type { CatalogEntry, CharacterDirectionSprites } from './types.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
