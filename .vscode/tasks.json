@@ -57,6 +57,18 @@
             }
         },
         {
+            "label": "Mocked Pixel Agent Dev Server",
+            "type": "shell",
+            "command": "cd webview-ui && npm run dev",
+            "isBackground": true,
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "Run CI (act)",
             "type": "shell",
             "command": "act push -j ci --container-architecture linux/amd64",

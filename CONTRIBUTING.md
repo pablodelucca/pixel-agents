@@ -35,6 +35,27 @@ This starts parallel watchers for both the extension backend (esbuild) and TypeS
 
 > **Note:** The webview (Vite) is not included in `watch` — after changing webview code, run `npm run build:webview` or the full `npm run build`.
 
+## Running the Mocked Pixel Agent
+
+You can run the mocked Pixel Agent web app either from the CLI or from VS Code tasks.
+
+### Option 1: CLI
+
+From the repository root:
+
+```bash
+cd webview-ui
+npm run dev
+```
+
+Vite will print a local URL (typically `http://localhost:5173`) where the mocked app is available.
+
+### Option 2: VS Code Run Task
+
+1. Open the command palette and run **Tasks: Run Task**.
+2. Select **Mocked Pixel Agent Dev Server**.
+3. Open the local URL shown in the task terminal output (typically `http://localhost:5173`).
+
 ### Project Structure
 
 | Directory | Description |
