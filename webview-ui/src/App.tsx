@@ -120,10 +120,12 @@ function EditActionBar({
 }
 
 function App() {
-  // Browser dev mode: dispatch preloaded asset messages after the window
-  // message listener in useExtensionMessages has been registered.
+  // Browser runtime (dev or static dist): dispatch mock messages after the
+  // useExtensionMessages listener has been registered.
   useEffect(() => {
-    if (import.meta.env.DEV) {
+    const isBrowserRuntime =
+      typeof (window as Window & { acquireVsCodeApi?: unknown }).acquireVsCodeApi === 'undefined';
+    if (import.meta.env.DEV || isBrowserRuntime) {
       void import('./browserMock.js').then(({ dispatchMockMessages }) => dispatchMockMessages());
     }
   }, []);

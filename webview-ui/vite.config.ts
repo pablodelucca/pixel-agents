@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react';
+import * as fs from 'fs';
 import * as path from 'path';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vite';
@@ -24,6 +25,7 @@ interface DecodedCache {
 
 function browserMockAssetsPlugin(): Plugin {
   const assetsDir = path.resolve(__dirname, 'public/assets');
+  const distAssetsDir = path.resolve(__dirname, '../dist/webview/assets');
 
   const cache: DecodedCache = { characters: null, floors: null, walls: null, furniture: null };
 
@@ -78,6 +80,36 @@ function browserMockAssetsPlugin(): Plugin {
           server.ws.send({ type: 'full-reload' });
         }
       });
+    },
+    // Build output must include decoded JSON so dist/webview can run in plain browsers.
+    closeBundle() {
+      fs.mkdirSync(distAssetsDir, { recursive: true });
+
+      const catalog = buildFurnitureCatalog(assetsDir);
+      fs.writeFileSync(path.join(distAssetsDir, 'furniture-catalog.json'), JSON.stringify(catalog));
+      fs.writeFileSync(
+        path.join(distAssetsDir, 'asset-index.json'),
+        JSON.stringify(buildAssetIndex(assetsDir)),
+      );
+
+      const decodedDir = path.join(distAssetsDir, 'decoded');
+      fs.mkdirSync(decodedDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(decodedDir, 'characters.json'),
+        JSON.stringify(decodeAllCharacters(assetsDir)),
+      );
+      fs.writeFileSync(
+        path.join(decodedDir, 'floors.json'),
+        JSON.stringify(decodeAllFloors(assetsDir)),
+      );
+      fs.writeFileSync(
+        path.join(decodedDir, 'walls.json'),
+        JSON.stringify(decodeAllWalls(assetsDir)),
+      );
+      fs.writeFileSync(
+        path.join(decodedDir, 'furniture.json'),
+        JSON.stringify(decodeAllFurniture(assetsDir, catalog)),
+      );
     },
   };
 }

@@ -6,7 +6,9 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 
 async function main() {
-  if (import.meta.env.DEV) {
+  const isBrowserRuntime =
+    typeof (window as Window & { acquireVsCodeApi?: unknown }).acquireVsCodeApi === 'undefined';
+  if (import.meta.env.DEV || isBrowserRuntime) {
     const { initBrowserMock } = await import('./browserMock.js');
     await initBrowserMock();
   }
