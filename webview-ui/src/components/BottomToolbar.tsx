@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { WorkspaceFolder } from '../hooks/useExtensionMessages.js';
-import { vscode } from '../vscodeApi.js';
+import { electronApi } from '../electronApi.js';
 import { SettingsModal } from './SettingsModal.js';
 
 interface BottomToolbarProps {
@@ -82,7 +82,7 @@ export function BottomToolbar({
 
   const handleFolderSelect = (folder: WorkspaceFolder) => {
     setIsFolderPickerOpen(false);
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path });
+    electronApi.postMessage({ type: 'openClaude', folderPath: folder.path });
   };
 
   return (

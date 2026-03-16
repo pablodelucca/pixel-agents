@@ -42,9 +42,18 @@
   /* Vignette */
   --pixel-vignette: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.6) 100%);
 
+  /* VS Code theme compat — defaults for Electron */
+  --vscode-foreground: rgba(255, 255, 255, 0.8);
+  --vscode-editor-background: #1e1e2e;
+  --vscode-charts-green: #89d185;
+  --vscode-charts-yellow: #cca700;
+  --vscode-charts-blue: #3794ff;
+  --vscode-list-activeSelectionBackground: rgba(255, 255, 255, 0.04);
+  --vscode-widget-border: rgba(255, 255, 255, 0.12);
+
   /* Status dot colors */
-  --pixel-status-permission: var(--vscode-charts-yellow, #cca700);
-  --pixel-status-active: var(--vscode-charts-blue, #3794ff);
+  --pixel-status-permission: var(--vscode-charts-yellow);
+  --pixel-status-active: var(--vscode-charts-blue);
 
   /* ToolOverlay z-index layers */
   --pixel-overlay-z: 100;

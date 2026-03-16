@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { electronApi } from '../electronApi.js';
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
@@ -9,7 +10,6 @@ import { setCharacterTemplates } from '../office/sprites/spriteData.js';
 import { extractToolName } from '../office/toolUtils.js';
 import type { OfficeLayout, ToolActivity } from '../office/types.js';
 import { setWallSprites } from '../office/wallTiles.js';
-import { vscode } from '../vscodeApi.js';
 
 export interface SubagentCharacter {
   id: number;
@@ -59,7 +59,7 @@ function saveAgentSeats(os: OfficeState): void {
     if (ch.isSubagent) continue;
     seats[ch.id] = { palette: ch.palette, hueShift: ch.hueShift, seatId: ch.seatId };
   }
-  vscode.postMessage({ type: 'saveAgentSeats', seats });
+  electronApi.postMessage({ type: 'saveAgentSeats', seats });
 }
 
 export function useExtensionMessages(
@@ -388,7 +388,7 @@ export function useExtensionMessages(
       }
     };
     window.addEventListener('message', handler);
-    vscode.postMessage({ type: 'webviewReady' });
+    electronApi.postMessage({ type: 'webviewReady' });
     return () => window.removeEventListener('message', handler);
   }, [getOfficeState]);
 

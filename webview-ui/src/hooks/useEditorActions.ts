@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 
 import { LAYOUT_SAVE_DEBOUNCE_MS, ZOOM_MAX, ZOOM_MIN } from '../constants.js';
+import { electronApi } from '../electronApi.js';
 import type { ExpandDirection } from '../office/editor/editorActions.js';
 import {
   canPlaceFurniture,
@@ -30,7 +31,6 @@ import type {
 } from '../office/types.js';
 import { EditTool } from '../office/types.js';
 import { TileType } from '../office/types.js';
-import { vscode } from '../vscodeApi.js';
 
 export interface EditorActions {
   isEditMode: boolean;
@@ -83,7 +83,7 @@ export function useEditorActions(
   const saveLayout = useCallback((layout: OfficeLayout) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      vscode.postMessage({ type: 'saveLayout', layout });
+      electronApi.postMessage({ type: 'saveLayout', layout });
     }, LAYOUT_SAVE_DEBOUNCE_MS);
   }, []);
 
@@ -103,7 +103,7 @@ export function useEditorActions(
   );
 
   const handleOpenClaude = useCallback(() => {
-    vscode.postMessage({ type: 'openClaude' });
+    electronApi.postMessage({ type: 'openClaude' });
   }, []);
 
   const handleToggleEditMode = useCallback(() => {
@@ -345,7 +345,7 @@ export function useEditorActions(
     const os = getOfficeState();
     const layout = os.getLayout();
     lastSavedLayoutRef.current = structuredClone(layout);
-    vscode.postMessage({ type: 'saveLayout', layout });
+    electronApi.postMessage({ type: 'saveLayout', layout });
     editorState.isDirty = false;
     setIsDirty(false);
   }, [getOfficeState, editorState]);

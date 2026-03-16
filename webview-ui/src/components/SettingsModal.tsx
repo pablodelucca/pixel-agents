@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js';
-import { vscode } from '../vscodeApi.js';
+import { electronApi } from '../electronApi.js';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -100,7 +100,7 @@ export function SettingsModal({
         {/* Menu items */}
         <button
           onClick={() => {
-            vscode.postMessage({ type: 'openSessionsFolder' });
+            electronApi.postMessage({ type: 'openSessionsFolder' });
             onClose();
           }}
           onMouseEnter={() => setHovered('sessions')}
@@ -114,7 +114,7 @@ export function SettingsModal({
         </button>
         <button
           onClick={() => {
-            vscode.postMessage({ type: 'exportLayout' });
+            electronApi.postMessage({ type: 'exportLayout' });
             onClose();
           }}
           onMouseEnter={() => setHovered('export')}
@@ -128,7 +128,7 @@ export function SettingsModal({
         </button>
         <button
           onClick={() => {
-            vscode.postMessage({ type: 'importLayout' });
+            electronApi.postMessage({ type: 'importLayout' });
             onClose();
           }}
           onMouseEnter={() => setHovered('import')}
@@ -145,7 +145,7 @@ export function SettingsModal({
             const newVal = !isSoundEnabled();
             setSoundEnabled(newVal);
             setSoundLocal(newVal);
-            vscode.postMessage({ type: 'setSoundEnabled', enabled: newVal });
+            electronApi.postMessage({ type: 'setSoundEnabled', enabled: newVal });
           }}
           onMouseEnter={() => setHovered('sound')}
           onMouseLeave={() => setHovered(null)}
