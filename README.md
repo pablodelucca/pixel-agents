@@ -10,26 +10,35 @@ Pixel art office where your AI agents come to life as animated characters.
 - 🔔 Audio notifications when agents need attention
 - ✏️ Built-in layout editor
 
+## Tech Stack
+
+- React 19
+- TypeScript
+- Vite
+
 ## Installation
 
 ```bash
-# Install dependencies
 npm install
-npm run install:all
-
-# Development
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
 ```
 
-## Architecture
+## Development
 
-- `webview-ui/` - React/Vite frontend
+```bash
+npm run dev
+```
+
+## Build
+
+```bash
+npm run build
+```
+
+## Preview Production Build
+
+```bash
+npm run preview
+```
 
 ## License
 
