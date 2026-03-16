@@ -9,9 +9,8 @@ import { setCharacterTemplates } from '../office/sprites/spriteData.js';
 import { extractToolName } from '../office/toolUtils.js';
 import type { OfficeLayout, ToolActivity } from '../office/types.js';
 import { setWallSprites } from '../office/wallTiles.js';
-import { isStandalone, vscode } from '../vscodeApi.js';
-
 import { loadAllAssets } from '../standalone/assetLoader.js';
+import { isStandalone, vscode } from '../vscodeApi.js';
 
 export interface SubagentCharacter {
   id: number;
@@ -397,6 +396,47 @@ export function useExtensionMessages(
           setLoadedAssets({ catalog, sprites });
         } catch (err) {
           console.error(`❌ Webview: Error processing furnitureAssetsLoaded:`, err);
+        }
+      } else if (msg.type === 'backendMode') {
+        console.log(`[Webview] Backend mode: ${msg.mode}`);
+        // 'vscode' or 'openclaw'
+      } else if (msg.type === 'openClawAgentCreated') {
+        // New OpenClaw agent created
+        const id = msg.id as number;
+        const openClawId = msg.openClawId as string;
+        const name = msg.name as string;
+        const emoji = msg.emoji as string;
+        console.log(`[Webview] OpenClaw agent created: ${emoji} ${name} (${openClawId})`);
+        setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
+        setSelectedAgent(id);
+        // Add agent to office state with name for display
+        const os = getOfficeState();
+        os.addAgent(id, undefined, undefined, undefined, true, `${emoji} ${name}`);
+      } else if (msg.type === 'openClawAgents') {
+        // List of all OpenClaw agents
+        const agents = msg.agents as Array<{
+          id: number;
+          openClawId: string;
+          name: string;
+          emoji: string;
+        }>;
+        console.log(`[Webview] OpenClaw agents received:`, agents);
+        const os = getOfficeState();
+        const ids = agents.map((a) => a.id);
+        setAgents(ids);
+        if (ids.length > 0) {
+          setSelectedAgent(ids[0]);
+        }
+        // Add all agents to office state
+        for (const agent of agents) {
+          os.addAgent(
+            agent.id,
+            undefined,
+            undefined,
+            undefined,
+            true,
+            `${agent.emoji} ${agent.name}`,
+          );
         }
       }
     };

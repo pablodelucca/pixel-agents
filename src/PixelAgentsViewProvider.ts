@@ -31,6 +31,14 @@ import {
 import { ensureProjectScan } from './fileWatcher.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
+import { loadOpenClawConfig } from './openclawLoader.js';
+import type { OpenClawWatchState } from './openclawWatcher.js';
+import {
+  cleanupOpenClawWatching,
+  initOpenClawWatching,
+  loadAgentsFromConfig,
+  sendOpenClawAgents,
+} from './openclawWatcher.js';
 import type { AgentState } from './types.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
@@ -57,7 +65,18 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   // Cross-window layout sync
   layoutWatcher: LayoutWatcher | null = null;
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  // OpenClaw integration
+  openClawWatchState: OpenClawWatchState | null = null;
+  useOpenClaw = false;
+
+  constructor(private readonly context: vscode.ExtensionContext) {
+    // Check if OpenClaw is available
+    const openClawConfig = loadOpenClawConfig();
+    if (openClawConfig && openClawConfig.agents?.list && openClawConfig.agents.list.length > 0) {
+      this.useOpenClaw = true;
+      console.log('[Pixel Agents] OpenClaw detected, using OpenClaw mode');
+    }
+  }
 
   private get extensionUri(): vscode.Uri {
     return this.context.extensionUri;
@@ -114,25 +133,38 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       } else if (message.type === 'setSoundEnabled') {
         this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
       } else if (message.type === 'webviewReady') {
-        restoreAgents(
-          this.context,
-          this.nextAgentId,
-          this.nextTerminalIndex,
-          this.agents,
-          this.knownJsonlFiles,
-          this.fileWatchers,
-          this.pollingTimers,
-          this.waitingTimers,
-          this.permissionTimers,
-          this.jsonlPollTimers,
-          this.projectScanTimer,
-          this.activeAgentId,
-          this.webview,
-          this.persistAgents,
-        );
         // Send persisted settings to webview
         const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
         this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled });
+
+        // Tell webview which mode we're in
+        this.webview?.postMessage({
+          type: 'backendMode',
+          mode: this.useOpenClaw ? 'openclaw' : 'vscode',
+        });
+
+        if (this.useOpenClaw) {
+          // OpenClaw mode - initialize OpenClaw watching
+          this.openClawWatchState = initOpenClawWatching(this.webview);
+        } else {
+          // VS Code mode - restore Claude Code terminal agents
+          restoreAgents(
+            this.context,
+            this.nextAgentId,
+            this.nextTerminalIndex,
+            this.agents,
+            this.knownJsonlFiles,
+            this.fileWatchers,
+            this.pollingTimers,
+            this.waitingTimers,
+            this.permissionTimers,
+            this.jsonlPollTimers,
+            this.projectScanTimer,
+            this.activeAgentId,
+            this.webview,
+            this.persistAgents,
+          );
+        }
 
         // Send workspace folders to webview (only when multi-root)
         const wsFolders = vscode.workspace.workspaceFolders;
@@ -387,6 +419,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   dispose() {
     this.layoutWatcher?.dispose();
     this.layoutWatcher = null;
+
+    // Cleanup OpenClaw watchers if active
+    if (this.openClawWatchState) {
+      cleanupOpenClawWatching(this.openClawWatchState);
+      this.openClawWatchState = null;
+    }
+
+    // Cleanup VS Code terminal agents
     for (const id of [...this.agents.keys()]) {
       removeAgent(
         id,
