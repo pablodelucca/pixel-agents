@@ -1,94 +1,15 @@
 {
   "name": "pixel-agents",
-  "displayName": "Pixel Agents",
-  "description": "Pixel art office where your Claude Code agents come to life as animated characters",
-  "version": "1.1.1",
-  "publisher": "pablodelucca",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/pablodelucca/pixel-agents"
-  },
-  "icon": "icon.png",
-  "license": "MIT",
-  "engines": {
-    "vscode": "^1.105.0"
-  },
-  "categories": [
-    "Other"
-  ],
-  "activationEvents": [],
-  "main": "./dist/extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "pixel-agents.showPanel",
-        "title": "Pixel Agents: Show Panel"
-      },
-      {
-        "command": "pixel-agents.exportDefaultLayout",
-        "title": "Pixel Agents: Export Layout as Default"
-      }
-    ],
-    "viewsContainers": {
-      "panel": [
-        {
-          "id": "pixel-agents-panel",
-          "title": "Pixel Agents",
-          "icon": "$(window)"
-        }
-      ]
-    },
-    "views": {
-      "pixel-agents-panel": [
-        {
-          "type": "webview",
-          "id": "pixel-agents.panelView",
-          "name": "Pixel Agents"
-        }
-      ]
-    }
-  },
+  "description": "Pixel art office where your AI agents come to life as animated characters",
+  "version": "2.0.0",
+  "private": true,
   "scripts": {
-    "vscode:prepublish": "npm run package",
-    "build:webview": "cd webview-ui && npm run build",
-    "compile": "npm run check-types && npm run lint && node esbuild.js && npm run build:webview",
-    "build": "npm run compile",
-    "watch": "npm-run-all -p watch:*",
-    "watch:esbuild": "node esbuild.js --watch",
-    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-    "package": "npm run check-types && npm run lint && node esbuild.js --production && npm run build:webview",
-    "check-types": "tsc --noEmit",
-    "prepare": "husky",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
-    "lint:webview": "cd webview-ui && npm run lint",
-    "lint:webview:fix": "cd webview-ui && eslint . --fix",
-    "import-tileset": "tsx scripts/import-tileset-cli.ts",
-    "format": "prettier --write \"src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\""
+    "dev": "cd webview-ui && npm run dev",
+    "build": "cd webview-ui && npm run build",
+    "preview": "cd webview-ui && npm run preview",
+    "install:all": "npm install && cd webview-ui && npm install"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.78.0",
-    "@types/node": "25.x",
-    "@types/pngjs": "^6.0.5",
-    "@types/vscode": "^1.105.0",
-    "esbuild": "^0.27.2",
-    "eslint": "^10.0.3",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-simple-import-sort": "^12.1.1",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.3.2",
-    "npm-run-all": "^4.1.5",
-    "pngjs": "^7.0.0",
-    "prettier": "^3.8.1",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.54.0"
-  },
-  "lint-staged": {
-    "src/**/*.ts": "eslint --fix",
-    "webview-ui/src/**/*.{ts,tsx}": "eslint --fix",
-    "*.{ts,tsx,js,mjs,css,json,md}": "prettier --write",
-    "webview-ui/**/*.{ts,tsx,js,css,json}": "prettier --write"
+    "typescript": "~5.9.3"
   }
 }

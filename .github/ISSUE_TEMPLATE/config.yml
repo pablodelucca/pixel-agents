@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: "Feature request"
-    url: "https://github.com/pablodelucca/pixel-agents/discussions/categories/ideas"
-    about: "Suggest new features or ideas in Discussions."
-  - name: "Question"
-    url: "https://github.com/pablodelucca/pixel-agents/discussions/categories/q-a"
-    about: "Ask questions and get help in Discussions."
