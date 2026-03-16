@@ -140,6 +140,7 @@ export function ToolOverlay({
               flexDirection: 'column',
               alignItems: 'center',
               pointerEvents: isSelected ? 'auto' : 'none',
+              opacity: alwaysShowOverlay && !isSelected && !isHovered ? (isSub ? 0.5 : 0.75) : 1,
               zIndex: isSelected ? 'var(--pixel-overlay-selected-z)' : 'var(--pixel-overlay-z)',
             }}
           >
