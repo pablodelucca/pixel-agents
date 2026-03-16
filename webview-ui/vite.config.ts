@@ -10,7 +10,7 @@ import {
   decodeAllFloors,
   decodeAllFurniture,
   decodeAllWalls,
-} from '../shared/assets/decode.ts';
+} from '../shared/assets/loader.ts';
 
 // ── Decoded asset cache (invalidated on file change) ─────────────────────────
 
