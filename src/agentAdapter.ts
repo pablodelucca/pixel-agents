@@ -11,16 +11,13 @@ export type ParsedEvent =
       type: 'subtool_start';
       parentToolId: string;
       subToolId: string;
-      parentStatus: string;
       subToolName: string;
       subStatus: string;
     }
   | { type: 'subtool_done'; parentToolId: string; subToolId: string }
   | { type: 'subtool_clear'; parentToolId: string }
-  | { type: 'text_response' }
-  | { type: 'turn_ended' }
-  | { type: 'turn_started' }
-  | { type: 'session_cwd'; cwd: string };
+  | { type: 'text_response'; text: string }
+  | { type: 'turn_ended' };
 
 export interface AgentAdapter {
   name: string;
