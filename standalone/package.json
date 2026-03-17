@@ -1,0 +1,21 @@
+{
+  "name": "pixel-agents-standalone",
+  "version": "1.0.0",
+  "description": "Standalone web app for Pixel Agents - visualize Claude Code sessions without VS Code",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "start": "node dist/server.js",
+    "dev": "node --watch dist/server.js"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.0",
+    "esbuild": "^0.27.2",
+    "typescript": "^5.9.3"
+  }
+}

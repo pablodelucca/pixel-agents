@@ -42,9 +42,12 @@
   /* Vignette */
   --pixel-vignette: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.6) 100%);
 
-  /* Status dot colors */
+  /* Status dot colors (fallbacks for standalone mode) */
   --pixel-status-permission: var(--vscode-charts-yellow, #cca700);
   --pixel-status-active: var(--vscode-charts-blue, #3794ff);
+
+  /* Standalone mode - override VS Code vars that don't exist outside */
+  --vscode-foreground: #cccccc;
 
   /* ToolOverlay z-index layers */
   --pixel-overlay-z: 41;
