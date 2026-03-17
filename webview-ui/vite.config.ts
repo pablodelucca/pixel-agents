@@ -39,33 +39,36 @@ function browserMockAssetsPlugin(): Plugin {
   return {
     name: 'browser-mock-assets',
     configureServer(server) {
+      // Strip trailing slash: '/' → '', '/sub/' → '/sub'
+      const base = server.config.base.replace(/\/$/, '');
+
       // Catalog & index (existing)
-      server.middlewares.use('/assets/furniture-catalog.json', (_req, res) => {
+      server.middlewares.use(`${base}/assets/furniture-catalog.json`, (_req, res) => {
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(buildFurnitureCatalog(assetsDir)));
       });
-      server.middlewares.use('/assets/asset-index.json', (_req, res) => {
+      server.middlewares.use(`${base}/assets/asset-index.json`, (_req, res) => {
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(buildAssetIndex(assetsDir)));
       });
 
       // Pre-decoded sprites (new — eliminates browser-side PNG decoding)
-      server.middlewares.use('/assets/decoded/characters.json', (_req, res) => {
+      server.middlewares.use(`${base}/assets/decoded/characters.json`, (_req, res) => {
         cache.characters ??= decodeAllCharacters(assetsDir);
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(cache.characters));
       });
-      server.middlewares.use('/assets/decoded/floors.json', (_req, res) => {
+      server.middlewares.use(`${base}/assets/decoded/floors.json`, (_req, res) => {
         cache.floors ??= decodeAllFloors(assetsDir);
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(cache.floors));
       });
-      server.middlewares.use('/assets/decoded/walls.json', (_req, res) => {
+      server.middlewares.use(`${base}/assets/decoded/walls.json`, (_req, res) => {
         cache.walls ??= decodeAllWalls(assetsDir);
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(cache.walls));
       });
-      server.middlewares.use('/assets/decoded/furniture.json', (_req, res) => {
+      server.middlewares.use(`${base}/assets/decoded/furniture.json`, (_req, res) => {
         cache.furniture ??= decodeAllFurniture(assetsDir, buildFurnitureCatalog(assetsDir));
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(cache.furniture));

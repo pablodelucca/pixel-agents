@@ -34,22 +34,26 @@ let mockPayload: MockPayload | null = null;
 export async function initBrowserMock(): Promise<void> {
   console.log('[BrowserMock] Loading pre-decoded assets...');
 
+  const base = import.meta.env.BASE_URL; // '/' in dev, '/sub/' with a subpath, './' in production
+
   const [assetIndex, catalog, characters, floorSprites, wallSets, furnitureSprites] =
     await Promise.all([
-      fetch('/assets/asset-index.json').then((r) => r.json()) as Promise<AssetIndex>,
-      fetch('/assets/furniture-catalog.json').then((r) => r.json()) as Promise<CatalogEntry[]>,
-      fetch('/assets/decoded/characters.json').then((r) => r.json()) as Promise<
+      fetch(`${base}assets/asset-index.json`).then((r) => r.json()) as Promise<AssetIndex>,
+      fetch(`${base}assets/furniture-catalog.json`).then((r) => r.json()) as Promise<
+        CatalogEntry[]
+      >,
+      fetch(`${base}assets/decoded/characters.json`).then((r) => r.json()) as Promise<
         CharacterDirectionSprites[]
       >,
-      fetch('/assets/decoded/floors.json').then((r) => r.json()) as Promise<string[][][]>,
-      fetch('/assets/decoded/walls.json').then((r) => r.json()) as Promise<string[][][][]>,
-      fetch('/assets/decoded/furniture.json').then((r) => r.json()) as Promise<
+      fetch(`${base}assets/decoded/floors.json`).then((r) => r.json()) as Promise<string[][][]>,
+      fetch(`${base}assets/decoded/walls.json`).then((r) => r.json()) as Promise<string[][][][]>,
+      fetch(`${base}assets/decoded/furniture.json`).then((r) => r.json()) as Promise<
         Record<string, string[][]>
       >,
     ]);
 
   const layout = assetIndex.defaultLayout
-    ? await fetch(`/assets/${assetIndex.defaultLayout}`).then((r) => r.json())
+    ? await fetch(`${base}assets/${assetIndex.defaultLayout}`).then((r) => r.json())
     : null;
 
   mockPayload = {
