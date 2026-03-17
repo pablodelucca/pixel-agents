@@ -14,11 +14,13 @@ import { migrateAndLoadLayout } from './layoutPersistence.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
 import type { AgentState, PersistedAgent } from './types.js';
 
-export function getProjectDirPath(cwd?: string): string {
-  // Codex stores all its session logs centrally.
-  // Segregation by workspace is handled dynamically during JSONL file parsing.
+export function getProjectDirPath(cwd?: string): string | null {
+  const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!workspacePath) return null;
+  // Codex stores all session logs under ~/.codex/sessions/ (date-based subdirectories).
+  // Cross-workspace filtering is handled by checking session_meta.cwd in JSONL files.
   const projectDir = path.join(os.homedir(), '.codex', 'sessions');
-  console.log(`[Pixel Agents] Project dir: ${cwd} -> ${projectDir}`);
+  console.log(`[Pixel Agents] Project dir: ${workspacePath} → ${projectDir}`);
   return projectDir;
 }
 

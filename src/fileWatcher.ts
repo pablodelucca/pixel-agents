@@ -114,6 +114,26 @@ function findJsonlFilesRecursive(dir: string): string[] {
   return results;
 }
 
+/** Check if a JSONL file belongs to one of the current workspace folders by reading session_meta.cwd */
+function isRelevantToWorkspace(file: string): boolean {
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders) return false;
+  try {
+    const firstLine = fs.readFileSync(file, 'utf-8').split('\n')[0];
+    if (!firstLine) return false;
+    const record = JSON.parse(firstLine);
+    if (record.type === 'session_meta' && record.payload?.cwd) {
+      return workspaceFolders.some(
+        (f) => path.normalize(f.uri.fsPath) === path.normalize(record.payload.cwd),
+      );
+    }
+  } catch {
+    /* ignore parsing errors */
+  }
+  // If we can't determine workspace, be conservative and exclude
+  return false;
+}
+
 export function ensureProjectScan(
   projectDir: string,
   knownJsonlFiles: Set<string>,
@@ -129,11 +149,14 @@ export function ensureProjectScan(
   persistAgents: () => void,
 ): void {
   if (projectScanTimerRef.current) return;
-  // Seed with all existing JSONL files so we only react to truly new ones
+  // Seed with all existing JSONL files so we only react to truly new ones.
+  // Only seed files relevant to this workspace to prevent cross-workspace interference.
   try {
     const files = findJsonlFilesRecursive(projectDir);
     for (const f of files) {
-      knownJsonlFiles.add(f);
+      if (isRelevantToWorkspace(f)) {
+        knownJsonlFiles.add(f);
+      }
     }
   } catch {
     /* dir may not exist yet */
@@ -176,28 +199,13 @@ function scanForNewJsonlFiles(
     return;
   }
 
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-
   for (const file of files) {
     if (!knownJsonlFiles.has(file)) {
       knownJsonlFiles.add(file);
-      
-      // Codex: verify cwd matches current workspace
-      try {
-        const firstLine = fs.readFileSync(file, 'utf-8').split('\n')[0];
-        if (firstLine && workspaceFolders) {
-          const record = JSON.parse(firstLine);
-          if (record.type === 'session_meta' && record.payload?.cwd) {
-            const isRelevant = workspaceFolders.some(
-              (f) => path.normalize(f.uri.fsPath) === path.normalize(record.payload.cwd)
-            );
-            if (!isRelevant) {
-              continue; // Skip files from other workspaces
-            }
-          }
-        }
-      } catch {
-        /* ignore parsing errors */
+
+      // Verify this JSONL file belongs to the current workspace
+      if (!isRelevantToWorkspace(file)) {
+        continue;
       }
 
       if (activeAgentIdRef.current !== null) {
