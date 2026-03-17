@@ -115,13 +115,17 @@ async function fetchJsonOptional<T>(url: string): Promise<T | null> {
   }
 }
 
+function getIndexedAssetPath(kind: 'characters' | 'floors' | 'walls', relPath: string): string {
+  return relPath.startsWith(`${kind}/`) ? relPath : `${kind}/${relPath}`;
+}
+
 async function decodeCharactersFromPng(
   base: string,
   index: AssetIndex,
 ): Promise<CharacterDirectionSprites[]> {
   const sprites: CharacterDirectionSprites[] = [];
   for (const relPath of index.characters) {
-    const png = await decodePng(`${base}assets/${relPath}`);
+    const png = await decodePng(`${base}assets/${getIndexedAssetPath('characters', relPath)}`);
     const byDir: CharacterDirectionSprites = { down: [], up: [], right: [] };
 
     for (let dirIdx = 0; dirIdx < CHARACTER_DIRECTIONS.length; dirIdx++) {
@@ -142,7 +146,7 @@ async function decodeCharactersFromPng(
 async function decodeFloorsFromPng(base: string, index: AssetIndex): Promise<string[][][]> {
   const floors: string[][][] = [];
   for (const relPath of index.floors) {
-    const png = await decodePng(`${base}assets/${relPath}`);
+    const png = await decodePng(`${base}assets/${getIndexedAssetPath('floors', relPath)}`);
     floors.push(readSprite(png, FLOOR_TILE_SIZE, FLOOR_TILE_SIZE));
   }
   return floors;
@@ -151,7 +155,7 @@ async function decodeFloorsFromPng(base: string, index: AssetIndex): Promise<str
 async function decodeWallsFromPng(base: string, index: AssetIndex): Promise<string[][][][]> {
   const wallSets: string[][][][] = [];
   for (const relPath of index.walls) {
-    const png = await decodePng(`${base}assets/${relPath}`);
+    const png = await decodePng(`${base}assets/${getIndexedAssetPath('walls', relPath)}`);
     const set: string[][][] = [];
     for (let mask = 0; mask < WALL_BITMASK_COUNT; mask++) {
       const ox = (mask % WALL_GRID_COLS) * WALL_PIECE_WIDTH;
@@ -187,22 +191,29 @@ export async function initBrowserMock(): Promise<void> {
 
   const base = import.meta.env.BASE_URL; // '/' in dev, '/sub/' with a subpath, './' in production
 
-  const [assetIndex, catalog, decodedCharacters, decodedFloors, decodedWalls, decodedFurniture] =
-    await Promise.all([
-      fetch(`${base}assets/asset-index.json`).then((r) => r.json()) as Promise<AssetIndex>,
-      fetch(`${base}assets/furniture-catalog.json`).then((r) => r.json()) as Promise<
-        CatalogEntry[]
-      >,
-      fetchJsonOptional<CharacterDirectionSprites[]>(`${base}assets/decoded/characters.json`),
-      fetchJsonOptional<string[][][]>(`${base}assets/decoded/floors.json`),
-      fetchJsonOptional<string[][][][]>(`${base}assets/decoded/walls.json`),
-      fetchJsonOptional<Record<string, string[][]>>(`${base}assets/decoded/furniture.json`),
-    ]);
+  const [assetIndex, catalog] = await Promise.all([
+    fetch(`${base}assets/asset-index.json`).then((r) => r.json()) as Promise<AssetIndex>,
+    fetch(`${base}assets/furniture-catalog.json`).then((r) => r.json()) as Promise<CatalogEntry[]>,
+  ]);
+
+  const shouldTryDecoded = import.meta.env.DEV;
+  const [decodedCharacters, decodedFloors, decodedWalls, decodedFurniture] = shouldTryDecoded
+    ? await Promise.all([
+        fetchJsonOptional<CharacterDirectionSprites[]>(`${base}assets/decoded/characters.json`),
+        fetchJsonOptional<string[][][]>(`${base}assets/decoded/floors.json`),
+        fetchJsonOptional<string[][][][]>(`${base}assets/decoded/walls.json`),
+        fetchJsonOptional<Record<string, string[][]>>(`${base}assets/decoded/furniture.json`),
+      ])
+    : [null, null, null, null];
 
   const hasDecoded = !!(decodedCharacters && decodedFloors && decodedWalls && decodedFurniture);
 
   if (!hasDecoded) {
-    console.log('[BrowserMock] Decoded JSON not found, decoding PNG assets in browser...');
+    if (shouldTryDecoded) {
+      console.log('[BrowserMock] Decoded JSON not found, decoding PNG assets in browser...');
+    } else {
+      console.log('[BrowserMock] Decoding PNG assets in browser...');
+    }
   }
 
   const [characters, floorSprites, wallSets, furnitureSprites] = hasDecoded
