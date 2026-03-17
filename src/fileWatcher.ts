@@ -95,6 +95,25 @@ export function readNewLines(
   }
 }
 
+function findJsonlFilesRecursive(dir: string): string[] {
+  const results: string[] = [];
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...findJsonlFilesRecursive(fullPath));
+      } else if (entry.name.endsWith('.jsonl')) {
+        results.push(fullPath);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return results;
+}
+
 export function ensureProjectScan(
   projectDir: string,
   knownJsonlFiles: Set<string>,
@@ -112,10 +131,7 @@ export function ensureProjectScan(
   if (projectScanTimerRef.current) return;
   // Seed with all existing JSONL files so we only react to truly new ones
   try {
-    const files = fs
-      .readdirSync(projectDir)
-      .filter((f) => f.endsWith('.jsonl'))
-      .map((f) => path.join(projectDir, f));
+    const files = findJsonlFilesRecursive(projectDir);
     for (const f of files) {
       knownJsonlFiles.add(f);
     }
@@ -155,17 +171,35 @@ function scanForNewJsonlFiles(
 ): void {
   let files: string[];
   try {
-    files = fs
-      .readdirSync(projectDir)
-      .filter((f) => f.endsWith('.jsonl'))
-      .map((f) => path.join(projectDir, f));
+    files = findJsonlFilesRecursive(projectDir);
   } catch {
     return;
   }
 
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+
   for (const file of files) {
     if (!knownJsonlFiles.has(file)) {
       knownJsonlFiles.add(file);
+      
+      // Codex: verify cwd matches current workspace
+      try {
+        const firstLine = fs.readFileSync(file, 'utf-8').split('\n')[0];
+        if (firstLine && workspaceFolders) {
+          const record = JSON.parse(firstLine);
+          if (record.type === 'session_meta' && record.payload?.cwd) {
+            const isRelevant = workspaceFolders.some(
+              (f) => path.normalize(f.uri.fsPath) === path.normalize(record.payload.cwd)
+            );
+            if (!isRelevant) {
+              continue; // Skip files from other workspaces
+            }
+          }
+        }
+      } catch {
+        /* ignore parsing errors */
+      }
+
       if (activeAgentIdRef.current !== null) {
         // Active agent focused → /clear reassignment
         console.log(
