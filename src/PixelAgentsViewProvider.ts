@@ -28,7 +28,7 @@ import {
   LAYOUT_REVISION_KEY,
   WORKSPACE_KEY_AGENT_SEATS,
 } from './constants.js';
-import { ensureProjectScan } from './fileWatcher.js';
+import { ensureProjectScan, scanAllProjectDirs } from './fileWatcher.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
 import type { AgentState } from './types.js';
@@ -96,12 +96,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         );
       } else if (message.type === 'focusAgent') {
         const agent = this.agents.get(message.id);
-        if (agent) {
+        if (agent?.terminalRef) {
           agent.terminalRef.show();
         }
       } else if (message.type === 'closeAgent') {
         const agent = this.agents.get(message.id);
-        if (agent) {
+        if (agent?.terminalRef) {
           agent.terminalRef.dispose();
         }
       } else if (message.type === 'saveAgentSeats') {
@@ -264,6 +264,19 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             }
           })();
         }
+        // Scan all project directories for external sessions
+        scanAllProjectDirs(
+          this.knownJsonlFiles,
+          this.nextAgentId,
+          this.agents,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.webview,
+          this.persistAgents,
+        );
+
         sendExistingAgents(this.agents, this.context, this.webview);
       } else if (message.type === 'openSessionsFolder') {
         const projectDir = getProjectDirPath();
