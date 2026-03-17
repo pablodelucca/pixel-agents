@@ -1,8 +1,8 @@
-import type * as vscode from 'vscode';
+import type { IAgentHandle } from './plugin/types.js';
 
 export interface AgentState {
   id: number;
-  terminalRef: vscode.Terminal;
+  handle: IAgentHandle;
   projectDir: string;
   jsonlFile: string;
   fileOffset: number;
@@ -15,15 +15,6 @@ export interface AgentState {
   isWaiting: boolean;
   permissionSent: boolean;
   hadToolsInTurn: boolean;
-  /** Workspace folder name (only set for multi-root workspaces) */
-  folderName?: string;
-}
-
-export interface PersistedAgent {
-  id: number;
-  terminalName: string;
-  jsonlFile: string;
-  projectDir: string;
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
 }

@@ -1,13 +1,12 @@
-import type * as vscode from 'vscode';
-
 import { PERMISSION_TIMER_DELAY_MS } from './constants.js';
+import type { PostMessage } from './plugin/types.js';
 import type { AgentState } from './types.js';
 
 export function clearAgentActivity(
   agent: AgentState | undefined,
   agentId: number,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-  webview: vscode.Webview | undefined,
+  postMessage: PostMessage | undefined,
 ): void {
   if (!agent) return;
   agent.activeToolIds.clear();
@@ -18,8 +17,8 @@ export function clearAgentActivity(
   agent.isWaiting = false;
   agent.permissionSent = false;
   cancelPermissionTimer(agentId, permissionTimers);
-  webview?.postMessage({ type: 'agentToolsClear', id: agentId });
-  webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+  postMessage?.({ type: 'agentToolsClear', id: agentId });
+  postMessage?.({ type: 'agentStatus', id: agentId, status: 'active' });
 }
 
 export function cancelWaitingTimer(
@@ -38,7 +37,7 @@ export function startWaitingTimer(
   delayMs: number,
   agents: Map<number, AgentState>,
   waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
-  webview: vscode.Webview | undefined,
+  postMessage: PostMessage | undefined,
 ): void {
   cancelWaitingTimer(agentId, waitingTimers);
   const timer = setTimeout(() => {
@@ -47,7 +46,7 @@ export function startWaitingTimer(
     if (agent) {
       agent.isWaiting = true;
     }
-    webview?.postMessage({
+    postMessage?.({
       type: 'agentStatus',
       id: agentId,
       status: 'waiting',
@@ -72,7 +71,7 @@ export function startPermissionTimer(
   agents: Map<number, AgentState>,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   permissionExemptTools: Set<string>,
-  webview: vscode.Webview | undefined,
+  postMessage: PostMessage | undefined,
 ): void {
   cancelPermissionTimer(agentId, permissionTimers);
   const timer = setTimeout(() => {
@@ -105,13 +104,13 @@ export function startPermissionTimer(
     if (hasNonExempt) {
       agent.permissionSent = true;
       console.log(`[Pixel Agents] Agent ${agentId}: possible permission wait detected`);
-      webview?.postMessage({
+      postMessage?.({
         type: 'agentToolPermission',
         id: agentId,
       });
       // Also notify stuck sub-agents
       for (const parentToolId of stuckSubagentParentToolIds) {
-        webview?.postMessage({
+        postMessage?.({
           type: 'subagentToolPermission',
           id: agentId,
           parentToolId,

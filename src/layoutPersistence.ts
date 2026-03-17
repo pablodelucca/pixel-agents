@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { ExtensionContext } from 'vscode';
 
 import {
   LAYOUT_FILE_DIR,
@@ -10,6 +9,7 @@ import {
   LAYOUT_REVISION_KEY,
   WORKSPACE_KEY_LAYOUT,
 } from './constants.js';
+import type { IRuntimeUI } from './plugin/types.js';
 
 export interface LayoutWatcher {
   markOwnWrite(): void;
@@ -62,7 +62,7 @@ export interface LayoutLoadResult {
  * 4. Else → return null
  */
 export function migrateAndLoadLayout(
-  context: ExtensionContext,
+  runtimeUI: IRuntimeUI,
   defaultLayout?: Record<string, unknown> | null,
 ): LayoutLoadResult | null {
   // 1. Try file — but reset if bundled default has a newer revision
@@ -82,11 +82,11 @@ export function migrateAndLoadLayout(
   }
 
   // 2. Migrate from workspace state
-  const fromState = context.workspaceState.get<Record<string, unknown>>(WORKSPACE_KEY_LAYOUT);
+  const fromState = runtimeUI.getState<Record<string, unknown>>(WORKSPACE_KEY_LAYOUT);
   if (fromState) {
     console.log('[Pixel Agents] Migrating layout from workspace state to file');
     writeLayoutToFile(fromState);
-    context.workspaceState.update(WORKSPACE_KEY_LAYOUT, undefined);
+    void runtimeUI.setState(WORKSPACE_KEY_LAYOUT, undefined);
     return { layout: fromState, wasReset: false };
   }
 
