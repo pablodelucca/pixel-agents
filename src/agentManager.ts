@@ -14,7 +14,7 @@ import { migrateAndLoadLayout } from './layoutPersistence.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
 import type { AgentState, PersistedAgent } from './types.js';
 
-export function getProjectDirPath(cwd?: string): string | null {
+export function getProjectDirPath(cwd?: string): string {
   const projectDir = path.join(os.homedir(), '.codex', 'sessions');
   console.log(`[Pixel Agents] Project dir: ${cwd} -> ${projectDir}`);
   return projectDir;
