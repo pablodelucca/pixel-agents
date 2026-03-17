@@ -38,13 +38,14 @@ export async function launchNewTerminal(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
   folderPath?: string,
+  agentName?: string,
 ): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   const cwd = folderPath || folders?.[0]?.uri.fsPath;
   const isMultiRoot = !!(folders && folders.length > 1);
   const idx = nextTerminalIndexRef.current++;
   const terminal = vscode.window.createTerminal({
-    name: `${TERMINAL_NAME_PREFIX} #${idx}`,
+    name: agentName ?? `${TERMINAL_NAME_PREFIX} #${idx}`,
     cwd,
   });
   terminal.show();
@@ -81,13 +82,14 @@ export async function launchNewTerminal(
     permissionSent: false,
     hadToolsInTurn: false,
     folderName,
+    agentName,
   };
 
   agents.set(id, agent);
   activeAgentIdRef.current = id;
   persistAgents();
   console.log(`[Pixel Agents] Agent ${id}: created for terminal ${terminal.name}`);
-  webview?.postMessage({ type: 'agentCreated', id, folderName });
+  webview?.postMessage({ type: 'agentCreated', id, folderName, agentName });
 
   ensureProjectScan(
     projectDir,
@@ -187,6 +189,7 @@ export function persistAgents(
       jsonlFile: agent.jsonlFile,
       projectDir: agent.projectDir,
       folderName: agent.folderName,
+      agentName: agent.agentName,
     });
   }
   context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
@@ -236,6 +239,7 @@ export function restoreAgents(
       permissionSent: false,
       hadToolsInTurn: false,
       folderName: p.folderName,
+      agentName: p.agentName,
     };
 
     agents.set(p.id, agent);
@@ -346,11 +350,15 @@ export function sendExistingAgents(
     Record<string, { palette?: number; seatId?: string }>
   >(WORKSPACE_KEY_AGENT_SEATS, {});
 
-  // Include folderName per agent
+  // Include folderName and agentName per agent
   const folderNames: Record<number, string> = {};
+  const agentNames: Record<number, string> = {};
   for (const [id, agent] of agents) {
     if (agent.folderName) {
       folderNames[id] = agent.folderName;
+    }
+    if (agent.agentName) {
+      agentNames[id] = agent.agentName;
     }
   }
   console.log(
@@ -362,6 +370,7 @@ export function sendExistingAgents(
     agents: agentIds,
     agentMeta,
     folderNames,
+    agentNames,
   });
 
   sendCurrentAgentStatuses(agents, webview);

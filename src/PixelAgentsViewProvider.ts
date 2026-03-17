@@ -93,7 +93,21 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.webview,
           this.persistAgents,
           message.folderPath as string | undefined,
+          message.agentName as string | undefined,
         );
+      } else if (message.type === 'browseFolderForAgent') {
+        const result = await vscode.window.showOpenDialog({
+          canSelectFiles: false,
+          canSelectFolders: true,
+          canSelectMany: false,
+          openLabel: 'Select Folder',
+        });
+        if (result && result.length > 0) {
+          this.webview?.postMessage({
+            type: 'agentFolderChosen',
+            path: result[0].fsPath,
+          });
+        }
       } else if (message.type === 'focusAgent') {
         const agent = this.agents.get(message.id);
         if (agent) {
@@ -134,9 +148,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
         this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled });
 
-        // Send workspace folders to webview (only when multi-root)
+        // Send workspace folders to webview
         const wsFolders = vscode.workspace.workspaceFolders;
-        if (wsFolders && wsFolders.length > 1) {
+        if (wsFolders && wsFolders.length > 0) {
           this.webview?.postMessage({
             type: 'workspaceFolders',
             folders: wsFolders.map((f) => ({ name: f.name, path: f.uri.fsPath })),

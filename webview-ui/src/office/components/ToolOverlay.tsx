@@ -185,7 +185,7 @@ export function ToolOverlay({
                 >
                   {activityText}
                 </span>
-                {ch.folderName && (
+                {(ch.agentName || ch.folderName) && (
                   <span
                     style={{
                       fontSize: '16px',
@@ -195,7 +195,7 @@ export function ToolOverlay({
                       display: 'block',
                     }}
                   >
-                    {ch.folderName}
+                    {ch.agentName || ch.folderName}
                   </span>
                 )}
               </div>

@@ -99,6 +99,7 @@ export function useExtensionMessages(
       hueShift?: number;
       seatId?: string;
       folderName?: string;
+      agentName?: string;
     }> = [];
 
     const handler = (e: MessageEvent) => {
@@ -122,7 +123,7 @@ export function useExtensionMessages(
         }
         // Add buffered agents now that layout (and seats) are correct
         for (const p of pendingAgents) {
-          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName);
+          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName, p.agentName);
         }
         pendingAgents = [];
         layoutReadyRef.current = true;
@@ -136,9 +137,10 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentCreated') {
         const id = msg.id as number;
         const folderName = msg.folderName as string | undefined;
+        const agentName = msg.agentName as string | undefined;
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
         setSelectedAgent(id);
-        os.addAgent(id, undefined, undefined, undefined, undefined, folderName);
+        os.addAgent(id, undefined, undefined, undefined, undefined, folderName, agentName);
         saveAgentSeats(os);
       } else if (msg.type === 'agentClosed') {
         const id = msg.id as number;
@@ -173,6 +175,7 @@ export function useExtensionMessages(
           { palette?: number; hueShift?: number; seatId?: string }
         >;
         const folderNames = (msg.folderNames || {}) as Record<number, string>;
+        const agentNames = (msg.agentNames || {}) as Record<number, string>;
         // Buffer agents — they'll be added in layoutLoaded after seats are built
         for (const id of incoming) {
           const m = meta[id];
@@ -182,6 +185,7 @@ export function useExtensionMessages(
             hueShift: m?.hueShift,
             seatId: m?.seatId,
             folderName: folderNames[id],
+            agentName: agentNames[id],
           });
         }
         setAgents((prev) => {
