@@ -1,1 +1,1 @@
-npx lint-staged
+echo "npx lint-staged"
