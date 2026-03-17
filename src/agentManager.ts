@@ -15,11 +15,8 @@ import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
 import type { AgentState, PersistedAgent } from './types.js';
 
 export function getProjectDirPath(cwd?: string): string | null {
-  const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  if (!workspacePath) return null;
-  const dirName = workspacePath.replace(/[^a-zA-Z0-9-]/g, '-');
-  const projectDir = path.join(os.homedir(), '.claude', 'projects', dirName);
-  console.log(`[Pixel Agents] Project dir: ${workspacePath} → ${dirName}`);
+  const projectDir = path.join(os.homedir(), '.codex', 'sessions');
+  console.log(`[Pixel Agents] Project dir: ${cwd} -> ${projectDir}`);
   return projectDir;
 }
 
@@ -50,7 +47,7 @@ export async function launchNewTerminal(
   terminal.show();
 
   const sessionId = crypto.randomUUID();
-  terminal.sendText(`claude --session-id ${sessionId}`);
+  terminal.sendText(`codex`);
 
   const projectDir = getProjectDirPath(cwd);
   if (!projectDir) {
