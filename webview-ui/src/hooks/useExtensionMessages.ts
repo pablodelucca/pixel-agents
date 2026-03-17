@@ -57,6 +57,7 @@ export interface ExtensionMessageState {
   layoutWasReset: boolean;
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> };
   workspaceFolders: WorkspaceFolder[];
+  isStandalone: boolean;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -87,6 +88,7 @@ export function useExtensionMessages(
     { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> } | undefined
   >();
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([]);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -384,6 +386,8 @@ export function useExtensionMessages(
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean;
         setSoundEnabled(soundOn);
+      } else if (msg.type === 'standaloneMode') {
+        setIsStandalone(true);
       } else if (msg.type === 'furnitureAssetsLoaded') {
         try {
           const catalog = msg.catalog as FurnitureAsset[];
@@ -413,5 +417,6 @@ export function useExtensionMessages(
     layoutWasReset,
     loadedAssets,
     workspaceFolders,
+    isStandalone,
   };
 }
