@@ -46,6 +46,20 @@
           "name": "Pixel Agents"
         }
       ]
+    },
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixel-agents.agentType": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "default": "codex",
+          "description": "Select the AI coding agent backend to track."
+        }
+      }
     }
   },
   "scripts": {
