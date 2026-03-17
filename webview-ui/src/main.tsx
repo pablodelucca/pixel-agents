@@ -4,11 +4,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import App from './App.tsx';
+import { isBrowserRuntime } from './runtime';
 
 async function main() {
-  const isBrowserRuntime =
-    typeof (window as Window & { acquireVsCodeApi?: unknown }).acquireVsCodeApi === 'undefined';
-  if (import.meta.env.DEV || isBrowserRuntime) {
+  if (isBrowserRuntime) {
     const { initBrowserMock } = await import('./browserMock.js');
     await initBrowserMock();
   }
