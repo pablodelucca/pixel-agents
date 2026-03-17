@@ -47,7 +47,7 @@ export async function launchNewTerminal(
   terminal.show();
 
   const sessionId = crypto.randomUUID();
-  terminal.sendText(`codex`);
+  terminal.sendText(`codex --session-id ${sessionId}`);
 
   const projectDir = getProjectDirPath(cwd);
   if (!projectDir) {
