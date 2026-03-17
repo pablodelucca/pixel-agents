@@ -84,7 +84,7 @@ function browserMockAssetsPlugin(): Plugin {
         }
       });
     },
-    // Build output must include decoded JSON so dist/webview can run in plain browsers.
+    // Build output includes lightweight metadata consumed by browser runtime.
     closeBundle() {
       fs.mkdirSync(distAssetsDir, { recursive: true });
 
@@ -93,25 +93,6 @@ function browserMockAssetsPlugin(): Plugin {
       fs.writeFileSync(
         path.join(distAssetsDir, 'asset-index.json'),
         JSON.stringify(buildAssetIndex(assetsDir)),
-      );
-
-      const decodedDir = path.join(distAssetsDir, 'decoded');
-      fs.mkdirSync(decodedDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(decodedDir, 'characters.json'),
-        JSON.stringify(decodeAllCharacters(assetsDir)),
-      );
-      fs.writeFileSync(
-        path.join(decodedDir, 'floors.json'),
-        JSON.stringify(decodeAllFloors(assetsDir)),
-      );
-      fs.writeFileSync(
-        path.join(decodedDir, 'walls.json'),
-        JSON.stringify(decodeAllWalls(assetsDir)),
-      );
-      fs.writeFileSync(
-        path.join(decodedDir, 'furniture.json'),
-        JSON.stringify(decodeAllFurniture(assetsDir, catalog)),
       );
     },
   };
