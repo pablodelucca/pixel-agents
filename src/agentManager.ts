@@ -4,6 +4,9 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import {
+  CODEX_DIR_NAME,
+  CODEX_SESSION_COMMAND,
+  CODEX_SESSIONS_DIR_NAME,
   JSONL_POLL_INTERVAL_MS,
   TERMINAL_NAME_PREFIX,
   WORKSPACE_KEY_AGENT_SEATS,
@@ -19,7 +22,7 @@ export function getProjectDirPath(cwd?: string): string | null {
   if (!workspacePath) return null;
   // Codex stores all session logs under ~/.codex/sessions/ (date-based subdirectories).
   // Cross-workspace filtering is handled by checking session_meta.cwd in JSONL files.
-  const projectDir = path.join(os.homedir(), '.codex', 'sessions');
+  const projectDir = path.join(os.homedir(), CODEX_DIR_NAME, CODEX_SESSIONS_DIR_NAME);
   console.log(`[Pixel Agents] Project dir: ${workspacePath} → ${projectDir}`);
   return projectDir;
 }
@@ -51,7 +54,7 @@ export async function launchNewTerminal(
   terminal.show();
 
   const sessionId = crypto.randomUUID();
-  terminal.sendText(`codex --session-id ${sessionId}`);
+  terminal.sendText(`${CODEX_SESSION_COMMAND} ${sessionId}`);
 
   const projectDir = getProjectDirPath(cwd);
   if (!projectDir) {
