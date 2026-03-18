@@ -65,13 +65,20 @@
     "lint:webview:fix": "cd webview-ui && eslint . --fix",
     "import-tileset": "tsx scripts/import-tileset-cli.ts",
     "format": "prettier --write \"src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\""
+    "format:check": "prettier --check \"src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
+    "e2e": "xvfb-run --auto-servernum --server-args='-screen 0 1280x800x24' playwright test --config e2e/playwright.config.ts",
+    "e2e:headed": "playwright test --config e2e/playwright.config.ts --headed",
+    "e2e:debug": "playwright test --config e2e/playwright.config.ts --debug"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@playwright/test": "^1.58.2",
+    "@vscode/test-electron": "^2.5.2",
+    "@playwright/test": "^1.58.2",
     "@types/node": "25.x",
     "@types/pngjs": "^6.0.5",
     "@types/vscode": "^1.105.0",
+    "@vscode/test-electron": "^2.5.2",
     "esbuild": "^0.27.2",
     "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
