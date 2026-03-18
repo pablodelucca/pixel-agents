@@ -13,43 +13,68 @@ import path from 'path';
 import { launchVSCode, waitForWorkbench } from '../helpers/launch';
 import { clickAddAgent, getPixelAgentsFrame, openPixelAgentsPanel } from '../helpers/webview';
 
+function logStep(message: string, details?: Record<string, unknown>): void {
+  const suffix = details ? ` ${JSON.stringify(details)}` : '';
+  console.log(`[e2e] ${message}${suffix}`);
+}
+
+async function runStep<T>(label: string, action: () => Promise<T>): Promise<T> {
+  const startedAt = Date.now();
+  logStep(`START ${label}`);
+  try {
+    const result = await action();
+    logStep(`DONE ${label}`, { durationMs: Date.now() - startedAt });
+    return result;
+  } catch (error) {
+    logStep(`FAIL ${label}`, {
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
 test('clicking + Agent spawns mock claude and creates a JSONL session file', async ({}, testInfo) => {
+  test.setTimeout(120_000);
+
+  logStep('Launching VS Code session', { title: testInfo.title });
   const session = await launchVSCode(testInfo.title);
   const { window, tmpHome, workspaceDir, mockLogFile } = session;
   const runVideo = window.video();
 
-  test.setTimeout(120_000);
-
   try {
     // 1. Wait for VS Code workbench to be ready
-    await waitForWorkbench(window);
+    await runStep('waitForWorkbench', () => waitForWorkbench(window));
 
     // 2. Open the Pixel Agents panel
-    await openPixelAgentsPanel(window);
+    await runStep('openPixelAgentsPanel', () => openPixelAgentsPanel(window));
 
     // 3. Find the webview frame and click + Agent
-    const frame = await getPixelAgentsFrame(window);
-    await clickAddAgent(frame);
+    const frame = await runStep('getPixelAgentsFrame', () => getPixelAgentsFrame(window));
+    logStep('Pixel Agents frame resolved', { url: frame.url() });
+    await runStep('clickAddAgent', () => clickAddAgent(frame));
 
     // 4. Assert: mock claude was invoked
     //    The mock script writes to $HOME/.claude-mock/invocations.log
-    await expect
-      .poll(
-        () => {
-          try {
-            const content = fs.readFileSync(mockLogFile, 'utf8');
-            return content.trim().length > 0;
-          } catch {
-            return false;
-          }
-        },
-        {
-          message: `Expected invocations.log at ${mockLogFile} to be non-empty`,
-          timeout: 20_000,
-          intervals: [500, 1000],
-        },
-      )
-      .toBe(true);
+    await runStep('waitForMockClaudeInvocation', async () => {
+      await expect
+        .poll(
+          () => {
+            try {
+              const content = fs.readFileSync(mockLogFile, 'utf8');
+              return content.trim().length > 0;
+            } catch {
+              return false;
+            }
+          },
+          {
+            message: `Expected invocations.log at ${mockLogFile} to be non-empty`,
+            timeout: 20_000,
+            intervals: [500, 1000],
+          },
+        )
+        .toBe(true);
+    });
 
     const invocationLog = fs.readFileSync(mockLogFile, 'utf8');
     expect(invocationLog).toContain('session-id=');
@@ -64,23 +89,25 @@ test('clicking + Agent spawns mock claude and creates a JSONL session file', asy
     const projectHash = workspaceDir.replace(/[^a-zA-Z0-9-]/g, '-');
     const projectDir = path.join(tmpHome, '.claude', 'projects', projectHash);
 
-    await expect
-      .poll(
-        () => {
-          try {
-            const files = fs.readdirSync(projectDir).filter((f) => f.endsWith('.jsonl'));
-            return files.length > 0;
-          } catch {
-            return false;
-          }
-        },
-        {
-          message: `Expected at least one .jsonl file in ${projectDir}`,
-          timeout: 20_000,
-          intervals: [500, 1000],
-        },
-      )
-      .toBe(true);
+    await runStep('waitForJsonlSessionFile', async () => {
+      await expect
+        .poll(
+          () => {
+            try {
+              const files = fs.readdirSync(projectDir).filter((f) => f.endsWith('.jsonl'));
+              return files.length > 0;
+            } catch {
+              return false;
+            }
+          },
+          {
+            message: `Expected at least one .jsonl file in ${projectDir}`,
+            timeout: 20_000,
+            intervals: [500, 1000],
+          },
+        )
+        .toBe(true);
+    });
 
     const jsonlFiles = fs.readdirSync(projectDir).filter((f) => f.endsWith('.jsonl'));
     await testInfo.attach('jsonl-files', {
@@ -91,7 +118,9 @@ test('clicking + Agent spawns mock claude and creates a JSONL session file', asy
     // 6. Assert: terminal "Claude Code #1" is visible in VS Code UI
     //    VS Code renders the terminal name as visible text in the tab bar.
     const terminalTab = window.getByText(/Claude Code #\d+/);
-    await expect(terminalTab.first()).toBeVisible({ timeout: 15_000 });
+    await runStep('waitForTerminalTab', async () => {
+      await expect(terminalTab.first()).toBeVisible({ timeout: 15_000 });
+    });
   } finally {
     // Save a screenshot of the final state regardless of outcome
     const screenshotPath = path.join(
@@ -102,6 +131,7 @@ test('clicking + Agent spawns mock claude and creates a JSONL session file', asy
     try {
       fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
       await window.screenshot({ path: screenshotPath });
+      logStep('Saved final screenshot', { path: screenshotPath });
       await testInfo.attach('final-screenshot', {
         path: screenshotPath,
         contentType: 'image/png',
@@ -111,11 +141,13 @@ test('clicking + Agent spawns mock claude and creates a JSONL session file', asy
     }
 
     await session.cleanup();
+    logStep('Session cleanup finished');
 
     if (runVideo) {
       try {
         const videoPath = testInfo.outputPath('run-video.webm');
         await runVideo.saveAs(videoPath);
+        logStep('Saved run video', { path: videoPath });
         await testInfo.attach('run-video', {
           path: videoPath,
           contentType: 'video/webm',

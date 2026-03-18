@@ -25,7 +25,7 @@ export default defineConfig({
   use: {
     video: 'on',
     screenshot: 'only-on-failure',
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
   },
   // Single worker: VS Code windows don't share well in parallel on one display
   workers: 1,

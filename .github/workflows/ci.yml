@@ -110,6 +110,16 @@ jobs:
         run: npm run e2e
         continue-on-error: true
 
+      - name: Upload E2E Artifacts
+        if: always() && steps.e2e_test.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          if-no-files-found: ignore
+          path: |
+            test-results/e2e
+            playwright-report/e2e
+
       # --- Advisory Checks (non-blocking) ---
 
       - name: Audit Root Dependencies
