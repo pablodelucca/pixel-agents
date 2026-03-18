@@ -87,10 +87,6 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
       const chars = typeof input.chars === 'string' ? input.chars : '';
       return chars.trim() ? 'Writing terminal input' : 'Reading terminal output';
     }
-    case 'write_stdin': {
-      const chars = typeof input.chars === 'string' ? input.chars : '';
-      return chars.trim() ? 'Writing terminal input' : 'Reading terminal output';
-    }
     case 'wait':
       return 'Waiting on subtask';
     default:
