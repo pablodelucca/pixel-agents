@@ -16,7 +16,7 @@ import {
 } from './timerManager.js';
 import type { AgentState } from './types.js';
 
-export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
+export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion', 'request_user_input']);
 
 export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
   const base = (p: unknown) => (typeof p === 'string' ? path.basename(p) : '');
@@ -52,6 +52,20 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
       return 'Planning';
     case 'NotebookEdit':
       return `Editing notebook`;
+    case 'shell_command': {
+      const cmd = (input.command as string) || '';
+      return `Running: ${cmd.length > BASH_COMMAND_DISPLAY_MAX_LENGTH ? cmd.slice(0, BASH_COMMAND_DISPLAY_MAX_LENGTH) + '\u2026' : cmd}`;
+    }
+    case 'apply_patch':
+      return 'Applying patch';
+    case 'read_file':
+      return `Reading ${base(input.file_path || input.path)}`;
+    case 'list_dir':
+      return 'Listing directory';
+    case 'web_search_call':
+      return 'Searching the web';
+    case 'request_user_input':
+      return 'Waiting for your answer';
     default:
       return `Using ${toolName}`;
   }
@@ -70,6 +84,58 @@ export function processTranscriptLine(
   try {
     const record = JSON.parse(line);
 
+    // Codex: function_call (Tool Start)
+    if (record.type === 'response_item' && record.payload?.type === 'function_call') {
+      const toolName = record.payload.name || '';
+      const toolId = record.payload.call_id;
+      let input: Record<string, unknown> = {};
+      try {
+        input = typeof record.payload.arguments === 'string' ? JSON.parse(record.payload.arguments) : record.payload.arguments || {};
+      } catch { /* ignore */ }
+      
+      const status = formatToolStatus(toolName, input);
+      cancelWaitingTimer(agentId, waitingTimers);
+      agent.isWaiting = false;
+      agent.hadToolsInTurn = true;
+      webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+      
+      console.log(`[Pixel Agents] Agent ${agentId} tool start: ${toolId} ${status}`);
+      agent.activeToolIds.add(toolId);
+      agent.activeToolStatuses.set(toolId, status);
+      agent.activeToolNames.set(toolId, toolName);
+      
+      if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
+        startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
+      }
+      webview?.postMessage({ type: 'agentToolStart', id: agentId, toolId, status });
+      return;
+    }
+
+    // Codex: function_call_output (Tool Done)
+    if (record.type === 'response_item' && record.payload?.type === 'function_call_output') {
+      const toolId = record.payload.call_id;
+      console.log(`[Pixel Agents] Agent ${agentId} tool done: ${toolId}`);
+      agent.activeToolIds.delete(toolId);
+      agent.activeToolStatuses.delete(toolId);
+      agent.activeToolNames.delete(toolId);
+      setTimeout(() => {
+        webview?.postMessage({ type: 'agentToolDone', id: agentId, toolId });
+      }, TOOL_DONE_DELAY_MS);
+      if (agent.activeToolIds.size === 0) {
+        agent.hadToolsInTurn = false;
+      }
+      return;
+    }
+
+    // Codex: agent_message (Turn Ending hint)
+    if (record.type === 'event_msg' && record.payload?.type === 'agent_message') {
+      cancelWaitingTimer(agentId, waitingTimers);
+      cancelPermissionTimer(agentId, permissionTimers);
+      startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
+      return;
+    }
+
+    // Claude Code logic below
     if (record.type === 'assistant' && Array.isArray(record.message?.content)) {
       const blocks = record.message.content as Array<{
         type: string;

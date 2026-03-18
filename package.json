@@ -1,7 +1,7 @@
 {
   "name": "pixel-agents",
   "displayName": "Pixel Agents",
-  "description": "Pixel art office where your Claude Code agents come to life as animated characters",
+  "description": "Pixel art office where your AI coding agents come to life as animated characters",
   "version": "1.1.1",
   "publisher": "pablodelucca",
   "repository": {
@@ -46,6 +46,24 @@
           "name": "Pixel Agents"
         }
       ]
+    },
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixel-agents.agentType": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "enumDescriptions": [
+            "Track agents from Claude Code.",
+            "Track agents from Codex."
+          ],
+          "default": "codex",
+          "description": "Select the AI coding agent backend to track."
+        }
+      }
     }
   },
   "scripts": {

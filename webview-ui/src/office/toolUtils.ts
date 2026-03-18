@@ -5,10 +5,13 @@ export const STATUS_TO_TOOL: Record<string, string> = {
   Globbing: 'Glob',
   Fetching: 'WebFetch',
   'Searching web': 'WebSearch',
+  'Searching the web': 'WebSearch',
   Writing: 'Write',
   Editing: 'Edit',
+  'Applying patch': 'Edit',
   Running: 'Bash',
   Task: 'Task',
+  'Listing directory': 'Glob',
 };
 
 export function extractToolName(status: string): string | null {

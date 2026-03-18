@@ -95,6 +95,45 @@ export function readNewLines(
   }
 }
 
+function findJsonlFilesRecursive(dir: string): string[] {
+  const results: string[] = [];
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...findJsonlFilesRecursive(fullPath));
+      } else if (entry.name.endsWith('.jsonl')) {
+        results.push(fullPath);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return results;
+}
+
+/** Check if a JSONL file belongs to one of the current workspace folders by reading session_meta.cwd */
+function isRelevantToWorkspace(file: string): boolean {
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders) return false;
+  try {
+    const firstLine = fs.readFileSync(file, 'utf-8').split('\n')[0];
+    if (!firstLine) return false;
+    const record = JSON.parse(firstLine);
+    if (record.type === 'session_meta' && record.payload?.cwd) {
+      return workspaceFolders.some(
+        (f) => path.normalize(f.uri.fsPath) === path.normalize(record.payload.cwd),
+      );
+    }
+  } catch {
+    /* ignore parsing errors */
+  }
+  // If we can't determine workspace, be conservative and exclude
+  return false;
+}
+
 export function ensureProjectScan(
   projectDir: string,
   knownJsonlFiles: Set<string>,
@@ -110,14 +149,14 @@ export function ensureProjectScan(
   persistAgents: () => void,
 ): void {
   if (projectScanTimerRef.current) return;
-  // Seed with all existing JSONL files so we only react to truly new ones
+  // Seed with all existing JSONL files so we only react to truly new ones.
+  // Only seed files relevant to this workspace to prevent cross-workspace interference.
   try {
-    const files = fs
-      .readdirSync(projectDir)
-      .filter((f) => f.endsWith('.jsonl'))
-      .map((f) => path.join(projectDir, f));
+    const files = findJsonlFilesRecursive(projectDir);
     for (const f of files) {
-      knownJsonlFiles.add(f);
+      if (isRelevantToWorkspace(f)) {
+        knownJsonlFiles.add(f);
+      }
     }
   } catch {
     /* dir may not exist yet */
@@ -155,10 +194,7 @@ function scanForNewJsonlFiles(
 ): void {
   let files: string[];
   try {
-    files = fs
-      .readdirSync(projectDir)
-      .filter((f) => f.endsWith('.jsonl'))
-      .map((f) => path.join(projectDir, f));
+    files = findJsonlFilesRecursive(projectDir);
   } catch {
     return;
   }
@@ -166,6 +202,12 @@ function scanForNewJsonlFiles(
   for (const file of files) {
     if (!knownJsonlFiles.has(file)) {
       knownJsonlFiles.add(file);
+
+      // Verify this JSONL file belongs to the current workspace
+      if (!isRelevantToWorkspace(file)) {
+        continue;
+      }
+
       if (activeAgentIdRef.current !== null) {
         // Active agent focused → /clear reassignment
         console.log(
