@@ -5,13 +5,7 @@ const WEBVIEW_TIMEOUT_MS = 30_000;
 const PANEL_OPEN_TIMEOUT_MS = 15_000;
 const MIN_PANEL_HEIGHT_PX = 320;
 
-function logE2E(message: string, details?: Record<string, unknown>): void {
-  const suffix = details ? ` ${JSON.stringify(details)}` : '';
-  console.log(`[e2e] ${message}${suffix}`);
-}
-
 async function runCommand(window: Page, command: string): Promise<void> {
-  logE2E('Running VS Code command', { command });
   await window.keyboard.press('F1');
   await window.waitForSelector('.quick-input-widget', { timeout: PANEL_OPEN_TIMEOUT_MS });
   await window.keyboard.type(command);
@@ -39,11 +33,9 @@ async function getPanelHeight(window: Page): Promise<number> {
 
 async function ensurePanelIsLarge(window: Page): Promise<void> {
   if ((await getPanelHeight(window)) > MIN_PANEL_HEIGHT_PX) {
-    logE2E('Panel already large enough', { height: await getPanelHeight(window) });
     return;
   }
 
-  logE2E('Panel too small, maximizing', { height: await getPanelHeight(window) });
   await runCommand(window, 'View: Toggle Maximized Panel');
 
   await expect
@@ -53,8 +45,6 @@ async function ensurePanelIsLarge(window: Page): Promise<void> {
       intervals: [250, 500, 1000],
     })
     .toBeGreaterThan(MIN_PANEL_HEIGHT_PX);
-
-  logE2E('Panel resized', { height: await getPanelHeight(window) });
 }
 
 /**
@@ -102,8 +92,6 @@ export async function getPixelAgentsFrame(window: Page): Promise<Frame> {
     await window.waitForTimeout(500);
   }
 
-  const frameUrls = window.frames().map((frame) => frame.url());
-  logE2E('Timed out waiting for Pixel Agents webview frame', { frameUrls });
   throw new Error('Timed out waiting for Pixel Agents webview frame with "+ Agent" button');
 }
 
