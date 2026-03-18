@@ -23,6 +23,7 @@ export default defineConfig({
   // For Electron tests, video/trace are configured in the launch helper.
   // screenshot-on-failure is handled via test.afterEach in fixtures.
   use: {
+    video: 'on',
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
   },

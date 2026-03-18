@@ -16,6 +16,7 @@ import { clickAddAgent, getPixelAgentsFrame, openPixelAgentsPanel } from '../hel
 test('clicking + Agent spawns mock claude and creates a JSONL session file', async ({}, testInfo) => {
   const session = await launchVSCode(testInfo.title);
   const { window, tmpHome, workspaceDir, mockLogFile } = session;
+  const runVideo = window.video();
 
   test.setTimeout(120_000);
 
@@ -52,7 +53,7 @@ test('clicking + Agent spawns mock claude and creates a JSONL session file', asy
 
     const invocationLog = fs.readFileSync(mockLogFile, 'utf8');
     expect(invocationLog).toContain('session-id=');
-    testInfo.attach('mock-claude-invocations', {
+    await testInfo.attach('mock-claude-invocations', {
       body: invocationLog,
       contentType: 'text/plain',
     });
@@ -82,7 +83,7 @@ test('clicking + Agent spawns mock claude and creates a JSONL session file', asy
       .toBe(true);
 
     const jsonlFiles = fs.readdirSync(projectDir).filter((f) => f.endsWith('.jsonl'));
-    testInfo.attach('jsonl-files', {
+    await testInfo.attach('jsonl-files', {
       body: jsonlFiles.join('\n'),
       contentType: 'text/plain',
     });
@@ -101,7 +102,7 @@ test('clicking + Agent spawns mock claude and creates a JSONL session file', asy
     try {
       fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
       await window.screenshot({ path: screenshotPath });
-      testInfo.attach('final-screenshot', {
+      await testInfo.attach('final-screenshot', {
         path: screenshotPath,
         contentType: 'image/png',
       });
@@ -110,5 +111,18 @@ test('clicking + Agent spawns mock claude and creates a JSONL session file', asy
     }
 
     await session.cleanup();
+
+    if (runVideo) {
+      try {
+        const videoPath = testInfo.outputPath('run-video.webm');
+        await runVideo.saveAs(videoPath);
+        await testInfo.attach('run-video', {
+          path: videoPath,
+          contentType: 'video/webm',
+        });
+      } catch {
+        // video attachment failure is non-fatal
+      }
+    }
   }
 });
