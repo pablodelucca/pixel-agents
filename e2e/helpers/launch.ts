@@ -81,25 +81,11 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
     workspaceDir,
   ];
 
-  const app = await electron.launch({
-    executablePath: vscodePath,
-    args,
-    env,
-    cwd: workspaceDir,
-    recordVideo: {
-      dir: videoDir,
-      size: { width: 1280, height: 800 },
-    },
-    timeout: 60_000,
-  });
-
-  // Get the main VS Code window
-  const window = await app.firstWindow();
-  await window.waitForLoadState('domcontentloaded');
-
   const cleanup = async (): Promise<void> => {
     try {
-      await app.close();
+      if (app) {
+        await app.close();
+      }
     } catch {
       // ignore close errors
     }
@@ -110,7 +96,31 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
     }
   };
 
-  return { app, window, tmpHome, workspaceDir, mockLogFile, cleanup };
+  let app: ElectronApplication | undefined;
+
+  try {
+    app = await electron.launch({
+      executablePath: vscodePath,
+      args,
+      env,
+      cwd: workspaceDir,
+      recordVideo: {
+        dir: videoDir,
+        size: { width: 1280, height: 800 },
+      },
+      timeout: 60_000,
+    });
+
+    // Electron can expose the window before the page lifecycle events settle.
+    // The test waits for `.monaco-workbench`, so returning the window here is
+    // more reliable than waiting on `domcontentloaded` in CI.
+    const window = await app.firstWindow();
+
+    return { app, window, tmpHome, workspaceDir, mockLogFile, cleanup };
+  } catch (error) {
+    await cleanup();
+    throw error;
+  }
 }
 
 /**
