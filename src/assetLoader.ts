@@ -24,9 +24,9 @@ import {
 } from '../shared/assets/pngDecoder.js';
 import type { CharacterDirectionSprites } from '../shared/assets/types.js';
 export type { CharacterDirectionSprites } from '../shared/assets/types.js';
-import type { PostMessage } from './plugin/types.js';
 
 import { LAYOUT_REVISION_KEY } from './constants.js';
+import type { PostMessage } from './plugin/types.js';
 
 export type { FurnitureAsset };
 
