@@ -40,7 +40,7 @@ export interface EditorActions {
   panRef: React.MutableRefObject<{ x: number; y: number }>;
   saveTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
   setLastSavedLayout: (layout: OfficeLayout) => void;
-  handleOpenClaude: () => void;
+  handleOpenAgent: () => void;
   handleToggleEditMode: () => void;
   handleToolChange: (tool: EditToolType) => void;
   handleTileTypeChange: (type: TileTypeVal) => void;
@@ -103,8 +103,8 @@ export function useEditorActions(
     [getOfficeState, editorState, saveLayout],
   );
 
-  const handleOpenClaude = useCallback(() => {
-    vscode.postMessage({ type: 'openClaude' });
+  const handleOpenAgent = useCallback(() => {
+    vscode.postMessage({ type: 'openAgent' });
   }, []);
 
   const handleToggleEditMode = useCallback(() => {
@@ -611,7 +611,7 @@ export function useEditorActions(
     panRef,
     saveTimerRef,
     setLastSavedLayout,
-    handleOpenClaude,
+    handleOpenAgent,
     handleToggleEditMode,
     handleToolChange,
     handleTileTypeChange,

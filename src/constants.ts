@@ -26,10 +26,13 @@ export const COMMAND_EXPORT_DEFAULT_LAYOUT = 'pixel-agents.exportDefaultLayout';
 export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';
 export const WORKSPACE_KEY_AGENT_SEATS = 'pixel-agents.agentSeats';
 export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
+export const TERMINAL_NAME_PREFIX_CLAUDE = 'Claude Code';
 export const TERMINAL_NAME_PREFIX_CODEX = 'Codex';
-export const TERMINAL_NAME_PREFIX = TERMINAL_NAME_PREFIX_CODEX;
 
-// ── Codex Session Paths & Commands ──────────────────────────
+// ── Backend Session Paths & Commands ────────────────────────
+export const CLAUDE_DIR_NAME = '.claude';
+export const CLAUDE_PROJECTS_DIR_NAME = 'projects';
+export const CLAUDE_SESSION_COMMAND = 'claude';
 export const CODEX_DIR_NAME = '.codex';
 export const CODEX_SESSIONS_DIR_NAME = 'sessions';
-export const CODEX_SESSION_COMMAND = 'codex --session-id';
+export const CODEX_SESSION_COMMAND = 'codex';

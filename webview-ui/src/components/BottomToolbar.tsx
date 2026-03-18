@@ -6,7 +6,7 @@ import { SettingsModal } from './SettingsModal.js';
 
 interface BottomToolbarProps {
   isEditMode: boolean;
-  onOpenClaude: () => void;
+  onOpenAgent: () => void;
   onToggleEditMode: () => void;
   isDebugMode: boolean;
   onToggleDebugMode: () => void;
@@ -48,7 +48,7 @@ const btnActive: React.CSSProperties = {
 
 export function BottomToolbar({
   isEditMode,
-  onOpenClaude,
+  onOpenAgent,
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
@@ -80,13 +80,13 @@ export function BottomToolbar({
     if (hasMultipleFolders) {
       setIsFolderPickerOpen((v) => !v);
     } else {
-      onOpenClaude();
+      onOpenAgent();
     }
   };
 
   const handleFolderSelect = (folder: WorkspaceFolder) => {
     setIsFolderPickerOpen(false);
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path });
+    vscode.postMessage({ type: 'openAgent', folderPath: folder.path });
   };
 
   return (

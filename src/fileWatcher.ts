@@ -2,10 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+import type { AgentAdapter } from './agentAdapter.js';
+import { getAgentAdapterByName } from './agentAdapter.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
-import { processTranscriptLine } from './transcriptParser.js';
-import type { AgentState } from './types.js';
+import type { AgentBackend, AgentState } from './types.js';
 
 export function startFileWatching(
   agentId: number,
@@ -17,7 +18,6 @@ export function startFileWatching(
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
 ): void {
-  // Primary: fs.watch (unreliable on macOS — may miss events)
   try {
     const watcher = fs.watch(filePath, () => {
       readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
@@ -27,7 +27,6 @@ export function startFileWatching(
     console.log(`[Pixel Agents] fs.watch failed for agent ${agentId}: ${e}`);
   }
 
-  // Secondary: fs.watchFile (stat-based polling, reliable on macOS)
   try {
     fs.watchFile(filePath, { interval: FILE_WATCHER_POLL_INTERVAL_MS }, () => {
       readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
@@ -36,7 +35,6 @@ export function startFileWatching(
     console.log(`[Pixel Agents] fs.watchFile failed for agent ${agentId}: ${e}`);
   }
 
-  // Tertiary: manual poll as last resort
   const interval = setInterval(() => {
     if (!agents.has(agentId)) {
       clearInterval(interval);
@@ -77,7 +75,6 @@ export function readNewLines(
 
     const hasLines = lines.some((l) => l.trim());
     if (hasLines) {
-      // New data arriving — cancel timers (data flowing means agent is still active)
       cancelWaitingTimer(agentId, waitingTimers);
       cancelPermissionTimer(agentId, permissionTimers);
       if (agent.permissionSent) {
@@ -86,56 +83,24 @@ export function readNewLines(
       }
     }
 
+    const adapter = getAgentAdapterByName(agent.adapterName);
     for (const line of lines) {
       if (!line.trim()) continue;
-      processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
+      adapter.processTranscriptLine(agentId, line, {
+        agents,
+        waitingTimers,
+        permissionTimers,
+        webview,
+      });
     }
   } catch (e) {
     console.log(`[Pixel Agents] Read error for agent ${agentId}: ${e}`);
   }
 }
 
-function findJsonlFilesRecursive(dir: string): string[] {
-  const results: string[] = [];
-  try {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue;
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        results.push(...findJsonlFilesRecursive(fullPath));
-      } else if (entry.name.endsWith('.jsonl')) {
-        results.push(fullPath);
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return results;
-}
-
-/** Check if a JSONL file belongs to one of the current workspace folders by reading session_meta.cwd */
-function isRelevantToWorkspace(file: string): boolean {
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-  if (!workspaceFolders) return false;
-  try {
-    const firstLine = fs.readFileSync(file, 'utf-8').split('\n')[0];
-    if (!firstLine) return false;
-    const record = JSON.parse(firstLine);
-    if (record.type === 'session_meta' && record.payload?.cwd) {
-      return workspaceFolders.some(
-        (f) => path.normalize(f.uri.fsPath) === path.normalize(record.payload.cwd),
-      );
-    }
-  } catch {
-    /* ignore parsing errors */
-  }
-  // If we can't determine workspace, be conservative and exclude
-  return false;
-}
-
 export function ensureProjectScan(
   projectDir: string,
+  adapter: AgentAdapter,
   knownJsonlFiles: Set<string>,
   projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
   activeAgentIdRef: { current: number | null },
@@ -149,13 +114,11 @@ export function ensureProjectScan(
   persistAgents: () => void,
 ): void {
   if (projectScanTimerRef.current) return;
-  // Seed with all existing JSONL files so we only react to truly new ones.
-  // Only seed files relevant to this workspace to prevent cross-workspace interference.
   try {
-    const files = findJsonlFilesRecursive(projectDir);
-    for (const f of files) {
-      if (isRelevantToWorkspace(f)) {
-        knownJsonlFiles.add(f);
+    const files = adapter.findJsonlFiles(projectDir);
+    for (const file of files) {
+      if (adapter.isRelevantToWorkspace(file, vscode.workspace.workspaceFolders)) {
+        knownJsonlFiles.add(file);
       }
     }
   } catch {
@@ -165,6 +128,7 @@ export function ensureProjectScan(
   projectScanTimerRef.current = setInterval(() => {
     scanForNewJsonlFiles(
       projectDir,
+      adapter,
       knownJsonlFiles,
       activeAgentIdRef,
       nextAgentIdRef,
@@ -181,6 +145,7 @@ export function ensureProjectScan(
 
 function scanForNewJsonlFiles(
   projectDir: string,
+  adapter: AgentAdapter,
   knownJsonlFiles: Set<string>,
   activeAgentIdRef: { current: number | null },
   nextAgentIdRef: { current: number },
@@ -194,71 +159,99 @@ function scanForNewJsonlFiles(
 ): void {
   let files: string[];
   try {
-    files = findJsonlFilesRecursive(projectDir);
+    files = adapter.findJsonlFiles(projectDir);
   } catch {
     return;
   }
 
   for (const file of files) {
-    if (!knownJsonlFiles.has(file)) {
+    if (knownJsonlFiles.has(file)) {
+      continue;
+    }
+
+    if (!adapter.isRelevantToWorkspace(file, vscode.workspace.workspaceFolders)) {
       knownJsonlFiles.add(file);
+      continue;
+    }
 
-      // Verify this JSONL file belongs to the current workspace
-      if (!isRelevantToWorkspace(file)) {
-        continue;
-      }
-
-      if (activeAgentIdRef.current !== null) {
-        // Active agent focused → /clear reassignment
-        console.log(
-          `[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`,
-        );
-        reassignAgentToFile(
-          activeAgentIdRef.current,
-          file,
-          agents,
-          fileWatchers,
-          pollingTimers,
-          waitingTimers,
-          permissionTimers,
-          webview,
-          persistAgents,
-        );
-      } else {
-        // No active agent → try to adopt the focused terminal
-        const activeTerminal = vscode.window.activeTerminal;
-        if (activeTerminal) {
-          let owned = false;
-          for (const agent of agents.values()) {
-            if (agent.terminalRef === activeTerminal) {
-              owned = true;
-              break;
-            }
-          }
-          if (!owned) {
-            adoptTerminalForFile(
-              activeTerminal,
-              file,
-              projectDir,
-              nextAgentIdRef,
-              agents,
-              activeAgentIdRef,
-              fileWatchers,
-              pollingTimers,
-              waitingTimers,
-              permissionTimers,
-              webview,
-              persistAgents,
-            );
-          }
+    const activeTerminal = vscode.window.activeTerminal;
+    let activeTerminalOwnerId: number | null = null;
+    if (activeTerminal) {
+      for (const [id, agent] of agents) {
+        if (agent.terminalRef === activeTerminal) {
+          activeTerminalOwnerId = id;
+          break;
         }
       }
+    }
+
+    if (activeAgentIdRef.current !== null) {
+      console.log(
+        `[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`,
+      );
+      knownJsonlFiles.add(file);
+      reassignAgentToFile(
+        activeAgentIdRef.current,
+        file,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+        persistAgents,
+      );
+      continue;
+    }
+
+    if (activeTerminalOwnerId !== null) {
+      console.log(
+        `[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to focused agent ${activeTerminalOwnerId}`,
+      );
+      activeAgentIdRef.current = activeTerminalOwnerId;
+      knownJsonlFiles.add(file);
+      reassignAgentToFile(
+        activeTerminalOwnerId,
+        file,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+        persistAgents,
+      );
+      continue;
+    }
+
+    if (activeTerminal) {
+      console.log(
+        `[Pixel Agents] New JSONL detected: ${path.basename(file)}, adopting focused terminal "${activeTerminal.name}"`,
+      );
+      knownJsonlFiles.add(file);
+      adoptTerminalForFile(
+        activeTerminal,
+        adapter.name,
+        file,
+        projectDir,
+        nextAgentIdRef,
+        agents,
+        activeAgentIdRef,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+        persistAgents,
+      );
+      continue;
     }
   }
 }
 
 function adoptTerminalForFile(
   terminal: vscode.Terminal,
+  adapterName: AgentBackend,
   jsonlFile: string,
   projectDir: string,
   nextAgentIdRef: { current: number },
@@ -275,6 +268,7 @@ function adoptTerminalForFile(
   const agent: AgentState = {
     id,
     terminalRef: terminal,
+    adapterName,
     projectDir,
     jsonlFile,
     fileOffset: 0,
@@ -325,7 +319,6 @@ export function reassignAgentToFile(
   const agent = agents.get(agentId);
   if (!agent) return;
 
-  // Stop old file watching
   fileWatchers.get(agentId)?.close();
   fileWatchers.delete(agentId);
   const pt = pollingTimers.get(agentId);
@@ -339,18 +332,15 @@ export function reassignAgentToFile(
     /* ignore */
   }
 
-  // Clear activity
   cancelWaitingTimer(agentId, waitingTimers);
   cancelPermissionTimer(agentId, permissionTimers);
   clearAgentActivity(agent, agentId, permissionTimers, webview);
 
-  // Swap to new file
   agent.jsonlFile = newFilePath;
   agent.fileOffset = 0;
   agent.lineBuffer = '';
   persistAgents();
 
-  // Start watching new file
   startFileWatching(
     agentId,
     newFilePath,
