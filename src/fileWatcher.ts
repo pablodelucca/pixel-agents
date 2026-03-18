@@ -249,6 +249,9 @@ function scanForNewJsonlFiles(
       );
       continue;
     }
+
+    // No adoption target available — mark as known to avoid repeated I/O
+    knownJsonlFiles.add(file);
   }
 }
 
