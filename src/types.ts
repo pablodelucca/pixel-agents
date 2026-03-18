@@ -25,7 +25,7 @@ export interface AgentState {
 export interface PersistedAgent {
   id: number;
   terminalName: string;
-  adapterName: AgentBackend;
+  adapterName?: AgentBackend;
   jsonlFile: string;
   projectDir: string;
   /** Workspace folder name (only set for multi-root workspaces) */

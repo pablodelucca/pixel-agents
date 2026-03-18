@@ -102,7 +102,7 @@ export function ensureProjectScan(
   projectDir: string,
   adapter: AgentAdapter,
   knownJsonlFiles: Set<string>,
-  projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
+  projectScanTimerRef: Map<string, ReturnType<typeof setInterval>>,
   activeAgentIdRef: { current: number | null },
   nextAgentIdRef: { current: number },
   agents: Map<number, AgentState>,
@@ -113,7 +113,7 @@ export function ensureProjectScan(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
 ): void {
-  if (projectScanTimerRef.current) return;
+  if (projectScanTimerRef.has(projectDir)) return;
   try {
     const files = adapter.findJsonlFiles(projectDir);
     for (const file of files) {
@@ -125,7 +125,7 @@ export function ensureProjectScan(
     /* dir may not exist yet */
   }
 
-  projectScanTimerRef.current = setInterval(() => {
+  const timer = setInterval(() => {
     scanForNewJsonlFiles(
       projectDir,
       adapter,
@@ -141,6 +141,7 @@ export function ensureProjectScan(
       persistAgents,
     );
   }, PROJECT_SCAN_INTERVAL_MS);
+  projectScanTimerRef.set(projectDir, timer);
 }
 
 function scanForNewJsonlFiles(
@@ -192,6 +193,7 @@ function scanForNewJsonlFiles(
       knownJsonlFiles.add(file);
       reassignAgentToFile(
         activeAgentIdRef.current,
+        adapter.name,
         file,
         agents,
         fileWatchers,
@@ -212,6 +214,7 @@ function scanForNewJsonlFiles(
       knownJsonlFiles.add(file);
       reassignAgentToFile(
         activeTerminalOwnerId,
+        adapter.name,
         file,
         agents,
         fileWatchers,
@@ -307,6 +310,7 @@ function adoptTerminalForFile(
 
 export function reassignAgentToFile(
   agentId: number,
+  adapterName: AgentBackend,
   newFilePath: string,
   agents: Map<number, AgentState>,
   fileWatchers: Map<number, fs.FSWatcher>,
@@ -336,6 +340,7 @@ export function reassignAgentToFile(
   cancelPermissionTimer(agentId, permissionTimers);
   clearAgentActivity(agent, agentId, permissionTimers, webview);
 
+  agent.adapterName = adapterName;
   agent.jsonlFile = newFilePath;
   agent.fileOffset = 0;
   agent.lineBuffer = '';

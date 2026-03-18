@@ -50,7 +50,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   // /clear detection: project-level scan for new JSONL files
   activeAgentId = { current: null as number | null };
   knownJsonlFiles = new Set<string>();
-  projectScanTimer = { current: null as ReturnType<typeof setInterval> | null };
+  projectScanTimer = new Map<string, ReturnType<typeof setInterval>>();
 
   // Bundled default layout (loaded from assets/default-layout.json)
   defaultLayout: Record<string, unknown> | null = null;
@@ -404,10 +404,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         this.persistAgents,
       );
     }
-    if (this.projectScanTimer.current) {
-      clearInterval(this.projectScanTimer.current);
-      this.projectScanTimer.current = null;
+    for (const timer of this.projectScanTimer.values()) {
+      clearInterval(timer);
     }
+    this.projectScanTimer.clear();
   }
 }
 

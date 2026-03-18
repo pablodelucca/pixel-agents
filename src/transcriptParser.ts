@@ -21,6 +21,8 @@ export const PERMISSION_EXEMPT_TOOLS = new Set([
   'Agent',
   'AskUserQuestion',
   'request_user_input',
+  'spawn_agent',
+  'wait',
 ]);
 
 function truncateText(value: string, maxLength: number): string {
@@ -49,8 +51,12 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
     case 'WebSearch':
       return 'Searching the web';
     case 'Task':
-    case 'Agent': {
-      const desc = typeof input.description === 'string' ? input.description : '';
+    case 'Agent':
+    case 'spawn_agent': {
+      const desc =
+        (typeof input.message === 'string' && input.message) ||
+        (typeof input.description === 'string' && input.description) ||
+        '';
       return desc
         ? `Subtask: ${truncateText(desc, TASK_DESCRIPTION_DISPLAY_MAX_LENGTH)}`
         : 'Running subtask';
@@ -62,12 +68,9 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
       return 'Planning';
     case 'NotebookEdit':
       return 'Editing notebook';
-    case 'shell_command': {
-      const cmd = ((input.command as string) || (input.cmd as string) || '').trim();
-      return `Running: ${truncateText(cmd, BASH_COMMAND_DISPLAY_MAX_LENGTH)}`;
-    }
+    case 'shell_command':
     case 'exec_command': {
-      const cmd = ((input.cmd as string) || (input.command as string) || '').trim();
+      const cmd = ((input.command as string) || (input.cmd as string) || '').trim();
       return `Running: ${truncateText(cmd, BASH_COMMAND_DISPLAY_MAX_LENGTH)}`;
     }
     case 'apply_patch':
@@ -84,14 +87,9 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
       const chars = typeof input.chars === 'string' ? input.chars : '';
       return chars.trim() ? 'Writing terminal input' : 'Reading terminal output';
     }
-    case 'spawn_agent': {
-      const desc =
-        (typeof input.message === 'string' && input.message) ||
-        (typeof input.description === 'string' && input.description) ||
-        '';
-      return desc
-        ? `Subtask: ${truncateText(desc, TASK_DESCRIPTION_DISPLAY_MAX_LENGTH)}`
-        : 'Running subtask';
+    case 'write_stdin': {
+      const chars = typeof input.chars === 'string' ? input.chars : '';
+      return chars.trim() ? 'Writing terminal input' : 'Reading terminal output';
     }
     case 'wait':
       return 'Waiting on subtask';

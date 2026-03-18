@@ -1,0 +1,9 @@
+{
+  "session_id": "omx-1773795678170-gnnddh",
+  "started_at": "2026-03-18T01:01:22.440Z",
+  "cwd": "/home/konglabs/workspace/DavidUmKongs/oh-my-pixel-agents",
+  "pid": 600513,
+  "platform": "linux",
+  "pid_start_ticks": 17407968,
+  "pid_cmdline": "node /usr/bin/omx --madmax"
+}

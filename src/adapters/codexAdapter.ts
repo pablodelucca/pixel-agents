@@ -4,8 +4,8 @@ import * as vscode from 'vscode';
 
 import type { AgentAdapter } from '../agentAdapter.js';
 import {
+  buildCodexSessionCommand,
   CODEX_DIR_NAME,
-  CODEX_SESSION_COMMAND,
   CODEX_SESSIONS_DIR_NAME,
   TERMINAL_NAME_PREFIX_CODEX,
 } from '../constants.js';
@@ -21,8 +21,8 @@ export const codexAdapter: AgentAdapter = {
     if (!workspacePath) return null;
     return path.join(os.homedir(), CODEX_DIR_NAME, CODEX_SESSIONS_DIR_NAME);
   },
-  getTerminalCommand() {
-    return CODEX_SESSION_COMMAND;
+  getTerminalCommand(sessionId: string) {
+    return buildCodexSessionCommand(sessionId);
   },
   getExpectedJsonlFile() {
     return null;

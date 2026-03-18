@@ -15,8 +15,8 @@ export function findJsonlFilesRecursive(dir: string): string[] {
         results.push(fullPath);
       }
     }
-  } catch {
-    /* ignore */
+  } catch (e) {
+    console.warn(`[Pixel Agents] Error scanning for jsonl files in ${dir}:`, e);
   }
   return results;
 }
@@ -27,7 +27,12 @@ export function normalizeWorkspacePath(value: string): string {
 
 export function readFirstJsonlRecord(file: string): Record<string, unknown> | null {
   try {
-    const firstLine = fs.readFileSync(file, 'utf-8').split('\n')[0];
+    const fd = fs.openSync(file, 'r');
+    const buf = Buffer.alloc(8192);
+    const bytesRead = fs.readSync(fd, buf, 0, buf.length, 0);
+    fs.closeSync(fd);
+    if (bytesRead === 0) return null;
+    const firstLine = buf.toString('utf-8', 0, bytesRead).split('\n')[0];
     if (!firstLine) return null;
     return JSON.parse(firstLine) as Record<string, unknown>;
   } catch {
@@ -47,9 +52,9 @@ export function codexSessionBelongsToWorkspace(
       : null;
   const cwd = typeof payload?.cwd === 'string' ? payload.cwd : undefined;
   if (typeof cwd !== 'string' || !cwd) return false;
-  const normalizedCwd = normalizeWorkspacePath(cwd);
+  const normalizedCwd = normalizeWorkspacePath(cwd).toLowerCase();
   return workspaceFolders.some(
-    (folder) => normalizeWorkspacePath(folder.uri.fsPath) === normalizedCwd,
+    (folder) => normalizeWorkspacePath(folder.uri.fsPath).toLowerCase() === normalizedCwd,
   );
 }
 

@@ -1,0 +1,51 @@
+{
+  "pid": 600548,
+  "parent_pid": 600513,
+  "started_at": "2026-03-18T01:01:22.465Z",
+  "cwd": "/home/konglabs/workspace/DavidUmKongs/oh-my-pixel-agents",
+  "notify_script": "/usr/lib/node_modules/oh-my-codex/scripts/notify-hook.js",
+  "poll_ms": 250,
+  "pid_file": "/home/konglabs/workspace/DavidUmKongs/oh-my-pixel-agents/.omx/state/notify-fallback.pid",
+  "max_lifetime_ms": 21600000,
+  "tracked_files": 5,
+  "seen_turns": 4,
+  "dispatch_drain": {
+    "enabled": true,
+    "max_per_tick": 5,
+    "run_count": 85821,
+    "leader_only": true,
+    "last_tick_at": "2026-03-18T07:01:22.261Z",
+    "last_result": {
+      "processed": 0,
+      "skipped": 0,
+      "failed": 0
+    },
+    "last_error": null
+  },
+  "leader_nudge": {
+    "enabled": true,
+    "run_count": 85821,
+    "leader_only": true,
+    "stale_threshold_ms": 180000,
+    "precomputed_leader_stale": true,
+    "last_tick_at": "2026-03-18T07:01:22.261Z",
+    "last_error": null
+  },
+  "ralph_continue_steer": {
+    "enabled": true,
+    "cadence_ms": 60000,
+    "message": "Ralph loop active continue",
+    "active": false,
+    "last_state_check_at": "2026-03-18T07:01:22.262Z",
+    "last_sent_at": "",
+    "last_reason": "cleared",
+    "last_error": null,
+    "state_path": "",
+    "pane_id": "",
+    "pane_current_command": "",
+    "current_phase": ""
+  },
+  "stop_reason": "max_lifetime_exceeded",
+  "stop_signal": null,
+  "stopping": true
+}

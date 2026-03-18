@@ -35,4 +35,4 @@ export const CLAUDE_PROJECTS_DIR_NAME = 'projects';
 export const CLAUDE_SESSION_COMMAND = 'claude';
 export const CODEX_DIR_NAME = '.codex';
 export const CODEX_SESSIONS_DIR_NAME = 'sessions';
-export const CODEX_SESSION_COMMAND = 'codex';
+export const buildCodexSessionCommand = (sessionId: string) => `codex --session-id ${sessionId}`;
