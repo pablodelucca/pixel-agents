@@ -57,7 +57,7 @@ jobs:
       - name: Install Playwright Dependencies
         id: install_playwright_deps
         if: always() && steps.install_root.outcome == 'success'
-        run: npx playwright install-deps
+        run: npx playwright install --with-deps chromium
         continue-on-error: true
 
       # --- Quality Checks (blocking) ---
