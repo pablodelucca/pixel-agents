@@ -3,29 +3,65 @@ import { expect } from '@playwright/test';
 
 const WEBVIEW_TIMEOUT_MS = 30_000;
 const PANEL_OPEN_TIMEOUT_MS = 15_000;
+const MIN_PANEL_HEIGHT_PX = 320;
+
+async function runCommand(window: Page, command: string): Promise<void> {
+  await window.keyboard.press('F1');
+  await window.waitForSelector('.quick-input-widget', { timeout: PANEL_OPEN_TIMEOUT_MS });
+  await window.keyboard.type(command);
+  await window.waitForSelector('.quick-input-list .monaco-list-row', {
+    timeout: PANEL_OPEN_TIMEOUT_MS,
+  });
+  await window.keyboard.press('Enter');
+  await window.waitForSelector('.quick-input-widget', {
+    state: 'hidden',
+    timeout: PANEL_OPEN_TIMEOUT_MS,
+  }).catch(() => {
+    // Some commands update layout without immediately dismissing quick input.
+  });
+}
+
+async function getPanelHeight(window: Page): Promise<number> {
+  return window.evaluate(() => {
+    const panel =
+      document.querySelector<HTMLElement>('[id="workbench.panel.bottom"]') ??
+      document.querySelector<HTMLElement>('.part.panel');
+
+    return Math.round(panel?.getBoundingClientRect().height ?? 0);
+  });
+}
+
+async function ensurePanelIsLarge(window: Page): Promise<void> {
+  if ((await getPanelHeight(window)) > MIN_PANEL_HEIGHT_PX) {
+    return;
+  }
+
+  await runCommand(window, 'View: Toggle Maximized Panel');
+
+  await expect
+    .poll(() => getPanelHeight(window), {
+      message: 'Expected the bottom panel to be resized for the Pixel Agents webview',
+      timeout: PANEL_OPEN_TIMEOUT_MS,
+      intervals: [250, 500, 1000],
+    })
+    .toBeGreaterThan(MIN_PANEL_HEIGHT_PX);
+}
 
 /**
  * Open the Pixel Agents panel via the Command Palette and wait for the
  * "Pixel Agents: Show Panel" command to execute.
  */
 export async function openPixelAgentsPanel(window: Page): Promise<void> {
-  // Open command palette (Ctrl+Shift+P / F1)
-  await window.keyboard.press('F1');
-  await window.waitForSelector('.quick-input-widget', { timeout: PANEL_OPEN_TIMEOUT_MS });
-
-  // Type the command
-  await window.keyboard.type('Pixel Agents: Show Panel');
-  await window.waitForSelector('.quick-input-list .monaco-list-row', {
-    timeout: PANEL_OPEN_TIMEOUT_MS,
-  });
-  await window.keyboard.press('Enter');
+  await runCommand(window, 'Pixel Agents: Show Panel');
 
   // Wait for the panel container to appear
-  await window.waitForSelector('[id="workbench.panel.bottom"]', {
+  await window.waitForSelector('[id="workbench.panel.bottom"], .part.panel', {
     timeout: PANEL_OPEN_TIMEOUT_MS,
   }).catch(() => {
     // Panel might not use this id; just continue
   });
+
+  await ensurePanelIsLarge(window);
 }
 
 /**
