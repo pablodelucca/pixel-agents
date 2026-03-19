@@ -380,6 +380,10 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentToolPermission') {
         const id = msg.id as number;
         const toolIds = (msg.toolIds as string[] | undefined) ?? [];
+        const permSource = (msg.source as 'transcript' | 'heuristic' | undefined) ?? 'heuristic';
+        const permInferred = (msg.inferred as boolean | undefined) ?? true;
+        const permConfidence =
+          (msg.confidence as 'high' | 'medium' | 'low' | 'unknown' | undefined) ?? 'low';
         setAgentTools((prev) => {
           const list = prev[id];
           if (!list) return prev;
@@ -388,7 +392,14 @@ export function useExtensionMessages(
             [id]: list.map((t) =>
               t.done || !toolIds.includes(t.toolId)
                 ? t
-                : { ...t, permissionWait: true, permissionState: 'pending' },
+                : {
+                    ...t,
+                    permissionWait: true,
+                    permissionState: 'pending',
+                    source: permSource,
+                    inferred: permInferred,
+                    confidence: permConfidence,
+                  },
             ),
           };
         });
@@ -396,6 +407,10 @@ export function useExtensionMessages(
       } else if (msg.type === 'subagentToolPermission') {
         const id = msg.id as number;
         const parentToolId = msg.parentToolId as string;
+        const permSource = (msg.source as 'transcript' | 'heuristic' | undefined) ?? 'heuristic';
+        const permInferred = (msg.inferred as boolean | undefined) ?? true;
+        const permConfidence =
+          (msg.confidence as 'high' | 'medium' | 'low' | 'unknown' | undefined) ?? 'low';
         // Show permission bubble on the sub-agent character
         const subId = os.getSubagentId(id, parentToolId);
         if (subId !== null) {
@@ -409,6 +424,9 @@ export function useExtensionMessages(
             ...tool,
             permissionWait: true,
             permissionState: 'pending',
+            source: permSource,
+            inferred: permInferred,
+            confidence: permConfidence,
           }));
           return { ...prev, [id]: next };
         });

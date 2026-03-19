@@ -217,7 +217,10 @@ export function ToolOverlay({
           border: '1px solid rgba(255,255,255,0.1)',
         }}
       >
-        <SummaryLine label="Status" value={status.toUpperCase()} />
+        <SummaryLine
+          label="Status"
+          value={`${status.toUpperCase()}${statusInfo?.inferred ? ' (heuristic)' : ''}`}
+        />
         <SummaryLine label="Current" value={activeTool?.statusText ?? 'Idle'} accent="high" />
         {activeTool?.target && (
           <SummaryLine label="Target" value={activeTool.target} accent="dim" />
@@ -242,10 +245,12 @@ export function ToolOverlay({
           />
           <span style={{ fontSize: 12, color: 'var(--pixel-text-dim)' }}>
             {activeTool?.permissionState === 'pending'
-              ? 'Needs approval'
+              ? `Needs approval${activeTool.inferred ? ' (estimated)' : ''}`
               : activeTool?.permissionState === 'granted'
                 ? 'Permission granted'
-                : 'Auto'}
+                : activeTool?.source === 'heuristic'
+                  ? 'Auto (estimated)'
+                  : 'Auto'}
           </span>
         </div>
       </div>
