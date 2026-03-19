@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { TOOL_HISTORY_MAX_SIZE } from '../constants.js';
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
@@ -50,8 +51,10 @@ export interface ExtensionMessageState {
   agents: number[];
   selectedAgent: number | null;
   agentTools: Record<number, ToolActivity[]>;
+  agentToolHistory: Record<number, ToolActivity[]>;
   agentStatuses: Record<number, string>;
   subagentTools: Record<number, Record<string, ToolActivity[]>>;
+  subagentToolHistory: Record<number, Record<string, ToolActivity[]>>;
   subagentCharacters: SubagentCharacter[];
   layoutReady: boolean;
   layoutWasReset: boolean;
@@ -106,8 +109,12 @@ export function useExtensionMessages(
   const [agents, setAgents] = useState<number[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null);
   const [agentTools, setAgentTools] = useState<Record<number, ToolActivity[]>>({});
+  const [agentToolHistory, setAgentToolHistory] = useState<Record<number, ToolActivity[]>>({});
   const [agentStatuses, setAgentStatuses] = useState<Record<number, string>>({});
   const [subagentTools, setSubagentTools] = useState<
+    Record<number, Record<string, ToolActivity[]>>
+  >({});
+  const [subagentToolHistory, setSubagentToolHistory] = useState<
     Record<number, Record<string, ToolActivity[]>>
   >({});
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([]);
@@ -186,7 +193,19 @@ export function useExtensionMessages(
           delete next[id];
           return next;
         });
+        setAgentToolHistory((prev) => {
+          if (!(id in prev)) return prev;
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
         setSubagentTools((prev) => {
+          if (!(id in prev)) return prev;
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        setSubagentToolHistory((prev) => {
           if (!(id in prev)) return prev;
           const next = { ...prev };
           delete next[id];
@@ -274,6 +293,26 @@ export function useExtensionMessages(
                 : t,
             ),
           };
+        });
+        // Append completed tool to history (read current agentTools via setter to avoid stale closure)
+        setAgentTools((currentTools) => {
+          const tool = (currentTools[id] || []).find((t) => t.toolId === toolId);
+          if (tool) {
+            const doneTool: ToolActivity = {
+              ...tool,
+              done: true,
+              durationMs: activity?.durationMs ?? tool.durationMs,
+              statusText: activity?.statusText ?? tool.statusText,
+              status: activity?.statusText ?? tool.status,
+              permissionState: activity?.permissionState ?? tool.permissionState,
+            };
+            setAgentToolHistory((prev) => {
+              const existing = prev[id] || [];
+              const updated = [...existing, doneTool].slice(-TOOL_HISTORY_MAX_SIZE);
+              return { ...prev, [id]: updated };
+            });
+          }
+          return currentTools; // no mutation — just reading
         });
       } else if (msg.type === 'agentToolsClear') {
         const id = msg.id as number;
@@ -445,6 +484,27 @@ export function useExtensionMessages(
             },
           };
         });
+        // Append completed sub-agent tool to history
+        setSubagentTools((currentSubs) => {
+          const tool = (currentSubs[id]?.[parentToolId] || []).find((t) => t.toolId === toolId);
+          if (tool) {
+            const doneTool: ToolActivity = {
+              ...tool,
+              done: true,
+              durationMs: activity?.durationMs ?? tool.durationMs,
+              statusText: activity?.statusText ?? tool.statusText,
+              status: activity?.statusText ?? tool.status,
+              permissionState: activity?.permissionState ?? tool.permissionState,
+            };
+            setSubagentToolHistory((prev) => {
+              const agentHistory = prev[id] || {};
+              const existing = agentHistory[parentToolId] || [];
+              const updated = [...existing, doneTool].slice(-TOOL_HISTORY_MAX_SIZE);
+              return { ...prev, [id]: { ...agentHistory, [parentToolId]: updated } };
+            });
+          }
+          return currentSubs; // no mutation
+        });
       } else if (msg.type === 'subagentClear') {
         const id = msg.id as number;
         const parentToolId = msg.parentToolId as string;
@@ -509,8 +569,10 @@ export function useExtensionMessages(
     agents,
     selectedAgent,
     agentTools,
+    agentToolHistory,
     agentStatuses,
     subagentTools,
+    subagentToolHistory,
     subagentCharacters,
     layoutReady,
     layoutWasReset,

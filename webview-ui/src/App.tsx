@@ -140,8 +140,10 @@ function App() {
     agents,
     selectedAgent,
     agentTools,
+    agentToolHistory,
     agentStatuses,
     subagentTools,
+    subagentToolHistory,
     subagentCharacters,
     layoutReady,
     layoutWasReset,
@@ -194,7 +196,10 @@ function App() {
     const os = getOfficeState();
     const meta = os.subagentMeta.get(agentId);
     const selectedId = meta ? meta.parentAgentId : agentId;
-    vscode.postMessage({ type: 'agentSelected', id: selectedId });
+    // Dispatch locally — selection is webview-internal state only
+    window.dispatchEvent(
+      new MessageEvent('message', { data: { type: 'agentSelected', id: selectedId } }),
+    );
   }, []);
 
   const officeState = getOfficeState();
@@ -354,6 +359,7 @@ function App() {
           officeState={officeState}
           agents={agents}
           agentTools={agentTools}
+          agentToolHistory={agentToolHistory}
           agentStatuses={agentStatuses}
           subagentCharacters={subagentCharacters}
           containerRef={containerRef}
@@ -370,8 +376,10 @@ function App() {
           agents={agents}
           selectedAgent={selectedAgent}
           agentTools={agentTools}
+          agentToolHistory={agentToolHistory}
           agentStatuses={agentStatuses}
           subagentTools={subagentTools}
+          subagentToolHistory={subagentToolHistory}
           onSelectAgent={handleSelectAgent}
         />
       )}

@@ -10,6 +10,7 @@ interface ToolOverlayProps {
   officeState: OfficeState;
   agents: number[];
   agentTools: Record<number, ToolActivity[]>;
+  agentToolHistory: Record<number, ToolActivity[]>;
   agentStatuses: Record<number, string>;
   subagentCharacters: SubagentCharacter[];
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -55,6 +56,7 @@ export function ToolOverlay({
   officeState,
   agents,
   agentTools,
+  agentToolHistory,
   agentStatuses,
   subagentCharacters,
   containerRef,
@@ -99,7 +101,11 @@ export function ToolOverlay({
 
   const tools = agentTools[targetId] || [];
   const activeTool = [...tools].reverse().find((t) => !t.done);
-  const history = [...tools].slice(-4).reverse();
+  // Merge past history with current active tools, dedup by toolId, show latest 5
+  const pastHistory = agentToolHistory[targetId] || [];
+  const activeToolIds = new Set(tools.map((t) => t.toolId));
+  const merged = [...pastHistory.filter((t) => !activeToolIds.has(t.toolId)), ...tools];
+  const history = merged.slice(-5).reverse();
   const status = agentStatuses[targetId] || 'active';
 
   const subagents = subagentCharacters.filter((s) => s.parentAgentId === targetId);

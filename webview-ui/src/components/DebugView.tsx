@@ -7,8 +7,10 @@ interface DebugViewProps {
   agents: number[];
   selectedAgent: number | null;
   agentTools: Record<number, ToolActivity[]>;
+  agentToolHistory: Record<number, ToolActivity[]>;
   agentStatuses: Record<number, string>;
   subagentTools: Record<number, Record<string, ToolActivity[]>>;
+  subagentToolHistory: Record<number, Record<string, ToolActivity[]>>;
   onSelectAgent: (id: number) => void;
 }
 
@@ -52,8 +54,10 @@ export function DebugView({
   agents,
   selectedAgent,
   agentTools,
+  agentToolHistory,
   agentStatuses,
   subagentTools,
+  subagentToolHistory,
   onSelectAgent,
 }: DebugViewProps) {
   const [now, setNow] = useState(0);
@@ -84,8 +88,21 @@ export function DebugView({
       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {agents.map((id) => {
           const isSelected = selectedAgent === id;
-          const tools = agentTools[id] ?? [];
-          const subs = subagentTools[id] ?? {};
+          const activeTools = agentTools[id] ?? [];
+          const pastTools = agentToolHistory[id] ?? [];
+          const activeIds = new Set(activeTools.map((t) => t.toolId));
+          const tools = [...pastTools.filter((t) => !activeIds.has(t.toolId)), ...activeTools];
+          const activeSubs = subagentTools[id] ?? {};
+          const pastSubs = subagentToolHistory[id] ?? {};
+          // Merge sub-agent tools with history
+          const allSubKeys = new Set([...Object.keys(activeSubs), ...Object.keys(pastSubs)]);
+          const subs: Record<string, ToolActivity[]> = {};
+          for (const key of allSubKeys) {
+            const active = activeSubs[key] ?? [];
+            const past = pastSubs[key] ?? [];
+            const ids = new Set(active.map((t) => t.toolId));
+            subs[key] = [...past.filter((t) => !ids.has(t.toolId)), ...active];
+          }
           const status = agentStatuses[id];
           return (
             <div
