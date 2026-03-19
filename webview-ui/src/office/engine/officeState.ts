@@ -517,6 +517,14 @@ export class OfficeState {
     const ch = this.characters.get(id);
     if (ch) {
       ch.isActive = active;
+      if (active) {
+        ch.needsAttention = false;
+        if (ch.state === CharacterState.RAISE_HAND) {
+          ch.state = CharacterState.IDLE;
+          ch.frame = 0;
+          ch.frameTimer = 0;
+        }
+      }
       if (!active) {
         // Sentinel -1: signals turn just ended, skip next seat rest timer.
         // Prevents the WALK handler from setting a 2-4 min rest on arrival.
@@ -601,6 +609,9 @@ export class OfficeState {
     if (ch) {
       ch.bubbleType = 'permission';
       ch.bubbleTimer = 0;
+      ch.state = CharacterState.RAISE_HAND;
+      ch.path = [];
+      ch.needsAttention = true;
     }
   }
 
@@ -609,6 +620,12 @@ export class OfficeState {
     if (ch && ch.bubbleType === 'permission') {
       ch.bubbleType = null;
       ch.bubbleTimer = 0;
+      ch.needsAttention = false;
+      if (ch.state === CharacterState.RAISE_HAND) {
+        ch.state = CharacterState.IDLE;
+        ch.frame = 0;
+        ch.frameTimer = 0;
+      }
     }
   }
 
@@ -617,6 +634,9 @@ export class OfficeState {
     if (ch) {
       ch.bubbleType = 'waiting';
       ch.bubbleTimer = WAITING_BUBBLE_DURATION_SEC;
+      ch.state = CharacterState.RAISE_HAND;
+      ch.path = [];
+      ch.needsAttention = true;
     }
   }
 
@@ -627,6 +647,11 @@ export class OfficeState {
     if (ch.bubbleType === 'permission') {
       ch.bubbleType = null;
       ch.bubbleTimer = 0;
+      if (ch.state === CharacterState.RAISE_HAND) {
+        ch.state = CharacterState.IDLE;
+        ch.frame = 0;
+        ch.frameTimer = 0;
+      }
     } else if (ch.bubbleType === 'waiting') {
       // Trigger immediate fade (0.3s remaining)
       ch.bubbleTimer = Math.min(ch.bubbleTimer, DISMISS_BUBBLE_FAST_FADE_SEC);

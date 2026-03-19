@@ -83,6 +83,7 @@ export function createCharacter(
     matrixEffect: null,
     matrixEffectTimer: 0,
     matrixEffectSeeds: [],
+    needsAttention: false,
   };
 }
 
@@ -324,6 +325,7 @@ export function getCharacterSprite(ch: Character, sprites: CharacterSprites): Sp
     case CharacterState.WALK:
       return sprites.walk[ch.dir][ch.frame % 4];
     case CharacterState.IDLE:
+    case CharacterState.RAISE_HAND:
       return sprites.walk[ch.dir][1];
     default:
       return sprites.walk[ch.dir][1];

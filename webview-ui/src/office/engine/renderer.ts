@@ -21,6 +21,10 @@ import {
   GRID_LINE_COLOR,
   HOVERED_OUTLINE_ALPHA,
   OUTLINE_Z_SORT_OFFSET,
+  PERMISSION_GLOW_BLUR_MAX,
+  PERMISSION_GLOW_BLUR_MIN,
+  PERMISSION_GLOW_COLOR,
+  PERMISSION_GLOW_PERIOD_MS,
   ROTATE_BUTTON_BG,
   SEAT_AVAILABLE_COLOR,
   SEAT_BUSY_COLOR,
@@ -180,10 +184,24 @@ export function renderScene(
       });
     }
 
+    const isRaisingHand = ch.needsAttention;
     drawables.push({
       zY: charZY,
       draw: (c) => {
-        c.drawImage(cached, drawX, drawY);
+        if (isRaisingHand) {
+          const pulse =
+            0.5 + 0.5 * Math.sin((Date.now() / PERMISSION_GLOW_PERIOD_MS) * Math.PI * 2);
+          c.save();
+          c.shadowColor = PERMISSION_GLOW_COLOR;
+          c.shadowBlur =
+            (PERMISSION_GLOW_BLUR_MIN +
+              (PERMISSION_GLOW_BLUR_MAX - PERMISSION_GLOW_BLUR_MIN) * pulse) *
+            zoom;
+          c.drawImage(cached, drawX, drawY);
+          c.restore();
+        } else {
+          c.drawImage(cached, drawX, drawY);
+        }
       },
     });
   }

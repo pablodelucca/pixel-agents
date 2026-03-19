@@ -69,7 +69,7 @@ export function AgentLabels({
         // Character position: device pixels → CSS pixels (follow sitting offset)
         const sittingOffset = ch.state === CharacterState.TYPE ? 6 : 0;
         const screenX = (deviceOffsetX + ch.x * zoom) / dpr;
-        const screenY = (deviceOffsetY + (ch.y + sittingOffset - 24) * zoom) / dpr;
+        const screenY = (deviceOffsetY + (ch.y + sittingOffset - 36) * zoom) / dpr;
 
         const status = agentStatuses[id];
         const isWaiting = status === 'waiting';

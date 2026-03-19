@@ -38,6 +38,7 @@ export const CharacterState = {
   IDLE: 'idle',
   WALK: 'walk',
   TYPE: 'type',
+  RAISE_HAND: 'raise_hand',
 } as const;
 export type CharacterState = (typeof CharacterState)[keyof typeof CharacterState];
 
@@ -193,6 +194,8 @@ export interface Character {
   matrixEffectTimer: number;
   /** Per-column random seeds (16 values) for staggered rain timing */
   matrixEffectSeeds: number[];
+  /** Whether this agent needs human attention (permission, question, or waiting for reply) */
+  needsAttention: boolean;
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
 }
