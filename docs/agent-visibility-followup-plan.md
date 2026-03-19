@@ -332,8 +332,8 @@ extension까지 selection을 전파하고 싶다면:
 
 아래가 모두 만족되면 `docs/agent-visibility-plan.md`가 실질적으로 구현되었다고 본다.
 
-- [ ] ToolActivity 메타가 실제 의미 있게 채워짐
-- [ ] Inspector가 current + recent + heuristic + subagent 관계를 명확히 보여줌
-- [ ] DebugView가 실제 timeline rail 역할을 함
-- [ ] 클릭 흐름이 일관적임
-- [ ] AgentLabels 또는 equivalent mini status가 캔버스에 존재함
+- [x] ToolActivity 메타가 실제 의미 있게 채워짐
+- [x] Inspector가 current + recent + heuristic + subagent 관계를 명확히 보여줌
+- [x] DebugView가 실제 timeline rail 역할을 함
+- [x] 클릭 흐름이 일관적임
+- [x] AgentLabels 또는 equivalent mini status가 캔버스에 존재함

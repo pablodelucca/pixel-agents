@@ -1,5 +1,7 @@
+/* eslint-disable pixel-agents/no-inline-colors */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { AgentLabels } from './components/AgentLabels.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { DebugView } from './components/DebugView.js';
 import { ZoomControls } from './components/ZoomControls.js';
@@ -274,6 +276,20 @@ function App() {
 
       {!isDebugMode && <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />}
 
+      {!isDebugMode && !editor.isEditMode && (
+        <AgentLabels
+          officeState={officeState}
+          agents={agents}
+          agentStatuses={agentStatuses}
+          agentTools={agentTools}
+          subagentTools={subagentTools}
+          containerRef={containerRef}
+          zoom={editor.zoom}
+          panRef={editor.panRef}
+          subagentCharacters={subagentCharacters}
+        />
+      )}
+
       {/* Vignette overlay */}
       <div
         style={{
@@ -359,10 +375,9 @@ function App() {
           agentTools={agentTools}
           agentToolHistory={agentToolHistory}
           agentStatuses={agentStatuses}
+          subagentTools={subagentTools}
+          subagentToolHistory={subagentToolHistory}
           subagentCharacters={subagentCharacters}
-          containerRef={containerRef}
-          zoom={editor.zoom}
-          panRef={editor.panRef}
           onCloseAgent={handleCloseAgent}
           onFocusAgent={handleFocusAgent}
           alwaysShowOverlay={alwaysShowOverlay}
@@ -378,6 +393,7 @@ function App() {
           agentStatuses={agentStatuses}
           subagentTools={subagentTools}
           subagentToolHistory={subagentToolHistory}
+          subagentCharacters={subagentCharacters}
           onSelectAgent={handleSelectAgent}
         />
       )}

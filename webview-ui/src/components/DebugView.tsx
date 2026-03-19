@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+/* eslint-disable pixel-agents/no-inline-colors */
+import { useEffect, useMemo, useState } from 'react';
 
 import { DEBUG_TIMELINE_WINDOW_MS } from '../constants.js';
-import type { AgentStatusInfo } from '../hooks/useExtensionMessages.js';
+import type { AgentStatusInfo, SubagentCharacter } from '../hooks/useExtensionMessages.js';
 import type { ToolActivity } from '../office/types.js';
 import { vscode } from '../vscodeApi.js';
 
@@ -13,10 +14,13 @@ interface DebugViewProps {
   agentStatuses: Record<number, AgentStatusInfo>;
   subagentTools: Record<number, Record<string, ToolActivity[]>>;
   subagentToolHistory: Record<number, Record<string, ToolActivity[]>>;
+  subagentCharacters: SubagentCharacter[];
   onSelectAgent: (id: number) => void;
 }
 
 const DEBUG_Z = 40;
+const LABEL_WIDTH = 160;
+const TIMELINE_TICKS = 4;
 
 function formatDuration(ms?: number) {
   if (ms === undefined) return '';
@@ -24,30 +28,169 @@ function formatDuration(ms?: number) {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function renderToolChip(tool: ToolActivity, now: number) {
-  const duration = tool.done ? (tool.durationMs ?? 0) : now - tool.startTime;
-  const width = Math.min(220, Math.max(48, (duration / DEBUG_TIMELINE_WINDOW_MS) * 220));
-  const color = tool.permissionState === 'pending' ? '#f7c04f' : tool.done ? '#5a5fff' : '#70d1ff';
+function mergeToolLists(active: ToolActivity[], history: ToolActivity[]): ToolActivity[] {
+  const activeIds = new Set(active.map((tool) => tool.toolId));
+  return [...history.filter((tool) => !activeIds.has(tool.toolId)), ...active];
+}
+
+function getBarColor(tool: ToolActivity): string {
+  if (tool.permissionState === 'pending') return '#f2c14e';
+  if (tool.source === 'heuristic') return '#db8bff';
+  return tool.done ? '#5a5fff' : '#70d1ff';
+}
+
+function TimelineRail({
+  tools,
+  now,
+  waiting,
+}: {
+  tools: ToolActivity[];
+  now: number;
+  waiting: boolean;
+}) {
+  const windowStart = now - DEBUG_TIMELINE_WINDOW_MS;
+
   return (
     <div
-      key={`${tool.toolId}-${tool.parentToolId ?? 'self'}`}
       style={{
-        width,
-        borderRadius: 0,
-        background: color,
-        padding: '3px 6px',
-        fontSize: 12,
-        color: '#030312',
-        fontWeight: 600,
-        boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.35)',
-        marginBottom: 4,
-        textOverflow: 'ellipsis',
+        position: 'relative',
+        height: 44,
+        border: '1px solid rgba(255,255,255,0.08)',
+        background:
+          'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.015) 100%)',
         overflow: 'hidden',
-        whiteSpace: 'nowrap',
       }}
     >
-      {tool.statusText} · {formatDuration(duration)}
+      {Array.from({ length: TIMELINE_TICKS + 1 }).map((_, idx) => {
+        const left = `${(idx / TIMELINE_TICKS) * 100}%`;
+        const deltaMs =
+          DEBUG_TIMELINE_WINDOW_MS - (idx / TIMELINE_TICKS) * DEBUG_TIMELINE_WINDOW_MS;
+        return (
+          <div key={left}>
+            <div
+              style={{
+                position: 'absolute',
+                left,
+                top: 0,
+                bottom: 0,
+                width: 1,
+                background: 'rgba(255,255,255,0.08)',
+              }}
+            />
+            {idx < TIMELINE_TICKS && (
+              <span
+                style={{
+                  position: 'absolute',
+                  left,
+                  top: 2,
+                  transform: 'translateX(-50%)',
+                  color: 'var(--pixel-text-dim)',
+                  fontSize: 10,
+                }}
+              >
+                -{formatDuration(deltaMs)}
+              </span>
+            )}
+          </div>
+        );
+      })}
+
+      {waiting && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: '0 auto 0 0',
+            width: '100%',
+            background: 'rgba(242,193,78,0.12)',
+            borderTop: '1px solid rgba(242,193,78,0.5)',
+            borderBottom: '1px solid rgba(242,193,78,0.5)',
+          }}
+        />
+      )}
+
+      {tools.map((tool) => {
+        const endTime = tool.done ? tool.startTime + (tool.durationMs ?? 0) : now;
+        if (endTime < windowStart) return null;
+        const clampedStart = Math.max(tool.startTime, windowStart);
+        const leftPct = ((clampedStart - windowStart) / DEBUG_TIMELINE_WINDOW_MS) * 100;
+        const widthPct = Math.max(
+          1.5,
+          ((Math.max(endTime, clampedStart) - clampedStart) / DEBUG_TIMELINE_WINDOW_MS) * 100,
+        );
+        return (
+          <div
+            key={`${tool.parentToolId ?? 'root'}-${tool.toolId}`}
+            title={`${tool.statusText} · ${formatDuration(endTime - tool.startTime)}`}
+            style={{
+              position: 'absolute',
+              left: `${leftPct}%`,
+              top: tool.permissionState === 'pending' ? 24 : 16,
+              height: 12,
+              width: `${widthPct}%`,
+              minWidth: 6,
+              background: getBarColor(tool),
+              border: '1px solid rgba(255,255,255,0.18)',
+            }}
+          />
+        );
+      })}
     </div>
+  );
+}
+
+function RowLabel({
+  title,
+  subtitle,
+  selected,
+  waiting,
+  onClick,
+}: {
+  title: string;
+  subtitle: string;
+  selected?: boolean;
+  waiting?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: LABEL_WIDTH,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        gap: 4,
+        background: selected ? 'rgba(90, 140, 255, 0.18)' : 'rgba(255,255,255,0.02)',
+        border: `1px solid ${selected ? '#5a8cff' : 'rgba(255,255,255,0.08)'}`,
+        color: '#fff',
+        padding: '8px 10px',
+        cursor: onClick ? 'pointer' : 'default',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: waiting ? '#f2c14e' : '#70d1ff',
+          }}
+        />
+        <span style={{ fontSize: 13, fontWeight: 700 }}>{title}</span>
+      </div>
+      <span
+        style={{
+          color: 'var(--pixel-text-dim)',
+          fontSize: 11,
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          textOverflow: 'ellipsis',
+          maxWidth: '100%',
+        }}
+      >
+        {subtitle}
+      </span>
+    </button>
   );
 }
 
@@ -59,6 +202,7 @@ export function DebugView({
   agentStatuses,
   subagentTools,
   subagentToolHistory,
+  subagentCharacters,
   onSelectAgent,
 }: DebugViewProps) {
   const [now, setNow] = useState(() => Date.now());
@@ -72,128 +216,152 @@ export function DebugView({
     return () => cancelAnimationFrame(rafId);
   }, []);
 
+  const subagentsByParent = useMemo(() => {
+    const map = new Map<number, SubagentCharacter[]>();
+    for (const subagent of subagentCharacters) {
+      const current = map.get(subagent.parentAgentId) ?? [];
+      current.push(subagent);
+      map.set(subagent.parentAgentId, current);
+    }
+    return map;
+  }, [subagentCharacters]);
+
   return (
     <div
       style={{
         position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
+        inset: 0,
         background: 'var(--vscode-editor-background)',
         zIndex: DEBUG_Z,
         overflow: 'auto',
       }}
     >
-      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `${LABEL_WIDTH}px 1fr auto`,
+            gap: 10,
+            alignItems: 'center',
+            color: 'var(--pixel-text-dim)',
+            fontSize: 11,
+            textTransform: 'uppercase',
+          }}
+        >
+          <span>Agent / Sub-agent</span>
+          <span>Timeline rail ({formatDuration(DEBUG_TIMELINE_WINDOW_MS)} window)</span>
+          <span>Actions</span>
+        </div>
+
         {agents.map((id) => {
-          const isSelected = selectedAgent === id;
-          const activeTools = agentTools[id] ?? [];
-          const pastTools = agentToolHistory[id] ?? [];
-          const activeIds = new Set(activeTools.map((t) => t.toolId));
-          const tools = [...pastTools.filter((t) => !activeIds.has(t.toolId)), ...activeTools];
-          const activeSubs = subagentTools[id] ?? {};
-          const pastSubs = subagentToolHistory[id] ?? {};
-          // Merge sub-agent tools with history
-          const allSubKeys = new Set([...Object.keys(activeSubs), ...Object.keys(pastSubs)]);
-          const subs: Record<string, ToolActivity[]> = {};
-          for (const key of allSubKeys) {
-            const active = activeSubs[key] ?? [];
-            const past = pastSubs[key] ?? [];
-            const ids = new Set(active.map((t) => t.toolId));
-            subs[key] = [...past.filter((t) => !ids.has(t.toolId)), ...active];
-          }
-          const status = agentStatuses[id];
-          const statusLabel = status?.status ?? 'active';
+          const mergedTools = mergeToolLists(agentTools[id] ?? [], agentToolHistory[id] ?? []);
+          const statusInfo = agentStatuses[id];
+          const waiting = statusInfo?.status === 'waiting';
+          const latestTool = mergedTools[mergedTools.length - 1];
+          const subagents = subagentsByParent.get(id) ?? [];
+
           return (
             <div
               key={id}
               style={{
-                border: `2px solid ${isSelected ? '#5a8cff' : '#3c3c5a'}`,
-                borderRadius: 0,
+                border: `2px solid ${selectedAgent === id ? '#5a8cff' : 'rgba(255,255,255,0.08)'}`,
+                background:
+                  selectedAgent === id ? 'rgba(90,140,255,0.06)' : 'rgba(255,255,255,0.02)',
                 padding: 12,
-                background: isSelected ? 'rgba(90, 140, 255, 0.08)' : 'rgba(255,255,255,0.02)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 8,
+                gap: 10,
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                <button
-                  onClick={() => onSelectAgent(id)}
-                  style={{
-                    background: isSelected ? '#5a8cff' : '#2b2b45',
-                    border: 'none',
-                    color: '#fff',
-                    fontSize: 18,
-                    cursor: 'pointer',
-                    padding: '4px 10px',
-                  }}
-                >
-                  Agent #{id}
-                </button>
-                <span
-                  style={{
-                    alignSelf: 'center',
-                    fontSize: 14,
-                    textTransform: 'uppercase',
-                    color: statusLabel === 'waiting' ? '#f7c04f' : '#8a8fb3',
-                  }}
-                >
-                  {statusLabel}
-                </span>
-                <button
-                  onClick={() => vscode.postMessage({ type: 'closeAgent', id })}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    color: '#fff',
-                    fontSize: 18,
-                    cursor: 'pointer',
-                    opacity: 0.7,
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
               <div
                 style={{
-                  display: 'flex',
-                  gap: 8,
-                  flexWrap: 'wrap',
-                  minHeight: 40,
+                  display: 'grid',
+                  gridTemplateColumns: `${LABEL_WIDTH}px 1fr auto`,
+                  gap: 10,
+                  alignItems: 'center',
                 }}
               >
-                {tools.length === 0 && (
-                  <span style={{ color: '#8a8fb3', fontSize: 13 }}>No recorded tools yet</span>
-                )}
-                {tools.map((tool) => renderToolChip(tool, now))}
-              </div>
-              {Object.entries(subs).map(([parentId, toolList]) => (
-                <div
-                  key={`${id}-${parentId}`}
-                  style={{
-                    padding: '8px 10px',
-                    background: '#151536',
-                    borderRadius: 0,
-                    border: '1px solid rgba(255,255,255,0.08)',
-                  }}
-                >
-                  <div
+                <RowLabel
+                  title={`Agent #${id}`}
+                  subtitle={
+                    waiting
+                      ? `waiting${statusInfo?.inferred ? ' · estimated' : ''}`
+                      : (latestTool?.statusText ?? 'idle')
+                  }
+                  waiting={waiting}
+                  selected={selectedAgent === id}
+                  onClick={() => onSelectAgent(id)}
+                />
+                <TimelineRail tools={mergedTools} now={now} waiting={waiting} />
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={() => onSelectAgent(id)}
                     style={{
-                      fontSize: 12,
-                      color: '#9da4ff',
-                      marginBottom: 4,
-                      textTransform: 'uppercase',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      background: '#2b2b45',
+                      color: '#fff',
+                      padding: '6px 10px',
+                      cursor: 'pointer',
                     }}
                   >
-                    Subtasks from {parentId}
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {toolList.map((tool) => renderToolChip(tool, now))}
-                  </div>
+                    Focus
+                  </button>
+                  <button
+                    onClick={() => vscode.postMessage({ type: 'closeAgent', id })}
+                    style={{
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      background: 'transparent',
+                      color: '#fff',
+                      padding: '6px 10px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Close
+                  </button>
                 </div>
-              ))}
+              </div>
+
+              {subagents.map((subagent) => {
+                const subMerged = mergeToolLists(
+                  subagentTools[id]?.[subagent.parentToolId] ?? [],
+                  subagentToolHistory[id]?.[subagent.parentToolId] ?? [],
+                );
+                const latestSubTool = subMerged[subMerged.length - 1];
+                const waitingSub = subMerged.some((tool) => tool.permissionState === 'pending');
+                return (
+                  <div
+                    key={subagent.id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: `${LABEL_WIDTH}px 1fr auto`,
+                      gap: 10,
+                      alignItems: 'center',
+                      marginLeft: 18,
+                    }}
+                  >
+                    <RowLabel
+                      title={subagent.label}
+                      subtitle={latestSubTool?.statusText ?? 'idle'}
+                      waiting={waitingSub}
+                    />
+                    <div style={{ position: 'relative' }}>
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: -18,
+                          top: '50%',
+                          width: 14,
+                          borderTop: '1px solid rgba(157,164,255,0.45)',
+                        }}
+                      />
+                      <TimelineRail tools={subMerged} now={now} waiting={waitingSub} />
+                    </div>
+                    <span style={{ color: 'var(--pixel-text-dim)', fontSize: 11 }}>
+                      parent: {subagent.parentToolId}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           );
         })}
