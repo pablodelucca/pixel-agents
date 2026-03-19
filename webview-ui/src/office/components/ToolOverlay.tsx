@@ -1,7 +1,29 @@
-/* eslint-disable pixel-agents/no-inline-colors */
 import { useEffect, useState } from 'react';
 
-import { INSPECTOR_TOOL_WIDTH_WINDOW_MS } from '../../constants.js';
+import {
+  formatToolDuration,
+  getToolActivityColor,
+  mergeToolActivityLists,
+} from '../../agentVisibilityUtils.js';
+import {
+  AGENT_VIS_BG_WARNING,
+  AGENT_VIS_BORDER,
+  AGENT_VIS_BORDER_FAINT,
+  AGENT_VIS_BORDER_STRONG,
+  AGENT_VIS_BORDER_SUBAGENT,
+  AGENT_VIS_CARD_BG,
+  AGENT_VIS_COLOR_ACTIVE,
+  AGENT_VIS_COLOR_CONFIDENT,
+  AGENT_VIS_COLOR_LOW_CONFIDENCE,
+  AGENT_VIS_COLOR_PENDING,
+  AGENT_VIS_LABEL_BG,
+  AGENT_VIS_PANEL_BG,
+  AGENT_VIS_TEXT,
+  AGENT_VIS_TEXT_DIM,
+  AGENT_VIS_TEXT_MUTED,
+  AGENT_VIS_TEXT_WARNING,
+  INSPECTOR_TOOL_WIDTH_WINDOW_MS,
+} from '../../constants.js';
 import type { AgentStatusInfo, SubagentCharacter } from '../../hooks/useExtensionMessages.js';
 import type { OfficeState } from '../engine/officeState.js';
 import type { ToolActivity } from '../types.js';
@@ -20,13 +42,6 @@ interface ToolOverlayProps {
   alwaysShowOverlay: boolean;
 }
 
-function formatDuration(ms?: number): string {
-  if (ms === undefined) return '';
-  if (ms < 1000) return `${Math.round(ms)} ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${(ms / 60000).toFixed(1)}m`;
-}
-
 function SummaryLine({
   label,
   value,
@@ -43,7 +58,7 @@ function SummaryLine({
         justifyContent: 'space-between',
         gap: 8,
         fontSize: 14,
-        color: accent === 'high' ? '#fff' : 'var(--pixel-text-dim)',
+        color: accent === 'high' ? AGENT_VIS_TEXT : 'var(--pixel-text-dim)',
       }}
     >
       <span style={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</span>
@@ -82,17 +97,6 @@ function getStatusText(statusInfo?: AgentStatusInfo): string {
   return `${statusInfo.status.toUpperCase()}${suffix}`;
 }
 
-function mergeToolLists(active: ToolActivity[], history: ToolActivity[]): ToolActivity[] {
-  const activeIds = new Set(active.map((tool) => tool.toolId));
-  return [...history.filter((tool) => !activeIds.has(tool.toolId)), ...active];
-}
-
-function getToolColor(tool: ToolActivity): string {
-  if (tool.permissionState === 'pending') return '#f2c14e';
-  if (tool.source === 'heuristic') return '#db8bff';
-  return tool.done ? '#4d5bff' : '#70d1ff';
-}
-
 function ToolHistoryRow({ tool, now }: { tool: ToolActivity; now: number }) {
   const duration = tool.done ? (tool.durationMs ?? 0) : now - tool.startTime;
   const badges = [
@@ -104,8 +108,8 @@ function ToolHistoryRow({ tool, now }: { tool: ToolActivity; now: number }) {
   return (
     <div
       style={{
-        border: '1px solid rgba(255,255,255,0.08)',
-        background: 'rgba(255,255,255,0.03)',
+        border: `1px solid ${AGENT_VIS_BORDER}`,
+        background: AGENT_VIS_CARD_BG,
         padding: '8px 10px',
         display: 'flex',
         flexDirection: 'column',
@@ -115,7 +119,7 @@ function ToolHistoryRow({ tool, now }: { tool: ToolActivity; now: number }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
         <span
           style={{
-            color: '#fff',
+            color: AGENT_VIS_TEXT,
             fontSize: 13,
             fontWeight: 700,
             overflow: 'hidden',
@@ -126,7 +130,7 @@ function ToolHistoryRow({ tool, now }: { tool: ToolActivity; now: number }) {
           {tool.statusText}
         </span>
         <span style={{ color: 'var(--pixel-text-dim)', fontSize: 12 }}>
-          {formatDuration(duration)}
+          {formatToolDuration(duration)}
         </span>
       </div>
       {(tool.target || tool.command) && (
@@ -147,9 +151,9 @@ function ToolHistoryRow({ tool, now }: { tool: ToolActivity; now: number }) {
           <span
             key={badge}
             style={{
-              background: badge === 'approval' ? '#6a5318' : 'rgba(255,255,255,0.08)',
-              color: badge === 'approval' ? '#ffd979' : 'var(--pixel-text-dim)',
-              border: `1px solid ${badge === 'approval' ? '#f2c14e' : 'rgba(255,255,255,0.08)'}`,
+              background: badge === 'approval' ? AGENT_VIS_BG_WARNING : AGENT_VIS_BORDER,
+              color: badge === 'approval' ? AGENT_VIS_TEXT_WARNING : 'var(--pixel-text-dim)',
+              border: `1px solid ${badge === 'approval' ? AGENT_VIS_COLOR_PENDING : AGENT_VIS_BORDER}`,
               padding: '1px 4px',
               fontSize: 11,
               textTransform: 'uppercase',
@@ -162,7 +166,7 @@ function ToolHistoryRow({ tool, now }: { tool: ToolActivity; now: number }) {
       <div
         style={{
           height: 4,
-          background: 'rgba(255,255,255,0.06)',
+          background: AGENT_VIS_BORDER_FAINT,
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -174,7 +178,7 @@ function ToolHistoryRow({ tool, now }: { tool: ToolActivity; now: number }) {
               Math.max(14, (duration / INSPECTOR_TOOL_WIDTH_WINDOW_MS) * 100),
             )}%`,
             height: '100%',
-            background: getToolColor(tool),
+            background: getToolActivityColor(tool),
           }}
         />
       </div>
@@ -193,13 +197,13 @@ function SubagentSection({
   activeTools: ToolActivity[];
   historyTools: ToolActivity[];
 }) {
-  const merged = mergeToolLists(activeTools, historyTools);
+  const merged = mergeToolActivityLists(activeTools, historyTools);
   const current = [...merged].reverse().find((tool) => !tool.done) ?? merged[merged.length - 1];
   const recent = merged.slice(-3).reverse();
   return (
     <div
       style={{
-        borderLeft: '2px solid rgba(157,164,255,0.45)',
+        borderLeft: `2px solid ${AGENT_VIS_BORDER_SUBAGENT}`,
         paddingLeft: 10,
         display: 'flex',
         flexDirection: 'column',
@@ -208,10 +212,10 @@ function SubagentSection({
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
         <div>
-          <div style={{ color: '#fff', fontSize: 13 }}>{subagent.label}</div>
+          <div style={{ color: AGENT_VIS_TEXT, fontSize: 13 }}>{subagent.label}</div>
           <div style={{ color: 'var(--pixel-text-dim)', fontSize: 11 }}>#{subagent.id}</div>
         </div>
-        <span style={{ color: '#9da4ff', fontSize: 11, textTransform: 'uppercase' }}>
+        <span style={{ color: AGENT_VIS_TEXT_MUTED, fontSize: 11, textTransform: 'uppercase' }}>
           {current?.statusText ?? 'idle'}
         </span>
       </div>
@@ -261,25 +265,25 @@ export function ToolOverlay({
 
   const activeTools = agentTools[targetId] ?? [];
   const historyTools = agentToolHistory[targetId] ?? [];
-  const mergedTools = mergeToolLists(activeTools, historyTools);
+  const mergedTools = mergeToolActivityLists(activeTools, historyTools);
   const activeTool = [...mergedTools].reverse().find((tool) => !tool.done);
   const history = mergedTools.slice(-5).reverse();
   const statusInfo = agentStatuses[targetId];
 
   const confidenceColor =
     activeTool?.confidence === 'high'
-      ? '#50d890'
+      ? AGENT_VIS_COLOR_CONFIDENT
       : activeTool?.confidence === 'low'
-        ? '#f2a63c'
-        : '#9da4ff';
+        ? AGENT_VIS_COLOR_LOW_CONFIDENCE
+        : AGENT_VIS_TEXT_MUTED;
   const statusColor =
     statusInfo?.status === 'waiting'
-      ? '#f2c14e'
+      ? AGENT_VIS_COLOR_PENDING
       : activeTool?.permissionState === 'pending'
-        ? '#f2c14e'
+        ? AGENT_VIS_COLOR_PENDING
         : activeTool
-          ? '#70d1ff'
-          : '#8a8fb3';
+          ? AGENT_VIS_COLOR_ACTIVE
+          : AGENT_VIS_TEXT_DIM;
   const currentDuration = activeTool ? now - activeTool.startTime : undefined;
   const subagents = subagentCharacters.filter((subagent) => subagent.parentAgentId === targetId);
 
@@ -299,7 +303,7 @@ export function ToolOverlay({
         width: 360,
         maxHeight: 'calc(100% - 24px)',
         overflow: 'auto',
-        background: 'rgba(10,10,20,0.94)',
+        background: AGENT_VIS_PANEL_BG,
         border: '2px solid var(--pixel-border)',
         padding: 14,
         boxShadow: 'var(--pixel-shadow)',
@@ -314,7 +318,9 @@ export function ToolOverlay({
         style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'start' }}
       >
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#fff' }}>Agent #{targetId}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: AGENT_VIS_TEXT }}>
+            Agent #{targetId}
+          </div>
           <div style={{ fontSize: 12, color: 'var(--pixel-text-dim)' }}>
             {character.folderName ?? 'workspace root'}
           </div>
@@ -338,8 +344,8 @@ export function ToolOverlay({
       <div
         style={{
           padding: '10px 12px',
-          background: '#131431',
-          border: '1px solid rgba(255,255,255,0.1)',
+          background: AGENT_VIS_LABEL_BG,
+          border: `1px solid ${AGENT_VIS_BORDER}`,
           display: 'flex',
           flexDirection: 'column',
           gap: 6,
@@ -350,7 +356,7 @@ export function ToolOverlay({
         {activeTool?.command && <SummaryLine label="Command" value={activeTool.command} />}
         <SummaryLine
           label="Elapsed"
-          value={activeTool ? formatDuration(currentDuration) : '—'}
+          value={activeTool ? formatToolDuration(currentDuration) : '—'}
           accent="high"
         />
         <SummaryLine
@@ -375,7 +381,7 @@ export function ToolOverlay({
                 background: confidenceColor,
               }}
             />
-            <span style={{ color: '#fff', fontSize: 13 }}>
+            <span style={{ color: AGENT_VIS_TEXT, fontSize: 13 }}>
               {activeTool?.confidence ?? 'unknown'}
               {activeTool?.inferred ? ' · estimated' : ''}
             </span>
@@ -386,7 +392,7 @@ export function ToolOverlay({
             style={{
               fontSize: 11,
               padding: '1px 4px',
-              border: '1px solid rgba(255,255,255,0.1)',
+              border: `1px solid ${AGENT_VIS_BORDER}`,
               color: 'var(--pixel-text-dim)',
               textTransform: 'uppercase',
             }}
@@ -398,8 +404,8 @@ export function ToolOverlay({
               style={{
                 fontSize: 11,
                 padding: '1px 4px',
-                border: '1px solid #f2c14e',
-                color: '#ffd979',
+                border: `1px solid ${AGENT_VIS_COLOR_PENDING}`,
+                color: AGENT_VIS_TEXT_WARNING,
                 textTransform: 'uppercase',
               }}
             >
@@ -410,7 +416,14 @@ export function ToolOverlay({
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', textTransform: 'uppercase' }}>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: AGENT_VIS_TEXT,
+            textTransform: 'uppercase',
+          }}
+        >
           Recent actions
         </div>
         {history.length === 0 ? (
@@ -421,7 +434,14 @@ export function ToolOverlay({
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', textTransform: 'uppercase' }}>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: AGENT_VIS_TEXT,
+            textTransform: 'uppercase',
+          }}
+        >
           Sub-agent tree
         </div>
         {subagentSections.length === 0 ? (
@@ -450,7 +470,7 @@ export function ToolOverlay({
             padding: '7px 0',
             border: '1px solid var(--pixel-accent)',
             background: 'var(--pixel-accent)',
-            color: '#fff',
+            color: AGENT_VIS_TEXT,
             cursor: 'pointer',
           }}
         >
@@ -462,7 +482,7 @@ export function ToolOverlay({
             width: 92,
             fontSize: 14,
             padding: '7px 0',
-            border: '1px solid rgba(255,255,255,0.15)',
+            border: `1px solid ${AGENT_VIS_BORDER_STRONG}`,
             background: 'transparent',
             color: 'var(--pixel-text)',
             cursor: 'pointer',

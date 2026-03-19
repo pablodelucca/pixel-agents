@@ -103,6 +103,38 @@ export const FURNITURE_ANIM_INTERVAL_SEC = 0.2;
 export const TOOL_HISTORY_MAX_SIZE = 20;
 export const DEBUG_TIMELINE_WINDOW_MS = 8000;
 export const INSPECTOR_TOOL_WIDTH_WINDOW_MS = 5000;
+export const DEBUG_LABEL_WIDTH = 160;
+export const DEBUG_TIMELINE_TICKS = 4;
+
+// ── Agent Visibility UI ──────────────────────────────────────
+export const AGENT_VIS_ACCENT_BG = 'rgba(90, 140, 255, 0.18)';
+export const AGENT_VIS_PANEL_BG = 'rgba(10,10,20,0.94)';
+export const AGENT_VIS_CARD_BG = 'rgba(255,255,255,0.03)';
+export const AGENT_VIS_CARD_BG_DIM = 'rgba(255,255,255,0.02)';
+export const AGENT_VIS_CARD_BG_FAINT = 'rgba(255,255,255,0.015)';
+export const AGENT_VIS_BORDER = 'rgba(255,255,255,0.08)';
+export const AGENT_VIS_BORDER_STRONG = 'rgba(255,255,255,0.18)';
+export const AGENT_VIS_BORDER_FAINT = 'rgba(255,255,255,0.06)';
+export const AGENT_VIS_TEXT = '#fff';
+export const AGENT_VIS_TEXT_DIM = '#8a8fb3';
+export const AGENT_VIS_TEXT_MUTED = '#9da4ff';
+export const AGENT_VIS_TEXT_WARNING = '#ffd979';
+export const AGENT_VIS_BG_WARNING = '#6a5318';
+export const AGENT_VIS_BG_WARNING_SOFT = 'rgba(242,193,78,0.12)';
+export const AGENT_VIS_BORDER_WARNING = 'rgba(242,193,78,0.5)';
+export const AGENT_VIS_BORDER_SUBAGENT = 'rgba(157,164,255,0.45)';
+export const AGENT_VIS_COLOR_ACTIVE = '#70d1ff';
+export const AGENT_VIS_COLOR_DONE = '#4d5bff';
+export const AGENT_VIS_COLOR_HEURISTIC = '#db8bff';
+export const AGENT_VIS_COLOR_PENDING = '#f2c14e';
+export const AGENT_VIS_COLOR_SELECTED = '#5a8cff';
+export const AGENT_VIS_COLOR_CONFIDENT = '#50d890';
+export const AGENT_VIS_COLOR_LOW_CONFIDENCE = '#f2a63c';
+export const AGENT_VIS_LABEL_BG = 'rgba(16,18,30,0.88)';
+export const AGENT_VIS_LABEL_BG_SECONDARY = 'rgba(16,18,30,0.82)';
+export const AGENT_VIS_MODAL_BACKDROP = 'rgba(0, 0, 0, 0.7)';
+export const AGENT_VIS_ACTION_BG = '#2b2b45';
+export const APP_TEXT_ON_ACCENT = '#fff';
 
 // ── Game Logic ───────────────────────────────────────────────
 export const MAX_DELTA_TIME_SEC = 0.1;

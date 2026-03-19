@@ -1,11 +1,14 @@
-/* eslint-disable pixel-agents/no-inline-colors */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { AgentLabels } from './components/AgentLabels.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { DebugView } from './components/DebugView.js';
 import { ZoomControls } from './components/ZoomControls.js';
-import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
+import {
+  AGENT_VIS_MODAL_BACKDROP,
+  APP_TEXT_ON_ACCENT,
+  PULSE_ANIMATION_DURATION_SEC,
+} from './constants.js';
 import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
 import { useExtensionMessages } from './hooks/useExtensionMessages.js';
@@ -105,7 +108,11 @@ function EditActionBar({
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           <span style={{ fontSize: '22px', color: 'var(--pixel-reset-text)' }}>Reset?</span>
           <button
-            style={{ ...actionBarBtnStyle, background: 'var(--pixel-danger-bg)', color: '#fff' }}
+            style={{
+              ...actionBarBtnStyle,
+              background: 'var(--pixel-danger-bg)',
+              color: APP_TEXT_ON_ACCENT,
+            }}
             onClick={() => {
               setShowResetConfirm(false);
               editor.handleReset();
@@ -325,7 +332,7 @@ function App() {
             transform: 'translateX(-50%)',
             zIndex: 49,
             background: 'var(--pixel-hint-bg)',
-            color: '#fff',
+            color: APP_TEXT_ON_ACCENT,
             fontSize: '20px',
             padding: '3px 8px',
             borderRadius: 0,
@@ -403,7 +410,7 @@ function App() {
           style={{
             position: 'absolute',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.7)',
+            background: AGENT_VIS_MODAL_BACKDROP,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -447,7 +454,7 @@ function App() {
                 padding: '6px 24px 8px',
                 fontSize: '30px',
                 background: 'var(--pixel-accent)',
-                color: '#fff',
+                color: APP_TEXT_ON_ACCENT,
                 border: '2px solid var(--pixel-accent)',
                 borderRadius: 0,
                 cursor: 'pointer',

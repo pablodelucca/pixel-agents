@@ -1,7 +1,29 @@
-/* eslint-disable pixel-agents/no-inline-colors */
 import { useEffect, useMemo, useState } from 'react';
 
-import { DEBUG_TIMELINE_WINDOW_MS } from '../constants.js';
+import {
+  formatToolDuration,
+  getToolActivityColor,
+  mergeToolActivityLists,
+} from '../agentVisibilityUtils.js';
+import {
+  AGENT_VIS_ACCENT_BG,
+  AGENT_VIS_ACTION_BG,
+  AGENT_VIS_BG_WARNING_SOFT,
+  AGENT_VIS_BORDER,
+  AGENT_VIS_BORDER_STRONG,
+  AGENT_VIS_BORDER_SUBAGENT,
+  AGENT_VIS_BORDER_WARNING,
+  AGENT_VIS_CARD_BG_DIM,
+  AGENT_VIS_CARD_BG_FAINT,
+  AGENT_VIS_COLOR_ACTIVE,
+  AGENT_VIS_COLOR_PENDING,
+  AGENT_VIS_COLOR_SELECTED,
+  AGENT_VIS_TEXT,
+  AGENT_VIS_TEXT_DIM,
+  DEBUG_LABEL_WIDTH,
+  DEBUG_TIMELINE_TICKS,
+  DEBUG_TIMELINE_WINDOW_MS,
+} from '../constants.js';
 import type { AgentStatusInfo, SubagentCharacter } from '../hooks/useExtensionMessages.js';
 import type { ToolActivity } from '../office/types.js';
 import { vscode } from '../vscodeApi.js';
@@ -19,25 +41,6 @@ interface DebugViewProps {
 }
 
 const DEBUG_Z = 40;
-const LABEL_WIDTH = 160;
-const TIMELINE_TICKS = 4;
-
-function formatDuration(ms?: number) {
-  if (ms === undefined) return '';
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function mergeToolLists(active: ToolActivity[], history: ToolActivity[]): ToolActivity[] {
-  const activeIds = new Set(active.map((tool) => tool.toolId));
-  return [...history.filter((tool) => !activeIds.has(tool.toolId)), ...active];
-}
-
-function getBarColor(tool: ToolActivity): string {
-  if (tool.permissionState === 'pending') return '#f2c14e';
-  if (tool.source === 'heuristic') return '#db8bff';
-  return tool.done ? '#5a5fff' : '#70d1ff';
-}
 
 function TimelineRail({
   tools,
@@ -55,16 +58,15 @@ function TimelineRail({
       style={{
         position: 'relative',
         height: 44,
-        border: '1px solid rgba(255,255,255,0.08)',
-        background:
-          'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.015) 100%)',
+        border: `1px solid ${AGENT_VIS_BORDER}`,
+        background: `linear-gradient(180deg, ${AGENT_VIS_CARD_BG_DIM} 0%, ${AGENT_VIS_CARD_BG_FAINT} 100%)`,
         overflow: 'hidden',
       }}
     >
-      {Array.from({ length: TIMELINE_TICKS + 1 }).map((_, idx) => {
-        const left = `${(idx / TIMELINE_TICKS) * 100}%`;
+      {Array.from({ length: DEBUG_TIMELINE_TICKS + 1 }).map((_, idx) => {
+        const left = `${(idx / DEBUG_TIMELINE_TICKS) * 100}%`;
         const deltaMs =
-          DEBUG_TIMELINE_WINDOW_MS - (idx / TIMELINE_TICKS) * DEBUG_TIMELINE_WINDOW_MS;
+          DEBUG_TIMELINE_WINDOW_MS - (idx / DEBUG_TIMELINE_TICKS) * DEBUG_TIMELINE_WINDOW_MS;
         return (
           <div key={left}>
             <div
@@ -74,10 +76,10 @@ function TimelineRail({
                 top: 0,
                 bottom: 0,
                 width: 1,
-                background: 'rgba(255,255,255,0.08)',
+                background: AGENT_VIS_BORDER,
               }}
             />
-            {idx < TIMELINE_TICKS && (
+            {idx < DEBUG_TIMELINE_TICKS && (
               <span
                 style={{
                   position: 'absolute',
@@ -88,7 +90,7 @@ function TimelineRail({
                   fontSize: 10,
                 }}
               >
-                -{formatDuration(deltaMs)}
+                -{formatToolDuration(deltaMs)}
               </span>
             )}
           </div>
@@ -101,9 +103,9 @@ function TimelineRail({
             position: 'absolute',
             inset: '0 auto 0 0',
             width: '100%',
-            background: 'rgba(242,193,78,0.12)',
-            borderTop: '1px solid rgba(242,193,78,0.5)',
-            borderBottom: '1px solid rgba(242,193,78,0.5)',
+            background: AGENT_VIS_BG_WARNING_SOFT,
+            borderTop: `1px solid ${AGENT_VIS_BORDER_WARNING}`,
+            borderBottom: `1px solid ${AGENT_VIS_BORDER_WARNING}`,
           }}
         />
       )}
@@ -111,16 +113,18 @@ function TimelineRail({
       {tools.map((tool) => {
         const endTime = tool.done ? tool.startTime + (tool.durationMs ?? 0) : now;
         if (endTime < windowStart) return null;
+
         const clampedStart = Math.max(tool.startTime, windowStart);
         const leftPct = ((clampedStart - windowStart) / DEBUG_TIMELINE_WINDOW_MS) * 100;
         const widthPct = Math.max(
           1.5,
           ((Math.max(endTime, clampedStart) - clampedStart) / DEBUG_TIMELINE_WINDOW_MS) * 100,
         );
+
         return (
           <div
             key={`${tool.parentToolId ?? 'root'}-${tool.toolId}`}
-            title={`${tool.statusText} · ${formatDuration(endTime - tool.startTime)}`}
+            title={`${tool.statusText} · ${formatToolDuration(endTime - tool.startTime)}`}
             style={{
               position: 'absolute',
               left: `${leftPct}%`,
@@ -128,8 +132,8 @@ function TimelineRail({
               height: 12,
               width: `${widthPct}%`,
               minWidth: 6,
-              background: getBarColor(tool),
-              border: '1px solid rgba(255,255,255,0.18)',
+              background: getToolActivityColor(tool),
+              border: `1px solid ${AGENT_VIS_BORDER_STRONG}`,
             }}
           />
         );
@@ -155,14 +159,14 @@ function RowLabel({
     <button
       onClick={onClick}
       style={{
-        width: LABEL_WIDTH,
+        width: DEBUG_LABEL_WIDTH,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-start',
         gap: 4,
-        background: selected ? 'rgba(90, 140, 255, 0.18)' : 'rgba(255,255,255,0.02)',
-        border: `1px solid ${selected ? '#5a8cff' : 'rgba(255,255,255,0.08)'}`,
-        color: '#fff',
+        background: selected ? AGENT_VIS_ACCENT_BG : AGENT_VIS_CARD_BG_DIM,
+        border: `1px solid ${selected ? AGENT_VIS_COLOR_SELECTED : AGENT_VIS_BORDER}`,
+        color: AGENT_VIS_TEXT,
         padding: '8px 10px',
         cursor: onClick ? 'pointer' : 'default',
       }}
@@ -173,7 +177,7 @@ function RowLabel({
             width: 8,
             height: 8,
             borderRadius: '50%',
-            background: waiting ? '#f2c14e' : '#70d1ff',
+            background: waiting ? AGENT_VIS_COLOR_PENDING : AGENT_VIS_COLOR_ACTIVE,
           }}
         />
         <span style={{ fontSize: 13, fontWeight: 700 }}>{title}</span>
@@ -206,6 +210,7 @@ export function DebugView({
   onSelectAgent,
 }: DebugViewProps) {
   const [now, setNow] = useState(() => Date.now());
+
   useEffect(() => {
     let rafId = 0;
     const tick = () => {
@@ -240,7 +245,7 @@ export function DebugView({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: `${LABEL_WIDTH}px 1fr auto`,
+            gridTemplateColumns: `${DEBUG_LABEL_WIDTH}px 1fr auto`,
             gap: 10,
             alignItems: 'center',
             color: 'var(--pixel-text-dim)',
@@ -249,12 +254,15 @@ export function DebugView({
           }}
         >
           <span>Agent / Sub-agent</span>
-          <span>Timeline rail ({formatDuration(DEBUG_TIMELINE_WINDOW_MS)} window)</span>
+          <span>Timeline rail ({formatToolDuration(DEBUG_TIMELINE_WINDOW_MS)} window)</span>
           <span>Actions</span>
         </div>
 
         {agents.map((id) => {
-          const mergedTools = mergeToolLists(agentTools[id] ?? [], agentToolHistory[id] ?? []);
+          const mergedTools = mergeToolActivityLists(
+            agentTools[id] ?? [],
+            agentToolHistory[id] ?? [],
+          );
           const statusInfo = agentStatuses[id];
           const waiting = statusInfo?.status === 'waiting';
           const latestTool = mergedTools[mergedTools.length - 1];
@@ -264,9 +272,8 @@ export function DebugView({
             <div
               key={id}
               style={{
-                border: `2px solid ${selectedAgent === id ? '#5a8cff' : 'rgba(255,255,255,0.08)'}`,
-                background:
-                  selectedAgent === id ? 'rgba(90,140,255,0.06)' : 'rgba(255,255,255,0.02)',
+                border: `2px solid ${selectedAgent === id ? AGENT_VIS_COLOR_SELECTED : AGENT_VIS_BORDER}`,
+                background: selectedAgent === id ? AGENT_VIS_ACCENT_BG : AGENT_VIS_CARD_BG_DIM,
                 padding: 12,
                 display: 'flex',
                 flexDirection: 'column',
@@ -276,7 +283,7 @@ export function DebugView({
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: `${LABEL_WIDTH}px 1fr auto`,
+                  gridTemplateColumns: `${DEBUG_LABEL_WIDTH}px 1fr auto`,
                   gap: 10,
                   alignItems: 'center',
                 }}
@@ -297,9 +304,9 @@ export function DebugView({
                   <button
                     onClick={() => onSelectAgent(id)}
                     style={{
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      background: '#2b2b45',
-                      color: '#fff',
+                      border: `1px solid ${AGENT_VIS_BORDER}`,
+                      background: AGENT_VIS_ACTION_BG,
+                      color: AGENT_VIS_TEXT,
                       padding: '6px 10px',
                       cursor: 'pointer',
                     }}
@@ -309,9 +316,9 @@ export function DebugView({
                   <button
                     onClick={() => vscode.postMessage({ type: 'closeAgent', id })}
                     style={{
-                      border: '1px solid rgba(255,255,255,0.08)',
+                      border: `1px solid ${AGENT_VIS_BORDER}`,
                       background: 'transparent',
-                      color: '#fff',
+                      color: AGENT_VIS_TEXT,
                       padding: '6px 10px',
                       cursor: 'pointer',
                     }}
@@ -322,18 +329,19 @@ export function DebugView({
               </div>
 
               {subagents.map((subagent) => {
-                const subMerged = mergeToolLists(
+                const subMerged = mergeToolActivityLists(
                   subagentTools[id]?.[subagent.parentToolId] ?? [],
                   subagentToolHistory[id]?.[subagent.parentToolId] ?? [],
                 );
                 const latestSubTool = subMerged[subMerged.length - 1];
                 const waitingSub = subMerged.some((tool) => tool.permissionState === 'pending');
+
                 return (
                   <div
                     key={subagent.id}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: `${LABEL_WIDTH}px 1fr auto`,
+                      gridTemplateColumns: `${DEBUG_LABEL_WIDTH}px 1fr auto`,
                       gap: 10,
                       alignItems: 'center',
                       marginLeft: 18,
@@ -351,12 +359,12 @@ export function DebugView({
                           left: -18,
                           top: '50%',
                           width: 14,
-                          borderTop: '1px solid rgba(157,164,255,0.45)',
+                          borderTop: `1px solid ${AGENT_VIS_BORDER_SUBAGENT}`,
                         }}
                       />
                       <TimelineRail tools={subMerged} now={now} waiting={waitingSub} />
                     </div>
-                    <span style={{ color: 'var(--pixel-text-dim)', fontSize: 11 }}>
+                    <span style={{ color: AGENT_VIS_TEXT_DIM, fontSize: 11 }}>
                       parent: {subagent.parentToolId}
                     </span>
                   </div>

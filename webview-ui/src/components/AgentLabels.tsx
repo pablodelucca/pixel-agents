@@ -1,6 +1,16 @@
-/* eslint-disable pixel-agents/no-inline-colors */
 import { useEffect, useMemo, useState } from 'react';
 
+import {
+  AGENT_VIS_BG_WARNING,
+  AGENT_VIS_BORDER,
+  AGENT_VIS_BORDER_FAINT,
+  AGENT_VIS_COLOR_ACTIVE,
+  AGENT_VIS_COLOR_PENDING,
+  AGENT_VIS_LABEL_BG,
+  AGENT_VIS_LABEL_BG_SECONDARY,
+  AGENT_VIS_TEXT,
+  AGENT_VIS_TEXT_WARNING,
+} from '../constants.js';
 import type { AgentStatusInfo, SubagentCharacter } from '../hooks/useExtensionMessages.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { CharacterState, TILE_SIZE, type ToolActivity } from '../office/types.js';
@@ -85,7 +95,11 @@ export function AgentLabels({
           : getActiveToolSummary(agentTools[id] ?? []);
         const confidenceHint = status?.source === 'heuristic' || status?.inferred;
 
-        const dotColor = isWaiting ? '#f2c14e' : ch.isActive ? '#70d1ff' : 'transparent';
+        const dotColor = isWaiting
+          ? AGENT_VIS_COLOR_PENDING
+          : ch.isActive
+            ? AGENT_VIS_COLOR_ACTIVE
+            : 'transparent';
         const labelText =
           subagentCharacters.find((subagent) => subagent.id === id)?.label ?? `Agent #${id}`;
 
@@ -110,8 +124,8 @@ export function AgentLabels({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
-                background: 'rgba(16,18,30,0.88)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: AGENT_VIS_LABEL_BG,
+                border: `1px solid ${AGENT_VIS_BORDER}`,
                 padding: '2px 4px',
                 maxWidth: isSub ? 124 : 154,
               }}
@@ -132,7 +146,7 @@ export function AgentLabels({
                 style={{
                   fontSize: isSub ? 11 : 12,
                   fontStyle: isSub ? 'italic' : undefined,
-                  color: '#fff',
+                  color: AGENT_VIS_TEXT,
                   overflow: 'hidden',
                   whiteSpace: 'nowrap',
                   textOverflow: 'ellipsis',
@@ -141,15 +155,17 @@ export function AgentLabels({
                 {labelText}
               </span>
               {confidenceHint && (
-                <span style={{ color: '#f2c14e', fontSize: 10, flexShrink: 0 }}>?</span>
+                <span style={{ color: AGENT_VIS_COLOR_PENDING, fontSize: 10, flexShrink: 0 }}>
+                  ?
+                </span>
               )}
             </div>
             {summary && !isWaiting && (
               <div
                 style={{
                   maxWidth: isSub ? 130 : 160,
-                  background: 'rgba(16,18,30,0.82)',
-                  border: '1px solid rgba(255,255,255,0.06)',
+                  background: AGENT_VIS_LABEL_BG_SECONDARY,
+                  border: `1px solid ${AGENT_VIS_BORDER_FAINT}`,
                   padding: '1px 4px',
                   color: 'var(--pixel-text-dim)',
                   fontSize: 10,
@@ -164,10 +180,10 @@ export function AgentLabels({
             {isWaiting && (
               <div
                 style={{
-                  background: 'rgba(106,83,24,0.92)',
-                  border: '1px solid #f2c14e',
+                  background: AGENT_VIS_BG_WARNING,
+                  border: `1px solid ${AGENT_VIS_COLOR_PENDING}`,
                   padding: '1px 4px',
-                  color: '#ffd979',
+                  color: AGENT_VIS_TEXT_WARNING,
                   fontSize: 10,
                   textTransform: 'uppercase',
                 }}
