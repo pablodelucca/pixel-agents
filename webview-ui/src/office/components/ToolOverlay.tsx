@@ -53,6 +53,19 @@ function SummaryLine({
   );
 }
 
+function getPermissionText(tool?: ToolActivity): string {
+  if (tool?.permissionState === 'pending') {
+    return `Needs approval${tool.inferred ? ' (estimated)' : ''}`;
+  }
+  if (tool?.permissionState === 'granted') {
+    return 'Permission granted';
+  }
+  if (tool?.source === 'heuristic') {
+    return 'Auto (estimated)';
+  }
+  return 'Auto';
+}
+
 export function ToolOverlay({
   officeState,
   agents,
@@ -217,7 +230,10 @@ export function ToolOverlay({
           border: '1px solid rgba(255,255,255,0.1)',
         }}
       >
-        <SummaryLine label="Status" value={status.toUpperCase()} />
+        <SummaryLine
+          label="Status"
+          value={`${status.toUpperCase()}${statusInfo?.source === 'heuristic' ? ' (heuristic)' : ''}`}
+        />
         <SummaryLine label="Current" value={activeTool?.statusText ?? 'Idle'} accent="high" />
         {activeTool?.target && (
           <SummaryLine label="Target" value={activeTool.target} accent="dim" />
@@ -241,11 +257,7 @@ export function ToolOverlay({
             }}
           />
           <span style={{ fontSize: 12, color: 'var(--pixel-text-dim)' }}>
-            {activeTool?.permissionState === 'pending'
-              ? 'Needs approval'
-              : activeTool?.permissionState === 'granted'
-                ? 'Permission granted'
-                : 'Auto'}
+            {getPermissionText(activeTool)}
           </span>
         </div>
       </div>

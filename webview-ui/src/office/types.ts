@@ -94,6 +94,11 @@ export interface ToolActivity {
   inferred?: boolean;
   done: boolean;
   permissionWait?: boolean;
+  permissionRestore?: {
+    confidence: 'high' | 'medium' | 'low' | 'unknown';
+    source: 'transcript' | 'heuristic';
+    inferred: boolean;
+  };
 }
 
 export const EditTool = {
