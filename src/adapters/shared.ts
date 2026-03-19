@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type * as vscode from 'vscode';
 
-import { JSONL_RECORD_READ_BYTES } from '../constants.js';
+import { FIRST_JSONL_RECORD_READ_BYTES } from '../constants.js';
 
 export function findJsonlFilesRecursive(dir: string): string[] {
   const results: string[] = [];
@@ -28,25 +28,37 @@ export function normalizeWorkspacePath(value: string): string {
 }
 
 export function readFirstJsonlRecord(file: string): Record<string, unknown> | null {
+  let fd: number | undefined;
   try {
-    const fd = fs.openSync(file, 'r');
-    const buf = Buffer.alloc(JSONL_RECORD_READ_BYTES);
+    fd = fs.openSync(file, 'r');
+    const buf = Buffer.alloc(FIRST_JSONL_RECORD_READ_BYTES);
     const bytesRead = fs.readSync(fd, buf, 0, buf.length, 0);
-    fs.closeSync(fd);
     if (bytesRead === 0) return null;
     const firstLine = buf.toString('utf-8', 0, bytesRead).split('\n')[0];
     if (!firstLine) return null;
-    return JSON.parse(firstLine) as Record<string, unknown>;
+    try {
+      return JSON.parse(firstLine) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
   } catch (error) {
     console.warn(`[Pixel Agents] Failed to read initial JSONL record from ${file}:`, error);
     return null;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        /* ignore */
+      }
+    }
   }
 }
 
 export function codexSessionBelongsToWorkspace(
   file: string,
   workspaceFolders?: readonly vscode.WorkspaceFolder[],
-): boolean {
+): boolean | null {
   if (!workspaceFolders || workspaceFolders.length === 0) return false;
   const record = readFirstJsonlRecord(file);
   const payload =
@@ -54,7 +66,7 @@ export function codexSessionBelongsToWorkspace(
       ? (record.payload as Record<string, unknown>)
       : null;
   const cwd = typeof payload?.cwd === 'string' ? payload.cwd : undefined;
-  if (typeof cwd !== 'string' || !cwd) return false;
+  if (typeof cwd !== 'string' || !cwd) return null;
   const normalizedCwd = normalizeWorkspacePath(cwd).toLowerCase();
   return workspaceFolders.some(
     (folder) => normalizeWorkspacePath(folder.uri.fsPath).toLowerCase() === normalizedCwd,
@@ -62,5 +74,5 @@ export function codexSessionBelongsToWorkspace(
 }
 
 export function toClaudeProjectHash(workspacePath: string): string {
-  return workspacePath.replace(/[^a-zA-Z0-9-]/g, '-');
+  return workspacePath.replace(/[:\\/]/g, '-');
 }

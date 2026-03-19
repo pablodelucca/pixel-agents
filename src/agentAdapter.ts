@@ -22,7 +22,7 @@ export interface AgentAdapter {
   isRelevantToWorkspace(
     file: string,
     workspaceFolders?: readonly vscode.WorkspaceFolder[],
-  ): boolean;
+  ): boolean | null;
   processTranscriptLine(agentId: number, line: string, context: TranscriptProcessingContext): void;
 }
 

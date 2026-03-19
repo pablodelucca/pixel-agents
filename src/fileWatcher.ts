@@ -103,6 +103,7 @@ export function ensureProjectScan(
   adapter: AgentAdapter,
   knownJsonlFiles: Set<string>,
   projectScanTimerRef: Map<string, ReturnType<typeof setInterval>>,
+  jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
   activeAgentIdRef: { current: number | null },
   nextAgentIdRef: { current: number },
   agents: Map<number, AgentState>,
@@ -117,7 +118,8 @@ export function ensureProjectScan(
   try {
     const files = adapter.findJsonlFiles(projectDir);
     for (const file of files) {
-      if (adapter.isRelevantToWorkspace(file, vscode.workspace.workspaceFolders)) {
+      const relevance = adapter.isRelevantToWorkspace(file, vscode.workspace.workspaceFolders);
+      if (relevance !== null) {
         knownJsonlFiles.add(file);
       }
     }
@@ -135,6 +137,7 @@ export function ensureProjectScan(
       agents,
       fileWatchers,
       pollingTimers,
+      jsonlPollTimers,
       waitingTimers,
       permissionTimers,
       webview,
@@ -153,6 +156,7 @@ function scanForNewJsonlFiles(
   agents: Map<number, AgentState>,
   fileWatchers: Map<number, fs.FSWatcher>,
   pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
   waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
@@ -170,8 +174,12 @@ function scanForNewJsonlFiles(
       continue;
     }
 
-    if (!adapter.isRelevantToWorkspace(file, vscode.workspace.workspaceFolders)) {
+    const relevance = adapter.isRelevantToWorkspace(file, vscode.workspace.workspaceFolders);
+    if (relevance === false) {
       knownJsonlFiles.add(file);
+      continue;
+    }
+    if (relevance === null) {
       continue;
     }
 
@@ -194,10 +202,12 @@ function scanForNewJsonlFiles(
       reassignAgentToFile(
         activeAgentIdRef.current,
         adapter.name,
+        projectDir,
         file,
         agents,
         fileWatchers,
         pollingTimers,
+        jsonlPollTimers,
         waitingTimers,
         permissionTimers,
         webview,
@@ -215,10 +225,12 @@ function scanForNewJsonlFiles(
       reassignAgentToFile(
         activeTerminalOwnerId,
         adapter.name,
+        projectDir,
         file,
         agents,
         fileWatchers,
         pollingTimers,
+        jsonlPollTimers,
         waitingTimers,
         permissionTimers,
         webview,
@@ -314,10 +326,12 @@ function adoptTerminalForFile(
 export function reassignAgentToFile(
   agentId: number,
   adapterName: AgentBackend,
+  projectDir: string,
   newFilePath: string,
   agents: Map<number, AgentState>,
   fileWatchers: Map<number, fs.FSWatcher>,
   pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
   waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
@@ -325,6 +339,12 @@ export function reassignAgentToFile(
 ): void {
   const agent = agents.get(agentId);
   if (!agent) return;
+
+  const jsonlPollTimer = jsonlPollTimers.get(agentId);
+  if (jsonlPollTimer) {
+    clearInterval(jsonlPollTimer);
+  }
+  jsonlPollTimers.delete(agentId);
 
   fileWatchers.get(agentId)?.close();
   fileWatchers.delete(agentId);
@@ -344,6 +364,7 @@ export function reassignAgentToFile(
   clearAgentActivity(agent, agentId, permissionTimers, webview);
 
   agent.adapterName = adapterName;
+  agent.projectDir = projectDir;
   agent.jsonlFile = newFilePath;
   agent.fileOffset = 0;
   agent.lineBuffer = '';

@@ -3,9 +3,12 @@ import type * as vscode from 'vscode';
 
 import {
   BASH_COMMAND_DISPLAY_MAX_LENGTH,
+  PERMISSION_EXEMPT_TOOLS,
   TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
   TEXT_IDLE_DELAY_MS,
   TOOL_DONE_DELAY_MS,
+  TOOL_NAMES,
+  TOOL_STATUS_TEXT,
 } from './constants.js';
 import {
   cancelPermissionTimer,
@@ -16,14 +19,9 @@ import {
 } from './timerManager.js';
 import type { AgentState } from './types.js';
 
-export const PERMISSION_EXEMPT_TOOLS = new Set([
-  'Task',
-  'Agent',
-  'AskUserQuestion',
-  'request_user_input',
-  'spawn_agent',
-  'wait',
-]);
+function asTrimmedString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
 
 function truncateText(value: string, maxLength: number): string {
   return value.length > maxLength ? value.slice(0, maxLength) + '\u2026' : value;
@@ -31,66 +29,76 @@ function truncateText(value: string, maxLength: number): string {
 
 function formatSubtaskStatus(desc?: string): string {
   if (desc && desc.trim()) {
-    return `Subtask: ${truncateText(desc.trim(), TASK_DESCRIPTION_DISPLAY_MAX_LENGTH)}`;
+    return `${TOOL_STATUS_TEXT.SUBTASK_PREFIX}${truncateText(
+      desc.trim(),
+      TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
+    )}`;
   }
-  return 'Running subtask';
+  return TOOL_STATUS_TEXT.RUNNING_SUBTASK;
 }
 
 export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
   const base = (p: unknown) => (typeof p === 'string' ? path.basename(p) : '');
   switch (toolName) {
-    case 'Read':
-      return `Reading ${base(input.file_path)}`;
-    case 'Edit':
-      return `Editing ${base(input.file_path)}`;
-    case 'Write':
-      return `Writing ${base(input.file_path)}`;
-    case 'Bash': {
-      const cmd = ((input.command as string) || '').trim();
-      return `Running: ${truncateText(cmd, BASH_COMMAND_DISPLAY_MAX_LENGTH)}`;
+    case TOOL_NAMES.READ:
+      return `${TOOL_STATUS_TEXT.READING} ${base(input.file_path)}`;
+    case TOOL_NAMES.EDIT:
+      return `${TOOL_STATUS_TEXT.EDITING} ${base(input.file_path)}`;
+    case TOOL_NAMES.WRITE:
+      return `${TOOL_STATUS_TEXT.WRITING} ${base(input.file_path)}`;
+    case TOOL_NAMES.BASH: {
+      const cmd = asTrimmedString(input.command);
+      return `${TOOL_STATUS_TEXT.RUNNING_PREFIX}${truncateText(
+        cmd,
+        BASH_COMMAND_DISPLAY_MAX_LENGTH,
+      )}`;
     }
-    case 'Glob':
-      return 'Searching files';
-    case 'Grep':
-      return 'Searching code';
-    case 'WebFetch':
-      return 'Fetching web content';
-    case 'WebSearch':
-      return 'Searching the web';
-    case 'Task':
-    case 'Agent': {
+    case TOOL_NAMES.GLOB:
+      return TOOL_STATUS_TEXT.SEARCHING_FILES;
+    case TOOL_NAMES.GREP:
+      return TOOL_STATUS_TEXT.SEARCHING_CODE;
+    case TOOL_NAMES.WEB_FETCH:
+      return TOOL_STATUS_TEXT.FETCHING_WEB_CONTENT;
+    case TOOL_NAMES.WEB_SEARCH:
+      return TOOL_STATUS_TEXT.SEARCHING_THE_WEB;
+    case TOOL_NAMES.TASK:
+    case TOOL_NAMES.AGENT: {
       const desc = typeof input.description === 'string' ? input.description : undefined;
       return formatSubtaskStatus(desc);
     }
-    case 'AskUserQuestion':
-      return 'Waiting for your answer';
-    case 'EnterPlanMode':
-    case 'update_plan':
-      return 'Planning';
-    case 'NotebookEdit':
-      return 'Editing notebook';
-    case 'shell_command':
-    case 'exec_command': {
-      const cmd = ((input.command as string) || (input.cmd as string) || '').trim();
-      return `Running: ${truncateText(cmd, BASH_COMMAND_DISPLAY_MAX_LENGTH)}`;
+    case TOOL_NAMES.ASK_USER_QUESTION:
+    case TOOL_NAMES.REQUEST_USER_INPUT:
+      return TOOL_STATUS_TEXT.WAITING_FOR_YOUR_ANSWER;
+    case TOOL_NAMES.ENTER_PLAN_MODE:
+    case TOOL_NAMES.UPDATE_PLAN:
+      return TOOL_STATUS_TEXT.PLANNING;
+    case TOOL_NAMES.NOTEBOOK_EDIT:
+      return TOOL_STATUS_TEXT.EDITING_NOTEBOOK;
+    case TOOL_NAMES.SHELL_COMMAND:
+    case TOOL_NAMES.EXEC_COMMAND: {
+      const cmd = asTrimmedString(input.command) || asTrimmedString(input.cmd);
+      return `${TOOL_STATUS_TEXT.RUNNING_PREFIX}${truncateText(
+        cmd,
+        BASH_COMMAND_DISPLAY_MAX_LENGTH,
+      )}`;
     }
-    case 'apply_patch':
-      return 'Applying patch';
-    case 'read_file':
-      return `Reading ${base(input.file_path || input.path)}`;
-    case 'list_dir':
-      return 'Listing directory';
-    case 'web_search_call':
-      return 'Searching the web';
-    case 'request_user_input':
-      return 'Waiting for your answer';
-    case 'write_stdin': {
+    case TOOL_NAMES.APPLY_PATCH:
+      return TOOL_STATUS_TEXT.APPLYING_PATCH;
+    case TOOL_NAMES.READ_FILE:
+      return `${TOOL_STATUS_TEXT.READING} ${base(input.file_path || input.path)}`;
+    case TOOL_NAMES.LIST_DIR:
+      return TOOL_STATUS_TEXT.LISTING_DIRECTORY;
+    case TOOL_NAMES.WEB_SEARCH_CALL:
+      return TOOL_STATUS_TEXT.SEARCHING_THE_WEB;
+    case TOOL_NAMES.WRITE_STDIN: {
       const chars = typeof input.chars === 'string' ? input.chars : '';
-      return chars.trim() ? 'Writing terminal input' : 'Reading terminal output';
+      return chars.trim()
+        ? TOOL_STATUS_TEXT.WRITING_TERMINAL_INPUT
+        : TOOL_STATUS_TEXT.READING_TERMINAL_OUTPUT;
     }
-    case 'wait':
-      return 'Waiting on subtask';
-    case 'spawn_agent': {
+    case TOOL_NAMES.WAIT:
+      return TOOL_STATUS_TEXT.WAITING_ON_SUBTASK;
+    case TOOL_NAMES.SPAWN_AGENT: {
       const desc =
         (typeof input.message === 'string' && input.message) ||
         (typeof input.description === 'string' && input.description) ||
@@ -98,7 +106,7 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
       return formatSubtaskStatus(desc);
     }
     default:
-      return `Using ${toolName}`;
+      return `${TOOL_STATUS_TEXT.USING_PREFIX}${toolName}`;
   }
 }
 

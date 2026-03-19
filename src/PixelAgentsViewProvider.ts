@@ -158,6 +158,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             adapter,
             this.knownJsonlFiles,
             this.projectScanTimer,
+            this.jsonlPollTimers,
             this.activeAgentId,
             this.nextAgentId,
             this.agents,

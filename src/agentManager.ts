@@ -101,6 +101,7 @@ export async function launchNewTerminal(
     adapter,
     knownJsonlFiles,
     projectScanTimerRef,
+    jsonlPollTimers,
     activeAgentIdRef,
     nextAgentIdRef,
     agents,
@@ -220,14 +221,13 @@ export function restoreAgents(
   const liveTerminals = vscode.window.terminals;
   let maxId = 0;
   let maxIdx = 0;
-  let restoredProjectDir: string | null = null;
-  let restoredAdapterName: AgentBackend | null = null;
+  const restoredScanTargets = new Map<string, AgentBackend>();
 
   for (const p of persisted) {
     const terminal = liveTerminals.find((t) => t.name === p.terminalName);
     if (!terminal) continue;
 
-    const adapterName = p.adapterName ?? 'codex';
+    const adapterName = p.adapterName ?? 'claude';
     const agent: AgentState = {
       id: p.id,
       terminalRef: terminal,
@@ -258,8 +258,7 @@ export function restoreAgents(
       if (idx > maxIdx) maxIdx = idx;
     }
 
-    restoredProjectDir = p.projectDir;
-    restoredAdapterName = adapterName;
+    restoredScanTargets.set(p.projectDir, adapterName);
 
     try {
       if (fs.existsSync(p.jsonlFile)) {
@@ -275,7 +274,7 @@ export function restoreAgents(
           permissionTimers,
           webview,
         );
-      } else {
+      } else if (!(adapterName === 'codex' && path.basename(p.jsonlFile).startsWith('pending-'))) {
         const pollTimer = setInterval(() => {
           try {
             if (fs.existsSync(agent.jsonlFile)) {
@@ -315,12 +314,13 @@ export function restoreAgents(
 
   doPersist();
 
-  if (restoredProjectDir && restoredAdapterName) {
+  for (const [projectDir, adapterName] of restoredScanTargets) {
     ensureProjectScan(
-      restoredProjectDir,
-      getAgentAdapterByName(restoredAdapterName),
+      projectDir,
+      getAgentAdapterByName(adapterName),
       knownJsonlFiles,
       projectScanTimerRef,
+      jsonlPollTimers,
       activeAgentIdRef,
       nextAgentIdRef,
       agents,
