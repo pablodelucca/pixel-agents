@@ -53,6 +53,9 @@ export function startWaitingTimer(
       type: 'agentStatus',
       id: agentId,
       status: 'waiting',
+      source: 'heuristic',
+      inferred: true,
+      confidence: 'low',
     });
   }, delayMs);
   waitingTimers.set(agentId, timer);
@@ -109,7 +112,6 @@ export function startPermissionTimer(
             for (const [, activity] of subActivities) {
               if (!permissionExemptTools.has(activity.toolName)) {
                 activity.permissionState = 'pending';
-                break;
               }
             }
           }
@@ -125,6 +127,9 @@ export function startPermissionTimer(
         type: 'agentToolPermission',
         id: agentId,
         toolIds: permissionToolIds,
+        source: 'heuristic',
+        inferred: true,
+        confidence: 'low',
       });
       // Also notify stuck sub-agents
       for (const parentToolId of stuckSubagentParentToolIds) {
@@ -132,6 +137,9 @@ export function startPermissionTimer(
           type: 'subagentToolPermission',
           id: agentId,
           parentToolId,
+          source: 'heuristic',
+          inferred: true,
+          confidence: 'low',
         });
       }
     }

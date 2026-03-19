@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 
-import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
+import { INSPECTOR_TOOL_WIDTH_WINDOW_MS } from '../../constants.js';
+import type { AgentStatusInfo, SubagentCharacter } from '../../hooks/useExtensionMessages.js';
 import type { OfficeState } from '../engine/officeState.js';
 import type { ToolActivity } from '../types.js';
 import { TILE_SIZE } from '../types.js';
@@ -11,7 +12,7 @@ interface ToolOverlayProps {
   agents: number[];
   agentTools: Record<number, ToolActivity[]>;
   agentToolHistory: Record<number, ToolActivity[]>;
-  agentStatuses: Record<number, string>;
+  agentStatuses: Record<number, AgentStatusInfo>;
   subagentCharacters: SubagentCharacter[];
   containerRef: React.RefObject<HTMLDivElement | null>;
   zoom: number;
@@ -66,14 +67,13 @@ export function ToolOverlay({
   onFocusAgent,
   alwaysShowOverlay,
 }: ToolOverlayProps) {
-  const [now, setNow] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     let rafId = 0;
     const tick = () => {
       setNow(Date.now());
       rafId = requestAnimationFrame(tick);
     };
-    setNow(Date.now());
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
   }, []);
@@ -106,7 +106,8 @@ export function ToolOverlay({
   const activeToolIds = new Set(tools.map((t) => t.toolId));
   const merged = [...pastHistory.filter((t) => !activeToolIds.has(t.toolId)), ...tools];
   const history = merged.slice(-5).reverse();
-  const status = agentStatuses[targetId] || 'active';
+  const statusInfo = agentStatuses[targetId];
+  const status = statusInfo?.status ?? 'active';
 
   const subagents = subagentCharacters.filter((s) => s.parentAgentId === targetId);
 
@@ -116,7 +117,7 @@ export function ToolOverlay({
   };
   const panelStyle: CSSProperties = {
     position: 'absolute',
-    left: Math.min(positionHint.left, rect.width - 320),
+    left: Math.max(160, Math.min(positionHint.left, rect.width - 160)),
     top: Math.max(positionHint.top - 200, 18),
     transform: 'translateX(-50%)',
     background: 'rgba(10,10,20,0.9)',
@@ -144,7 +145,7 @@ export function ToolOverlay({
 
   const renderToolRow = (tool: ToolActivity, indent = 0) => {
     const duration = tool.done ? (tool.durationMs ?? 0) : now - tool.startTime;
-    const width = Math.min(240, Math.max(64, (duration / 5000) * 240));
+    const width = Math.min(240, Math.max(64, (duration / INSPECTOR_TOOL_WIDTH_WINDOW_MS) * 240));
     const toolLabel = `${tool.statusText}${tool.target ? ` · ${tool.target}` : ''}`;
     return (
       <div
@@ -162,7 +163,7 @@ export function ToolOverlay({
             width,
             background: tool.permissionState === 'pending' ? '#f2c14e' : '#4d5bff',
             opacity: tool.done ? 0.6 : 1,
-            borderRadius: 3,
+            borderRadius: 0,
             padding: '4px 6px',
             flexGrow: 1,
             color: '#fff',
@@ -212,7 +213,7 @@ export function ToolOverlay({
           marginTop: 10,
           padding: '8px 10px',
           background: '#131431',
-          borderRadius: 4,
+          borderRadius: 0,
           border: '1px solid rgba(255,255,255,0.1)',
         }}
       >

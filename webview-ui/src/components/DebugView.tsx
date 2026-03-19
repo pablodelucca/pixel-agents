@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 
+import { DEBUG_TIMELINE_WINDOW_MS } from '../constants.js';
+import type { AgentStatusInfo } from '../hooks/useExtensionMessages.js';
 import type { ToolActivity } from '../office/types.js';
 import { vscode } from '../vscodeApi.js';
 
@@ -8,14 +10,13 @@ interface DebugViewProps {
   selectedAgent: number | null;
   agentTools: Record<number, ToolActivity[]>;
   agentToolHistory: Record<number, ToolActivity[]>;
-  agentStatuses: Record<number, string>;
+  agentStatuses: Record<number, AgentStatusInfo>;
   subagentTools: Record<number, Record<string, ToolActivity[]>>;
   subagentToolHistory: Record<number, Record<string, ToolActivity[]>>;
   onSelectAgent: (id: number) => void;
 }
 
 const DEBUG_Z = 40;
-const TIMELINE_WINDOW_MS = 8000;
 
 function formatDuration(ms?: number) {
   if (ms === undefined) return '';
@@ -25,14 +26,14 @@ function formatDuration(ms?: number) {
 
 function renderToolChip(tool: ToolActivity, now: number) {
   const duration = tool.done ? (tool.durationMs ?? 0) : now - tool.startTime;
-  const width = Math.min(220, Math.max(48, (duration / TIMELINE_WINDOW_MS) * 220));
+  const width = Math.min(220, Math.max(48, (duration / DEBUG_TIMELINE_WINDOW_MS) * 220));
   const color = tool.permissionState === 'pending' ? '#f7c04f' : tool.done ? '#5a5fff' : '#70d1ff';
   return (
     <div
       key={`${tool.toolId}-${tool.parentToolId ?? 'self'}`}
       style={{
         width,
-        borderRadius: 4,
+        borderRadius: 0,
         background: color,
         padding: '3px 6px',
         fontSize: 12,
@@ -60,14 +61,13 @@ export function DebugView({
   subagentToolHistory,
   onSelectAgent,
 }: DebugViewProps) {
-  const [now, setNow] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     let rafId = 0;
     const tick = () => {
       setNow(Date.now());
       rafId = requestAnimationFrame(tick);
     };
-    setNow(Date.now());
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
   }, []);
@@ -104,12 +104,13 @@ export function DebugView({
             subs[key] = [...past.filter((t) => !ids.has(t.toolId)), ...active];
           }
           const status = agentStatuses[id];
+          const statusLabel = status?.status ?? 'active';
           return (
             <div
               key={id}
               style={{
                 border: `2px solid ${isSelected ? '#5a8cff' : '#3c3c5a'}`,
-                borderRadius: 4,
+                borderRadius: 0,
                 padding: 12,
                 background: isSelected ? 'rgba(90, 140, 255, 0.08)' : 'rgba(255,255,255,0.02)',
                 display: 'flex',
@@ -136,10 +137,10 @@ export function DebugView({
                     alignSelf: 'center',
                     fontSize: 14,
                     textTransform: 'uppercase',
-                    color: status === 'waiting' ? '#f7c04f' : '#8a8fb3',
+                    color: statusLabel === 'waiting' ? '#f7c04f' : '#8a8fb3',
                   }}
                 >
-                  {status || 'active'}
+                  {statusLabel}
                 </span>
                 <button
                   onClick={() => vscode.postMessage({ type: 'closeAgent', id })}
@@ -174,7 +175,7 @@ export function DebugView({
                   style={{
                     padding: '8px 10px',
                     background: '#151536',
-                    borderRadius: 4,
+                    borderRadius: 0,
                     border: '1px solid rgba(255,255,255,0.08)',
                   }}
                 >

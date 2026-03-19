@@ -47,12 +47,19 @@ export interface WorkspaceFolder {
   path: string;
 }
 
+export interface AgentStatusInfo {
+  status: string;
+  source: 'transcript' | 'heuristic';
+  inferred: boolean;
+  confidence: 'high' | 'medium' | 'low' | 'unknown';
+}
+
 export interface ExtensionMessageState {
   agents: number[];
   selectedAgent: number | null;
   agentTools: Record<number, ToolActivity[]>;
   agentToolHistory: Record<number, ToolActivity[]>;
-  agentStatuses: Record<number, string>;
+  agentStatuses: Record<number, AgentStatusInfo>;
   subagentTools: Record<number, Record<string, ToolActivity[]>>;
   subagentToolHistory: Record<number, Record<string, ToolActivity[]>>;
   subagentCharacters: SubagentCharacter[];
@@ -110,7 +117,7 @@ export function useExtensionMessages(
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null);
   const [agentTools, setAgentTools] = useState<Record<number, ToolActivity[]>>({});
   const [agentToolHistory, setAgentToolHistory] = useState<Record<number, ToolActivity[]>>({});
-  const [agentStatuses, setAgentStatuses] = useState<Record<number, string>>({});
+  const [agentStatuses, setAgentStatuses] = useState<Record<number, AgentStatusInfo>>({});
   const [subagentTools, setSubagentTools] = useState<
     Record<number, Record<string, ToolActivity[]>>
   >({});
@@ -334,13 +341,20 @@ export function useExtensionMessages(
         os.setAgentTool(id, null);
         os.clearPermissionBubble(id);
       } else if (msg.type === 'agentSelected') {
-        const id = msg.id as number;
+        const id = (msg.id as number | null | undefined) ?? null;
         setSelectedAgent(id);
         const os = getOfficeState();
         os.selectedAgentId = id;
+        if (id === null) {
+          os.cameraFollowId = null;
+        }
       } else if (msg.type === 'agentStatus') {
         const id = msg.id as number;
         const status = msg.status as string;
+        const statusSource = (msg.source as 'transcript' | 'heuristic' | undefined) ?? 'transcript';
+        const statusInferred = (msg.inferred as boolean | undefined) ?? false;
+        const statusConfidence =
+          (msg.confidence as 'high' | 'medium' | 'low' | 'unknown' | undefined) ?? 'high';
         setAgentStatuses((prev) => {
           if (status === 'active') {
             if (!(id in prev)) return prev;
@@ -348,7 +362,15 @@ export function useExtensionMessages(
             delete next[id];
             return next;
           }
-          return { ...prev, [id]: status };
+          return {
+            ...prev,
+            [id]: {
+              status,
+              source: statusSource,
+              inferred: statusInferred,
+              confidence: statusConfidence,
+            },
+          };
         });
         os.setAgentActive(id, status === 'active');
         if (status === 'waiting') {

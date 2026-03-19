@@ -152,7 +152,7 @@ function createToolActivity(
     target: statusInfo.target,
     command: statusInfo.command,
     startTime: Date.now(),
-    confidence: 'medium',
+    confidence: 'high',
     parentToolId,
     source: 'transcript',
     permissionState: 'none',
