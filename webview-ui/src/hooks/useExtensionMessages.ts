@@ -99,6 +99,51 @@ function buildToolActivity(
   };
 }
 
+function readPermissionMetadata(msg: {
+  source?: 'transcript' | 'heuristic';
+  inferred?: boolean;
+  confidence?: 'high' | 'medium' | 'low' | 'unknown';
+}): Pick<ToolActivity, 'source' | 'inferred' | 'confidence'> {
+  return {
+    source: msg.source ?? 'heuristic',
+    inferred: msg.inferred ?? true,
+    confidence: msg.confidence ?? 'low',
+  };
+}
+
+function applyPermissionMetadata(
+  tool: ToolActivity,
+  permissionMeta: Pick<ToolActivity, 'source' | 'inferred' | 'confidence'>,
+): ToolActivity {
+  return {
+    ...tool,
+    permissionWait: true,
+    permissionState: 'pending',
+    source: permissionMeta.source,
+    inferred: permissionMeta.inferred,
+    confidence: permissionMeta.confidence,
+    permissionRestore: tool.permissionRestore ?? {
+      source: tool.source,
+      inferred: tool.inferred ?? false,
+      confidence: tool.confidence,
+    },
+  };
+}
+
+function clearPermissionMetadata(tool: ToolActivity): ToolActivity {
+  if (!tool.permissionWait) return tool;
+  const restored = tool.permissionRestore;
+  return {
+    ...tool,
+    permissionWait: false,
+    permissionState: 'granted',
+    source: restored?.source ?? tool.source,
+    inferred: restored?.inferred ?? tool.inferred ?? false,
+    confidence: restored?.confidence ?? tool.confidence,
+    permissionRestore: undefined,
+  };
+}
+
 function saveAgentSeats(os: OfficeState): void {
   const seats: Record<number, { palette: number; hueShift: number; seatId: string | null }> = {};
   for (const ch of os.characters.values()) {
@@ -380,10 +425,11 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentToolPermission') {
         const id = msg.id as number;
         const toolIds = (msg.toolIds as string[] | undefined) ?? [];
-        const permSource = (msg.source as 'transcript' | 'heuristic' | undefined) ?? 'heuristic';
-        const permInferred = (msg.inferred as boolean | undefined) ?? true;
-        const permConfidence =
-          (msg.confidence as 'high' | 'medium' | 'low' | 'unknown' | undefined) ?? 'low';
+        const permissionMeta = readPermissionMetadata({
+          source: msg.source as 'transcript' | 'heuristic' | undefined,
+          inferred: msg.inferred as boolean | undefined,
+          confidence: msg.confidence as 'high' | 'medium' | 'low' | 'unknown' | undefined,
+        });
         setAgentTools((prev) => {
           const list = prev[id];
           if (!list) return prev;
@@ -392,14 +438,7 @@ export function useExtensionMessages(
             [id]: list.map((t) =>
               t.done || !toolIds.includes(t.toolId)
                 ? t
-                : {
-                    ...t,
-                    permissionWait: true,
-                    permissionState: 'pending',
-                    source: permSource,
-                    inferred: permInferred,
-                    confidence: permConfidence,
-                  },
+                : applyPermissionMetadata(t, permissionMeta),
             ),
           };
         });
@@ -407,10 +446,11 @@ export function useExtensionMessages(
       } else if (msg.type === 'subagentToolPermission') {
         const id = msg.id as number;
         const parentToolId = msg.parentToolId as string;
-        const permSource = (msg.source as 'transcript' | 'heuristic' | undefined) ?? 'heuristic';
-        const permInferred = (msg.inferred as boolean | undefined) ?? true;
-        const permConfidence =
-          (msg.confidence as 'high' | 'medium' | 'low' | 'unknown' | undefined) ?? 'low';
+        const permissionMeta = readPermissionMetadata({
+          source: msg.source as 'transcript' | 'heuristic' | undefined,
+          inferred: msg.inferred as boolean | undefined,
+          confidence: msg.confidence as 'high' | 'medium' | 'low' | 'unknown' | undefined,
+        });
         // Show permission bubble on the sub-agent character
         const subId = os.getSubagentId(id, parentToolId);
         if (subId !== null) {
@@ -420,14 +460,9 @@ export function useExtensionMessages(
           const agentSubs = prev[id];
           if (!agentSubs || !(parentToolId in agentSubs)) return prev;
           const next = { ...agentSubs };
-          next[parentToolId] = next[parentToolId].map((tool) => ({
-            ...tool,
-            permissionWait: true,
-            permissionState: 'pending',
-            source: permSource,
-            inferred: permInferred,
-            confidence: permConfidence,
-          }));
+          next[parentToolId] = next[parentToolId].map((tool) =>
+            applyPermissionMetadata(tool, permissionMeta),
+          );
           return { ...prev, [id]: next };
         });
       } else if (msg.type === 'agentToolPermissionClear') {
@@ -439,9 +474,7 @@ export function useExtensionMessages(
           if (!hasPermission) return prev;
           return {
             ...prev,
-            [id]: list.map((t) =>
-              t.permissionWait ? { ...t, permissionWait: false, permissionState: 'granted' } : t,
-            ),
+            [id]: list.map(clearPermissionMetadata),
           };
         });
         setSubagentTools((prev) => {
@@ -449,11 +482,7 @@ export function useExtensionMessages(
           if (!agentSubs) return prev;
           const next = { ...agentSubs };
           for (const parentId of Object.keys(next)) {
-            next[parentId] = next[parentId].map((tool) =>
-              tool.permissionWait
-                ? { ...tool, permissionWait: false, permissionState: 'granted' }
-                : tool,
-            );
+            next[parentId] = next[parentId].map(clearPermissionMetadata);
           }
           return { ...prev, [id]: next };
         });
