@@ -1,3 +1,4 @@
-declare function acquireVsCodeApi(): { postMessage(msg: unknown): void };
+// Standalone mode — routes postMessage calls through WebSocket
+import { sendMessage } from './wsApi.js';
 
-export const vscode = acquireVsCodeApi();
+export const vscode = { postMessage: sendMessage };
