@@ -6,7 +6,7 @@ import { SettingsModal } from './SettingsModal.js';
 
 interface BottomToolbarProps {
   isEditMode: boolean;
-  onOpenClaude: () => void;
+  onOpenAgent: (agentType: string) => void;
   onToggleEditMode: () => void;
   isDebugMode: boolean;
   onToggleDebugMode: () => void;
@@ -48,7 +48,7 @@ const btnActive: React.CSSProperties = {
 
 export function BottomToolbar({
   isEditMode,
-  onOpenClaude,
+  onOpenAgent,
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
@@ -58,40 +58,67 @@ export function BottomToolbar({
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAgentMenuOpen, setIsAgentMenuOpen] = useState(false);
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
   const [hoveredFolder, setHoveredFolder] = useState<number | null>(null);
-  const folderPickerRef = useRef<HTMLDivElement>(null);
+  const [hoveredAgent, setHoveredAgent] = useState<string | null>(null);
+  const [pendingAgentType, setPendingAgentType] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close folder picker on outside click
+  // Close menus on outside click
   useEffect(() => {
-    if (!isFolderPickerOpen) return;
+    if (!isAgentMenuOpen && !isFolderPickerOpen) return;
     const handleClick = (e: MouseEvent) => {
-      if (folderPickerRef.current && !folderPickerRef.current.contains(e.target as Node)) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsAgentMenuOpen(false);
         setIsFolderPickerOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [isFolderPickerOpen]);
+  }, [isAgentMenuOpen, isFolderPickerOpen]);
 
   const hasMultipleFolders = workspaceFolders.length > 1;
 
   const handleAgentClick = () => {
+    setIsAgentMenuOpen((v) => !v);
+    setIsFolderPickerOpen(false);
+  };
+
+  const handleAgentSelect = (type: string) => {
     if (hasMultipleFolders) {
-      setIsFolderPickerOpen((v) => !v);
+      setPendingAgentType(type);
+      setIsAgentMenuOpen(false);
+      setIsFolderPickerOpen(true);
     } else {
-      onOpenClaude();
+      onOpenAgent(type);
+      setIsAgentMenuOpen(false);
     }
   };
 
   const handleFolderSelect = (folder: WorkspaceFolder) => {
     setIsFolderPickerOpen(false);
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path });
+    if (pendingAgentType) {
+      vscode.postMessage({
+        type: 'openAgent',
+        agentType: pendingAgentType,
+        folderPath: folder.path,
+      });
+      setPendingAgentType(null);
+    } else {
+      vscode.postMessage({ type: 'openAgent', agentType: 'claude', folderPath: folder.path });
+    }
   };
+
+  const agentTypes = [
+    { id: 'claude', label: 'Claude' },
+    { id: 'codex', label: 'Codex' },
+    { id: 'antigravity', label: 'Antigravity' },
+  ];
 
   return (
     <div style={panelStyle}>
-      <div ref={folderPickerRef} style={{ position: 'relative' }}>
+      <div ref={menuRef} style={{ position: 'relative' }}>
         <button
           onClick={handleAgentClick}
           onMouseEnter={() => setHovered('agent')}
@@ -100,7 +127,7 @@ export function BottomToolbar({
             ...btnBase,
             padding: '5px 12px',
             background:
-              hovered === 'agent' || isFolderPickerOpen
+              hovered === 'agent' || isAgentMenuOpen || isFolderPickerOpen
                 ? 'var(--pixel-agent-hover-bg)'
                 : 'var(--pixel-agent-bg)',
             border: '2px solid var(--pixel-agent-border)',
@@ -109,6 +136,47 @@ export function BottomToolbar({
         >
           + Agent
         </button>
+        {isAgentMenuOpen && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: 0,
+              marginBottom: 4,
+              background: 'var(--pixel-bg)',
+              border: '2px solid var(--pixel-border)',
+              borderRadius: 0,
+              boxShadow: 'var(--pixel-shadow)',
+              minWidth: 160,
+              zIndex: 'var(--pixel-controls-z)',
+            }}
+          >
+            {agentTypes.map((agent) => (
+              <button
+                key={agent.id}
+                onClick={() => handleAgentSelect(agent.id)}
+                onMouseEnter={() => setHoveredAgent(agent.id)}
+                onMouseLeave={() => setHoveredAgent(null)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '6px 10px',
+                  fontSize: '22px',
+                  color: 'var(--pixel-text)',
+                  background:
+                    hoveredAgent === agent.id ? 'var(--pixel-btn-hover-bg)' : 'transparent',
+                  border: 'none',
+                  borderRadius: 0,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {agent.label}
+              </button>
+            ))}
+          </div>
+        )}
         {isFolderPickerOpen && (
           <div
             style={{

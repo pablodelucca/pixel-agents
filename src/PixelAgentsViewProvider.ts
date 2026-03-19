@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import {
+  getAllProjectDirPaths,
   getProjectDirPath,
   launchNewTerminal,
   persistAgents,
@@ -77,7 +78,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
-      if (message.type === 'openClaude') {
+      if (message.type === 'openAgent') {
         await launchNewTerminal(
           this.nextAgentId,
           this.nextTerminalIndex,
@@ -92,6 +93,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.projectScanTimer,
           this.webview,
           this.persistAgents,
+          message.agentType as string,
           message.folderPath as string | undefined,
         );
       } else if (message.type === 'focusAgent') {
@@ -144,13 +146,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
 
         // Ensure project scan runs even with no restored agents (to adopt external terminals)
-        const projectDir = getProjectDirPath();
+        const projectDirs = getAllProjectDirPaths();
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         console.log('[Extension] workspaceRoot:', workspaceRoot);
-        console.log('[Extension] projectDir:', projectDir);
-        if (projectDir) {
+        console.log('[Extension] projectDirs:', projectDirs);
+        if (projectDirs.length > 0) {
           ensureProjectScan(
-            projectDir,
+            projectDirs,
             this.knownJsonlFiles,
             this.projectScanTimer,
             this.activeAgentId,
@@ -266,7 +268,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
         sendExistingAgents(this.agents, this.context, this.webview);
       } else if (message.type === 'openSessionsFolder') {
-        const projectDir = getProjectDirPath();
+        const projectDir = getProjectDirPath('claude'); // Use claude as default
         if (projectDir && fs.existsSync(projectDir)) {
           vscode.env.openExternal(vscode.Uri.file(projectDir));
         }

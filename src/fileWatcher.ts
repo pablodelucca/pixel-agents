@@ -96,7 +96,7 @@ export function readNewLines(
 }
 
 export function ensureProjectScan(
-  projectDir: string,
+  projectDirs: string[],
   knownJsonlFiles: Set<string>,
   projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
   activeAgentIdRef: { current: number | null },
@@ -111,32 +111,36 @@ export function ensureProjectScan(
 ): void {
   if (projectScanTimerRef.current) return;
   // Seed with all existing JSONL files so we only react to truly new ones
-  try {
-    const files = fs
-      .readdirSync(projectDir)
-      .filter((f) => f.endsWith('.jsonl'))
-      .map((f) => path.join(projectDir, f));
-    for (const f of files) {
-      knownJsonlFiles.add(f);
+  for (const projectDir of projectDirs) {
+    try {
+      const files = fs
+        .readdirSync(projectDir)
+        .filter((f) => f.endsWith('.jsonl'))
+        .map((f) => path.join(projectDir, f));
+      for (const f of files) {
+        knownJsonlFiles.add(f);
+      }
+    } catch {
+      /* dir may not exist yet */
     }
-  } catch {
-    /* dir may not exist yet */
   }
 
   projectScanTimerRef.current = setInterval(() => {
-    scanForNewJsonlFiles(
-      projectDir,
-      knownJsonlFiles,
-      activeAgentIdRef,
-      nextAgentIdRef,
-      agents,
-      fileWatchers,
-      pollingTimers,
-      waitingTimers,
-      permissionTimers,
-      webview,
-      persistAgents,
-    );
+    for (const projectDir of projectDirs) {
+      scanForNewJsonlFiles(
+        projectDir,
+        knownJsonlFiles,
+        activeAgentIdRef,
+        nextAgentIdRef,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+        persistAgents,
+      );
+    }
   }, PROJECT_SCAN_INTERVAL_MS);
 }
 
@@ -235,6 +239,7 @@ function adoptTerminalForFile(
     terminalRef: terminal,
     projectDir,
     jsonlFile,
+    agentType: 'claude', // Default for adopted terminals
     fileOffset: 0,
     lineBuffer: '',
     activeToolIds: new Set(),

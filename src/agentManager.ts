@@ -12,15 +12,31 @@ import {
 import { ensureProjectScan, readNewLines, startFileWatching } from './fileWatcher.js';
 import { migrateAndLoadLayout } from './layoutPersistence.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
-import type { AgentState, PersistedAgent } from './types.js';
+import type { AgentState, AgentType, PersistedAgent } from './types.js';
 
-export function getProjectDirPath(cwd?: string): string | null {
+export function getProjectDirPath(agentType: AgentType | string, cwd?: string): string | null {
   const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspacePath) return null;
   const dirName = workspacePath.replace(/[^a-zA-Z0-9-]/g, '-');
-  const projectDir = path.join(os.homedir(), '.claude', 'projects', dirName);
-  console.log(`[Pixel Agents] Project dir: ${workspacePath} → ${dirName}`);
+
+  let agentFolder = '.claude';
+  if (agentType === 'codex') agentFolder = '.codex';
+  if (agentType === 'antigravity') agentFolder = '.antigravity';
+
+  const projectDir = path.join(os.homedir(), agentFolder, 'projects', dirName);
+  console.log(`[Pixel Agents] Project dir: ${workspacePath} → ${dirName} for ${agentType}`);
   return projectDir;
+}
+
+export function getAllProjectDirPaths(cwd?: string): string[] {
+  const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!workspacePath) return [];
+  const dirName = workspacePath.replace(/[^a-zA-Z0-9-]/g, '-');
+  return [
+    path.join(os.homedir(), '.claude', 'projects', dirName),
+    path.join(os.homedir(), '.codex', 'projects', dirName),
+    path.join(os.homedir(), '.antigravity', 'projects', dirName),
+  ];
 }
 
 export async function launchNewTerminal(
@@ -37,22 +53,38 @@ export async function launchNewTerminal(
   projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  agentType: string,
   folderPath?: string,
 ): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   const cwd = folderPath || folders?.[0]?.uri.fsPath;
   const isMultiRoot = !!(folders && folders.length > 1);
   const idx = nextTerminalIndexRef.current++;
+
+  // Format the agent name based on type
+  const agentNamePrefix = agentType.charAt(0).toUpperCase() + agentType.slice(1);
+  const terminalName =
+    agentType === 'claude' ? `${TERMINAL_NAME_PREFIX} #${idx}` : `${agentNamePrefix} #${idx}`;
+
   const terminal = vscode.window.createTerminal({
-    name: `${TERMINAL_NAME_PREFIX} #${idx}`,
+    name: terminalName,
     cwd,
   });
   terminal.show();
 
   const sessionId = crypto.randomUUID();
-  terminal.sendText(`claude --session-id ${sessionId}`);
 
-  const projectDir = getProjectDirPath(cwd);
+  if (agentType === 'claude') {
+    terminal.sendText(`claude --session-id ${sessionId}`);
+  } else if (agentType === 'codex') {
+    terminal.sendText(`codex --session-id ${sessionId}`);
+  } else if (agentType === 'antigravity') {
+    terminal.sendText(`antigravity --session-id ${sessionId}`);
+  } else {
+    terminal.sendText(`${agentType} --session-id ${sessionId}`); // Fallback
+  }
+
+  const projectDir = getProjectDirPath(agentType, cwd);
   if (!projectDir) {
     console.log(`[Pixel Agents] No project dir, cannot track agent`);
     return;
@@ -70,6 +102,7 @@ export async function launchNewTerminal(
     terminalRef: terminal,
     projectDir,
     jsonlFile: expectedFile,
+    agentType: agentType as AgentType,
     fileOffset: 0,
     lineBuffer: '',
     activeToolIds: new Set(),
@@ -90,7 +123,7 @@ export async function launchNewTerminal(
   webview?.postMessage({ type: 'agentCreated', id, folderName });
 
   ensureProjectScan(
-    projectDir,
+    [projectDir],
     knownJsonlFiles,
     projectScanTimerRef,
     activeAgentIdRef,
@@ -186,6 +219,7 @@ export function persistAgents(
       terminalName: agent.terminalRef.name,
       jsonlFile: agent.jsonlFile,
       projectDir: agent.projectDir,
+      agentType: agent.agentType,
       folderName: agent.folderName,
     });
   }
@@ -225,6 +259,7 @@ export function restoreAgents(
       terminalRef: terminal,
       projectDir: p.projectDir,
       jsonlFile: p.jsonlFile,
+      agentType: p.agentType || 'claude', // Fallback to claude for older versions
       fileOffset: 0,
       lineBuffer: '',
       activeToolIds: new Set(),
@@ -313,7 +348,7 @@ export function restoreAgents(
   // Start project scan for /clear detection
   if (restoredProjectDir) {
     ensureProjectScan(
-      restoredProjectDir,
+      [restoredProjectDir],
       knownJsonlFiles,
       projectScanTimerRef,
       activeAgentIdRef,
