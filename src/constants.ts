@@ -36,3 +36,5 @@ export const CLAUDE_SESSION_COMMAND = 'claude';
 export const CODEX_DIR_NAME = '.codex';
 export const CODEX_SESSIONS_DIR_NAME = 'sessions';
 export const buildCodexSessionCommand = (sessionId: string) => `codex --session-id ${sessionId}`;
+
+export const JSONL_RECORD_READ_BYTES = 8192;

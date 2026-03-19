@@ -29,6 +29,13 @@ function truncateText(value: string, maxLength: number): string {
   return value.length > maxLength ? value.slice(0, maxLength) + '\u2026' : value;
 }
 
+function formatSubtaskStatus(desc?: string): string {
+  if (desc && desc.trim()) {
+    return `Subtask: ${truncateText(desc.trim(), TASK_DESCRIPTION_DISPLAY_MAX_LENGTH)}`;
+  }
+  return 'Running subtask';
+}
+
 export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
   const base = (p: unknown) => (typeof p === 'string' ? path.basename(p) : '');
   switch (toolName) {
@@ -51,15 +58,9 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
     case 'WebSearch':
       return 'Searching the web';
     case 'Task':
-    case 'Agent':
-    case 'spawn_agent': {
-      const desc =
-        (typeof input.message === 'string' && input.message) ||
-        (typeof input.description === 'string' && input.description) ||
-        '';
-      return desc
-        ? `Subtask: ${truncateText(desc, TASK_DESCRIPTION_DISPLAY_MAX_LENGTH)}`
-        : 'Running subtask';
+    case 'Agent': {
+      const desc = typeof input.description === 'string' ? input.description : undefined;
+      return formatSubtaskStatus(desc);
     }
     case 'AskUserQuestion':
       return 'Waiting for your answer';
@@ -89,6 +90,13 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
     }
     case 'wait':
       return 'Waiting on subtask';
+    case 'spawn_agent': {
+      const desc =
+        (typeof input.message === 'string' && input.message) ||
+        (typeof input.description === 'string' && input.description) ||
+        '';
+      return formatSubtaskStatus(desc);
+    }
     default:
       return `Using ${toolName}`;
   }

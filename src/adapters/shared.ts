@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type * as vscode from 'vscode';
 
+import { JSONL_RECORD_READ_BYTES } from '../constants.js';
+
 export function findJsonlFilesRecursive(dir: string): string[] {
   const results: string[] = [];
   try {
@@ -28,14 +30,15 @@ export function normalizeWorkspacePath(value: string): string {
 export function readFirstJsonlRecord(file: string): Record<string, unknown> | null {
   try {
     const fd = fs.openSync(file, 'r');
-    const buf = Buffer.alloc(8192);
+    const buf = Buffer.alloc(JSONL_RECORD_READ_BYTES);
     const bytesRead = fs.readSync(fd, buf, 0, buf.length, 0);
     fs.closeSync(fd);
     if (bytesRead === 0) return null;
     const firstLine = buf.toString('utf-8', 0, bytesRead).split('\n')[0];
     if (!firstLine) return null;
     return JSON.parse(firstLine) as Record<string, unknown>;
-  } catch {
+  } catch (error) {
+    console.warn(`[Pixel Agents] Failed to read initial JSONL record from ${file}:`, error);
     return null;
   }
 }
