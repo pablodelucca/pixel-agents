@@ -1,0 +1,19 @@
+{
+  "construct": "Pyrosage",
+  "last_interaction_date": "2026-02-28T21:50:55.232Z",
+  "interaction_count": 2,
+  "last_topic": null,
+  "mood": null,
+  "interactions": [
+    {
+      "date": "2026-02-28T15:03:23.436Z",
+      "greeting_used": "first_meeting",
+      "dialogue_shown": "I am the ember that remembers."
+    },
+    {
+      "date": "2026-02-28T21:50:55.232Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. I am the ember that remembers."
+    }
+  ]
+}

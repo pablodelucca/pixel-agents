@@ -1,0 +1,44 @@
+{
+  "construct": "Glasswright",
+  "last_interaction_date": "2026-03-01T03:03:14.307Z",
+  "interaction_count": 7,
+  "last_topic": null,
+  "mood": null,
+  "interactions": [
+    {
+      "date": "2026-02-28T14:44:45.429Z",
+      "greeting_used": "first_meeting",
+      "dialogue_shown": "I frame light so meaning can pass through."
+    },
+    {
+      "date": "2026-02-28T14:44:49.989Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. I frame light so meaning can pass through."
+    },
+    {
+      "date": "2026-02-28T14:44:54.838Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. I frame light so meaning can pass through."
+    },
+    {
+      "date": "2026-02-28T14:45:18.086Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. I frame light so meaning can pass through."
+    },
+    {
+      "date": "2026-02-28T15:03:38.149Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. I frame light so meaning can pass through."
+    },
+    {
+      "date": "2026-02-28T15:04:31.669Z",
+      "greeting_used": "familiar",
+      "dialogue_shown": "Visit #6. I frame light so meaning can pass through."
+    },
+    {
+      "date": "2026-03-01T03:03:14.307Z",
+      "greeting_used": "familiar",
+      "dialogue_shown": "Visit #7. I frame light so meaning can pass through."
+    }
+  ]
+}

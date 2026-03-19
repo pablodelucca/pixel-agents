@@ -1,0 +1,29 @@
+{
+  "construct": "Cadence",
+  "last_interaction_date": "2026-02-28T21:49:45.529Z",
+  "interaction_count": 4,
+  "last_topic": null,
+  "mood": null,
+  "interactions": [
+    {
+      "date": "2026-02-28T14:45:23.654Z",
+      "greeting_used": "first_meeting",
+      "dialogue_shown": "Strike once, ring true."
+    },
+    {
+      "date": "2026-02-28T15:04:08.767Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. Strike once, ring true."
+    },
+    {
+      "date": "2026-02-28T21:49:40.432Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. Strike once, ring true."
+    },
+    {
+      "date": "2026-02-28T21:49:45.529Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. Strike once, ring true."
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "construct": "Lena",
+  "last_interaction_date": "2026-03-01T03:02:25.514Z",
+  "interaction_count": 3,
+  "last_topic": null,
+  "mood": null,
+  "interactions": [
+    {
+      "date": "2026-02-28T14:45:30.342Z",
+      "greeting_used": "first_meeting",
+      "dialogue_shown": "Even clipped, I echo."
+    },
+    {
+      "date": "2026-02-28T14:45:36.863Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. Even clipped, I echo."
+    },
+    {
+      "date": "2026-03-01T03:02:25.514Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. Even clipped, I echo."
+    }
+  ]
+}

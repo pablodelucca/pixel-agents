@@ -1,0 +1,24 @@
+{
+  "construct": "Venture",
+  "last_interaction_date": "2026-02-28T23:19:37.646Z",
+  "interaction_count": 3,
+  "last_topic": null,
+  "mood": null,
+  "interactions": [
+    {
+      "date": "2026-02-28T15:03:11.692Z",
+      "greeting_used": "first_meeting",
+      "dialogue_shown": "Strike true, count every spark."
+    },
+    {
+      "date": "2026-02-28T15:03:52.853Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. Strike true, count every spark."
+    },
+    {
+      "date": "2026-02-28T23:19:37.646Z",
+      "greeting_used": "return_recent",
+      "dialogue_shown": "Welcome back, Magistrate. Strike true, count every spark."
+    }
+  ]
+}
