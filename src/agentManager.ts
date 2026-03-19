@@ -82,8 +82,10 @@ export async function launchNewTerminal(
     activeToolIds: new Set(),
     activeToolStatuses: new Map(),
     activeToolNames: new Map(),
+    activeToolActivities: new Map(),
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
+    activeSubagentToolActivities: new Map(),
     isWaiting: false,
     permissionSent: false,
     hadToolsInTurn: false,
@@ -239,8 +241,10 @@ export function restoreAgents(
       activeToolIds: new Set(),
       activeToolStatuses: new Map(),
       activeToolNames: new Map(),
+      activeToolActivities: new Map(),
       activeSubagentToolIds: new Map(),
       activeSubagentToolNames: new Map(),
+      activeSubagentToolActivities: new Map(),
       isWaiting: false,
       permissionSent: false,
       hadToolsInTurn: false,
@@ -382,6 +386,7 @@ export function sendCurrentAgentStatuses(
         id: agentId,
         toolId,
         status,
+        activity: agent.activeToolActivities.get(toolId),
       });
     }
     if (agent.isWaiting) {

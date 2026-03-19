@@ -13,8 +13,10 @@ export function clearAgentActivity(
   agent.activeToolIds.clear();
   agent.activeToolStatuses.clear();
   agent.activeToolNames.clear();
+  agent.activeToolActivities.clear();
   agent.activeSubagentToolIds.clear();
   agent.activeSubagentToolNames.clear();
+  agent.activeSubagentToolActivities.clear();
   agent.isWaiting = false;
   agent.permissionSent = false;
   cancelPermissionTimer(agentId, permissionTimers);
@@ -82,11 +84,16 @@ export function startPermissionTimer(
 
     // Only flag if there are still active non-exempt tools (parent or sub-agent)
     let hasNonExempt = false;
+    const permissionToolIds: string[] = [];
     for (const toolId of agent.activeToolIds) {
       const toolName = agent.activeToolNames.get(toolId);
       if (!permissionExemptTools.has(toolName || '')) {
         hasNonExempt = true;
-        break;
+        permissionToolIds.push(toolId);
+        const activity = agent.activeToolActivities.get(toolId);
+        if (activity) {
+          activity.permissionState = 'pending';
+        }
       }
     }
 
@@ -97,6 +104,15 @@ export function startPermissionTimer(
         if (!permissionExemptTools.has(toolName)) {
           stuckSubagentParentToolIds.push(parentToolId);
           hasNonExempt = true;
+          const subActivities = agent.activeSubagentToolActivities.get(parentToolId);
+          if (subActivities) {
+            for (const [, activity] of subActivities) {
+              if (!permissionExemptTools.has(activity.toolName)) {
+                activity.permissionState = 'pending';
+                break;
+              }
+            }
+          }
           break;
         }
       }
@@ -108,6 +124,7 @@ export function startPermissionTimer(
       webview?.postMessage({
         type: 'agentToolPermission',
         id: agentId,
+        toolIds: permissionToolIds,
       });
       // Also notify stuck sub-agents
       for (const parentToolId of stuckSubagentParentToolIds) {

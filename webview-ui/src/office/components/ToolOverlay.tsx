@@ -1,236 +1,313 @@
+import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 
-import { CHARACTER_SITTING_OFFSET_PX, TOOL_OVERLAY_VERTICAL_OFFSET } from '../../constants.js';
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
 import type { OfficeState } from '../engine/officeState.js';
 import type { ToolActivity } from '../types.js';
-import { CharacterState, TILE_SIZE } from '../types.js';
+import { TILE_SIZE } from '../types.js';
 
 interface ToolOverlayProps {
   officeState: OfficeState;
   agents: number[];
   agentTools: Record<number, ToolActivity[]>;
+  agentStatuses: Record<number, string>;
   subagentCharacters: SubagentCharacter[];
   containerRef: React.RefObject<HTMLDivElement | null>;
   zoom: number;
   panRef: React.RefObject<{ x: number; y: number }>;
   onCloseAgent: (id: number) => void;
+  onFocusAgent: (id: number) => void;
   alwaysShowOverlay: boolean;
 }
 
-/** Derive a short human-readable activity string from tools/status */
-function getActivityText(
-  agentId: number,
-  agentTools: Record<number, ToolActivity[]>,
-  isActive: boolean,
-): string {
-  const tools = agentTools[agentId];
-  if (tools && tools.length > 0) {
-    // Find the latest non-done tool
-    const activeTool = [...tools].reverse().find((t) => !t.done);
-    if (activeTool) {
-      if (activeTool.permissionWait) return 'Needs approval';
-      return activeTool.status;
-    }
-    // All tools done but agent still active (mid-turn) — keep showing last tool status
-    if (isActive) {
-      const lastTool = tools[tools.length - 1];
-      if (lastTool) return lastTool.status;
-    }
-  }
+function formatDuration(ms?: number): string {
+  if (ms === undefined) return '';
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
 
-  return 'Idle';
+function SummaryLine({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: 'dim' | 'high';
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 8,
+        fontSize: 16,
+        color: accent === 'high' ? '#fff' : 'var(--pixel-text-dim)',
+      }}
+    >
+      <span style={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</span>
+      <span style={{ fontWeight: accent === 'high' ? 'bold' : 'normal' }}>{value}</span>
+    </div>
+  );
 }
 
 export function ToolOverlay({
   officeState,
   agents,
   agentTools,
+  agentStatuses,
   subagentCharacters,
   containerRef,
   zoom,
   panRef,
   onCloseAgent,
+  onFocusAgent,
   alwaysShowOverlay,
 }: ToolOverlayProps) {
-  const [, setTick] = useState(0);
+  const [now, setNow] = useState(0);
   useEffect(() => {
     let rafId = 0;
     const tick = () => {
-      setTick((n) => n + 1);
+      setNow(Date.now());
       rafId = requestAnimationFrame(tick);
     };
+    setNow(Date.now());
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
   }, []);
 
+  const selectedId = officeState.selectedAgentId;
+  if (!selectedId && !alwaysShowOverlay) return null;
+
+  const targetId = selectedId ?? agents[0] ?? null;
+  if (!targetId) return null;
+
+  const layout = officeState.getLayout();
   const el = containerRef.current;
   if (!el) return null;
   const rect = el.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   const canvasW = Math.round(rect.width * dpr);
   const canvasH = Math.round(rect.height * dpr);
-  const layout = officeState.getLayout();
   const mapW = layout.cols * TILE_SIZE * zoom;
   const mapH = layout.rows * TILE_SIZE * zoom;
   const deviceOffsetX = Math.floor((canvasW - mapW) / 2) + Math.round(panRef.current.x);
   const deviceOffsetY = Math.floor((canvasH - mapH) / 2) + Math.round(panRef.current.y);
 
-  const selectedId = officeState.selectedAgentId;
-  const hoveredId = officeState.hoveredAgentId;
+  const character = officeState.characters.get(targetId);
+  if (!character) return null;
 
-  // All character IDs
-  const allIds = [...agents, ...subagentCharacters.map((s) => s.id)];
+  const tools = agentTools[targetId] || [];
+  const activeTool = [...tools].reverse().find((t) => !t.done);
+  const history = [...tools].slice(-4).reverse();
+  const status = agentStatuses[targetId] || 'active';
+
+  const subagents = subagentCharacters.filter((s) => s.parentAgentId === targetId);
+
+  const positionHint = {
+    left: (deviceOffsetX + character.x * zoom) / dpr,
+    top: (deviceOffsetY + character.y * zoom) / dpr,
+  };
+  const panelStyle: CSSProperties = {
+    position: 'absolute',
+    left: Math.min(positionHint.left, rect.width - 320),
+    top: Math.max(positionHint.top - 200, 18),
+    transform: 'translateX(-50%)',
+    background: 'rgba(10,10,20,0.9)',
+    border: '2px solid var(--pixel-border)',
+    padding: 16,
+    boxShadow: 'var(--pixel-shadow)',
+    width: 320,
+    zIndex: 80,
+    pointerEvents: 'auto',
+  };
+
+  const activeBadgeColor =
+    status === 'waiting'
+      ? 'var(--pixel-status-permission)'
+      : activeTool
+        ? 'var(--pixel-status-active)'
+        : 'var(--pixel-text-dim)';
+
+  const confidenceColor =
+    activeTool?.confidence === 'high'
+      ? '#50d890'
+      : activeTool?.confidence === 'low'
+        ? '#f2a63c'
+        : '#9da4ff';
+
+  const renderToolRow = (tool: ToolActivity, indent = 0) => {
+    const duration = tool.done ? (tool.durationMs ?? 0) : now - tool.startTime;
+    const width = Math.min(240, Math.max(64, (duration / 5000) * 240));
+    const toolLabel = `${tool.statusText}${tool.target ? ` · ${tool.target}` : ''}`;
+    return (
+      <div
+        key={`${tool.toolId}-${tool.parentToolId ?? 'self'}`}
+        style={{
+          marginLeft: indent,
+          marginBottom: 6,
+          display: 'flex',
+          gap: 6,
+          alignItems: 'center',
+        }}
+      >
+        <div
+          style={{
+            width,
+            background: tool.permissionState === 'pending' ? '#f2c14e' : '#4d5bff',
+            opacity: tool.done ? 0.6 : 1,
+            borderRadius: 3,
+            padding: '4px 6px',
+            flexGrow: 1,
+            color: '#fff',
+            fontSize: 13,
+            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.25)',
+          }}
+        >
+          {toolLabel}
+        </div>
+        <span
+          style={{
+            fontSize: 12,
+            color: 'var(--pixel-text-dim)',
+            minWidth: 60,
+            textAlign: 'right',
+          }}
+        >
+          {formatDuration(duration)}
+        </span>
+      </div>
+    );
+  };
 
   return (
-    <>
-      {allIds.map((id) => {
-        const ch = officeState.characters.get(id);
-        if (!ch) return null;
-
-        const isSelected = selectedId === id;
-        const isHovered = hoveredId === id;
-        const isSub = ch.isSubagent;
-
-        // Only show for hovered or selected agents (unless always-show is on)
-        if (!alwaysShowOverlay && !isSelected && !isHovered) return null;
-
-        // Position above character
-        const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
-        const screenX = (deviceOffsetX + ch.x * zoom) / dpr;
-        const screenY =
-          (deviceOffsetY + (ch.y + sittingOffset - TOOL_OVERLAY_VERTICAL_OFFSET) * zoom) / dpr;
-
-        // Get activity text
-        const subHasPermission = isSub && ch.bubbleType === 'permission';
-        let activityText: string;
-        if (isSub) {
-          if (subHasPermission) {
-            activityText = 'Needs approval';
-          } else {
-            const sub = subagentCharacters.find((s) => s.id === id);
-            activityText = sub ? sub.label : 'Subtask';
-          }
-        } else {
-          activityText = getActivityText(id, agentTools, ch.isActive);
-        }
-
-        // Determine dot color
-        const tools = agentTools[id];
-        const hasPermission = subHasPermission || tools?.some((t) => t.permissionWait && !t.done);
-        const hasActiveTools = tools?.some((t) => !t.done);
-        const isActive = ch.isActive;
-
-        let dotColor: string | null = null;
-        if (hasPermission) {
-          dotColor = 'var(--pixel-status-permission)';
-        } else if (isActive && hasActiveTools) {
-          dotColor = 'var(--pixel-status-active)';
-        }
-
-        return (
-          <div
-            key={id}
+    <div style={panelStyle} className="pixel-agents-inspector">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fff' }}>Agent #{targetId}</div>
+          {character.folderName && (
+            <div style={{ fontSize: 14, color: 'var(--pixel-text-dim)' }}>
+              {character.folderName}
+            </div>
+          )}
+        </div>
+        <span
+          style={{
+            width: 12,
+            height: 12,
+            borderRadius: '50%',
+            background: activeBadgeColor,
+            marginTop: 6,
+          }}
+        />
+      </div>
+      <div
+        style={{
+          marginTop: 10,
+          padding: '8px 10px',
+          background: '#131431',
+          borderRadius: 4,
+          border: '1px solid rgba(255,255,255,0.1)',
+        }}
+      >
+        <SummaryLine label="Status" value={status.toUpperCase()} />
+        <SummaryLine label="Current" value={activeTool?.statusText ?? 'Idle'} accent="high" />
+        {activeTool?.target && (
+          <SummaryLine label="Target" value={activeTool.target} accent="dim" />
+        )}
+        {activeTool?.command && (
+          <SummaryLine label="Command" value={activeTool.command} accent="dim" />
+        )}
+        <SummaryLine
+          label="Confidence"
+          value={activeTool ? activeTool.confidence : 'unknown'}
+          accent="high"
+        />
+        <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span
             style={{
-              position: 'absolute',
-              left: screenX,
-              top: screenY - 24,
-              transform: 'translateX(-50%)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              pointerEvents: isSelected ? 'auto' : 'none',
-              opacity: alwaysShowOverlay && !isSelected && !isHovered ? (isSub ? 0.5 : 0.75) : 1,
-              zIndex: isSelected ? 'var(--pixel-overlay-selected-z)' : 'var(--pixel-overlay-z)',
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: confidenceColor,
+              display: 'inline-block',
             }}
-          >
+          />
+          <span style={{ fontSize: 12, color: 'var(--pixel-text-dim)' }}>
+            {activeTool?.permissionState === 'pending'
+              ? 'Needs approval'
+              : activeTool?.permissionState === 'granted'
+                ? 'Permission granted'
+                : 'Auto'}
+          </span>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginBottom: 6 }}>
+          Recent tools
+        </div>
+        {history.length === 0 && (
+          <div style={{ fontSize: 12, color: 'var(--pixel-text-dim)' }}>No activity yet</div>
+        )}
+        {history.map((tool) => renderToolRow(tool))}
+      </div>
+
+      {subagents.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginBottom: 4 }}>
+            Sub-agents
+          </div>
+          {subagents.map((sub) => (
             <div
+              key={sub.id}
               style={{
                 display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
-                gap: 5,
-                background: 'var(--pixel-bg)',
-                border: isSelected
-                  ? '2px solid var(--pixel-border-light)'
-                  : '2px solid var(--pixel-border)',
-                borderRadius: 0,
-                padding: isSelected ? '3px 6px 3px 8px' : '3px 8px',
-                boxShadow: 'var(--pixel-shadow)',
-                whiteSpace: 'nowrap',
-                maxWidth: 220,
+                padding: '4px 0',
+                color: 'var(--pixel-text-dim)',
+                fontSize: 13,
               }}
             >
-              {dotColor && (
-                <span
-                  className={isActive && !hasPermission ? 'pixel-agents-pulse' : undefined}
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: dotColor,
-                    flexShrink: 0,
-                  }}
-                />
-              )}
-              <div style={{ overflow: 'hidden' }}>
-                <span
-                  style={{
-                    fontSize: isSub ? '20px' : '22px',
-                    fontStyle: isSub ? 'italic' : undefined,
-                    color: 'var(--vscode-foreground)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    display: 'block',
-                  }}
-                >
-                  {activityText}
-                </span>
-                {ch.folderName && (
-                  <span
-                    style={{
-                      fontSize: '16px',
-                      color: 'var(--pixel-text-dim)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      display: 'block',
-                    }}
-                  >
-                    {ch.folderName}
-                  </span>
-                )}
-              </div>
-              {isSelected && !isSub && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCloseAgent(id);
-                  }}
-                  title="Close agent"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--pixel-close-text)',
-                    cursor: 'pointer',
-                    padding: '0 2px',
-                    fontSize: '26px',
-                    lineHeight: 1,
-                    marginLeft: 2,
-                    flexShrink: 0,
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.color = 'var(--pixel-close-hover)';
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.color = 'var(--pixel-close-text)';
-                  }}
-                >
-                  ×
-                </button>
-              )}
+              <span>{sub.label}</span>
+              <span>#{sub.id}</span>
             </div>
-          </div>
-        );
-      })}
-    </>
+          ))}
+        </div>
+      )}
+
+      <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+        <button
+          onClick={() => onFocusAgent(targetId)}
+          style={{
+            flex: 1,
+            fontSize: 14,
+            padding: '6px 0',
+            border: 'none',
+            background: 'var(--pixel-accent)',
+            color: '#fff',
+            cursor: 'pointer',
+          }}
+        >
+          Focus Terminal
+        </button>
+        <button
+          onClick={() => onCloseAgent(targetId)}
+          style={{
+            flex: 0.6,
+            fontSize: 14,
+            padding: '6px 0',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--pixel-text)',
+            borderTop: '2px solid rgba(255,255,255,0.2)',
+            cursor: 'pointer',
+          }}
+        >
+          Close
+        </button>
+      </div>
+    </div>
   );
 }

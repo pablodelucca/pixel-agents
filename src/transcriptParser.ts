@@ -17,7 +17,7 @@ import {
   startPermissionTimer,
   startWaitingTimer,
 } from './timerManager.js';
-import type { AgentState } from './types.js';
+import type { AgentState, ToolActivityPayload } from './types.js';
 
 function asTrimmedString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -37,77 +37,132 @@ function formatSubtaskStatus(desc?: string): string {
   return TOOL_STATUS_TEXT.RUNNING_SUBTASK;
 }
 
-export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
+export interface ToolStatusDetails {
+  text: string;
+  target?: string;
+  command?: string;
+}
+
+export function formatToolStatus(
+  toolName: string,
+  input: Record<string, unknown>,
+): ToolStatusDetails {
   const base = (p: unknown) => (typeof p === 'string' ? path.basename(p) : '');
   switch (toolName) {
     case TOOL_NAMES.READ:
-      return `${TOOL_STATUS_TEXT.READING} ${base(input.file_path)}`;
+      return {
+        text: `${TOOL_STATUS_TEXT.READING} ${base(input.file_path)}`,
+        target: base(input.file_path),
+      };
     case TOOL_NAMES.EDIT:
-      return `${TOOL_STATUS_TEXT.EDITING} ${base(input.file_path)}`;
+      return {
+        text: `${TOOL_STATUS_TEXT.EDITING} ${base(input.file_path)}`,
+        target: base(input.file_path),
+      };
     case TOOL_NAMES.WRITE:
-      return `${TOOL_STATUS_TEXT.WRITING} ${base(input.file_path)}`;
+      return {
+        text: `${TOOL_STATUS_TEXT.WRITING} ${base(input.file_path)}`,
+        target: base(input.file_path),
+      };
     case TOOL_NAMES.BASH: {
       const cmd = asTrimmedString(input.command);
-      return `${TOOL_STATUS_TEXT.RUNNING_PREFIX}${truncateText(
-        cmd,
-        BASH_COMMAND_DISPLAY_MAX_LENGTH,
-      )}`;
+      return {
+        text: `${TOOL_STATUS_TEXT.RUNNING_PREFIX}${truncateText(
+          cmd,
+          BASH_COMMAND_DISPLAY_MAX_LENGTH,
+        )}`,
+        command: cmd,
+      };
     }
     case TOOL_NAMES.GLOB:
-      return TOOL_STATUS_TEXT.SEARCHING_FILES;
+      return { text: TOOL_STATUS_TEXT.SEARCHING_FILES };
     case TOOL_NAMES.GREP:
-      return TOOL_STATUS_TEXT.SEARCHING_CODE;
+      return { text: TOOL_STATUS_TEXT.SEARCHING_CODE };
     case TOOL_NAMES.WEB_FETCH:
-      return TOOL_STATUS_TEXT.FETCHING_WEB_CONTENT;
+      return { text: TOOL_STATUS_TEXT.FETCHING_WEB_CONTENT };
     case TOOL_NAMES.WEB_SEARCH:
-      return TOOL_STATUS_TEXT.SEARCHING_THE_WEB;
+      return { text: TOOL_STATUS_TEXT.SEARCHING_THE_WEB };
     case TOOL_NAMES.TASK:
     case TOOL_NAMES.AGENT: {
       const desc = typeof input.description === 'string' ? input.description : undefined;
-      return formatSubtaskStatus(desc);
+      return { text: formatSubtaskStatus(desc) };
     }
     case TOOL_NAMES.ASK_USER_QUESTION:
     case TOOL_NAMES.REQUEST_USER_INPUT:
-      return TOOL_STATUS_TEXT.WAITING_FOR_YOUR_ANSWER;
+      return { text: TOOL_STATUS_TEXT.WAITING_FOR_YOUR_ANSWER };
     case TOOL_NAMES.ENTER_PLAN_MODE:
     case TOOL_NAMES.UPDATE_PLAN:
-      return TOOL_STATUS_TEXT.PLANNING;
+      return { text: TOOL_STATUS_TEXT.PLANNING };
     case TOOL_NAMES.NOTEBOOK_EDIT:
-      return TOOL_STATUS_TEXT.EDITING_NOTEBOOK;
+      return { text: TOOL_STATUS_TEXT.EDITING_NOTEBOOK };
     case TOOL_NAMES.SHELL_COMMAND:
     case TOOL_NAMES.EXEC_COMMAND: {
       const cmd = asTrimmedString(input.command) || asTrimmedString(input.cmd);
-      return `${TOOL_STATUS_TEXT.RUNNING_PREFIX}${truncateText(
-        cmd,
-        BASH_COMMAND_DISPLAY_MAX_LENGTH,
-      )}`;
+      return {
+        text: `${TOOL_STATUS_TEXT.RUNNING_PREFIX}${truncateText(
+          cmd,
+          BASH_COMMAND_DISPLAY_MAX_LENGTH,
+        )}`,
+        command: cmd,
+      };
     }
     case TOOL_NAMES.APPLY_PATCH:
-      return TOOL_STATUS_TEXT.APPLYING_PATCH;
+      return { text: TOOL_STATUS_TEXT.APPLYING_PATCH };
     case TOOL_NAMES.READ_FILE:
-      return `${TOOL_STATUS_TEXT.READING} ${base(input.file_path || input.path)}`;
+      return {
+        text: `${TOOL_STATUS_TEXT.READING} ${base(input.file_path || input.path)}`,
+        target: base(input.file_path || input.path),
+      };
     case TOOL_NAMES.LIST_DIR:
-      return TOOL_STATUS_TEXT.LISTING_DIRECTORY;
+      return { text: TOOL_STATUS_TEXT.LISTING_DIRECTORY };
     case TOOL_NAMES.WEB_SEARCH_CALL:
-      return TOOL_STATUS_TEXT.SEARCHING_THE_WEB;
+      return { text: TOOL_STATUS_TEXT.SEARCHING_THE_WEB };
     case TOOL_NAMES.WRITE_STDIN: {
       const chars = typeof input.chars === 'string' ? input.chars : '';
-      return chars.trim()
-        ? TOOL_STATUS_TEXT.WRITING_TERMINAL_INPUT
-        : TOOL_STATUS_TEXT.READING_TERMINAL_OUTPUT;
+      return {
+        text: chars.trim()
+          ? TOOL_STATUS_TEXT.WRITING_TERMINAL_INPUT
+          : TOOL_STATUS_TEXT.READING_TERMINAL_OUTPUT,
+      };
     }
     case TOOL_NAMES.WAIT:
-      return TOOL_STATUS_TEXT.WAITING_ON_SUBTASK;
+      return { text: TOOL_STATUS_TEXT.WAITING_ON_SUBTASK };
     case TOOL_NAMES.SPAWN_AGENT: {
       const desc =
         (typeof input.message === 'string' && input.message) ||
         (typeof input.description === 'string' && input.description) ||
         '';
-      return formatSubtaskStatus(desc);
+      return { text: formatSubtaskStatus(desc) };
     }
     default:
-      return `${TOOL_STATUS_TEXT.USING_PREFIX}${toolName}`;
+      return { text: `${TOOL_STATUS_TEXT.USING_PREFIX}${toolName}` };
   }
+}
+
+function createToolActivity(
+  toolId: string,
+  toolName: string,
+  statusInfo: ToolStatusDetails,
+  parentToolId?: string,
+): ToolActivityPayload {
+  return {
+    toolId,
+    toolName,
+    statusText: statusInfo.text,
+    target: statusInfo.target,
+    command: statusInfo.command,
+    startTime: Date.now(),
+    confidence: 'medium',
+    parentToolId,
+    source: 'transcript',
+    permissionState: 'none',
+    inferred: false,
+  };
+}
+
+function finalizeToolActivity(activity?: ToolActivityPayload): ToolActivityPayload | undefined {
+  if (!activity) return undefined;
+  return { ...activity, durationMs: Date.now() - activity.startTime };
 }
 
 export function processCodexTranscriptLine(
@@ -136,7 +191,8 @@ export function processCodexTranscriptLine(
         /* ignore */
       }
 
-      const status = formatToolStatus(toolName, input);
+      const statusInfo = formatToolStatus(toolName, input);
+      const status = statusInfo.text;
       cancelWaitingTimer(agentId, waitingTimers);
       agent.isWaiting = false;
       agent.hadToolsInTurn = true;
@@ -146,23 +202,40 @@ export function processCodexTranscriptLine(
       agent.activeToolIds.add(toolId);
       agent.activeToolStatuses.set(toolId, status);
       agent.activeToolNames.set(toolId, toolName);
+      agent.activeToolActivities.set(toolId, createToolActivity(toolId, toolName, statusInfo));
 
       if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
         startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
       }
-      webview?.postMessage({ type: 'agentToolStart', id: agentId, toolId, status });
+      webview?.postMessage({
+        type: 'agentToolStart',
+        id: agentId,
+        toolId,
+        status,
+        activity: agent.activeToolActivities.get(toolId),
+      });
       return;
     }
 
     if (record.type === 'response_item' && record.payload?.type === 'function_call_output') {
       const toolId = record.payload.call_id;
       const completedToolName = agent.activeToolNames.get(toolId);
+      const toolActivity = agent.activeToolActivities.get(toolId);
+      if (toolActivity) {
+        agent.activeToolActivities.delete(toolId);
+      }
+      const snapshot = toolActivity ? { ...toolActivity } : undefined;
       console.log(`[Pixel Agents] Agent ${agentId} tool done: ${toolId}`);
       agent.activeToolIds.delete(toolId);
       agent.activeToolStatuses.delete(toolId);
       agent.activeToolNames.delete(toolId);
       setTimeout(() => {
-        webview?.postMessage({ type: 'agentToolDone', id: agentId, toolId });
+        webview?.postMessage({
+          type: 'agentToolDone',
+          id: agentId,
+          toolId,
+          activity: finalizeToolActivity(snapshot),
+        });
         if (completedToolName === TOOL_NAMES.SPAWN_AGENT) {
           webview?.postMessage({
             type: 'subagentClear',
@@ -218,11 +291,16 @@ export function processClaudeTranscriptLine(
         for (const block of blocks) {
           if (block.type === 'tool_use' && block.id) {
             const toolName = block.name || '';
-            const status = formatToolStatus(toolName, block.input || {});
+            const statusInfo = formatToolStatus(toolName, block.input || {});
+            const status = statusInfo.text;
             console.log(`[Pixel Agents] Agent ${agentId} tool start: ${block.id} ${status}`);
             agent.activeToolIds.add(block.id);
             agent.activeToolStatuses.set(block.id, status);
             agent.activeToolNames.set(block.id, toolName);
+            agent.activeToolActivities.set(
+              block.id,
+              createToolActivity(block.id, toolName, statusInfo),
+            );
             if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
               hasNonExemptTool = true;
             }
@@ -231,6 +309,7 @@ export function processClaudeTranscriptLine(
               id: agentId,
               toolId: block.id,
               status,
+              activity: agent.activeToolActivities.get(block.id),
             });
           }
         }
@@ -256,21 +335,28 @@ export function processClaudeTranscriptLine(
               if (completedToolName === 'Task' || completedToolName === 'Agent') {
                 agent.activeSubagentToolIds.delete(completedToolId);
                 agent.activeSubagentToolNames.delete(completedToolId);
+                agent.activeSubagentToolActivities.delete(completedToolId);
                 webview?.postMessage({
                   type: 'subagentClear',
                   id: agentId,
                   parentToolId: completedToolId,
                 });
               }
+              const toolActivity = agent.activeToolActivities.get(completedToolId);
+              if (toolActivity) {
+                agent.activeToolActivities.delete(completedToolId);
+              }
               agent.activeToolIds.delete(completedToolId);
               agent.activeToolStatuses.delete(completedToolId);
               agent.activeToolNames.delete(completedToolId);
               const toolId = completedToolId;
+              const snapshot = toolActivity ? { ...toolActivity } : undefined;
               setTimeout(() => {
                 webview?.postMessage({
                   type: 'agentToolDone',
                   id: agentId,
                   toolId,
+                  activity: finalizeToolActivity(snapshot),
                 });
               }, TOOL_DONE_DELAY_MS);
             }
@@ -296,8 +382,10 @@ export function processClaudeTranscriptLine(
         agent.activeToolIds.clear();
         agent.activeToolStatuses.clear();
         agent.activeToolNames.clear();
+        agent.activeToolActivities.clear();
         agent.activeSubagentToolIds.clear();
         agent.activeSubagentToolNames.clear();
+        agent.activeSubagentToolActivities.clear();
         webview?.postMessage({ type: 'agentToolsClear', id: agentId });
       }
 
@@ -356,7 +444,8 @@ function processProgressRecord(
     for (const block of content) {
       if (block.type === 'tool_use' && block.id) {
         const toolName = block.name || '';
-        const status = formatToolStatus(toolName, block.input || {});
+        const statusInfo = formatToolStatus(toolName, block.input || {});
+        const status = statusInfo.text;
         console.log(
           `[Pixel Agents] Agent ${agentId} subagent tool start: ${block.id} ${status} (parent: ${parentToolId})`,
         );
@@ -375,6 +464,14 @@ function processProgressRecord(
         }
         subNames.set(block.id, toolName);
 
+        let subActivities = agent.activeSubagentToolActivities.get(parentToolId);
+        if (!subActivities) {
+          subActivities = new Map();
+          agent.activeSubagentToolActivities.set(parentToolId, subActivities);
+        }
+        const subActivity = createToolActivity(block.id, toolName, statusInfo, parentToolId);
+        subActivities.set(block.id, subActivity);
+
         if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
           hasNonExemptSubTool = true;
         }
@@ -385,6 +482,7 @@ function processProgressRecord(
           parentToolId,
           toolId: block.id,
           status,
+          activity: subActivity,
         });
       }
     }
@@ -406,14 +504,21 @@ function processProgressRecord(
         if (subNames) {
           subNames.delete(block.tool_use_id);
         }
+        const subActivities = agent.activeSubagentToolActivities.get(parentToolId);
+        const subActivity = subActivities?.get(block.tool_use_id);
+        if (subActivities && subActivities.delete(block.tool_use_id) && subActivities.size === 0) {
+          agent.activeSubagentToolActivities.delete(parentToolId);
+        }
 
         const toolId = block.tool_use_id;
+        const snapshot = subActivity ? { ...subActivity } : undefined;
         setTimeout(() => {
           webview?.postMessage({
             type: 'subagentToolDone',
             id: agentId,
             parentToolId,
             toolId,
+            activity: finalizeToolActivity(snapshot),
           });
         }, TOOL_DONE_DELAY_MS);
       }

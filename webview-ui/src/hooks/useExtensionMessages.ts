@@ -59,6 +59,36 @@ export interface ExtensionMessageState {
   workspaceFolders: WorkspaceFolder[];
 }
 
+function buildToolActivity(
+  toolId: string,
+  status: string,
+  opts?: {
+    toolName?: string;
+    activity?: Partial<ToolActivity>;
+    parentToolId?: string;
+  },
+): ToolActivity {
+  const now = opts?.activity?.startTime ?? Date.now();
+  const statusText = opts?.activity?.statusText ?? status;
+  return {
+    toolId,
+    toolName: opts?.activity?.toolName ?? opts?.toolName ?? '',
+    statusText,
+    status: statusText,
+    target: opts?.activity?.target,
+    command: opts?.activity?.command,
+    startTime: now,
+    durationMs: opts?.activity?.durationMs,
+    confidence: opts?.activity?.confidence ?? 'unknown',
+    parentToolId: opts?.activity?.parentToolId ?? opts?.parentToolId,
+    source: opts?.activity?.source ?? 'transcript',
+    permissionState: opts?.activity?.permissionState ?? 'none',
+    inferred: opts?.activity?.inferred ?? false,
+    done: opts?.activity?.done ?? false,
+    permissionWait: opts?.activity?.permissionState === 'pending',
+  };
+}
+
 function saveAgentSeats(os: OfficeState): void {
   const seats: Record<number, { palette: number; hueShift: number; seatId: string | null }> = {};
   for (const ch of os.characters.values()) {
@@ -198,15 +228,17 @@ export function useExtensionMessages(
         const id = msg.id as number;
         const toolId = msg.toolId as string;
         const status = msg.status as string;
-        setAgentTools((prev) => {
-          const list = prev[id] || [];
-          if (list.some((t) => t.toolId === toolId)) return prev;
-          return { ...prev, [id]: [...list, { toolId, status, done: false }] };
-        });
-        const toolName = extractToolName(status);
+        const toolName = extractToolName(status) ?? '';
+        const activity = msg.activity as Partial<ToolActivity> | undefined;
+        const nextTool = buildToolActivity(toolId, status, { toolName, activity });
         os.setAgentTool(id, toolName);
         os.setAgentActive(id, true);
         os.clearPermissionBubble(id);
+        setAgentTools((prev) => {
+          const list = prev[id] || [];
+          if (list.some((t) => t.toolId === toolId)) return prev;
+          return { ...prev, [id]: [...list, nextTool] };
+        });
         // Create sub-agent character for Task tool subtasks
         if (status.startsWith('Subtask:')) {
           const label = status.slice('Subtask:'.length).trim();
@@ -219,12 +251,28 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentToolDone') {
         const id = msg.id as number;
         const toolId = msg.toolId as string;
+        const activity = msg.activity as Partial<ToolActivity> | undefined;
         setAgentTools((prev) => {
           const list = prev[id];
           if (!list) return prev;
           return {
             ...prev,
-            [id]: list.map((t) => (t.toolId === toolId ? { ...t, done: true } : t)),
+            [id]: list.map((t) =>
+              t.toolId === toolId
+                ? {
+                    ...t,
+                    done: true,
+                    durationMs: activity?.durationMs ?? t.durationMs,
+                    statusText: activity?.statusText ?? t.statusText,
+                    status: activity?.statusText ?? t.status,
+                    permissionState: activity?.permissionState ?? t.permissionState,
+                    permissionWait:
+                      activity?.permissionState !== undefined
+                        ? activity.permissionState === 'pending'
+                        : t.permissionWait,
+                  }
+                : t,
+            ),
           };
         });
       } else if (msg.type === 'agentToolsClear') {
@@ -249,6 +297,8 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentSelected') {
         const id = msg.id as number;
         setSelectedAgent(id);
+        const os = getOfficeState();
+        os.selectedAgentId = id;
       } else if (msg.type === 'agentStatus') {
         const id = msg.id as number;
         const status = msg.status as string;
@@ -268,12 +318,17 @@ export function useExtensionMessages(
         }
       } else if (msg.type === 'agentToolPermission') {
         const id = msg.id as number;
+        const toolIds = (msg.toolIds as string[] | undefined) ?? [];
         setAgentTools((prev) => {
           const list = prev[id];
           if (!list) return prev;
           return {
             ...prev,
-            [id]: list.map((t) => (t.done ? t : { ...t, permissionWait: true })),
+            [id]: list.map((t) =>
+              t.done || !toolIds.includes(t.toolId)
+                ? t
+                : { ...t, permissionWait: true, permissionState: 'pending' },
+            ),
           };
         });
         os.showPermissionBubble(id);
@@ -285,6 +340,17 @@ export function useExtensionMessages(
         if (subId !== null) {
           os.showPermissionBubble(subId);
         }
+        setSubagentTools((prev) => {
+          const agentSubs = prev[id];
+          if (!agentSubs || !(parentToolId in agentSubs)) return prev;
+          const next = { ...agentSubs };
+          next[parentToolId] = next[parentToolId].map((tool) => ({
+            ...tool,
+            permissionWait: true,
+            permissionState: 'pending',
+          }));
+          return { ...prev, [id]: next };
+        });
       } else if (msg.type === 'agentToolPermissionClear') {
         const id = msg.id as number;
         setAgentTools((prev) => {
@@ -294,8 +360,23 @@ export function useExtensionMessages(
           if (!hasPermission) return prev;
           return {
             ...prev,
-            [id]: list.map((t) => (t.permissionWait ? { ...t, permissionWait: false } : t)),
+            [id]: list.map((t) =>
+              t.permissionWait ? { ...t, permissionWait: false, permissionState: 'granted' } : t,
+            ),
           };
+        });
+        setSubagentTools((prev) => {
+          const agentSubs = prev[id];
+          if (!agentSubs) return prev;
+          const next = { ...agentSubs };
+          for (const parentId of Object.keys(next)) {
+            next[parentId] = next[parentId].map((tool) =>
+              tool.permissionWait
+                ? { ...tool, permissionWait: false, permissionState: 'granted' }
+                : tool,
+            );
+          }
+          return { ...prev, [id]: next };
         });
         os.clearPermissionBubble(id);
         // Also clear permission bubbles on all sub-agent characters of this parent
@@ -309,19 +390,25 @@ export function useExtensionMessages(
         const parentToolId = msg.parentToolId as string;
         const toolId = msg.toolId as string;
         const status = msg.status as string;
+        const subToolName = extractToolName(status) ?? '';
+        const activity = msg.activity as Partial<ToolActivity> | undefined;
+        const nextTool = buildToolActivity(toolId, status, {
+          toolName: subToolName,
+          activity,
+          parentToolId,
+        });
         setSubagentTools((prev) => {
           const agentSubs = prev[id] || {};
           const list = agentSubs[parentToolId] || [];
           if (list.some((t) => t.toolId === toolId)) return prev;
           return {
             ...prev,
-            [id]: { ...agentSubs, [parentToolId]: [...list, { toolId, status, done: false }] },
+            [id]: { ...agentSubs, [parentToolId]: [...list, nextTool] },
           };
         });
         // Update sub-agent character's tool and active state
         const subId = os.getSubagentId(id, parentToolId);
         if (subId !== null) {
-          const subToolName = extractToolName(status);
           os.setAgentTool(subId, subToolName);
           os.setAgentActive(subId, true);
         }
@@ -329,6 +416,7 @@ export function useExtensionMessages(
         const id = msg.id as number;
         const parentToolId = msg.parentToolId as string;
         const toolId = msg.toolId as string;
+        const activity = msg.activity as Partial<ToolActivity> | undefined;
         setSubagentTools((prev) => {
           const agentSubs = prev[id];
           if (!agentSubs) return prev;
@@ -338,7 +426,22 @@ export function useExtensionMessages(
             ...prev,
             [id]: {
               ...agentSubs,
-              [parentToolId]: list.map((t) => (t.toolId === toolId ? { ...t, done: true } : t)),
+              [parentToolId]: list.map((t) =>
+                t.toolId === toolId
+                  ? {
+                      ...t,
+                      done: true,
+                      durationMs: activity?.durationMs ?? t.durationMs,
+                      statusText: activity?.statusText ?? t.statusText,
+                      status: activity?.statusText ?? t.status,
+                      permissionState: activity?.permissionState ?? t.permissionState,
+                      permissionWait:
+                        activity?.permissionState !== undefined
+                          ? activity.permissionState === 'pending'
+                          : t.permissionWait,
+                    }
+                  : t,
+              ),
             },
           };
         });

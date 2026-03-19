@@ -185,12 +185,16 @@ function App() {
     vscode.postMessage({ type: 'closeAgent', id });
   }, []);
 
+  const handleFocusAgent = useCallback((id: number) => {
+    vscode.postMessage({ type: 'focusAgent', id });
+  }, []);
+
   const handleClick = useCallback((agentId: number) => {
-    // If clicked agent is a sub-agent, focus the parent's terminal instead
+    // If clicked agent is a sub-agent, select the parent's inspector instead
     const os = getOfficeState();
     const meta = os.subagentMeta.get(agentId);
-    const focusId = meta ? meta.parentAgentId : agentId;
-    vscode.postMessage({ type: 'focusAgent', id: focusId });
+    const selectedId = meta ? meta.parentAgentId : agentId;
+    vscode.postMessage({ type: 'agentSelected', id: selectedId });
   }, []);
 
   const officeState = getOfficeState();
@@ -350,11 +354,13 @@ function App() {
           officeState={officeState}
           agents={agents}
           agentTools={agentTools}
+          agentStatuses={agentStatuses}
           subagentCharacters={subagentCharacters}
           containerRef={containerRef}
           zoom={editor.zoom}
           panRef={editor.panRef}
           onCloseAgent={handleCloseAgent}
+          onFocusAgent={handleFocusAgent}
           alwaysShowOverlay={alwaysShowOverlay}
         />
       )}
