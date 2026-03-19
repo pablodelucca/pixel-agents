@@ -99,7 +99,6 @@ export class JsonlWatcher extends EventEmitter {
         if (stat.size > file.offset) {
           this.readNewLines(file);
         }
-        // Remove stale files
         if (Date.now() - stat.mtimeMs > ACTIVE_THRESHOLD_MS) {
           this.files.delete(path);
           this.emit('fileRemoved', file);

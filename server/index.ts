@@ -4,8 +4,9 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { join, dirname } from 'path';
 import { homedir } from 'os';
 import { fileURLToPath } from 'url';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { exec } from 'child_process';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
+import { tmpdir } from 'os';
+import { exec, execSync } from 'child_process';
 import { randomUUID } from 'crypto';
 import { JsonlWatcher, type WatchedFile } from './watcher.js';
 import { processTranscriptLine } from './parser.js';
@@ -82,29 +83,110 @@ function loadPersistedSeats(): Record<
 let currentLayout = loadLayout();
 const persistedSeats = loadPersistedSeats();
 
-// Launch a new Claude agent in a system terminal
-function launchAgent(cwd: string, sessionId: string, initialPrompt?: string): void {
-  let cmd: string;
+// sessionId -> tty device path (e.g. /dev/ttys003) for launched terminals
+const agentTtys = new Map<string, string>();
+
+function runAppleScript(script: string, sync: true): string;
+function runAppleScript(script: string, sync?: false): void;
+function runAppleScript(script: string, sync = false): string | void {
+  const tmp = join(tmpdir(), `agora-${randomUUID()}.scpt`);
+  writeFileSync(tmp, script, 'utf-8');
+  if (sync) {
+    try {
+      return execSync(`osascript ${tmp}`, { encoding: 'utf-8' }).trim();
+    } catch (err) {
+      console.error(`[Server] AppleScript error: ${err}`);
+      return '';
+    } finally {
+      try {
+        unlinkSync(tmp);
+      } catch {}
+    }
+  } else {
+    exec(`osascript ${tmp}`, (err) => {
+      try {
+        unlinkSync(tmp);
+      } catch {}
+      if (err) console.error(`[Server] AppleScript error: ${err.message}`);
+    });
+  }
+}
+
+// Launch a new Claude agent in a system terminal; capture its tty for later focusing
+function launchAgent(cwd: string, sessionId: string): void {
   const claudeCmd = `claude --session-id ${sessionId}`;
-  const cdAndRun = `cd '${cwd.replace(/'/g, "'\\''")}'  && ${claudeCmd}`;
 
   if (process.platform === 'darwin') {
-    const script = initialPrompt
-      ? `${cdAndRun} --print '${initialPrompt.replace(/'/g, "'\\''")}'`
-      : cdAndRun;
-    cmd = `osascript -e 'tell application "Terminal" to do script "${script.replace(/"/g, '\\"')}"'`;
+    const escapedCwd = cwd.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    // do script returns the tab object; get its tty so we can focus it later
+    const tty = runAppleScript(
+      `tell application "Terminal"
+  activate
+  set newTab to do script "cd " & quoted form of "${escapedCwd}" & " && ${claudeCmd}"
+  get tty of newTab
+end tell`,
+      true,
+    );
+    if (tty) {
+      agentTtys.set(sessionId, tty);
+      console.log(`[Server] Launched session ${sessionId.slice(0, 8)} on tty ${tty}`);
+    }
   } else if (process.platform === 'win32') {
-    cmd = `start cmd /k "cd /d "${cwd}" && ${claudeCmd}"`;
+    exec(`start cmd /k "cd /d "${cwd.replace(/"/g, '\\"')}" && ${claudeCmd}"`);
   } else {
-    // Linux — try common terminals in order
-    const terminals = ['gnome-terminal', 'xterm', 'konsole', 'xfce4-terminal'];
-    const term = terminals[0];
-    cmd = `${term} -- bash -c '${cdAndRun}; exec bash'`;
+    const escapedCwd = cwd.replace(/"/g, '\\"');
+    exec(`gnome-terminal -- bash -c 'cd "${escapedCwd}" && ${claudeCmd}; exec bash'`);
+  }
+}
+
+// Find the tty of any process running claude with this session ID
+function findTtyForSession(sessionId: string): string | null {
+  try {
+    const pidLine = execSync(`pgrep -f "session-id ${sessionId}"`, { encoding: 'utf-8' }).trim();
+    const pid = pidLine.split('\n')[0].trim();
+    if (!pid) return null;
+    const raw = execSync(`ps -o tty= -p ${pid}`, { encoding: 'utf-8' }).trim();
+    if (!raw || raw === '??') return null;
+    // Normalize: 's003' → '/dev/ttys003', 'ttys003' → '/dev/ttys003'
+    if (raw.startsWith('/')) return raw;
+    if (raw.startsWith('tty')) return `/dev/${raw}`;
+    return `/dev/tty${raw}`;
+  } catch {
+    return null;
+  }
+}
+
+// Bring the specific terminal tab for this session into focus
+function focusAgentTerminal(sessionId: string): void {
+  if (process.platform !== 'darwin') return;
+
+  let tty = agentTtys.get(sessionId);
+  if (!tty) {
+    // Fall back to searching the process table (works for manually started sessions)
+    const found = findTtyForSession(sessionId);
+    if (found) {
+      agentTtys.set(sessionId, found); // cache it
+      tty = found;
+    }
   }
 
-  exec(cmd, (err) => {
-    if (err) console.error(`[Server] Failed to launch terminal: ${err.message}`);
-  });
+  if (!tty) {
+    console.log(`[Server] Could not find terminal for session ${sessionId.slice(0, 8)}`);
+    return;
+  }
+
+  runAppleScript(`tell application "Terminal"
+  repeat with w in windows
+    repeat with t in tabs of w
+      if tty of t is "${tty}" then
+        activate
+        set index of w to 1
+        set selected tab of w to t
+        return
+      end if
+    end repeat
+  end repeat
+end tell`);
 }
 
 // Express app
@@ -244,13 +326,16 @@ wss.on('connection', (ws) => {
       } else if (msg.type === 'openClaude') {
         const cwd = (msg.folderPath as string | undefined) || homedir();
         const sessionId = randomUUID();
-        const parts: string[] = [];
-        if (msg.title) parts.push(`You are a ${msg.title}.`);
-        if (msg.prompt) parts.push((msg.prompt as string).replace(/\n+/g, ' ').trim());
-        if (parts.length) parts.push('Please acknowledge with only "✓" and nothing else.');
-        const initialPrompt = parts.length ? parts.join(' ') : undefined;
         console.log(`[Server] Launching agent in ${cwd} (session ${sessionId.slice(0, 8)})`);
-        launchAgent(cwd, sessionId, initialPrompt);
+        launchAgent(cwd, sessionId);
+      } else if (msg.type === 'focusAgent') {
+        const agentId = msg.id as number;
+        for (const agent of agents.values()) {
+          if (agent.id === agentId) {
+            focusAgentTerminal(agent.sessionId);
+            break;
+          }
+        }
       }
     } catch {
       /* ignore invalid messages */
