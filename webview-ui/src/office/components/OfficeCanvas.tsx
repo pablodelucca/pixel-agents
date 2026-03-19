@@ -26,7 +26,7 @@ import { EditTool, TILE_SIZE } from '../types.js';
 
 interface OfficeCanvasProps {
   officeState: OfficeState;
-  onClick: (agentId: number) => void;
+  onClick: (agentId: number | null) => void;
   isEditMode: boolean;
   editorState: EditorState;
   onEditorTileAction: (col: number, row: number) => void;
@@ -674,17 +674,19 @@ export function OfficeCanvas({
 
       const hitId = officeState.getCharacterAt(pos.worldX, pos.worldY);
       if (hitId !== null) {
+        const meta = officeState.subagentMeta.get(hitId);
+        const selectedId = meta ? meta.parentAgentId : hitId;
         // Dismiss any active bubble on click
         officeState.dismissBubble(hitId);
         // Toggle selection: click same agent deselects, different agent selects
-        if (officeState.selectedAgentId === hitId) {
+        if (officeState.selectedAgentId === selectedId) {
           officeState.selectedAgentId = null;
           officeState.cameraFollowId = null;
         } else {
-          officeState.selectedAgentId = hitId;
-          officeState.cameraFollowId = hitId;
+          officeState.selectedAgentId = selectedId;
+          officeState.cameraFollowId = selectedId;
         }
-        onClick(hitId); // still focus terminal
+        onClick(officeState.selectedAgentId);
         return;
       }
 
