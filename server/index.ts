@@ -5,6 +5,8 @@ import { join, dirname } from 'path';
 import { homedir } from 'os';
 import { fileURLToPath } from 'url';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { exec } from 'child_process';
+import { randomUUID } from 'crypto';
 import { JsonlWatcher, type WatchedFile } from './watcher.js';
 import { processTranscriptLine } from './parser.js';
 import {
@@ -80,6 +82,31 @@ function loadPersistedSeats(): Record<
 let currentLayout = loadLayout();
 const persistedSeats = loadPersistedSeats();
 
+// Launch a new Claude agent in a system terminal
+function launchAgent(cwd: string, sessionId: string, initialPrompt?: string): void {
+  let cmd: string;
+  const claudeCmd = `claude --session-id ${sessionId}`;
+  const cdAndRun = `cd '${cwd.replace(/'/g, "'\\''")}'  && ${claudeCmd}`;
+
+  if (process.platform === 'darwin') {
+    const script = initialPrompt
+      ? `${cdAndRun} --print '${initialPrompt.replace(/'/g, "'\\''")}'`
+      : cdAndRun;
+    cmd = `osascript -e 'tell application "Terminal" to do script "${script.replace(/"/g, '\\"')}"'`;
+  } else if (process.platform === 'win32') {
+    cmd = `start cmd /k "cd /d "${cwd}" && ${claudeCmd}"`;
+  } else {
+    // Linux — try common terminals in order
+    const terminals = ['gnome-terminal', 'xterm', 'konsole', 'xfce4-terminal'];
+    const term = terminals[0];
+    cmd = `${term} -- bash -c '${cdAndRun}; exec bash'`;
+  }
+
+  exec(cmd, (err) => {
+    if (err) console.error(`[Server] Failed to launch terminal: ${err.message}`);
+  });
+}
+
 // Express app
 const app = express();
 // Serve production build
@@ -116,6 +143,14 @@ function broadcast(msg: ServerMessage): void {
 function sendInitialData(ws: WebSocket): void {
   // Send settings
   ws.send(JSON.stringify({ type: 'settingsLoaded', soundEnabled: false }));
+
+  // Send workspace folders (default to home directory in standalone mode)
+  ws.send(
+    JSON.stringify({
+      type: 'workspaceFolders',
+      folders: [{ name: '~', path: homedir() }],
+    }),
+  );
 
   // Send character sprites
   if (characterSprites) {
@@ -206,6 +241,16 @@ wss.on('connection', (ws) => {
             `[Server] Failed to save agent seats: ${err instanceof Error ? err.message : err}`,
           );
         }
+      } else if (msg.type === 'openClaude') {
+        const cwd = (msg.folderPath as string | undefined) || homedir();
+        const sessionId = randomUUID();
+        const parts: string[] = [];
+        if (msg.title) parts.push(`You are a ${msg.title}.`);
+        if (msg.prompt) parts.push((msg.prompt as string).replace(/\n+/g, ' ').trim());
+        if (parts.length) parts.push('Please acknowledge with only "✓" and nothing else.');
+        const initialPrompt = parts.length ? parts.join(' ') : undefined;
+        console.log(`[Server] Launching agent in ${cwd} (session ${sessionId.slice(0, 8)})`);
+        launchAgent(cwd, sessionId, initialPrompt);
       }
     } catch {
       /* ignore invalid messages */
