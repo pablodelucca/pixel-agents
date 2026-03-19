@@ -6,7 +6,6 @@ import { SettingsModal } from './SettingsModal.js';
 
 interface BottomToolbarProps {
   isEditMode: boolean;
-  onOpenClaude: () => void;
   onToggleEditMode: () => void;
   isDebugMode: boolean;
   onToggleDebugMode: () => void;
@@ -46,9 +45,54 @@ const btnActive: React.CSSProperties = {
   border: '2px solid var(--pixel-accent)',
 };
 
+const overlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 'var(--pixel-modal-z)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'rgba(0,0,0,0.5)',
+};
+
+const modalStyle: React.CSSProperties = {
+  background: 'var(--pixel-bg)',
+  border: '2px solid var(--pixel-border)',
+  borderRadius: 0,
+  boxShadow: '4px 4px 0px #0a0a14',
+  padding: '16px 20px',
+  minWidth: 300,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 12,
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: '18px',
+  color: 'var(--pixel-text-dim)',
+  display: 'block',
+  marginBottom: 4,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '5px 8px',
+  fontSize: '20px',
+  background: 'var(--pixel-input-bg, #2a2a3e)',
+  border: '2px solid var(--pixel-border)',
+  borderRadius: 0,
+  color: 'var(--pixel-text)',
+  boxSizing: 'border-box',
+};
+
+const rowStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 6,
+  alignItems: 'center',
+};
+
 export function BottomToolbar({
   isEditMode,
-  onOpenClaude,
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
@@ -58,98 +102,76 @@ export function BottomToolbar({
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
-  const [hoveredFolder, setHoveredFolder] = useState<number | null>(null);
-  const folderPickerRef = useRef<HTMLDivElement>(null);
+  const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
+  const [agentName, setAgentName] = useState('');
+  const [folderPath, setFolderPath] = useState('');
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // Close folder picker on outside click
-  useEffect(() => {
-    if (!isFolderPickerOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (folderPickerRef.current && !folderPickerRef.current.contains(e.target as Node)) {
-        setIsFolderPickerOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [isFolderPickerOpen]);
+  // Default folder path when modal opens
+  const defaultFolder = workspaceFolders[0]?.path ?? '';
 
-  const hasMultipleFolders = workspaceFolders.length > 1;
-
-  const handleAgentClick = () => {
-    if (hasMultipleFolders) {
-      setIsFolderPickerOpen((v) => !v);
-    } else {
-      onOpenClaude();
-    }
+  const openModal = () => {
+    setAgentName('');
+    setFolderPath(defaultFolder);
+    setIsAgentModalOpen(true);
   };
 
-  const handleFolderSelect = (folder: WorkspaceFolder) => {
-    setIsFolderPickerOpen(false);
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path });
+  // Focus name input when modal opens
+  useEffect(() => {
+    if (isAgentModalOpen) {
+      setTimeout(() => nameInputRef.current?.focus(), 50);
+    }
+  }, [isAgentModalOpen]);
+
+  // Listen for folder chosen from extension
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'agentFolderChosen') {
+        setFolderPath(e.data.path as string);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const handleBrowse = () => {
+    vscode.postMessage({ type: 'browseFolderForAgent' });
+  };
+
+  const handleSubmit = () => {
+    if (!folderPath.trim()) return;
+    vscode.postMessage({
+      type: 'openClaude',
+      folderPath: folderPath.trim(),
+      agentName: agentName.trim() || undefined,
+    });
+    setIsAgentModalOpen(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleSubmit();
+    if (e.key === 'Escape') setIsAgentModalOpen(false);
   };
 
   return (
     <div style={panelStyle}>
-      <div ref={folderPickerRef} style={{ position: 'relative' }}>
-        <button
-          onClick={handleAgentClick}
-          onMouseEnter={() => setHovered('agent')}
-          onMouseLeave={() => setHovered(null)}
-          style={{
-            ...btnBase,
-            padding: '5px 12px',
-            background:
-              hovered === 'agent' || isFolderPickerOpen
-                ? 'var(--pixel-agent-hover-bg)'
-                : 'var(--pixel-agent-bg)',
-            border: '2px solid var(--pixel-agent-border)',
-            color: 'var(--pixel-agent-text)',
-          }}
-        >
-          + Agent
-        </button>
-        {isFolderPickerOpen && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '100%',
-              left: 0,
-              marginBottom: 4,
-              background: 'var(--pixel-bg)',
-              border: '2px solid var(--pixel-border)',
-              borderRadius: 0,
-              boxShadow: 'var(--pixel-shadow)',
-              minWidth: 160,
-              zIndex: 'var(--pixel-controls-z)',
-            }}
-          >
-            {workspaceFolders.map((folder, i) => (
-              <button
-                key={folder.path}
-                onClick={() => handleFolderSelect(folder)}
-                onMouseEnter={() => setHoveredFolder(i)}
-                onMouseLeave={() => setHoveredFolder(null)}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '6px 10px',
-                  fontSize: '22px',
-                  color: 'var(--pixel-text)',
-                  background: hoveredFolder === i ? 'var(--pixel-btn-hover-bg)' : 'transparent',
-                  border: 'none',
-                  borderRadius: 0,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {folder.name}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <button
+        onClick={openModal}
+        onMouseEnter={() => setHovered('agent')}
+        onMouseLeave={() => setHovered(null)}
+        style={{
+          ...btnBase,
+          padding: '5px 12px',
+          background:
+            hovered === 'agent' || isAgentModalOpen
+              ? 'var(--pixel-agent-hover-bg)'
+              : 'var(--pixel-agent-bg)',
+          border: '2px solid var(--pixel-agent-border)',
+          color: 'var(--pixel-agent-text)',
+        }}
+      >
+        + Agent
+      </button>
       <button
         onClick={onToggleEditMode}
         onMouseEnter={() => setHovered('edit')}
@@ -193,6 +215,74 @@ export function BottomToolbar({
           onToggleAlwaysShowOverlay={onToggleAlwaysShowOverlay}
         />
       </div>
+
+      {isAgentModalOpen && (
+        <div style={overlayStyle} onMouseDown={() => setIsAgentModalOpen(false)}>
+          <div
+            style={modalStyle}
+            onMouseDown={(e) => e.stopPropagation()}
+            onKeyDown={handleKeyDown}
+          >
+            <div style={{ fontSize: '22px', color: 'var(--pixel-text)', fontWeight: 'bold' }}>
+              New Agent
+            </div>
+            <div>
+              <label style={labelStyle}>Name (optional)</label>
+              <input
+                ref={nameInputRef}
+                value={agentName}
+                onChange={(e) => setAgentName(e.target.value)}
+                placeholder="e.g. Alice"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Folder</label>
+              <div style={rowStyle}>
+                <input
+                  value={folderPath}
+                  onChange={(e) => setFolderPath(e.target.value)}
+                  placeholder="Select a folder..."
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button
+                  onClick={handleBrowse}
+                  style={{
+                    ...btnBase,
+                    padding: '5px 10px',
+                    fontSize: '20px',
+                    flexShrink: 0,
+                  }}
+                >
+                  Browse
+                </button>
+              </div>
+            </div>
+            <div style={{ ...rowStyle, justifyContent: 'flex-end', marginTop: 4 }}>
+              <button
+                onClick={() => setIsAgentModalOpen(false)}
+                style={{ ...btnBase, fontSize: '20px' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={!folderPath.trim()}
+                style={{
+                  ...btnBase,
+                  fontSize: '20px',
+                  background: folderPath.trim() ? 'var(--pixel-agent-bg)' : 'var(--pixel-btn-bg)',
+                  border: '2px solid var(--pixel-agent-border)',
+                  color: folderPath.trim() ? 'var(--pixel-agent-text)' : 'var(--pixel-text-dim)',
+                  cursor: folderPath.trim() ? 'pointer' : 'not-allowed',
+                }}
+              >
+                Launch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

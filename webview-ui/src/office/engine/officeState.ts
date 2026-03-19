@@ -215,6 +215,7 @@ export class OfficeState {
     preferredSeatId?: string,
     skipSpawnEffect?: boolean,
     folderName?: string,
+    agentName?: string,
   ): void {
     if (this.characters.has(id)) return;
 
@@ -261,6 +262,9 @@ export class OfficeState {
 
     if (folderName) {
       ch.folderName = folderName;
+    }
+    if (agentName) {
+      ch.agentName = agentName;
     }
     if (!skipSpawnEffect) {
       ch.matrixEffect = 'spawn';
