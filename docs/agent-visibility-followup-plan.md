@@ -158,6 +158,7 @@ extension까지 selection을 전파하고 싶다면:
 - waiting badge가 `heuristic`로 표시 가능
 - permission pending이 `heuristic`로 표시 가능
 - Inspector에서 confidence/source를 텍스트로 보여줌
+- permission clear 이후에도 tool의 원래 confidence/source/inferred 값이 복원됨
 
 ### 검증
 - tool start 시 `confidence=high`
