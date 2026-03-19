@@ -114,3 +114,27 @@ export const CHARACTER_HIT_HALF_WIDTH = 8;
 export const CHARACTER_HIT_HEIGHT = 24;
 export const TOOL_OVERLAY_VERTICAL_OFFSET = 32;
 export const PULSE_ANIMATION_DURATION_SEC = 1.5;
+
+// ── Agent Tool Status Mapping ───────────────────────────────
+export const STATUS_TO_TOOL: Array<[string, string]> = [
+  ['Searching the web', 'WebSearch'],
+  ['Searching web', 'WebSearch'],
+  ['Searching files', 'Glob'],
+  ['Searching code', 'Grep'],
+  ['Reading terminal output', 'Read'],
+  ['Writing terminal input', 'Write'],
+  ['Applying patch', 'Edit'],
+  ['Listing directory', 'Glob'],
+  ['Waiting for your answer', 'AskUserQuestion'],
+  ['Waiting on subtask', 'Task'],
+  ['Subtask:', 'Task'],
+  ['Editing notebook', 'NotebookEdit'],
+  ['Planning', 'NotebookEdit'],
+  ['Reading', 'Read'],
+  ['Writing', 'Write'],
+  ['Editing', 'Edit'],
+  ['Fetching', 'WebFetch'],
+  ['Running', 'Bash'],
+  ['Searching', 'Grep'],
+  ['Task', 'Task'],
+];

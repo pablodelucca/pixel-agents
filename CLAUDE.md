@@ -1,6 +1,6 @@
 # Pixel Agents — Compressed Reference
 
-VS Code extension with embedded React webview: pixel art office where AI agents (Claude Code terminals) are animated characters.
+VS Code extension with embedded React webview: pixel art office where AI agent terminals become animated characters.
 
 ## Architecture
 
@@ -71,17 +71,17 @@ scripts/                      — 7-stage asset extraction pipeline
 
 ## Core Concepts
 
-**Vocabulary**: Terminal = VS Code terminal running Claude. Session = JSONL conversation file. Agent = webview character bound 1:1 to a terminal.
+**Vocabulary**: Terminal = VS Code terminal running the selected agent CLI. Session = JSONL conversation file. Agent = webview character bound 1:1 to a terminal.
 
-**Extension ↔ Webview**: `postMessage` protocol. Key messages: `openClaude`, `agentCreated/Closed`, `focusAgent`, `agentToolStart/Done/Clear`, `agentStatus`, `existingAgents`, `layoutLoaded`, `furnitureAssetsLoaded`, `floorTilesLoaded`, `wallTilesLoaded`, `saveLayout`, `saveAgentSeats`, `exportLayout`, `importLayout`, `settingsLoaded`, `setSoundEnabled`.
+**Extension ↔ Webview**: `postMessage` protocol. Key messages: `openAgent`, `agentCreated/Closed`, `focusAgent`, `agentToolStart/Done/Clear`, `agentStatus`, `existingAgents`, `layoutLoaded`, `furnitureAssetsLoaded`, `floorTilesLoaded`, `wallTilesLoaded`, `saveLayout`, `saveAgentSeats`, `exportLayout`, `importLayout`, `settingsLoaded`, `setSoundEnabled`.
 
-**One-agent-per-terminal**: Each "+ Agent" click → new terminal (`claude --session-id <uuid>`) → immediate agent creation → 1s poll for `<uuid>.jsonl` → file watching starts.
+**One-agent-per-terminal**: Each "+ Agent" click launches the configured backend (`codex` or `claude`) and immediately creates a bound agent. Backends with deterministic session files can poll for the expected JSONL; others rely on project scanning/adoption.
 
 **Terminal adoption**: Project-level 1s scan detects unknown JSONL files. If active terminal has no agent → adopt. If focused agent exists → reassign (`/clear` handling).
 
 ## Agent Status Tracking
 
-JSONL transcripts at `~/.claude/projects/<project-hash>/<session-id>.jsonl`. Project hash = workspace path with `:`/`\`/`/` → `-`.
+JSONL transcripts are adapter-specific: Claude uses `~/.claude/projects/<project-hash>/<session-id>.jsonl`; Codex uses `~/.codex/sessions/YYYY/MM/DD/*.jsonl` filtered by `session_meta.cwd`.
 
 **JSONL record types**: `assistant` (tool_use blocks or thinking), `user` (tool_result or text prompt), `system` with `subtype: "turn_duration"` (reliable turn-end signal), `progress` with `data.type`: `agent_progress` (sub-agent tool_use/tool_result forwarded to webview, non-exempt tools trigger permission timers), `bash_progress` (long-running Bash output — restarts permission timer to confirm tool is executing), `mcp_progress` (MCP tool status — same timer restart logic). Also observed but not tracked: `file-history-snapshot`, `queue-operation`.
 

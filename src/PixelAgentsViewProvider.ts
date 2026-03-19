@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+import { getConfiguredAgentAdapter } from './agentAdapter.js';
 import {
   getProjectDirPath,
   launchNewTerminal,
@@ -49,7 +50,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   // /clear detection: project-level scan for new JSONL files
   activeAgentId = { current: null as number | null };
   knownJsonlFiles = new Set<string>();
-  projectScanTimer = { current: null as ReturnType<typeof setInterval> | null };
+  projectScanTimer = new Map<string, ReturnType<typeof setInterval>>();
 
   // Bundled default layout (loaded from assets/default-layout.json)
   defaultLayout: Record<string, unknown> | null = null;
@@ -77,8 +78,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
-      if (message.type === 'openClaude') {
+      if (message.type === 'openAgent') {
+        const adapter = getConfiguredAgentAdapter();
         await launchNewTerminal(
+          adapter,
           this.nextAgentId,
           this.nextTerminalIndex,
           this.agents,
@@ -144,15 +147,18 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
 
         // Ensure project scan runs even with no restored agents (to adopt external terminals)
-        const projectDir = getProjectDirPath();
+        const adapter = getConfiguredAgentAdapter();
+        const projectDir = getProjectDirPath(adapter);
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         console.log('[Extension] workspaceRoot:', workspaceRoot);
         console.log('[Extension] projectDir:', projectDir);
         if (projectDir) {
           ensureProjectScan(
             projectDir,
+            adapter,
             this.knownJsonlFiles,
             this.projectScanTimer,
+            this.jsonlPollTimers,
             this.activeAgentId,
             this.nextAgentId,
             this.agents,
@@ -266,7 +272,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
         sendExistingAgents(this.agents, this.context, this.webview);
       } else if (message.type === 'openSessionsFolder') {
-        const projectDir = getProjectDirPath();
+        const projectDir = getProjectDirPath(getConfiguredAgentAdapter());
         if (projectDir && fs.existsSync(projectDir)) {
           vscode.env.openExternal(vscode.Uri.file(projectDir));
         }
@@ -399,10 +405,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         this.persistAgents,
       );
     }
-    if (this.projectScanTimer.current) {
-      clearInterval(this.projectScanTimer.current);
-      this.projectScanTimer.current = null;
+    for (const timer of this.projectScanTimer.values()) {
+      clearInterval(timer);
     }
+    this.projectScanTimer.clear();
   }
 }
 

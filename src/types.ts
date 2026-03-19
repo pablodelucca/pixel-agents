@@ -1,8 +1,11 @@
 import type * as vscode from 'vscode';
 
+export type AgentBackend = 'claude' | 'codex';
+
 export interface AgentState {
   id: number;
   terminalRef: vscode.Terminal;
+  adapterName: AgentBackend;
   projectDir: string;
   jsonlFile: string;
   fileOffset: number;
@@ -22,6 +25,7 @@ export interface AgentState {
 export interface PersistedAgent {
   id: number;
   terminalName: string;
+  adapterName?: AgentBackend;
   jsonlFile: string;
   projectDir: string;
   /** Workspace folder name (only set for multi-root workspaces) */
