@@ -139,9 +139,7 @@ We're actively working on the core module and adapter architecture that makes th
 
 ## Community & Contributing
 
-We use **[GitHub Discussions](https://github.com/pablodelucca/pixel-agents/discussions)** for questions, feature ideas, and conversations. **[Issues](https://github.com/pablodelucca/pixel-agents/issues)** are for bug reports only.
-
-If something is broken, open an issue. For everything else, start a discussion.
+Use **[Issues](https://github.com/pablodelucca/pixel-agents/issues)** to report bugs or request features. Join **[Discussions](https://github.com/pablodelucca/pixel-agents/discussions)** for questions and conversations.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on how to contribute.
 

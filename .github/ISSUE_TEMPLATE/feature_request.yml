@@ -1,0 +1,53 @@
+name: "Feature request"
+description: "Suggest a new feature, idea, or improvement for Pixel Agents."
+title: "[Feature]: "
+labels: ["type: feature"]
+body:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: "Pre-flight checklist"
+      options:
+        - label: "I have searched existing issues and this is not a duplicate"
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Problem or motivation"
+      description: "What problem does this solve, or what need does it address? A clear problem statement helps us prioritize."
+      placeholder: "e.g., When I have many agents open, I can't tell which terminal each character is connected to."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: "Proposed solution"
+      description: "How should it work? Describe the behavior, UI, or API you envision."
+      placeholder: "e.g., Show the terminal name as a label above each character, toggled via a setting."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: importance
+    attributes:
+      label: "How important is this to you?"
+      options:
+        - "Nice to have"
+        - "Would improve my workflow"
+        - "Critical — blocking my use case"
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: "Alternatives considered"
+      description: "Have you considered other solutions or workarounds?"
+
+  - type: textarea
+    id: context
+    attributes:
+      label: "Additional context"
+      description: "Screenshots, mockups, links to related issues or discussions."
