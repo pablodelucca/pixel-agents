@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
 import {
@@ -155,22 +156,21 @@ function RowLabel({
   waiting?: boolean;
   onClick?: () => void;
 }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        width: DEBUG_LABEL_WIDTH,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-start',
-        gap: 4,
-        background: selected ? AGENT_VIS_ACCENT_BG : AGENT_VIS_CARD_BG_DIM,
-        border: `1px solid ${selected ? AGENT_VIS_COLOR_SELECTED : AGENT_VIS_BORDER}`,
-        color: AGENT_VIS_TEXT,
-        padding: '8px 10px',
-        cursor: onClick ? 'pointer' : 'default',
-      }}
-    >
+  const sharedStyle: CSSProperties = {
+    width: DEBUG_LABEL_WIDTH,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 4,
+    background: selected ? AGENT_VIS_ACCENT_BG : AGENT_VIS_CARD_BG_DIM,
+    border: `1px solid ${selected ? AGENT_VIS_COLOR_SELECTED : AGENT_VIS_BORDER}`,
+    color: AGENT_VIS_TEXT,
+    padding: '8px 10px',
+    cursor: onClick ? 'pointer' : 'default',
+  };
+
+  const content = (
+    <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span
           style={{
@@ -194,7 +194,15 @@ function RowLabel({
       >
         {subtitle}
       </span>
+    </>
+  );
+
+  return onClick ? (
+    <button onClick={onClick} style={sharedStyle}>
+      {content}
     </button>
+  ) : (
+    <div style={sharedStyle}>{content}</div>
   );
 }
 
@@ -329,12 +337,15 @@ export function DebugView({
               </div>
 
               {subagents.map((subagent) => {
+                const subActiveTools = subagentTools[id]?.[subagent.parentToolId] ?? [];
                 const subMerged = mergeToolActivityLists(
-                  subagentTools[id]?.[subagent.parentToolId] ?? [],
+                  subActiveTools,
                   subagentToolHistory[id]?.[subagent.parentToolId] ?? [],
                 );
                 const latestSubTool = subMerged[subMerged.length - 1];
-                const waitingSub = subMerged.some((tool) => tool.permissionState === 'pending');
+                const waitingSub = subActiveTools.some(
+                  (tool) => tool.permissionState === 'pending' && !tool.done,
+                );
 
                 return (
                   <div

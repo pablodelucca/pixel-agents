@@ -54,11 +54,16 @@ export function AgentLabels({
     return () => cancelAnimationFrame(rafId);
   }, []);
 
-  const subagentSummary = useMemo(() => {
-    const map = new Map<number, string | null>();
+  const subagentState = useMemo(() => {
+    const map = new Map<number, { summary: string | null; waiting: boolean; inferred: boolean }>();
     for (const subagent of subagentCharacters) {
       const tools = subagentTools[subagent.parentAgentId]?.[subagent.parentToolId] ?? [];
-      map.set(subagent.id, getActiveToolSummary(tools));
+      const currentTool = [...tools].reverse().find((tool) => !tool.done);
+      map.set(subagent.id, {
+        summary: getActiveToolSummary(tools),
+        waiting: tools.some((tool) => tool.permissionState === 'pending' && !tool.done),
+        inferred: Boolean(currentTool?.inferred || currentTool?.source === 'heuristic'),
+      });
     }
     return map;
   }, [subagentCharacters, subagentTools]);
@@ -87,13 +92,18 @@ export function AgentLabels({
         const screenX = (deviceOffsetX + ch.x * zoom) / dpr;
         const screenY = (deviceOffsetY + (ch.y + sittingOffset - 24) * zoom) / dpr;
 
-        const status = agentStatuses[id];
-        const isWaiting = status?.status === 'waiting';
         const isSub = ch.isSubagent;
+        const status = agentStatuses[id];
+        const subagentStateForId = isSub ? subagentState.get(id) : undefined;
+        const isWaiting = isSub
+          ? (subagentStateForId?.waiting ?? false)
+          : status?.status === 'waiting';
         const summary = isSub
-          ? subagentSummary.get(id)
+          ? (subagentStateForId?.summary ?? null)
           : getActiveToolSummary(agentTools[id] ?? []);
-        const confidenceHint = status?.source === 'heuristic' || status?.inferred;
+        const confidenceHint = isSub
+          ? (subagentStateForId?.inferred ?? false)
+          : status?.source === 'heuristic' || status?.inferred;
 
         const dotColor = isWaiting
           ? AGENT_VIS_COLOR_PENDING
