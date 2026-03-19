@@ -22,43 +22,69 @@ const NPC_COUNT = 8
 
 // ── Beard Overlay ───────────────────────────────────────────────
 // The Magistrate is "pretty famous" for his beard.
-// Beard color and positions tuned for Pixelwood 59×49 character frames.
+// Beard is anchored to the FACE position in each frame (not fixed rows),
+// so it tracks correctly during walk bob animation.
 const BEARD_COLOR = '#5C3D1E'
 const BEARD_SHADOW = '#3D280F'
 
 /**
- * Add beard pixels to a down-facing (front view) sprite frame.
- * Modifies the SpriteData in place by painting beard-colored pixels
- * in the chin/jaw area below the face.
+ * Find the chin row for beard placement.
+ * Pixelwood sprites have no visible neck in pixel data — head and body
+ * are a continuous block. So we use a fixed offset from the top of the
+ * head (first opaque row). Chin is ~14 rows below headStart for 59×49 frames.
+ */
+function findChinRow(frame: SpriteData, centerCol: number, scanWidth: number): number {
+  const halfW = Math.floor(scanWidth / 2)
+  const startCol = centerCol - halfW
+  const endCol = centerCol + halfW
+
+  // Find first opaque row (top of head/hair)
+  for (let r = 0; r < frame.length; r++) {
+    let count = 0
+    for (let c = startCol; c <= endCol; c++) {
+      if (c >= 0 && c < frame[r].length && frame[r][c] !== '') count++
+    }
+    if (count >= 3) {
+      // Chin = headStart + 16 rows (tuned for 59×49 Pixelwood frames)
+      return r + 16
+    }
+  }
+  return 27 // absolute fallback
+}
+
+/**
+ * Add beard pixels anchored to face position in a down-facing frame.
  */
 function addBeardDown(frame: SpriteData): SpriteData {
-  // Clone to avoid mutating shared references
   const f = frame.map(row => [...row])
-  // Down-facing: chin area rows 28-33, centered around columns 24-35
-  // Jaw line (wider)
-  for (let c = 23; c <= 35; c++) { f[28][c] = BEARD_COLOR }
-  for (let c = 23; c <= 35; c++) { f[29][c] = BEARD_COLOR }
-  // Mid beard
-  for (let c = 24; c <= 34; c++) { f[30][c] = BEARD_COLOR }
-  for (let c = 25; c <= 33; c++) { f[31][c] = BEARD_SHADOW }
-  // Chin point
-  for (let c = 26; c <= 32; c++) { f[32][c] = BEARD_SHADOW }
-  for (let c = 27; c <= 31; c++) { f[33][c] = BEARD_SHADOW }
+  const centerCol = Math.floor(FRAME_W / 2) // ~29
+  const chin = findChinRow(f, centerCol, 12)
+
+  // Beard hangs from chin, 4-5 rows
+  const bw = 6 // half-width of beard
+  for (let c = centerCol - bw; c <= centerCol + bw; c++) { if (f[chin]) f[chin][c] = BEARD_COLOR }
+  for (let c = centerCol - bw; c <= centerCol + bw; c++) { if (f[chin + 1]) f[chin + 1][c] = BEARD_COLOR }
+  for (let c = centerCol - bw + 1; c <= centerCol + bw - 1; c++) { if (f[chin + 2]) f[chin + 2][c] = BEARD_SHADOW }
+  for (let c = centerCol - bw + 2; c <= centerCol + bw - 2; c++) { if (f[chin + 3]) f[chin + 3][c] = BEARD_SHADOW }
+  for (let c = centerCol - bw + 3; c <= centerCol + bw - 3; c++) { if (f[chin + 4]) f[chin + 4][c] = BEARD_SHADOW }
   return f
 }
 
 /**
- * Add beard pixels to a side-facing (profile) sprite frame.
- * Side sprites face LEFT in Pixelwood assets.
+ * Add beard pixels anchored to face position in a side-facing frame.
  */
 function addBeardSide(frame: SpriteData): SpriteData {
   const f = frame.map(row => [...row])
-  // Side-facing (left profile): chin extends from cols ~20-28, rows 28-33
-  for (let c = 20; c <= 28; c++) { f[28][c] = BEARD_COLOR }
-  for (let c = 20; c <= 27; c++) { f[29][c] = BEARD_COLOR }
-  for (let c = 21; c <= 26; c++) { f[30][c] = BEARD_SHADOW }
-  for (let c = 22; c <= 25; c++) { f[31][c] = BEARD_SHADOW }
-  for (let c = 22; c <= 24; c++) { f[32][c] = BEARD_SHADOW }
+  // Side sprites face LEFT — face/chin is in the left-center area
+  // (character looks left, so chin is left of sprite center)
+  const faceCol = Math.floor(FRAME_W / 2) - 4
+  const chin = findChinRow(f, Math.floor(FRAME_W / 2), 10)
+
+  // Side beard: narrower, centered on the chin of the left-facing profile
+  for (let c = faceCol - 2; c <= faceCol + 4; c++) { if (f[chin]) f[chin][c] = BEARD_COLOR }
+  for (let c = faceCol - 1; c <= faceCol + 3; c++) { if (f[chin + 1]) f[chin + 1][c] = BEARD_COLOR }
+  for (let c = faceCol; c <= faceCol + 2; c++) { if (f[chin + 2]) f[chin + 2][c] = BEARD_SHADOW }
+  for (let c = faceCol; c <= faceCol + 1; c++) { if (f[chin + 3]) f[chin + 3][c] = BEARD_SHADOW }
   return f
 }
 
