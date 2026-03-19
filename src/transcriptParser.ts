@@ -163,7 +163,7 @@ export function processCodexTranscriptLine(
       agent.activeToolNames.delete(toolId);
       setTimeout(() => {
         webview?.postMessage({ type: 'agentToolDone', id: agentId, toolId });
-        if (completedToolName === 'spawn_agent') {
+        if (completedToolName === TOOL_NAMES.SPAWN_AGENT) {
           webview?.postMessage({
             type: 'subagentClear',
             id: agentId,
