@@ -7,7 +7,7 @@
  * at the footprint's bottom edge, roofs extend above. Classic RPG visual style.
  */
 
-import type { FurnitureInstance, SpriteData } from './types.js'
+import type { FurnitureInstance } from './types.js'
 import { TILE_SIZE } from './types.js'
 import type { LoadedTileset } from './tilesetLoader.js'
 import { TOWN_BUILDINGS } from '../data/defaultTownLayout.js'

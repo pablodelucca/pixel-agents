@@ -18,8 +18,61 @@ import { loadImage, imageDataToSpriteData } from '../tilesetLoader.js'
 const FRAME_W = 59
 const FRAME_H = 49
 const FRAMES_PER_ROW = 4
-const NPC_ROWS = 7
 const NPC_COUNT = 8
+
+// ── Beard Overlay ───────────────────────────────────────────────
+// The Magistrate is "pretty famous" for his beard.
+// Beard color and positions tuned for Pixelwood 59×49 character frames.
+const BEARD_COLOR = '#5C3D1E'
+const BEARD_SHADOW = '#3D280F'
+
+/**
+ * Add beard pixels to a down-facing (front view) sprite frame.
+ * Modifies the SpriteData in place by painting beard-colored pixels
+ * in the chin/jaw area below the face.
+ */
+function addBeardDown(frame: SpriteData): SpriteData {
+  // Clone to avoid mutating shared references
+  const f = frame.map(row => [...row])
+  // Down-facing: chin area rows 28-33, centered around columns 24-35
+  // Jaw line (wider)
+  for (let c = 23; c <= 35; c++) { f[28][c] = BEARD_COLOR }
+  for (let c = 23; c <= 35; c++) { f[29][c] = BEARD_COLOR }
+  // Mid beard
+  for (let c = 24; c <= 34; c++) { f[30][c] = BEARD_COLOR }
+  for (let c = 25; c <= 33; c++) { f[31][c] = BEARD_SHADOW }
+  // Chin point
+  for (let c = 26; c <= 32; c++) { f[32][c] = BEARD_SHADOW }
+  for (let c = 27; c <= 31; c++) { f[33][c] = BEARD_SHADOW }
+  return f
+}
+
+/**
+ * Add beard pixels to a side-facing (profile) sprite frame.
+ * Side sprites face LEFT in Pixelwood assets.
+ */
+function addBeardSide(frame: SpriteData): SpriteData {
+  const f = frame.map(row => [...row])
+  // Side-facing (left profile): chin extends from cols ~20-28, rows 28-33
+  for (let c = 20; c <= 28; c++) { f[28][c] = BEARD_COLOR }
+  for (let c = 20; c <= 27; c++) { f[29][c] = BEARD_COLOR }
+  for (let c = 21; c <= 26; c++) { f[30][c] = BEARD_SHADOW }
+  for (let c = 22; c <= 25; c++) { f[31][c] = BEARD_SHADOW }
+  for (let c = 22; c <= 24; c++) { f[32][c] = BEARD_SHADOW }
+  return f
+}
+
+/**
+ * Apply beard overlay to all player sprite frames.
+ * Only modifies down and side frames (beard not visible from back).
+ */
+function addBeardToPlayer(data: LoadedCharacterData): LoadedCharacterData {
+  return {
+    down: data.down.map(addBeardDown),
+    up: data.up, // No beard visible from behind
+    right: data.right.map(addBeardSide), // Side sprites (face left in Pixelwood)
+  }
+}
 
 /**
  * Extract a single frame from a loaded image at (col, row) in a grid.
@@ -118,7 +171,7 @@ export async function loadPixelwoodCharacters(basePath: string): Promise<boolean
       return false
     }
 
-    const playerData = buildPlayerData(
+    const playerDataRaw = buildPlayerData(
       extractStrip(walkDown),
       extractStrip(walkSide),
       extractStrip(walkUp),
@@ -126,6 +179,8 @@ export async function loadPixelwoodCharacters(basePath: string): Promise<boolean
       extractStrip(idleSide),
       extractStrip(idleUp),
     )
+    // The Magistrate is famous for his beard
+    const playerData = addBeardToPlayer(playerDataRaw)
 
     // ── NPC sprites ─────────────────────────────────────────────
     const npcData: LoadedCharacterData[] = []

@@ -346,8 +346,9 @@ const S = 'shirt'
 const P = 'pants'
 const O = 'shoes'
 const E = '#FFFFFF' // eyes
+const B = 'beard'   // beard (player only, resolves to hair color darkened)
 
-type TemplateCell = typeof H | typeof K | typeof S | typeof P | typeof O | typeof E | typeof _
+type TemplateCell = typeof H | typeof K | typeof S | typeof P | typeof O | typeof E | typeof B | typeof _
 
 /** Resolve a template to SpriteData using a palette */
 function resolveTemplate(template: TemplateCell[][], palette: CharPalette): SpriteData {
@@ -360,6 +361,7 @@ function resolveTemplate(template: TemplateCell[][], palette: CharPalette): Spri
       if (cell === S) return palette.shirt
       if (cell === P) return palette.pants
       if (cell === O) return palette.shoes
+      if (cell === B) return palette.hair  // beard = hair color
       return cell
     }),
   )
@@ -383,8 +385,8 @@ const CHAR_WALK_DOWN_1: TemplateCell[][] = [
   [_, _, _, _, _, K, K, K, K, K, K, _, _, _, _, _],
   [_, _, _, _, _, K, E, K, K, E, K, _, _, _, _, _],
   [_, _, _, _, _, K, K, K, K, K, K, _, _, _, _, _],
-  [_, _, _, _, _, K, K, K, K, K, K, _, _, _, _, _],
-  [_, _, _, _, _, _, S, S, S, S, _, _, _, _, _, _],
+  [_, _, _, _, _, K, B, B, B, B, K, _, _, _, _, _],
+  [_, _, _, _, _, _, B, S, S, B, _, _, _, _, _, _],
   [_, _, _, _, _, S, S, S, S, S, S, _, _, _, _, _],
   [_, _, _, _, S, S, S, S, S, S, S, S, _, _, _, _],
   [_, _, _, _, S, S, S, S, S, S, S, S, _, _, _, _],
@@ -1064,24 +1066,25 @@ export function getCharacterSprites(paletteIndex: number, hueShift = 0): Charact
     const rt = char.right
     const flip = flipSpriteHorizontal
 
+    // Side sprites face LEFT in Pixelwood assets — flip for RIGHT
     sprites = {
       walk: {
         [Dir.DOWN]: [d[0], d[1], d[2], d[1]],
         [Dir.UP]: [u[0], u[1], u[2], u[1]],
-        [Dir.RIGHT]: [rt[0], rt[1], rt[2], rt[1]],
-        [Dir.LEFT]: [flip(rt[0]), flip(rt[1]), flip(rt[2]), flip(rt[1])],
+        [Dir.LEFT]: [rt[0], rt[1], rt[2], rt[1]],
+        [Dir.RIGHT]: [flip(rt[0]), flip(rt[1]), flip(rt[2]), flip(rt[1])],
       },
       typing: {
         [Dir.DOWN]: [d[3], d[4]],
         [Dir.UP]: [u[3], u[4]],
-        [Dir.RIGHT]: [rt[3], rt[4]],
-        [Dir.LEFT]: [flip(rt[3]), flip(rt[4])],
+        [Dir.LEFT]: [rt[3], rt[4]],
+        [Dir.RIGHT]: [flip(rt[3]), flip(rt[4])],
       },
       reading: {
         [Dir.DOWN]: [d[5], d[6]],
         [Dir.UP]: [u[5], u[6]],
-        [Dir.RIGHT]: [rt[5], rt[6]],
-        [Dir.LEFT]: [flip(rt[5]), flip(rt[6])],
+        [Dir.LEFT]: [rt[5], rt[6]],
+        [Dir.RIGHT]: [flip(rt[5]), flip(rt[6])],
       },
     }
   } else {
