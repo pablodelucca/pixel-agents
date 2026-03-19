@@ -270,7 +270,7 @@ export class OfficeState {
     this.characters.set(id, ch);
   }
 
-  removeAgent(id: number): void {
+  removeAgent(id: number, immediate: boolean = false): void {
     const ch = this.characters.get(id);
     if (!ch) return;
     if (ch.matrixEffect === 'despawn') return; // already despawning
@@ -281,11 +281,17 @@ export class OfficeState {
     }
     if (this.selectedAgentId === id) this.selectedAgentId = null;
     if (this.cameraFollowId === id) this.cameraFollowId = null;
-    // Start despawn animation instead of immediate delete
-    ch.matrixEffect = 'despawn';
-    ch.matrixEffectTimer = 0;
-    ch.matrixEffectSeeds = matrixEffectSeeds();
-    ch.bubbleType = null;
+    
+    if (immediate) {
+      // Immediate removal without animation
+      this.characters.delete(id);
+    } else {
+      // Start despawn animation instead of immediate delete
+      ch.matrixEffect = 'despawn';
+      ch.matrixEffectTimer = 0;
+      ch.matrixEffectSeeds = matrixEffectSeeds();
+      ch.bubbleType = null;
+    }
   }
 
   /** Find seat uid at a given tile position, or null */

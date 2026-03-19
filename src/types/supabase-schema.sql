@@ -12,6 +12,10 @@ create table if not exists servers (
   cpu TEXT,
   disk TEXT,
   bandwidth TEXT,
+  password_encrypted TEXT,
+  password_key_version INTEGER DEFAULT 1,
+  ssh_user TEXT DEFAULT 'root',
+  ssh_port INTEGER DEFAULT 22,
   created_at TIMESTAMPTZ default NOW(),
   updated_at TIMESTAMPTZ default NOW()
 );
@@ -64,3 +68,20 @@ with
 create index IF not exists idx_servers_user_id on servers (user_id);
 create index IF not exists idx_payments_user_id on payments (user_id);
 create index IF not exists idx_payments_reference on payments (reference);
+
+--------------------------------------------------------------------------------
+-- MIGRATIONS
+--------------------------------------------------------------------------------
+
+-- Migration: Add SSH connection fields to servers table
+-- Date: 2026-03-19
+-- Description: Add SSH user and port fields for direct SSH connections
+--              These fields allow flexible SSH configuration per server
+
+-- Add ssh_user column (default: root)
+ALTER TABLE servers 
+ADD COLUMN IF NOT EXISTS ssh_user TEXT DEFAULT 'root';
+
+-- Add ssh_port column (default: 22)
+ALTER TABLE servers 
+ADD COLUMN IF NOT EXISTS ssh_port INTEGER DEFAULT 22;

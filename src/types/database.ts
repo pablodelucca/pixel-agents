@@ -16,6 +16,10 @@ export interface Server {
   cpu: string | null;
   disk: string | null;
   bandwidth: string | null;
+  password_encrypted: string | null;
+  password_key_version: number;
+  ssh_user: string;
+  ssh_port: number;
   created_at: string;
   updated_at: string;
 }
@@ -33,4 +37,21 @@ export interface Payment {
   paid_at: string | null;
   expired_at: string | null;
   created_at: string;
+}
+
+// Agent config from OpenClaw
+export interface AgentIdentity {
+  name?: string;
+  theme?: string;
+  emoji?: string;
+}
+
+export interface AgentConfig {
+  id: string;
+  name: string;
+  identity?: AgentIdentity;
+}
+
+export interface ServerConfig {
+  agents: AgentConfig[];
 }

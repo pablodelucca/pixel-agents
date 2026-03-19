@@ -9,7 +9,6 @@ import {
   ZOOM_SCROLL_THRESHOLD,
 } from '../../constants.js';
 import { unlockAudio } from '../../notificationSound.js';
-import { vscode } from '../../vscodeApi.js';
 import { canPlaceFurniture, getWallPlacementRow } from '../editor/editorActions.js';
 import type { EditorState } from '../editor/editorState.js';
 import { startGameLoop } from '../engine/gameLoop.js';
@@ -716,7 +715,8 @@ export function OfficeCanvas({
                     if (ch.isSubagent) continue;
                     seats[ch.id] = { palette: ch.palette, seatId: ch.seatId };
                   }
-                  vscode.postMessage({ type: 'saveAgentSeats', seats });
+                  // No-op in web mode - seat persistence would need backend API
+                  // vscode.postMessage({ type: 'saveAgentSeats', seats });
                   return;
                 }
               }

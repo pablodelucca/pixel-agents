@@ -1,14 +1,22 @@
 {
-  "name": "pixel-agents",
+  "name": "clawmpany",
   "private": true,
   "version": "2.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "vite",
+    "dev:server": "npm run dev --workspace=server",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "tsc -b && vite build",
+    "build:server": "npm run build --workspace=server",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "npm run start --workspace=server"
   },
+  "workspaces": [
+    "server"
+  ],
   "dependencies": {
     "@supabase/supabase-js": "^2.99.2",
     "react": "^19.2.0",
@@ -20,6 +28,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "concurrently": "^9.1.2",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.0.1",

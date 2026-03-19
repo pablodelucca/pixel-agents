@@ -10,10 +10,6 @@ import { extractToolName } from '../office/toolUtils.js';
 import type { OfficeLayout, ToolActivity } from '../office/types.js';
 import { setWallSprites } from '../office/wallTiles.js';
 import { loadAllAssets } from '../standalone/assetLoader.js';
-import {
-  fetchAgentsFromGateway,
-  subscribeToOpenClawEvents,
-} from '../vscodeApi.js';
 
 export interface SubagentCharacter {
   id: number;
@@ -97,11 +93,11 @@ export function useExtensionMessages(
     }>
   >([]);
 
-  // ── Standalone Mode - Load assets and listen for backend messages ────────────────────────────────────────
+  // ── Load assets on mount ────────────────────────────────────────
   useEffect(() => {
     const loadStandaloneAssets = async () => {
       try {
-        console.log('[Standalone] Loading assets...');
+        console.log('[Clawmpany] Loading assets...');
         const assets = await loadAllAssets();
 
         // Set character sprites
@@ -144,83 +140,28 @@ export function useExtensionMessages(
 
         layoutReadyRef.current = true;
         setLayoutReady(true);
-        setWorkspaceFolders([{ name: 'OpenClaw', path: '/openclaw' }]);
+        setWorkspaceFolders([{ name: 'Clawmpany', path: '/clawmpany' }]);
 
         // Enable sound by default
         setSoundEnabled(true);
 
-        console.log('[Standalone] Assets loaded, ready for agents');
+        console.log('[Clawmpany] Assets loaded, ready for server selection');
       } catch (error) {
-        console.error('[Standalone] Failed to load assets:', error);
+        console.error('[Clawmpany] Failed to load assets:', error);
       }
     };
 
     loadStandaloneAssets();
   }, [getOfficeState, onLayoutLoaded]);
 
-  // ── Fetch initial agents from gateway (Electron mode) or use mock data (web mode) ────────────────────────────────────────
-  useEffect(() => {
-    if (!layoutReadyRef.current) return;
-    
-    const doFetch = async () => {
-      // Try Electron IPC first
-      let agentList = await fetchAgentsFromGateway();
-      
-      // If no Electron and no agents, use mock data for demo
-      if (agentList.length === 0) {
-        // Check if we're in web mode (no Electron)
-        if (!window.electronAPI) {
-          console.log('[Standalone] Web mode - using mock agents for demo');
-          agentList = [
-            { id: 1, name: 'Main Agent', emoji: '🤖' },
-            { id: 2, name: 'Clara', emoji: '🎭' },
-          ];
-        }
-      }
-      
-      if (agentList.length > 0) {
-        console.log('[Standalone] Initial agents:', agentList);
-        const os = getOfficeState();
-        const ids: number[] = [];
-        for (const agent of agentList) {
-          const displayName = `${agent.emoji || '🤖'} ${agent.name || String(agent.id)}`;
-          os.addAgent(agent.id, undefined, undefined, undefined, true, displayName);
-          ids.push(agent.id);
-        }
-        setAgents(ids);
-        if (ids.length > 0) {
-          setSelectedAgent(ids[0]);
-        }
-      } else {
-        console.log('[Standalone] No agents from gateway, will wait for events');
-      }
-    };
-    
-    doFetch();
-  }, [layoutReady, getOfficeState]);
-
-  // ── Subscribe to OpenClaw events via Electron IPC ────────────────────────────────────────
-  useEffect(() => {
-    const unsubscribe = subscribeToOpenClawEvents((event) => {
-      console.log('[Standalone] Received OpenClaw event:', event);
-      if (!event || typeof event !== 'object') return;
-      const msg = event as Record<string, unknown>;
-      const os = getOfficeState();
-      
-      handleOpenClawMessage(msg, os);
-    });
-    
-    return unsubscribe || undefined;
-  }, [getOfficeState]);
-
-  // ── Message handler (shared by IPC and window.message) ────────────────────────────────────────
+  // ── Message handler (for future real-time updates) ────────────────────────────────────────
   const handleOpenClawMessage = (msg: Record<string, unknown>, os: OfficeState) => {
     if (msg.type === 'agentCreated' || msg.type === 'openClawAgentCreated') {
         const id = msg.id as number;
         const name = msg.name as string;
         const emoji = (msg.emoji as string) || '🤖';
         const displayName = `${emoji} ${name}`;
-        console.log(`[Webview] Agent created: ${displayName}`);
+        console.log(`[Clawmpany] Agent created: ${displayName}`);
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
         setSelectedAgent(id);
 
@@ -390,32 +331,10 @@ export function useExtensionMessages(
         });
         os.removeSubagent(id, parentToolId);
         setSubagentCharacters((prev) => prev.filter((s) => !(s.parentAgentId === id && s.parentToolId === parentToolId)));
-      } else if (msg.type === 'openClawAgents') {
-        // List of all OpenClaw agents (initial sync)
-        const agentList = msg.agents as Array<{
-          id: number;
-          openClawId: string;
-          name: string;
-          emoji: string;
-        }>;
-        console.log(`[Webview] OpenClaw agents received:`, agentList);
-        const ids = agentList.map((a) => a.id);
-        setAgents(ids);
-        if (ids.length > 0) {
-          setSelectedAgent(ids[0]);
-        }
-        for (const agent of agentList) {
-          const displayName = `${agent.emoji} ${agent.name}`;
-          if (layoutReadyRef.current) {
-            os.addAgent(agent.id, undefined, undefined, undefined, true, displayName);
-          } else {
-            pendingAgentsRef.current.push({ id: agent.id, displayName });
-          }
-        }
       }
   };
 
-  // ── Listen for messages from backend (OpenClaw) - window.message fallback ────────────────────────────────────────
+  // ── Listen for messages from backend (for future real-time updates) ────────────────────────────────────────
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       const msg = e.data;

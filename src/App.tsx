@@ -17,7 +17,6 @@ import { EditorToolbar } from './office/editor/EditorToolbar.js';
 import { OfficeState } from './office/engine/officeState.js';
 import { isRotatable } from './office/layout/furnitureCatalog.js';
 import { EditTool } from './office/types.js';
-import { isStandalone, vscode } from './vscodeApi.js';
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null };
@@ -155,10 +154,8 @@ function App() {
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), []);
 
-  const handleSelectAgent = useCallback((id: number) => {
-    if (!isStandalone) {
-      vscode.postMessage({ type: 'focusAgent', id });
-    }
+  const handleSelectAgent = useCallback((_id: number) => {
+    // No-op in web mode
   }, []);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -176,20 +173,12 @@ function App() {
     editor.handleToggleEditMode,
   );
 
-  const handleCloseAgent = useCallback((id: number) => {
-    if (!isStandalone) {
-      vscode.postMessage({ type: 'closeAgent', id });
-    }
+  const handleCloseAgent = useCallback((_id: number) => {
+    // No-op in web mode
   }, []);
 
-  const handleClick = useCallback((agentId: number) => {
-    // If clicked agent is a sub-agent, focus the parent's terminal instead
-    const os = getOfficeState();
-    const meta = os.subagentMeta.get(agentId);
-    const focusId = meta ? meta.parentAgentId : agentId;
-    if (!isStandalone) {
-      vscode.postMessage({ type: 'focusAgent', id: focusId });
-    }
+  const handleClick = useCallback((_agentId: number) => {
+    // No-op in web mode
   }, []);
 
   const officeState = getOfficeState();
@@ -287,6 +276,7 @@ function App() {
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
         workspaceFolders={workspaceFolders}
+        getOfficeState={getOfficeState}
       />
 
       {editor.isEditMode && editor.isDirty && (

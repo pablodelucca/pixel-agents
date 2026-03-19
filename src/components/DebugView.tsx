@@ -1,5 +1,4 @@
 import type { ToolActivity } from '../office/types.js';
-import { isStandalone, vscode } from '../vscodeApi.js';
 
 interface DebugViewProps {
   agents: number[];
@@ -92,9 +91,7 @@ export function DebugView({
           </button>
           <button
             onClick={() => {
-              if (!isStandalone) {
-                vscode.postMessage({ type: 'closeAgent', id });
-              }
+              // No-op in web mode - close agent functionality not available
             }}
             style={{
               borderRadius: 0,

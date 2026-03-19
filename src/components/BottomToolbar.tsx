@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { Server } from '../types/database.js';
+import type { OfficeState } from '../office/engine/officeState.js';
 import { useServers } from '../hooks/useServers.js';
+import { useServerState } from '../hooks/useServerState.js';
 import type { WorkspaceFolder } from '../hooks/useExtensionMessages.js';
+import { ServerPasswordModal } from './ServerPasswordModal.js';
 import { ServersModal } from './ServersModal.js';
 import { SettingsModal } from './SettingsModal.js';
 
@@ -13,6 +16,7 @@ interface BottomToolbarProps {
   isDebugMode: boolean;
   onToggleDebugMode: () => void;
   workspaceFolders: WorkspaceFolder[];
+  getOfficeState: () => OfficeState;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -53,6 +57,7 @@ export function BottomToolbar({
   isDebugMode,
   onToggleDebugMode,
   workspaceFolders: _workspaceFolders,
+  getOfficeState,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -61,8 +66,15 @@ export function BottomToolbar({
   const [hoveredServer, setHoveredServer] = useState<string | null>(null);
   const serversDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Password modal state
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [selectedServerForPassword, setSelectedServerForPassword] = useState<Server | null>(null);
+
   // Fetch servers from Supabase
-  const { servers, loading: serversLoading } = useServers();
+  const { servers, loading: serversLoading, refetch: refetchServers } = useServers();
+
+  // Server state context
+  const { activeServer, setActiveServer, fetchServerConfig, syncAgentsToOffice, isLoading: isConfigLoading } = useServerState();
 
   // Close servers dropdown on outside click
   useEffect(() => {
@@ -76,10 +88,35 @@ export function BottomToolbar({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [isServersDropdownOpen]);
 
-  const handleSelectServer = (serverId: string) => {
-    // TODO: Implement server selection
-    console.log('Selected server:', serverId);
+  const handleSelectServer = async (server: Server) => {
+    console.log('Selected server:', server.name, server.id);
+
+    // Set active server
+    setActiveServer(server);
+
+    // Fetch OpenClaw config from the server via backend
+    const config = await fetchServerConfig(server.id);
+
+    if (config) {
+      console.log('Loaded agents:', config.agents);
+
+      // Sync agents to office (pass server directly to avoid async state issue)
+      const officeState = getOfficeState();
+      syncAgentsToOffice(officeState, config.agents, server);
+    }
+
     setIsServersDropdownOpen(false);
+  };
+
+  const handleOpenPasswordModal = (e: React.MouseEvent, server: Server) => {
+    e.stopPropagation(); // Prevent selecting the server
+    setSelectedServerForPassword(server);
+    setIsPasswordModalOpen(true);
+  };
+
+  const handlePasswordSaved = () => {
+    // Refetch servers to update the password status
+    refetchServers();
   };
 
   const handleCreateServerClick = () => {
@@ -119,7 +156,7 @@ export function BottomToolbar({
               border: '2px solid var(--pixel-border)',
               borderRadius: 0,
               boxShadow: 'var(--pixel-shadow)',
-              minWidth: 180,
+              minWidth: 220,
               zIndex: 'var(--pixel-controls-z)',
             }}
           >
@@ -145,42 +182,106 @@ export function BottomToolbar({
                 No office yet
               </div>
             ) : (
-              servers.map((server: Server) => (
-                <button
-                  key={server.id}
-                  onClick={() => handleSelectServer(server.id)}
-                  onMouseEnter={() => setHoveredServer(server.id)}
-                  onMouseLeave={() => setHoveredServer(null)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '6px 10px',
-                    fontSize: '22px',
-                    color: 'var(--pixel-text)',
-                    background:
-                      hoveredServer === server.id ? 'var(--pixel-btn-hover-bg)' : 'transparent',
-                    border: 'none',
-                    borderRadius: 0,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <span>{server.name}</span>
-                  <span
+              servers.map((server: Server) => {
+                const isActive = activeServer?.id === server.id;
+                const isLoading = isConfigLoading && isActive;
+                const hasPassword = !!server.password_encrypted;
+                const isHovered = hoveredServer === server.id;
+
+                return (
+                  <div
+                    key={server.id}
+                    onMouseEnter={() => setHoveredServer(server.id)}
+                    onMouseLeave={() => setHoveredServer(null)}
                     style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      background: server.status === 'online' ? '#4ade80' : '#ef4444',
-                      flexShrink: 0,
-                      marginLeft: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      background: isActive
+                        ? 'var(--pixel-active-bg)'
+                        : isHovered
+                          ? 'var(--pixel-btn-hover-bg)'
+                          : 'transparent',
+                      border: isActive ? '2px solid var(--pixel-accent)' : 'none',
                     }}
-                  />
-                </button>
-              ))
+                  >
+                    <button
+                      onClick={() => handleSelectServer(server)}
+                      disabled={isLoading}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        textAlign: 'left',
+                        padding: '6px 10px',
+                        fontSize: '22px',
+                        color: isActive ? 'var(--pixel-accent)' : 'var(--pixel-text)',
+                        background: 'transparent',
+                        border: 'none',
+                        borderRadius: 0,
+                        cursor: isLoading ? 'wait' : 'pointer',
+                        whiteSpace: 'nowrap',
+                        opacity: isLoading ? 0.7 : 1,
+                      }}
+                    >
+                      <span>
+                        {isActive ? '▶ ' : ''}
+                        {server.name}
+                        {isLoading && ' ...'}
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {/* Password indicator */}
+                        <span
+                          title={hasPassword ? 'Password set' : 'No password'}
+                          style={{
+                            fontSize: '14px',
+                            opacity: hasPassword ? 1 : 0.3,
+                          }}
+                        >
+                          🔐
+                        </span>
+                        {/* Status indicator */}
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            background:
+                              server.status === 'online'
+                                ? '#4ade80'
+                                : server.status === 'pending'
+                                  ? '#fbbf24'
+                                  : '#ef4444',
+                            flexShrink: 0,
+                          }}
+                        />
+                      </span>
+                    </button>
+                    {/* Password button - always show if hovered */}
+                    {isHovered && (
+                      <button
+                        onClick={(e) => handleOpenPasswordModal(e, server)}
+                        title={hasPassword ? 'Change password' : 'Set password'}
+                        style={{
+                          padding: '4px 8px',
+                          marginRight: 6,
+                          fontSize: '18px',
+                          background: hasPassword
+                            ? 'rgba(90, 140, 255, 0.3)'
+                            : 'rgba(255, 170, 0, 0.3)',
+                          border: '1px solid var(--pixel-border)',
+                          borderRadius: 0,
+                          cursor: 'pointer',
+                          color: hasPassword ? '#5a8cff' : '#ffaa00',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {hasPassword ? '🔑' : '⚠️'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })
             )}
             <div style={{ borderTop: '1px solid var(--pixel-border)' }}>
               <button
@@ -209,25 +310,20 @@ export function BottomToolbar({
         )}
       </div>
 
+      {/* Password Modal */}
+      <ServerPasswordModal
+        isOpen={isPasswordModalOpen}
+        server={selectedServerForPassword}
+        onClose={() => {
+          setIsPasswordModalOpen(false);
+          setSelectedServerForPassword(null);
+        }}
+        onSuccess={handlePasswordSaved}
+      />
+
       {/* Create Server Dialog */}
       <ServersModal isOpen={isCreateServerOpen} onClose={() => setIsCreateServerOpen(false)} />
-      {/* TODO: Re-enable layout editor later */}
-      {/* <button
-        onClick={onToggleEditMode}
-        onMouseEnter={() => setHovered('edit')}
-        onMouseLeave={() => setHovered(null)}
-        style={
-          isEditMode
-            ? { ...btnActive }
-            : {
-                ...btnBase,
-                background: hovered === 'edit' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
-              }
-        }
-        title="Edit office layout"
-      >
-        Layout
-      </button> */}
+
       <div style={{ position: 'relative' }}>
         <button
           onClick={() => setIsSettingsOpen((v) => !v)}

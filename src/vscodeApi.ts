@@ -1,79 +1,32 @@
-// Electron standalone mode - uses Electron IPC instead of VS Code API
-// Types are defined in ./types/electron.d.ts
+// Web mode - no Electron/VSCode API needed
 
-// VS Code API type (compat)
+// VS Code API type (compat - now just a no-op)
 type VsCodeApi = { postMessage(msg: unknown): void };
 
-// Check if running in Electron
-export const isStandalone = typeof window !== 'undefined' && !!window.electronAPI;
+// Always false since we're web-only
+export const isStandalone = false;
 
-// VS Code compatible API wrapper
-const electronVsCode: VsCodeApi = {
-  postMessage: (msg: unknown) => {
-    if (!window.electronAPI) {
-      console.warn('[Electron] electronAPI not available');
-      return;
-    }
-
-    const message = msg as { type: string; id?: number; message?: string };
-    
-    switch (message.type) {
-      case 'focusAgent':
-        if (message.id !== undefined) {
-          window.electronAPI.focusAgent(message.id);
-        }
-        break;
-      case 'closeAgent':
-        if (message.id !== undefined) {
-          window.electronAPI.closeAgent(message.id);
-        }
-        break;
-      case 'sendMessage':
-        if (message.id !== undefined && message.message) {
-          window.electronAPI.sendMessage(message.id, message.message);
-        }
-        break;
-      default:
-        console.log('[Electron] Unknown message type:', message.type);
-    }
-  },
-};
-
-// Mock API for fallback (pure web mode)
+// Mock API - no-op in web mode
 const mockVsCode: VsCodeApi = {
   postMessage: (_msg: unknown) => {
-    // No-op in standalone web mode
+    // No-op in web mode
   },
 };
 
-// Export VS Code compatible API
-export const vscode: VsCodeApi = window.electronAPI ? electronVsCode : mockVsCode;
+// Export mock API
+export const vscode: VsCodeApi = mockVsCode;
 
-// Subscribe to OpenClaw events (Electron only)
-export function subscribeToOpenClawEvents(callback: (data: unknown) => void): (() => void) | null {
-  if (window.electronAPI?.onOpenClawEvent) {
-    return window.electronAPI.onOpenClawEvent(callback);
-  }
+// No-op subscriptions (not needed in web mode)
+export function subscribeToOpenClawEvents(_callback: (data: unknown) => void): (() => void) | null {
   return null;
 }
 
-// Fetch agents from gateway (Electron only)
+// No agents from gateway (we use server-based agents instead)
 export async function fetchAgentsFromGateway(): Promise<Array<{ id: number; name: string; emoji: string }>> {
-  if (window.electronAPI?.fetchAgents) {
-    return window.electronAPI.fetchAgents();
-  }
   return [];
 }
 
-// Get OpenClaw config (Electron only)
-export async function getOpenClawConfig(): Promise<OpenClawConfig | null> {
-  if (window.electronAPI?.getConfig) {
-    return window.electronAPI.getConfig();
-  }
+// No OpenClaw config from Electron
+export async function getOpenClawConfig(): Promise<null> {
   return null;
 }
-
-// Type alias for local use
-type OpenClawConfig = NonNullable<Window['electronAPI']> extends { 
-  getConfig: () => Promise<infer T> 
-} ? T : never;
