@@ -140,8 +140,10 @@ function App() {
     agents,
     selectedAgent,
     agentTools,
+    agentToolHistory,
     agentStatuses,
     subagentTools,
+    subagentToolHistory,
     subagentCharacters,
     layoutReady,
     layoutWasReset,
@@ -155,6 +157,7 @@ function App() {
 
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [alwaysShowOverlay, setAlwaysShowOverlay] = useState(false);
+  const [, setSelectionTick] = useState(0);
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), []);
   const handleToggleAlwaysShowOverlay = useCallback(
@@ -185,15 +188,19 @@ function App() {
     vscode.postMessage({ type: 'closeAgent', id });
   }, []);
 
-  const handleClick = useCallback((agentId: number) => {
-    // If clicked agent is a sub-agent, focus the parent's terminal instead
-    const os = getOfficeState();
-    const meta = os.subagentMeta.get(agentId);
-    const focusId = meta ? meta.parentAgentId : agentId;
-    vscode.postMessage({ type: 'focusAgent', id: focusId });
+  const handleFocusAgent = useCallback((id: number) => {
+    vscode.postMessage({ type: 'focusAgent', id });
+  }, []);
+
+  const handleClick = useCallback((agentId: number | null) => {
+    setSelectionTick((tick) => tick + 1);
+    window.dispatchEvent(
+      new MessageEvent('message', { data: { type: 'agentSelected', id: agentId } }),
+    );
   }, []);
 
   const officeState = getOfficeState();
+  const effectiveSelectedAgent = officeState.selectedAgentId ?? selectedAgent;
 
   // Force dependency on editorTickForKeyboard to propagate keyboard-triggered re-renders
   void editorTickForKeyboard;
@@ -350,11 +357,14 @@ function App() {
           officeState={officeState}
           agents={agents}
           agentTools={agentTools}
+          agentToolHistory={agentToolHistory}
+          agentStatuses={agentStatuses}
           subagentCharacters={subagentCharacters}
           containerRef={containerRef}
           zoom={editor.zoom}
           panRef={editor.panRef}
           onCloseAgent={handleCloseAgent}
+          onFocusAgent={handleFocusAgent}
           alwaysShowOverlay={alwaysShowOverlay}
         />
       )}
@@ -362,10 +372,12 @@ function App() {
       {isDebugMode && (
         <DebugView
           agents={agents}
-          selectedAgent={selectedAgent}
+          selectedAgent={effectiveSelectedAgent}
           agentTools={agentTools}
+          agentToolHistory={agentToolHistory}
           agentStatuses={agentStatuses}
           subagentTools={subagentTools}
+          subagentToolHistory={subagentToolHistory}
           onSelectAgent={handleSelectAgent}
         />
       )}

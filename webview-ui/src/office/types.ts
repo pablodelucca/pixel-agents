@@ -80,7 +80,18 @@ export interface FurnitureInstance {
 
 export interface ToolActivity {
   toolId: string;
+  toolName: string;
+  statusText: string;
   status: string;
+  target?: string;
+  command?: string;
+  startTime: number;
+  durationMs?: number;
+  confidence: 'high' | 'medium' | 'low' | 'unknown';
+  parentToolId?: string;
+  source: 'transcript' | 'heuristic';
+  permissionState?: 'pending' | 'granted' | 'none';
+  inferred?: boolean;
   done: boolean;
   permissionWait?: boolean;
 }

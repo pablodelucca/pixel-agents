@@ -79,6 +79,14 @@ export function readNewLines(
       cancelPermissionTimer(agentId, permissionTimers);
       if (agent.permissionSent) {
         agent.permissionSent = false;
+        for (const activity of agent.activeToolActivities.values()) {
+          activity.permissionState = 'granted';
+        }
+        for (const subActivities of agent.activeSubagentToolActivities.values()) {
+          for (const activity of subActivities.values()) {
+            activity.permissionState = 'granted';
+          }
+        }
         webview?.postMessage({ type: 'agentToolPermissionClear', id: agentId });
       }
     }
@@ -294,8 +302,10 @@ function adoptTerminalForFile(
     activeToolIds: new Set(),
     activeToolStatuses: new Map(),
     activeToolNames: new Map(),
+    activeToolActivities: new Map(),
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
+    activeSubagentToolActivities: new Map(),
     isWaiting: false,
     permissionSent: false,
     hadToolsInTurn: false,

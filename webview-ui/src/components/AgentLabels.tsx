@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 
-import type { SubagentCharacter } from '../hooks/useExtensionMessages.js';
+import type { AgentStatusInfo, SubagentCharacter } from '../hooks/useExtensionMessages.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { CharacterState, TILE_SIZE } from '../office/types.js';
 
 interface AgentLabelsProps {
   officeState: OfficeState;
   agents: number[];
-  agentStatuses: Record<number, string>;
+  agentStatuses: Record<number, AgentStatusInfo>;
   containerRef: React.RefObject<HTMLDivElement | null>;
   zoom: number;
   panRef: React.RefObject<{ x: number; y: number }>;
@@ -68,7 +68,7 @@ export function AgentLabels({
         const screenY = (deviceOffsetY + (ch.y + sittingOffset - 24) * zoom) / dpr;
 
         const status = agentStatuses[id];
-        const isWaiting = status === 'waiting';
+        const isWaiting = status?.status === 'waiting';
         const isActive = ch.isActive;
         const isSub = ch.isSubagent;
 

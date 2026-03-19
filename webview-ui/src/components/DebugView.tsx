@@ -1,3 +1,7 @@
+import { useEffect, useState } from 'react';
+
+import { DEBUG_TIMELINE_WINDOW_MS } from '../constants.js';
+import type { AgentStatusInfo } from '../hooks/useExtensionMessages.js';
 import type { ToolActivity } from '../office/types.js';
 import { vscode } from '../vscodeApi.js';
 
@@ -5,48 +9,45 @@ interface DebugViewProps {
   agents: number[];
   selectedAgent: number | null;
   agentTools: Record<number, ToolActivity[]>;
-  agentStatuses: Record<number, string>;
+  agentToolHistory: Record<number, ToolActivity[]>;
+  agentStatuses: Record<number, AgentStatusInfo>;
   subagentTools: Record<number, Record<string, ToolActivity[]>>;
+  subagentToolHistory: Record<number, Record<string, ToolActivity[]>>;
   onSelectAgent: (id: number) => void;
 }
 
-/** Z-index just below the floating toolbar (50) so the toolbar stays on top */
 const DEBUG_Z = 40;
 
-function ToolDot({ tool }: { tool: ToolActivity }) {
-  return (
-    <span
-      className={tool.done ? undefined : 'pixel-agents-pulse'}
-      style={{
-        width: 6,
-        height: 6,
-        borderRadius: '50%',
-        background: tool.done
-          ? 'var(--vscode-charts-green, #89d185)'
-          : tool.permissionWait
-            ? 'var(--vscode-charts-yellow, #cca700)'
-            : 'var(--vscode-charts-blue, #3794ff)',
-        display: 'inline-block',
-        flexShrink: 0,
-      }}
-    />
-  );
+function formatDuration(ms?: number) {
+  if (ms === undefined) return '';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function ToolLine({ tool }: { tool: ToolActivity }) {
+function renderToolChip(tool: ToolActivity, now: number) {
+  const duration = tool.done ? (tool.durationMs ?? 0) : now - tool.startTime;
+  const width = Math.min(220, Math.max(48, (duration / DEBUG_TIMELINE_WINDOW_MS) * 220));
+  const color = tool.permissionState === 'pending' ? '#f7c04f' : tool.done ? '#5a5fff' : '#70d1ff';
   return (
-    <span
+    <div
+      key={`${tool.toolId}-${tool.parentToolId ?? 'self'}`}
       style={{
-        fontSize: '22px',
-        opacity: tool.done ? 0.5 : 0.8,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 5,
+        width,
+        borderRadius: 0,
+        background: color,
+        padding: '3px 6px',
+        fontSize: 12,
+        color: '#030312',
+        fontWeight: 600,
+        boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.35)',
+        marginBottom: 4,
+        textOverflow: 'ellipsis',
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
       }}
     >
-      <ToolDot tool={tool} />
-      {tool.permissionWait && !tool.done ? 'Needs approval' : tool.status}
-    </span>
+      {tool.statusText} · {formatDuration(duration)}
+    </div>
   );
 }
 
@@ -54,117 +55,22 @@ export function DebugView({
   agents,
   selectedAgent,
   agentTools,
+  agentToolHistory,
   agentStatuses,
   subagentTools,
+  subagentToolHistory,
   onSelectAgent,
 }: DebugViewProps) {
-  const renderAgentCard = (id: number) => {
-    const isSelected = selectedAgent === id;
-    const tools = agentTools[id] || [];
-    const subs = subagentTools[id] || {};
-    const status = agentStatuses[id];
-    const hasActiveTools = tools.some((t) => !t.done);
-    return (
-      <div
-        key={id}
-        style={{
-          border: `2px solid ${isSelected ? '#5a8cff' : '#4a4a6a'}`,
-          borderRadius: 0,
-          padding: '6px 8px',
-          background: isSelected
-            ? 'var(--vscode-list-activeSelectionBackground, rgba(255,255,255,0.04))'
-            : undefined,
-        }}
-      >
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
-          <button
-            onClick={() => onSelectAgent(id)}
-            style={{
-              borderRadius: 0,
-              padding: '6px 10px',
-              fontSize: '26px',
-              background: isSelected ? 'rgba(90, 140, 255, 0.25)' : undefined,
-              color: isSelected ? '#fff' : undefined,
-              fontWeight: isSelected ? 'bold' : undefined,
-            }}
-          >
-            Agent #{id}
-          </button>
-          <button
-            onClick={() => vscode.postMessage({ type: 'closeAgent', id })}
-            style={{
-              borderRadius: 0,
-              padding: '6px 8px',
-              fontSize: '26px',
-              opacity: 0.7,
-              background: isSelected ? 'rgba(90, 140, 255, 0.25)' : undefined,
-              color: isSelected ? '#fff' : undefined,
-            }}
-            title="Close agent"
-          >
-            ✕
-          </button>
-        </span>
-        {(tools.length > 0 || status === 'waiting') && (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 1,
-              marginTop: 4,
-              paddingLeft: 4,
-            }}
-          >
-            {tools.map((tool) => (
-              <div key={tool.toolId}>
-                <ToolLine tool={tool} />
-                {subs[tool.toolId] && subs[tool.toolId].length > 0 && (
-                  <div
-                    style={{
-                      borderLeft: '2px solid var(--vscode-widget-border, rgba(255,255,255,0.12))',
-                      marginLeft: 3,
-                      paddingLeft: 8,
-                      marginTop: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 1,
-                    }}
-                  >
-                    {subs[tool.toolId].map((subTool) => (
-                      <ToolLine key={subTool.toolId} tool={subTool} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-            {status === 'waiting' && !hasActiveTools && (
-              <span
-                style={{
-                  fontSize: '22px',
-                  opacity: 0.85,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: 'var(--vscode-charts-yellow, #cca700)',
-                    display: 'inline-block',
-                    flexShrink: 0,
-                  }}
-                />
-                Might be waiting for input
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    let rafId = 0;
+    const tick = () => {
+      setNow(Date.now());
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
 
   return (
     <div
@@ -179,11 +85,118 @@ export function DebugView({
         overflow: 'auto',
       }}
     >
-      {/* Top padding so cards don't overlap the floating toolbar */}
-      <div style={{ padding: '12px 12px 12px', fontSize: '28px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {agents.map(renderAgentCard)}
-        </div>
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {agents.map((id) => {
+          const isSelected = selectedAgent === id;
+          const activeTools = agentTools[id] ?? [];
+          const pastTools = agentToolHistory[id] ?? [];
+          const activeIds = new Set(activeTools.map((t) => t.toolId));
+          const tools = [...pastTools.filter((t) => !activeIds.has(t.toolId)), ...activeTools];
+          const activeSubs = subagentTools[id] ?? {};
+          const pastSubs = subagentToolHistory[id] ?? {};
+          // Merge sub-agent tools with history
+          const allSubKeys = new Set([...Object.keys(activeSubs), ...Object.keys(pastSubs)]);
+          const subs: Record<string, ToolActivity[]> = {};
+          for (const key of allSubKeys) {
+            const active = activeSubs[key] ?? [];
+            const past = pastSubs[key] ?? [];
+            const ids = new Set(active.map((t) => t.toolId));
+            subs[key] = [...past.filter((t) => !ids.has(t.toolId)), ...active];
+          }
+          const status = agentStatuses[id];
+          const statusLabel = status?.status ?? 'active';
+          return (
+            <div
+              key={id}
+              style={{
+                border: `2px solid ${isSelected ? '#5a8cff' : '#3c3c5a'}`,
+                borderRadius: 0,
+                padding: 12,
+                background: isSelected ? 'rgba(90, 140, 255, 0.08)' : 'rgba(255,255,255,0.02)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <button
+                  onClick={() => onSelectAgent(id)}
+                  style={{
+                    background: isSelected ? '#5a8cff' : '#2b2b45',
+                    border: 'none',
+                    color: '#fff',
+                    fontSize: 18,
+                    cursor: 'pointer',
+                    padding: '4px 10px',
+                  }}
+                >
+                  Agent #{id}
+                </button>
+                <span
+                  style={{
+                    alignSelf: 'center',
+                    fontSize: 14,
+                    textTransform: 'uppercase',
+                    color: statusLabel === 'waiting' ? '#f7c04f' : '#8a8fb3',
+                  }}
+                >
+                  {statusLabel}
+                </span>
+                <button
+                  onClick={() => vscode.postMessage({ type: 'closeAgent', id })}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#fff',
+                    fontSize: 18,
+                    cursor: 'pointer',
+                    opacity: 0.7,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                  minHeight: 40,
+                }}
+              >
+                {tools.length === 0 && (
+                  <span style={{ color: '#8a8fb3', fontSize: 13 }}>No recorded tools yet</span>
+                )}
+                {tools.map((tool) => renderToolChip(tool, now))}
+              </div>
+              {Object.entries(subs).map(([parentId, toolList]) => (
+                <div
+                  key={`${id}-${parentId}`}
+                  style={{
+                    padding: '8px 10px',
+                    background: '#151536',
+                    borderRadius: 0,
+                    border: '1px solid rgba(255,255,255,0.08)',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: '#9da4ff',
+                      marginBottom: 4,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Subtasks from {parentId}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {toolList.map((tool) => renderToolChip(tool, now))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

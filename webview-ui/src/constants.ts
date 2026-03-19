@@ -99,6 +99,11 @@ export const NOTIFICATION_VOLUME = 0.14;
 // ── Furniture Animation ─────────────────────────────────────
 export const FURNITURE_ANIM_INTERVAL_SEC = 0.2;
 
+// ── Tool History ─────────────────────────────────────────────
+export const TOOL_HISTORY_MAX_SIZE = 20;
+export const DEBUG_TIMELINE_WINDOW_MS = 8000;
+export const INSPECTOR_TOOL_WIDTH_WINDOW_MS = 5000;
+
 // ── Game Logic ───────────────────────────────────────────────
 export const MAX_DELTA_TIME_SEC = 0.1;
 export const WAITING_BUBBLE_DURATION_SEC = 2.0;
