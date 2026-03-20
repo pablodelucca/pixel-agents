@@ -10,22 +10,23 @@ export const MAX_ROWS = 64;
 // ── Character Animation ─────────────────────────────────────
 export const WALK_SPEED_PX_PER_SEC = 48;
 export const WALK_FRAME_DURATION_SEC = 0.15;
-export const TYPE_FRAME_DURATION_SEC = 0.3;
-export const WANDER_PAUSE_MIN_SEC = 2.0;
-export const WANDER_PAUSE_MAX_SEC = 20.0;
-export const WANDER_MOVES_BEFORE_REST_MIN = 3;
-export const WANDER_MOVES_BEFORE_REST_MAX = 6;
-export const SEAT_REST_MIN_SEC = 120.0;
-export const SEAT_REST_MAX_SEC = 240.0;
+export const TYPE_FRAME_DURATION_SEC = 0.18;
+export const IDLE_FRAME_DURATION_SEC = 2.5;
+export const WANDER_PAUSE_MIN_SEC = 1.0;
+export const WANDER_PAUSE_MAX_SEC = 6.0;
+export const WANDER_MOVES_BEFORE_REST_MIN = 5;
+export const WANDER_MOVES_BEFORE_REST_MAX = 12;
+export const SEAT_REST_MIN_SEC = 30.0;
+export const SEAT_REST_MAX_SEC = 70.0;
 
 // ── Matrix Effect ────────────────────────────────────────────
-export const MATRIX_EFFECT_DURATION_SEC = 0.3;
+export const MATRIX_EFFECT_DURATION_SEC = 1.8;
 export const MATRIX_TRAIL_LENGTH = 6;
 export const MATRIX_SPRITE_COLS = 16;
 export const MATRIX_SPRITE_ROWS = 24;
 export const MATRIX_FLICKER_FPS = 30;
 export const MATRIX_FLICKER_VISIBILITY_THRESHOLD = 180;
-export const MATRIX_COLUMN_STAGGER_RANGE = 0.3;
+export const MATRIX_COLUMN_STAGGER_RANGE = 0.4;
 export const MATRIX_HEAD_COLOR = '#ccffcc';
 export const MATRIX_TRAIL_OVERLAY_ALPHA = 0.6;
 export const MATRIX_TRAIL_EMPTY_ALPHA = 0.5;
@@ -46,7 +47,7 @@ export const BUTTON_RADIUS_ZOOM_FACTOR = 3;
 export const BUTTON_ICON_SIZE_FACTOR = 0.45;
 export const BUTTON_LINE_WIDTH_MIN = 1.5;
 export const BUTTON_LINE_WIDTH_ZOOM_FACTOR = 0.5;
-export const BUBBLE_FADE_DURATION_SEC = 0.5;
+export const BUBBLE_FADE_DURATION_SEC = 1.5;
 export const BUBBLE_SITTING_OFFSET_PX = 10;
 export const BUBBLE_VERTICAL_OFFSET_PX = 24;
 export const FALLBACK_FLOOR_COLOR = '#808080';
@@ -101,10 +102,10 @@ export const FURNITURE_ANIM_INTERVAL_SEC = 0.2;
 
 // ── Game Logic ───────────────────────────────────────────────
 export const MAX_DELTA_TIME_SEC = 0.1;
-export const WAITING_BUBBLE_DURATION_SEC = 2.0;
-export const DISMISS_BUBBLE_FAST_FADE_SEC = 0.3;
-export const INACTIVE_SEAT_TIMER_MIN_SEC = 3.0;
-export const INACTIVE_SEAT_TIMER_RANGE_SEC = 2.0;
+export const WAITING_BUBBLE_DURATION_SEC = 15.0;
+export const DISMISS_BUBBLE_FAST_FADE_SEC = 2.0;
+export const INACTIVE_SEAT_TIMER_MIN_SEC = 1.5;
+export const INACTIVE_SEAT_TIMER_RANGE_SEC = 1.0;
 export const PALETTE_COUNT = 6;
 export const HUE_SHIFT_MIN_DEG = 45;
 export const HUE_SHIFT_RANGE_DEG = 271;
