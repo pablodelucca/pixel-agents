@@ -13,6 +13,7 @@
   --pixel-accent: #5a8cff;
   --pixel-green: #5ac88c;
   --pixel-shadow: 2px 2px 0px #0a0a14;
+  --pixel-agent-label-z: 42;
 
   /* Button base */
   --pixel-text: rgba(255, 255, 255, 0.8);
