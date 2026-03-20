@@ -95,6 +95,14 @@ export function readNewLines(
   }
 }
 
+// Track all project directories to scan (supports multi-root workspaces)
+const trackedProjectDirs = new Set<string>();
+
+/**
+ * Seed a project directory's known files and register it for periodic scanning.
+ * Can be called multiple times with different directories — all will be scanned
+ * by the single shared interval timer.
+ */
 export function ensureProjectScan(
   projectDir: string,
   knownJsonlFiles: Set<string>,
@@ -109,34 +117,55 @@ export function ensureProjectScan(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
 ): void {
-  if (projectScanTimerRef.current) return;
-  // Seed with all existing JSONL files so we only react to truly new ones
+  // Always seed this directory's existing JSONL files (even if timer is already running)
+  // so we only react to truly new ones. Skip recently active files (large + recently
+  // modified) so they can still be picked up by terminal scanning during the current session.
   try {
+    const now = Date.now();
     const files = fs
       .readdirSync(projectDir)
       .filter((f) => f.endsWith('.jsonl'))
       .map((f) => path.join(projectDir, f));
     for (const f of files) {
+      try {
+        const stat = fs.statSync(f);
+        const isRecentlyActive = now - stat.mtimeMs < 600_000 && stat.size >= 3000;
+        if (isRecentlyActive) {
+          console.log(
+            `[Pixel Agents] Skipping pre-register of active JSONL: ${path.basename(f)}`,
+          );
+          continue;
+        }
+      } catch {
+        /* stat failed — pre-register to be safe */
+      }
       knownJsonlFiles.add(f);
     }
   } catch {
     /* dir may not exist yet */
   }
 
+  // Register for periodic scanning
+  trackedProjectDirs.add(projectDir);
+
+  // Start the shared timer only once
+  if (projectScanTimerRef.current) return;
   projectScanTimerRef.current = setInterval(() => {
-    scanForNewJsonlFiles(
-      projectDir,
-      knownJsonlFiles,
-      activeAgentIdRef,
-      nextAgentIdRef,
-      agents,
-      fileWatchers,
-      pollingTimers,
-      waitingTimers,
-      permissionTimers,
-      webview,
-      persistAgents,
-    );
+    for (const dir of trackedProjectDirs) {
+      scanForNewJsonlFiles(
+        dir,
+        knownJsonlFiles,
+        activeAgentIdRef,
+        nextAgentIdRef,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+        persistAgents,
+      );
+    }
   }, PROJECT_SCAN_INTERVAL_MS);
 }
 
@@ -183,19 +212,19 @@ function scanForNewJsonlFiles(
           persistAgents,
         );
       } else {
-        // No active agent → try to adopt the focused terminal
-        const activeTerminal = vscode.window.activeTerminal;
-        if (activeTerminal) {
+        // No active agent → scan all terminals (not just the focused one)
+        // to find an untracked Claude terminal that may own this JSONL file
+        for (const terminal of vscode.window.terminals) {
           let owned = false;
           for (const agent of agents.values()) {
-            if (agent.terminalRef === activeTerminal) {
+            if (agent.terminalRef === terminal) {
               owned = true;
               break;
             }
           }
           if (!owned) {
             adoptTerminalForFile(
-              activeTerminal,
+              terminal,
               file,
               projectDir,
               nextAgentIdRef,
@@ -208,6 +237,7 @@ function scanForNewJsonlFiles(
               webview,
               persistAgents,
             );
+            break;
           }
         }
       }
