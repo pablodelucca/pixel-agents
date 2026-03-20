@@ -327,8 +327,37 @@ async function loadFurniture(): Promise<LoadedAssets['furniture']> {
       const response = await fetch(`/assets/furniture/${folder}/manifest.json`);
       if (!response.ok) continue;
 
-      const manifest: ManifestRoot = await response.json();
-      const { assets, sprites: spriteFiles } = flattenManifest(manifest, folder);
+      const manifest = await response.json();
+
+      // Handle simple assets (type: "asset" at root level)
+      if (manifest.type === 'asset' && !manifest.members) {
+        const asset: FurnitureAsset = {
+          id: manifest.id,
+          name: manifest.name || manifest.id,
+          label: (manifest.name || manifest.id).replace(/_/g, ' '),
+          category: manifest.category,
+          file: `${folder}/${manifest.id}.png`,
+          width: manifest.width,
+          height: manifest.height,
+          footprintW: manifest.footprintW,
+          footprintH: manifest.footprintH,
+          isDesk: manifest.category === 'desks',
+          canPlaceOnWalls: manifest.canPlaceOnWalls ?? false,
+          backgroundTiles: manifest.backgroundTiles,
+        };
+        catalog.push(asset);
+
+        try {
+          const img = await loadImage(`/assets/furniture/${folder}/${manifest.id}.png`);
+          sprites[manifest.id] = imageDataToSpriteData(img);
+        } catch (e) {
+          console.warn(`[Standalone] Could not load sprite: ${folder}/${manifest.id}.png`);
+        }
+        continue;
+      }
+
+      // Handle group assets (type: "group" with members)
+      const { assets, sprites: spriteFiles } = flattenManifest(manifest as ManifestRoot, folder);
 
       catalog.push(...assets);
 
