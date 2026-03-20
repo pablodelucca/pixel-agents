@@ -15,7 +15,6 @@ import {
   AGENT_VIS_BORDER_SUBAGENT,
   AGENT_VIS_BORDER_WARNING,
   AGENT_VIS_CARD_BG_DIM,
-  AGENT_VIS_CARD_BG_FAINT,
   AGENT_VIS_COLOR_ACTIVE,
   AGENT_VIS_COLOR_PENDING,
   AGENT_VIS_COLOR_SELECTED,
@@ -59,8 +58,8 @@ function TimelineRail({
       style={{
         position: 'relative',
         height: 44,
-        border: `1px solid ${AGENT_VIS_BORDER}`,
-        background: `linear-gradient(180deg, ${AGENT_VIS_CARD_BG_DIM} 0%, ${AGENT_VIS_CARD_BG_FAINT} 100%)`,
+        border: `2px solid ${AGENT_VIS_BORDER}`,
+        background: AGENT_VIS_CARD_BG_DIM,
         overflow: 'hidden',
       }}
     >
@@ -163,7 +162,7 @@ function RowLabel({
     alignItems: 'flex-start',
     gap: 4,
     background: selected ? AGENT_VIS_ACCENT_BG : AGENT_VIS_CARD_BG_DIM,
-    border: `1px solid ${selected ? AGENT_VIS_COLOR_SELECTED : AGENT_VIS_BORDER}`,
+    border: `2px solid ${selected ? AGENT_VIS_COLOR_SELECTED : AGENT_VIS_BORDER}`,
     color: AGENT_VIS_TEXT,
     padding: '8px 10px',
     cursor: onClick ? 'pointer' : 'default',
@@ -312,7 +311,7 @@ export function DebugView({
                   <button
                     onClick={() => onSelectAgent(id)}
                     style={{
-                      border: `1px solid ${AGENT_VIS_BORDER}`,
+                      border: `2px solid ${AGENT_VIS_BORDER}`,
                       background: AGENT_VIS_ACTION_BG,
                       color: AGENT_VIS_TEXT,
                       padding: '6px 10px',
@@ -324,7 +323,7 @@ export function DebugView({
                   <button
                     onClick={() => vscode.postMessage({ type: 'closeAgent', id })}
                     style={{
-                      border: `1px solid ${AGENT_VIS_BORDER}`,
+                      border: `2px solid ${AGENT_VIS_BORDER}`,
                       background: 'transparent',
                       color: AGENT_VIS_TEXT,
                       padding: '6px 10px',
