@@ -158,6 +158,7 @@ function RowLabel({
 }) {
   const sharedStyle: CSSProperties = {
     width: DEBUG_LABEL_WIDTH,
+    boxSizing: 'border-box',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'flex-start',

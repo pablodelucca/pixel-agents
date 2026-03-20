@@ -132,6 +132,7 @@ export const AGENT_VIS_COLOR_CONFIDENT = '#50d890';
 export const AGENT_VIS_COLOR_LOW_CONFIDENCE = '#f2a63c';
 export const AGENT_VIS_LABEL_BG = 'rgba(16,18,30,0.88)';
 export const AGENT_VIS_LABEL_BG_SECONDARY = 'rgba(16,18,30,0.82)';
+export const AGENT_VIS_LABEL_Z = 42;
 export const AGENT_VIS_MODAL_BACKDROP = 'rgba(0, 0, 0, 0.7)';
 export const AGENT_VIS_ACTION_BG = '#2b2b45';
 export const APP_TEXT_ON_ACCENT = '#fff';

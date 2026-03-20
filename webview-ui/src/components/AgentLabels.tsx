@@ -8,6 +8,7 @@ import {
   AGENT_VIS_COLOR_PENDING,
   AGENT_VIS_LABEL_BG,
   AGENT_VIS_LABEL_BG_SECONDARY,
+  AGENT_VIS_LABEL_Z,
   AGENT_VIS_TEXT,
   AGENT_VIS_TEXT_WARNING,
 } from '../constants.js';
@@ -126,7 +127,7 @@ export function AgentLabels({
               alignItems: 'center',
               gap: 2,
               pointerEvents: 'none',
-              zIndex: 42,
+              zIndex: AGENT_VIS_LABEL_Z,
             }}
           >
             <div
@@ -136,7 +137,7 @@ export function AgentLabels({
                 gap: 4,
                 background: AGENT_VIS_LABEL_BG,
                 border: `2px solid ${AGENT_VIS_BORDER}`,
-                boxShadow: '2px 2px 0px #0a0a14',
+                boxShadow: 'var(--pixel-shadow)',
                 padding: '2px 4px',
                 maxWidth: isSub ? 124 : 154,
               }}
@@ -177,7 +178,7 @@ export function AgentLabels({
                   maxWidth: isSub ? 130 : 160,
                   background: AGENT_VIS_LABEL_BG_SECONDARY,
                   border: `2px solid ${AGENT_VIS_BORDER_FAINT}`,
-                  boxShadow: '2px 2px 0px #0a0a14',
+                  boxShadow: 'var(--pixel-shadow)',
                   padding: '1px 4px',
                   color: 'var(--pixel-text-dim)',
                   fontSize: 10,
@@ -194,7 +195,7 @@ export function AgentLabels({
                 style={{
                   background: AGENT_VIS_BG_WARNING,
                   border: `2px solid ${AGENT_VIS_COLOR_PENDING}`,
-                  boxShadow: '2px 2px 0px #0a0a14',
+                  boxShadow: 'var(--pixel-shadow)',
                   padding: '1px 4px',
                   color: AGENT_VIS_TEXT_WARNING,
                   fontSize: 10,

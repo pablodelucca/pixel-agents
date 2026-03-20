@@ -478,9 +478,10 @@ export function ToolOverlay({
             flex: 1,
             fontSize: 14,
             padding: '7px 0',
-            border: '1px solid var(--pixel-accent)',
+            border: '2px solid var(--pixel-accent)',
             background: 'var(--pixel-accent)',
             color: AGENT_VIS_TEXT,
+            boxShadow: 'var(--pixel-shadow)',
             cursor: 'pointer',
           }}
         >
@@ -492,9 +493,10 @@ export function ToolOverlay({
             width: 92,
             fontSize: 14,
             padding: '7px 0',
-            border: `1px solid ${AGENT_VIS_BORDER_STRONG}`,
+            border: `2px solid ${AGENT_VIS_BORDER_STRONG}`,
             background: 'transparent',
             color: 'var(--pixel-text)',
+            boxShadow: 'var(--pixel-shadow)',
             cursor: 'pointer',
           }}
         >
