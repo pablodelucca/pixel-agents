@@ -11,7 +11,8 @@
   "icon": "icon.png",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.105.0"
+    "vscode": "^1.105.0",
+    "node": ">=22.12.0"
   },
   "categories": [
     "Other"
