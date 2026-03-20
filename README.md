@@ -24,6 +24,12 @@
 
 <br/>
 
+<div align="center">
+  <strong>Language:</strong> English • <a href="README.ko.md">한국어</a>
+</div>
+
+<br/>
+
 Pixel Agents turns multi-agent AI systems into something you can actually see and manage. Each agent becomes a character in a pixel art office. They walk around, sit at their desk, and visually reflect what they are doing — typing when writing code, reading when searching files, waiting when it needs your attention.
 
 Right now it works as a VS Code extension with Codex and Claude Code. The vision though, is a fully agent-agnostic, platform-agnostic interface for orchestrating any AI agents, deployable anywhere.
@@ -73,6 +79,26 @@ npm run build
 If you use a version manager, this repository already pins Node.js 22.12.0 in `.nvmrc`.
 
 Then press **F5** in VS Code to launch the Extension Development Host.
+
+### Verify your setup
+
+Run these checks after installation or before opening a PR:
+
+```bash
+npm run lint
+cd webview-ui && npm test && npm run build
+```
+
+If you want to confirm you are using the expected runtime first:
+
+```bash
+nvm use
+node -v
+```
+
+> Current caveat: `npm run check-types` at the repository root still reports existing
+> DOM-lib issues from transitive type packages (`@types/d3-array`, `@types/recharts`).
+> For now, treat the commands above as the practical verification path for this repo.
 
 ### Usage
 
