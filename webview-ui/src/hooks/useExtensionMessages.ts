@@ -190,20 +190,17 @@ function upsertSubagentCharacter(
   return prev.map((subagent, index) => (index === existingIndex ? updated : subagent));
 }
 
-function markSubagentInactive(
+function removeSubagentCharacters(
   prev: SubagentCharacter[],
   parentAgentId: number,
   parentToolId?: string,
 ): SubagentCharacter[] {
-  let changed = false;
-  const next = prev.map((subagent) => {
-    const matchesAgent = subagent.parentAgentId === parentAgentId;
-    const matchesTool = parentToolId === undefined || subagent.parentToolId === parentToolId;
-    if (!matchesAgent || !matchesTool || !subagent.isActive) return subagent;
-    changed = true;
-    return { ...subagent, isActive: false };
+  const next = prev.filter((subagent) => {
+    if (subagent.parentAgentId !== parentAgentId) return true;
+    if (parentToolId !== undefined && subagent.parentToolId !== parentToolId) return true;
+    return false;
   });
-  return changed ? next : prev;
+  return next.length === prev.length ? prev : next;
 }
 
 function upsertSubagentDescriptor(
@@ -222,12 +219,23 @@ function upsertSubagentDescriptor(
     return prev;
   }
 
+  const merged = {
+    ...agentDescriptors,
+    [nextDescriptor.parentToolId]: nextDescriptor,
+  };
+  const entries = Object.entries(merged);
+  const trimmed =
+    entries.length > TOOL_HISTORY_MAX_SIZE
+      ? Object.fromEntries(
+          entries
+            .sort(([, a], [, b]) => b.lastSeenAt - a.lastSeenAt)
+            .slice(0, TOOL_HISTORY_MAX_SIZE),
+        )
+      : merged;
+
   return {
     ...prev,
-    [nextDescriptor.parentAgentId]: {
-      ...agentDescriptors,
-      [nextDescriptor.parentToolId]: nextDescriptor,
-    },
+    [nextDescriptor.parentAgentId]: trimmed as Record<string, SubagentDescriptor>,
   };
 }
 
@@ -513,7 +521,7 @@ export function useExtensionMessages(
         setSubagentDescriptors((prev) => markSubagentDescriptorInactive(prev, id));
         // Remove live sub-agent characters but retain descriptors for history-driven UI
         os.removeAllSubagents(id);
-        setSubagentCharacters((prev) => markSubagentInactive(prev, id));
+        setSubagentCharacters((prev) => removeSubagentCharacters(prev, id));
         os.setAgentTool(id, null);
         os.clearPermissionBubble(id);
       } else if (msg.type === 'agentSelected') {
@@ -754,7 +762,7 @@ export function useExtensionMessages(
         setSubagentDescriptors((prev) => markSubagentDescriptorInactive(prev, id, parentToolId));
         // Remove the live sub-agent character but retain descriptor/history for inspector/debug views
         os.removeSubagent(id, parentToolId);
-        setSubagentCharacters((prev) => markSubagentInactive(prev, id, parentToolId));
+        setSubagentCharacters((prev) => removeSubagentCharacters(prev, id, parentToolId));
       } else if (msg.type === 'characterSpritesLoaded') {
         const characters = msg.characters as Array<{
           down: string[][][];

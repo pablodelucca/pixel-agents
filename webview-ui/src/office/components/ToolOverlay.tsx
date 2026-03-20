@@ -308,7 +308,7 @@ export function ToolOverlay({
         position: 'absolute',
         top: 12,
         right: 12,
-        width: 360,
+        width: 'min(360px, calc(100% - 24px))',
         maxHeight: 'calc(100% - 24px)',
         overflow: 'auto',
         background: AGENT_VIS_PANEL_BG,

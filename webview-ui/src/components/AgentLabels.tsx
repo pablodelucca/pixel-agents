@@ -8,7 +8,6 @@ import {
   AGENT_VIS_COLOR_PENDING,
   AGENT_VIS_LABEL_BG,
   AGENT_VIS_LABEL_BG_SECONDARY,
-  AGENT_VIS_LABEL_Z,
   AGENT_VIS_TEXT,
   AGENT_VIS_TEXT_WARNING,
 } from '../constants.js';
@@ -127,7 +126,7 @@ export function AgentLabels({
               alignItems: 'center',
               gap: 2,
               pointerEvents: 'none',
-              zIndex: AGENT_VIS_LABEL_Z,
+              zIndex: 'var(--pixel-agent-label-z)' as unknown as number,
             }}
           >
             <div

@@ -60,6 +60,8 @@ function TimelineRail({
         position: 'relative',
         height: 44,
         border: `2px solid ${AGENT_VIS_BORDER}`,
+        borderRadius: 0,
+        boxShadow: 'var(--pixel-shadow)',
         background: AGENT_VIS_CARD_BG_DIM,
         overflow: 'hidden',
       }}
@@ -168,6 +170,8 @@ function RowLabel({
     color: AGENT_VIS_TEXT,
     padding: '8px 10px',
     cursor: onClick ? 'pointer' : 'default',
+    borderRadius: 0,
+    boxShadow: 'var(--pixel-shadow)',
   };
 
   const content = (
@@ -282,6 +286,8 @@ export function DebugView({
               key={id}
               style={{
                 border: `2px solid ${selectedAgent === id ? AGENT_VIS_COLOR_SELECTED : AGENT_VIS_BORDER}`,
+                borderRadius: 0,
+                boxShadow: 'var(--pixel-shadow)',
                 background: selectedAgent === id ? AGENT_VIS_ACCENT_BG : AGENT_VIS_CARD_BG_DIM,
                 padding: 12,
                 display: 'flex',
@@ -314,6 +320,8 @@ export function DebugView({
                     onClick={() => onFocusAgent(id)}
                     style={{
                       border: `2px solid ${AGENT_VIS_BORDER}`,
+                      borderRadius: 0,
+                      boxShadow: 'var(--pixel-shadow)',
                       background: AGENT_VIS_ACTION_BG,
                       color: AGENT_VIS_TEXT,
                       padding: '6px 10px',
@@ -326,6 +334,8 @@ export function DebugView({
                     onClick={() => vscode.postMessage({ type: 'closeAgent', id })}
                     style={{
                       border: `2px solid ${AGENT_VIS_BORDER}`,
+                      borderRadius: 0,
+                      boxShadow: 'var(--pixel-shadow)',
                       background: 'transparent',
                       color: AGENT_VIS_TEXT,
                       padding: '6px 10px',
