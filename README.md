@@ -52,6 +52,7 @@ This is the source code for the free Pixel Agents extension for VS Code — inst
 ## Requirements
 
 - VS Code 1.105.0 or later
+- Node.js 22.12.0 or later for development and building the extension
 - [Codex CLI](https://developers.openai.com/codex/cli) or [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
 
 ## Getting Started
@@ -63,10 +64,13 @@ If you just want to use Pixel Agents, the easiest way is to download the [VS Cod
 ```bash
 git clone https://github.com/pablodelucca/pixel-agents.git
 cd pixel-agents
+nvm use
 npm install
 cd webview-ui && npm install && cd ..
 npm run build
 ```
+
+If you use a version manager, this repository already pins Node.js 22.12.0 in `.nvmrc`.
 
 Then press **F5** in VS Code to launch the Extension Development Host.
 
