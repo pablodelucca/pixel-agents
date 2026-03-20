@@ -1,7 +1,7 @@
 # React + TypeScript + Vite
 
-This package expects Node.js 22 LTS or newer. That matches the repo-level `.nvmrc`
-and the current Vite 8 runtime requirement.
+This package expects Node.js 22.12.0 or newer. That matches the repo-level
+`.nvmrc` and the current Vite 8 runtime requirement.
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
