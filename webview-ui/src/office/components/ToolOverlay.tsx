@@ -24,7 +24,7 @@ import {
   AGENT_VIS_TEXT_WARNING,
   INSPECTOR_TOOL_WIDTH_WINDOW_MS,
 } from '../../constants.js';
-import type { AgentStatusInfo, SubagentCharacter } from '../../hooks/useExtensionMessages.js';
+import type { AgentStatusInfo, SubagentDescriptor } from '../../hooks/useExtensionMessages.js';
 import type { OfficeState } from '../engine/officeState.js';
 import type { ToolActivity } from '../types.js';
 
@@ -36,7 +36,7 @@ interface ToolOverlayProps {
   agentStatuses: Record<number, AgentStatusInfo>;
   subagentTools: Record<number, Record<string, ToolActivity[]>>;
   subagentToolHistory: Record<number, Record<string, ToolActivity[]>>;
-  subagentCharacters: SubagentCharacter[];
+  subagentDescriptors: Record<number, Record<string, SubagentDescriptor>>;
   onCloseAgent: (id: number) => void;
   onFocusAgent: (id: number) => void;
   alwaysShowOverlay: boolean;
@@ -188,12 +188,12 @@ function ToolHistoryRow({ tool, now }: { tool: ToolActivity; now: number }) {
 
 function SubagentSection({
   now,
-  subagent,
+  descriptor,
   activeTools,
   historyTools,
 }: {
   now: number;
-  subagent: SubagentCharacter;
+  descriptor: SubagentDescriptor;
   activeTools: ToolActivity[];
   historyTools: ToolActivity[];
 }) {
@@ -208,15 +208,18 @@ function SubagentSection({
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
+        opacity: descriptor.isActive ? 1 : 0.88,
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
         <div>
-          <div style={{ color: AGENT_VIS_TEXT, fontSize: 13 }}>{subagent.label}</div>
-          <div style={{ color: 'var(--pixel-text-dim)', fontSize: 11 }}>#{subagent.id}</div>
+          <div style={{ color: AGENT_VIS_TEXT, fontSize: 13 }}>{descriptor.label}</div>
+          <div style={{ color: 'var(--pixel-text-dim)', fontSize: 11 }}>
+            #{descriptor.lastKnownSubagentId ?? '—'}
+          </div>
         </div>
         <span style={{ color: AGENT_VIS_TEXT_MUTED, fontSize: 11, textTransform: 'uppercase' }}>
-          {current?.statusText ?? 'idle'}
+          {descriptor.isActive ? (current?.statusText ?? 'active') : 'completed'}
         </span>
       </div>
       {recent.length === 0 ? (
@@ -238,7 +241,7 @@ export function ToolOverlay({
   agentStatuses,
   subagentTools,
   subagentToolHistory,
-  subagentCharacters,
+  subagentDescriptors,
   onCloseAgent,
   onFocusAgent,
   alwaysShowOverlay,
@@ -285,13 +288,18 @@ export function ToolOverlay({
           ? AGENT_VIS_COLOR_ACTIVE
           : AGENT_VIS_TEXT_DIM;
   const currentDuration = activeTool ? now - activeTool.startTime : undefined;
-  const subagents = subagentCharacters.filter((subagent) => subagent.parentAgentId === targetId);
-
-  const subagentSections = subagents.map((subagent) => ({
-    subagent,
-    activeTools: subagentTools[targetId]?.[subagent.parentToolId] ?? [],
-    historyTools: subagentToolHistory[targetId]?.[subagent.parentToolId] ?? [],
-  }));
+  const subagentSections = Object.values(subagentDescriptors[targetId] ?? {})
+    .sort((a, b) => b.lastSeenAt - a.lastSeenAt)
+    .map((descriptor) => ({
+      descriptor,
+      activeTools: subagentTools[targetId]?.[descriptor.parentToolId] ?? [],
+      historyTools: subagentToolHistory[targetId]?.[descriptor.parentToolId] ?? [],
+    }))
+    .filter(({ descriptor, activeTools, historyTools }) => {
+      if (descriptor.isActive) return true;
+      if (activeTools.length > 0) return true;
+      return historyTools.length > 0;
+    });
 
   return (
     <div
@@ -445,14 +453,16 @@ export function ToolOverlay({
           Sub-agent tree
         </div>
         {subagentSections.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--pixel-text-dim)' }}>No active sub-agents</div>
+          <div style={{ fontSize: 12, color: 'var(--pixel-text-dim)' }}>
+            No sub-agent activity yet
+          </div>
         ) : (
           subagentSections.map(
-            ({ subagent, activeTools: subActiveTools, historyTools: subHistoryTools }) => (
+            ({ descriptor, activeTools: subActiveTools, historyTools: subHistoryTools }) => (
               <SubagentSection
-                key={subagent.id}
+                key={`${descriptor.parentAgentId}-${descriptor.parentToolId}`}
                 now={now}
-                subagent={subagent}
+                descriptor={descriptor}
                 activeTools={subActiveTools}
                 historyTools={subHistoryTools}
               />

@@ -24,7 +24,7 @@ import {
   DEBUG_TIMELINE_TICKS,
   DEBUG_TIMELINE_WINDOW_MS,
 } from '../constants.js';
-import type { AgentStatusInfo, SubagentCharacter } from '../hooks/useExtensionMessages.js';
+import type { AgentStatusInfo, SubagentDescriptor } from '../hooks/useExtensionMessages.js';
 import type { ToolActivity } from '../office/types.js';
 import { vscode } from '../vscodeApi.js';
 
@@ -36,8 +36,9 @@ interface DebugViewProps {
   agentStatuses: Record<number, AgentStatusInfo>;
   subagentTools: Record<number, Record<string, ToolActivity[]>>;
   subagentToolHistory: Record<number, Record<string, ToolActivity[]>>;
-  subagentCharacters: SubagentCharacter[];
+  subagentDescriptors: Record<number, Record<string, SubagentDescriptor>>;
   onSelectAgent: (id: number) => void;
+  onFocusAgent: (id: number) => void;
 }
 
 const DEBUG_Z = 40;
@@ -213,8 +214,9 @@ export function DebugView({
   agentStatuses,
   subagentTools,
   subagentToolHistory,
-  subagentCharacters,
+  subagentDescriptors,
   onSelectAgent,
+  onFocusAgent,
 }: DebugViewProps) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -229,14 +231,13 @@ export function DebugView({
   }, []);
 
   const subagentsByParent = useMemo(() => {
-    const map = new Map<number, SubagentCharacter[]>();
-    for (const subagent of subagentCharacters) {
-      const current = map.get(subagent.parentAgentId) ?? [];
-      current.push(subagent);
-      map.set(subagent.parentAgentId, current);
+    const map = new Map<number, SubagentDescriptor[]>();
+    for (const [agentId, descriptors] of Object.entries(subagentDescriptors)) {
+      const current = Object.values(descriptors).sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+      map.set(Number(agentId), current);
     }
     return map;
-  }, [subagentCharacters]);
+  }, [subagentDescriptors]);
 
   return (
     <div
@@ -309,7 +310,7 @@ export function DebugView({
                 <TimelineRail tools={mergedTools} now={now} waiting={waiting} />
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button
-                    onClick={() => onSelectAgent(id)}
+                    onClick={() => onFocusAgent(id)}
                     style={{
                       border: `2px solid ${AGENT_VIS_BORDER}`,
                       background: AGENT_VIS_ACTION_BG,
@@ -345,23 +346,26 @@ export function DebugView({
                 const waitingSub = subActiveTools.some(
                   (tool) => tool.permissionState === 'pending' && !tool.done,
                 );
+                const subtitle = subagent.isActive
+                  ? (latestSubTool?.statusText ?? 'active')
+                  : (latestSubTool?.statusText ?? 'completed');
+                const visible =
+                  subagent.isActive || subActiveTools.length > 0 || subMerged.length > 0;
+                if (!visible) return null;
 
                 return (
                   <div
-                    key={subagent.id}
+                    key={`${subagent.parentAgentId}-${subagent.parentToolId}`}
                     style={{
                       display: 'grid',
                       gridTemplateColumns: `${DEBUG_LABEL_WIDTH}px 1fr auto`,
                       gap: 10,
                       alignItems: 'center',
                       marginLeft: 18,
+                      opacity: subagent.isActive ? 1 : 0.88,
                     }}
                   >
-                    <RowLabel
-                      title={subagent.label}
-                      subtitle={latestSubTool?.statusText ?? 'idle'}
-                      waiting={waitingSub}
-                    />
+                    <RowLabel title={subagent.label} subtitle={subtitle} waiting={waitingSub} />
                     <div style={{ position: 'relative' }}>
                       <div
                         style={{

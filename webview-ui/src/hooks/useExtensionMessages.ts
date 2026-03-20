@@ -17,6 +17,16 @@ export interface SubagentCharacter {
   parentAgentId: number;
   parentToolId: string;
   label: string;
+  isActive: boolean;
+}
+
+export interface SubagentDescriptor {
+  parentAgentId: number;
+  parentToolId: string;
+  label: string;
+  lastKnownSubagentId: number | null;
+  isActive: boolean;
+  lastSeenAt: number;
 }
 
 export interface FurnitureAsset {
@@ -63,6 +73,7 @@ export interface ExtensionMessageState {
   subagentTools: Record<number, Record<string, ToolActivity[]>>;
   subagentToolHistory: Record<number, Record<string, ToolActivity[]>>;
   subagentCharacters: SubagentCharacter[];
+  subagentDescriptors: Record<number, Record<string, SubagentDescriptor>>;
   layoutReady: boolean;
   layoutWasReset: boolean;
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> };
@@ -153,6 +164,102 @@ function saveAgentSeats(os: OfficeState): void {
   vscode.postMessage({ type: 'saveAgentSeats', seats });
 }
 
+function upsertSubagentCharacter(
+  prev: SubagentCharacter[],
+  nextSubagent: Omit<SubagentCharacter, 'isActive'>,
+): SubagentCharacter[] {
+  const existingIndex = prev.findIndex(
+    (subagent) =>
+      subagent.parentAgentId === nextSubagent.parentAgentId &&
+      subagent.parentToolId === nextSubagent.parentToolId,
+  );
+  if (existingIndex === -1) {
+    return [...prev, { ...nextSubagent, isActive: true }];
+  }
+
+  const existing = prev[existingIndex];
+  const updated = { ...existing, ...nextSubagent, isActive: true };
+  if (
+    existing.id === updated.id &&
+    existing.label === updated.label &&
+    existing.isActive === updated.isActive
+  ) {
+    return prev;
+  }
+
+  return prev.map((subagent, index) => (index === existingIndex ? updated : subagent));
+}
+
+function markSubagentInactive(
+  prev: SubagentCharacter[],
+  parentAgentId: number,
+  parentToolId?: string,
+): SubagentCharacter[] {
+  let changed = false;
+  const next = prev.map((subagent) => {
+    const matchesAgent = subagent.parentAgentId === parentAgentId;
+    const matchesTool = parentToolId === undefined || subagent.parentToolId === parentToolId;
+    if (!matchesAgent || !matchesTool || !subagent.isActive) return subagent;
+    changed = true;
+    return { ...subagent, isActive: false };
+  });
+  return changed ? next : prev;
+}
+
+function upsertSubagentDescriptor(
+  prev: Record<number, Record<string, SubagentDescriptor>>,
+  nextDescriptor: SubagentDescriptor,
+): Record<number, Record<string, SubagentDescriptor>> {
+  const agentDescriptors = prev[nextDescriptor.parentAgentId] || {};
+  const current = agentDescriptors[nextDescriptor.parentToolId];
+  if (
+    current &&
+    current.label === nextDescriptor.label &&
+    current.lastKnownSubagentId === nextDescriptor.lastKnownSubagentId &&
+    current.isActive === nextDescriptor.isActive &&
+    current.lastSeenAt === nextDescriptor.lastSeenAt
+  ) {
+    return prev;
+  }
+
+  return {
+    ...prev,
+    [nextDescriptor.parentAgentId]: {
+      ...agentDescriptors,
+      [nextDescriptor.parentToolId]: nextDescriptor,
+    },
+  };
+}
+
+function markSubagentDescriptorInactive(
+  prev: Record<number, Record<string, SubagentDescriptor>>,
+  parentAgentId: number,
+  parentToolId?: string,
+): Record<number, Record<string, SubagentDescriptor>> {
+  const agentDescriptors = prev[parentAgentId];
+  if (!agentDescriptors) return prev;
+
+  let changed = false;
+  const nextAgentDescriptors = Object.fromEntries(
+    Object.entries(agentDescriptors).map(([toolId, descriptor]) => {
+      if ((parentToolId !== undefined && toolId !== parentToolId) || !descriptor.isActive) {
+        return [toolId, descriptor];
+      }
+      changed = true;
+      return [
+        toolId,
+        {
+          ...descriptor,
+          isActive: false,
+          lastSeenAt: Date.now(),
+        },
+      ];
+    }),
+  );
+
+  return changed ? { ...prev, [parentAgentId]: nextAgentDescriptors } : prev;
+}
+
 export function useExtensionMessages(
   getOfficeState: () => OfficeState,
   onLayoutLoaded?: (layout: OfficeLayout) => void,
@@ -170,6 +277,9 @@ export function useExtensionMessages(
     Record<number, Record<string, ToolActivity[]>>
   >({});
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([]);
+  const [subagentDescriptors, setSubagentDescriptors] = useState<
+    Record<number, Record<string, SubagentDescriptor>>
+  >({});
   const [layoutReady, setLayoutReady] = useState(false);
   const [layoutWasReset, setLayoutWasReset] = useState(false);
   const [loadedAssets, setLoadedAssets] = useState<
@@ -263,7 +373,12 @@ export function useExtensionMessages(
           delete next[id];
           return next;
         });
-        // Remove all sub-agent characters belonging to this agent
+        setSubagentDescriptors((prev) => {
+          if (!(id in prev)) return prev;
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
         os.removeAllSubagents(id);
         setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
         os.removeAgent(id);
@@ -314,10 +429,25 @@ export function useExtensionMessages(
         if (status.startsWith('Subtask:')) {
           const label = status.slice('Subtask:'.length).trim();
           const subId = os.addSubagent(id, toolId);
-          setSubagentCharacters((prev) => {
-            if (prev.some((s) => s.id === subId)) return prev;
-            return [...prev, { id: subId, parentAgentId: id, parentToolId: toolId, label }];
-          });
+          const lastSeenAt = Date.now();
+          setSubagentDescriptors((prev) =>
+            upsertSubagentDescriptor(prev, {
+              parentAgentId: id,
+              parentToolId: toolId,
+              label,
+              lastKnownSubagentId: subId,
+              isActive: true,
+              lastSeenAt,
+            }),
+          );
+          setSubagentCharacters((prev) =>
+            upsertSubagentCharacter(prev, {
+              id: subId,
+              parentAgentId: id,
+              parentToolId: toolId,
+              label,
+            }),
+          );
         }
       } else if (msg.type === 'agentToolDone') {
         const id = msg.id as number;
@@ -380,9 +510,10 @@ export function useExtensionMessages(
           delete next[id];
           return next;
         });
-        // Remove all sub-agent characters belonging to this agent
+        setSubagentDescriptors((prev) => markSubagentDescriptorInactive(prev, id));
+        // Remove live sub-agent characters but retain descriptors for history-driven UI
         os.removeAllSubagents(id);
-        setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
+        setSubagentCharacters((prev) => markSubagentInactive(prev, id));
         os.setAgentTool(id, null);
         os.clearPermissionBubble(id);
       } else if (msg.type === 'agentSelected') {
@@ -514,6 +645,22 @@ export function useExtensionMessages(
             [id]: { ...agentSubs, [parentToolId]: [...list, nextTool] },
           };
         });
+        setSubagentDescriptors((prev) => {
+          const agentDescriptors = prev[id] || {};
+          const descriptor = agentDescriptors[parentToolId];
+          if (!descriptor) return prev;
+          return {
+            ...prev,
+            [id]: {
+              ...agentDescriptors,
+              [parentToolId]: {
+                ...descriptor,
+                isActive: true,
+                lastSeenAt: Date.now(),
+              },
+            },
+          };
+        });
         // Update sub-agent character's tool and active state
         const subId = os.getSubagentId(id, parentToolId);
         if (subId !== null) {
@@ -553,6 +700,21 @@ export function useExtensionMessages(
             },
           };
         });
+        setSubagentDescriptors((prev) => {
+          const agentDescriptors = prev[id] || {};
+          const descriptor = agentDescriptors[parentToolId];
+          if (!descriptor) return prev;
+          return {
+            ...prev,
+            [id]: {
+              ...agentDescriptors,
+              [parentToolId]: {
+                ...descriptor,
+                lastSeenAt: Date.now(),
+              },
+            },
+          };
+        });
         // Append completed sub-agent tool to history
         setSubagentTools((currentSubs) => {
           const tool = (currentSubs[id]?.[parentToolId] || []).find((t) => t.toolId === toolId);
@@ -589,11 +751,10 @@ export function useExtensionMessages(
           }
           return { ...prev, [id]: next };
         });
-        // Remove sub-agent character
+        setSubagentDescriptors((prev) => markSubagentDescriptorInactive(prev, id, parentToolId));
+        // Remove the live sub-agent character but retain descriptor/history for inspector/debug views
         os.removeSubagent(id, parentToolId);
-        setSubagentCharacters((prev) =>
-          prev.filter((s) => !(s.parentAgentId === id && s.parentToolId === parentToolId)),
-        );
+        setSubagentCharacters((prev) => markSubagentInactive(prev, id, parentToolId));
       } else if (msg.type === 'characterSpritesLoaded') {
         const characters = msg.characters as Array<{
           down: string[][][];
@@ -643,6 +804,7 @@ export function useExtensionMessages(
     subagentTools,
     subagentToolHistory,
     subagentCharacters,
+    subagentDescriptors,
     layoutReady,
     layoutWasReset,
     loadedAssets,

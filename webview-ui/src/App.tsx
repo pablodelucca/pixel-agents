@@ -154,6 +154,7 @@ function App() {
     subagentTools,
     subagentToolHistory,
     subagentCharacters,
+    subagentDescriptors,
     layoutReady,
     layoutWasReset,
     loadedAssets,
@@ -173,10 +174,6 @@ function App() {
     () => setAlwaysShowOverlay((prev) => !prev),
     [],
   );
-
-  const handleSelectAgent = useCallback((id: number) => {
-    vscode.postMessage({ type: 'focusAgent', id });
-  }, []);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -207,6 +204,13 @@ function App() {
       new MessageEvent('message', { data: { type: 'agentSelected', id: agentId } }),
     );
   }, []);
+
+  const handleDebugSelectAgent = useCallback(
+    (id: number) => {
+      handleClick(id);
+    },
+    [handleClick],
+  );
 
   const officeState = getOfficeState();
   const effectiveSelectedAgent = officeState.selectedAgentId ?? selectedAgent;
@@ -384,7 +388,7 @@ function App() {
           agentStatuses={agentStatuses}
           subagentTools={subagentTools}
           subagentToolHistory={subagentToolHistory}
-          subagentCharacters={subagentCharacters}
+          subagentDescriptors={subagentDescriptors}
           onCloseAgent={handleCloseAgent}
           onFocusAgent={handleFocusAgent}
           alwaysShowOverlay={alwaysShowOverlay}
@@ -400,8 +404,9 @@ function App() {
           agentStatuses={agentStatuses}
           subagentTools={subagentTools}
           subagentToolHistory={subagentToolHistory}
-          subagentCharacters={subagentCharacters}
-          onSelectAgent={handleSelectAgent}
+          subagentDescriptors={subagentDescriptors}
+          onSelectAgent={handleDebugSelectAgent}
+          onFocusAgent={handleFocusAgent}
         />
       )}
 
