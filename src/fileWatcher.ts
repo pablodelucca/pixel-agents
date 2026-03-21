@@ -89,6 +89,19 @@ export function readNewLines(
         }
         webview?.postMessage({ type: 'agentToolPermissionClear', id: agentId });
       }
+      if (agent.isWaiting) {
+        agent.isWaiting = false;
+        agent.lastActivityAt = Date.now();
+        agent.currentStatus = 'active';
+        webview?.postMessage({
+          type: 'agentStatus',
+          id: agentId,
+          status: 'active',
+          source: 'heuristic',
+          inferred: true,
+          confidence: 'low',
+        });
+      }
     }
 
     const adapter = getAgentAdapterByName(agent.adapterName);
@@ -306,6 +319,8 @@ function adoptTerminalForFile(
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
     activeSubagentToolActivities: new Map(),
+    lastActivityAt: Date.now(),
+    currentStatus: 'active',
     isWaiting: false,
     permissionSent: false,
     hadToolsInTurn: false,

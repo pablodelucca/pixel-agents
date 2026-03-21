@@ -19,6 +19,7 @@ export function clearAgentActivity(
   agent.activeSubagentToolActivities.clear();
   agent.isWaiting = false;
   agent.permissionSent = false;
+  agent.currentStatus = 'active';
   cancelPermissionTimer(agentId, permissionTimers);
   webview?.postMessage({ type: 'agentToolsClear', id: agentId });
   webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
@@ -43,20 +44,23 @@ export function startWaitingTimer(
   webview: vscode.Webview | undefined,
 ): void {
   cancelWaitingTimer(agentId, waitingTimers);
+  const scheduledAt = Date.now();
   const timer = setTimeout(() => {
     waitingTimers.delete(agentId);
     const agent = agents.get(agentId);
-    if (agent) {
+    if (agent && agent.lastActivityAt <= scheduledAt) {
       agent.isWaiting = true;
+      agent.lastActivityAt = Date.now();
+      agent.currentStatus = 'waiting';
+      webview?.postMessage({
+        type: 'agentStatus',
+        id: agentId,
+        status: 'waiting',
+        source: 'heuristic',
+        inferred: true,
+        confidence: 'low',
+      });
     }
-    webview?.postMessage({
-      type: 'agentStatus',
-      id: agentId,
-      status: 'waiting',
-      source: 'heuristic',
-      inferred: true,
-      confidence: 'low',
-    });
   }, delayMs);
   waitingTimers.set(agentId, timer);
 }
