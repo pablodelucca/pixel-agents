@@ -57,7 +57,7 @@ function SummaryLine({
         display: 'flex',
         justifyContent: 'space-between',
         gap: 8,
-        fontSize: 14,
+        fontSize: 16,
         color: accent === 'high' ? AGENT_VIS_TEXT : 'var(--pixel-text-dim)',
       }}
     >
@@ -120,7 +120,7 @@ function ToolHistoryRow({ tool, now }: { tool: ToolActivity; now: number }) {
         <span
           style={{
             color: AGENT_VIS_TEXT,
-            fontSize: 13,
+            fontSize: 15,
             fontWeight: 700,
             overflow: 'hidden',
             whiteSpace: 'nowrap',
@@ -129,7 +129,7 @@ function ToolHistoryRow({ tool, now }: { tool: ToolActivity; now: number }) {
         >
           {tool.statusText}
         </span>
-        <span style={{ color: 'var(--pixel-text-dim)', fontSize: 12 }}>
+        <span style={{ color: 'var(--pixel-text-dim)', fontSize: 14 }}>
           {formatToolDuration(duration)}
         </span>
       </div>
@@ -137,7 +137,7 @@ function ToolHistoryRow({ tool, now }: { tool: ToolActivity; now: number }) {
         <div
           style={{
             color: 'var(--pixel-text-dim)',
-            fontSize: 12,
+            fontSize: 13,
             overflow: 'hidden',
             whiteSpace: 'nowrap',
             textOverflow: 'ellipsis',
@@ -154,8 +154,8 @@ function ToolHistoryRow({ tool, now }: { tool: ToolActivity; now: number }) {
               background: badge === 'approval' ? AGENT_VIS_BG_WARNING : AGENT_VIS_BORDER,
               color: badge === 'approval' ? AGENT_VIS_TEXT_WARNING : 'var(--pixel-text-dim)',
               border: `1px solid ${badge === 'approval' ? AGENT_VIS_COLOR_PENDING : AGENT_VIS_BORDER}`,
-              padding: '1px 4px',
-              fontSize: 11,
+              padding: '2px 6px',
+              fontSize: 12,
               textTransform: 'uppercase',
             }}
           >
@@ -213,17 +213,17 @@ function SubagentSection({
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
         <div>
-          <div style={{ color: AGENT_VIS_TEXT, fontSize: 13 }}>{descriptor.label}</div>
-          <div style={{ color: 'var(--pixel-text-dim)', fontSize: 11 }}>
+          <div style={{ color: AGENT_VIS_TEXT, fontSize: 15 }}>{descriptor.label}</div>
+          <div style={{ color: 'var(--pixel-text-dim)', fontSize: 13 }}>
             #{descriptor.lastKnownSubagentId ?? '—'}
           </div>
         </div>
-        <span style={{ color: AGENT_VIS_TEXT_MUTED, fontSize: 11, textTransform: 'uppercase' }}>
+        <span style={{ color: AGENT_VIS_TEXT_MUTED, fontSize: 13, textTransform: 'uppercase' }}>
           {descriptor.isActive ? (current?.statusText ?? 'active') : 'completed'}
         </span>
       </div>
       {recent.length === 0 ? (
-        <span style={{ color: 'var(--pixel-text-dim)', fontSize: 12 }}>
+        <span style={{ color: 'var(--pixel-text-dim)', fontSize: 14 }}>
           No sub-agent activity yet
         </span>
       ) : (
@@ -308,12 +308,12 @@ export function ToolOverlay({
         position: 'absolute',
         top: 12,
         right: 12,
-        width: 'min(360px, calc(100% - 24px))',
+        width: 'min(440px, calc(100% - 24px))',
         maxHeight: 'calc(100% - 24px)',
         overflow: 'auto',
         background: AGENT_VIS_PANEL_BG,
         border: '2px solid var(--pixel-border)',
-        padding: 14,
+        padding: 18,
         boxShadow: 'var(--pixel-shadow)',
         zIndex: 85,
         pointerEvents: 'auto',
@@ -326,10 +326,10 @@ export function ToolOverlay({
         style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'start' }}
       >
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: AGENT_VIS_TEXT }}>
+          <div style={{ fontSize: 26, fontWeight: 700, color: AGENT_VIS_TEXT }}>
             Agent #{targetId}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--pixel-text-dim)' }}>
+          <div style={{ fontSize: 14, color: 'var(--pixel-text-dim)' }}>
             {character.folderName ?? 'workspace root'}
           </div>
         </div>
@@ -343,7 +343,7 @@ export function ToolOverlay({
               marginTop: 3,
             }}
           />
-          <span style={{ color: 'var(--pixel-text-dim)', fontSize: 12 }}>
+          <span style={{ color: 'var(--pixel-text-dim)', fontSize: 14 }}>
             {getStatusText(statusInfo)}
           </span>
         </div>
@@ -376,7 +376,7 @@ export function ToolOverlay({
           style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}
         >
           <span
-            style={{ color: 'var(--pixel-text-dim)', fontSize: 12, textTransform: 'uppercase' }}
+            style={{ color: 'var(--pixel-text-dim)', fontSize: 14, textTransform: 'uppercase' }}
           >
             Confidence
           </span>
@@ -389,7 +389,7 @@ export function ToolOverlay({
                 background: confidenceColor,
               }}
             />
-            <span style={{ color: AGENT_VIS_TEXT, fontSize: 13 }}>
+            <span style={{ color: AGENT_VIS_TEXT, fontSize: 15 }}>
               {activeTool?.confidence ?? 'unknown'}
               {activeTool?.inferred ? ' · estimated' : ''}
             </span>
@@ -398,8 +398,8 @@ export function ToolOverlay({
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
           <span
             style={{
-              fontSize: 11,
-              padding: '1px 4px',
+              fontSize: 12,
+              padding: '2px 6px',
               border: `1px solid ${AGENT_VIS_BORDER}`,
               color: 'var(--pixel-text-dim)',
               textTransform: 'uppercase',
@@ -410,8 +410,8 @@ export function ToolOverlay({
           {statusInfo?.inferred && (
             <span
               style={{
-                fontSize: 11,
-                padding: '1px 4px',
+                fontSize: 12,
+                padding: '2px 6px',
                 border: `1px solid ${AGENT_VIS_COLOR_PENDING}`,
                 color: AGENT_VIS_TEXT_WARNING,
                 textTransform: 'uppercase',
@@ -426,7 +426,7 @@ export function ToolOverlay({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div
           style={{
-            fontSize: 13,
+            fontSize: 15,
             fontWeight: 700,
             color: AGENT_VIS_TEXT,
             textTransform: 'uppercase',
@@ -435,7 +435,7 @@ export function ToolOverlay({
           Recent actions
         </div>
         {history.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--pixel-text-dim)' }}>No activity yet</div>
+          <div style={{ fontSize: 14, color: 'var(--pixel-text-dim)' }}>No activity yet</div>
         ) : (
           history.map((tool) => <ToolHistoryRow key={tool.toolId} tool={tool} now={now} />)
         )}
@@ -444,7 +444,7 @@ export function ToolOverlay({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div
           style={{
-            fontSize: 13,
+            fontSize: 15,
             fontWeight: 700,
             color: AGENT_VIS_TEXT,
             textTransform: 'uppercase',
@@ -453,7 +453,7 @@ export function ToolOverlay({
           Sub-agent tree
         </div>
         {subagentSections.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--pixel-text-dim)' }}>
+          <div style={{ fontSize: 14, color: 'var(--pixel-text-dim)' }}>
             No sub-agent activity yet
           </div>
         ) : (
@@ -476,8 +476,8 @@ export function ToolOverlay({
           onClick={() => onFocusAgent(targetId)}
           style={{
             flex: 1,
-            fontSize: 14,
-            padding: '7px 0',
+            fontSize: 16,
+            padding: '9px 0',
             border: '2px solid var(--pixel-accent)',
             background: 'var(--pixel-accent)',
             color: AGENT_VIS_TEXT,
@@ -490,9 +490,9 @@ export function ToolOverlay({
         <button
           onClick={() => onCloseAgent(targetId)}
           style={{
-            width: 92,
-            fontSize: 14,
-            padding: '7px 0',
+            width: 100,
+            fontSize: 16,
+            padding: '9px 0',
             border: `2px solid ${AGENT_VIS_BORDER_STRONG}`,
             background: 'transparent',
             color: 'var(--pixel-text)',

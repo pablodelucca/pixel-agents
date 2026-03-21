@@ -61,8 +61,9 @@ export function codexSessionBelongsToWorkspace(
 ): boolean | null {
   if (!workspaceFolders || workspaceFolders.length === 0) return false;
   const record = readFirstJsonlRecord(file);
+  const isKnownType = record?.type === 'session_meta' || record?.type === 'turn_context';
   const payload =
-    record?.type === 'session_meta' && typeof record.payload === 'object' && record.payload
+    isKnownType && typeof record.payload === 'object' && record.payload
       ? (record.payload as Record<string, unknown>)
       : null;
   const cwd = typeof payload?.cwd === 'string' ? payload.cwd : undefined;
