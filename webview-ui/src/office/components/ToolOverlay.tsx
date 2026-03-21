@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import {
+  formatAgentStatusLabel,
   formatToolDuration,
   getToolActivityColor,
   mergeToolActivityLists,
@@ -89,12 +90,6 @@ function getPermissionText(tool?: ToolActivity): string {
     return 'Auto (estimated)';
   }
   return 'Auto';
-}
-
-function getStatusText(statusInfo?: AgentStatusInfo): string {
-  if (!statusInfo) return 'ACTIVE';
-  const suffix = statusInfo.inferred ? ' (estimated)' : '';
-  return `${statusInfo.status.toUpperCase()}${suffix}`;
 }
 
 function ToolHistoryRow({ tool, now }: { tool: ToolActivity; now: number }) {
@@ -272,6 +267,7 @@ export function ToolOverlay({
   const activeTool = [...mergedTools].reverse().find((tool) => !tool.done);
   const history = mergedTools.slice(-5).reverse();
   const statusInfo = agentStatuses[targetId];
+  const currentStatusLabel = formatAgentStatusLabel(statusInfo);
 
   const confidenceColor =
     activeTool?.confidence === 'high'
@@ -279,12 +275,17 @@ export function ToolOverlay({
       : activeTool?.confidence === 'low'
         ? AGENT_VIS_COLOR_LOW_CONFIDENCE
         : AGENT_VIS_TEXT_MUTED;
+  const isWorking =
+    Boolean(activeTool) ||
+    statusInfo?.status === 'active' ||
+    statusInfo?.status === 'thinking' ||
+    statusInfo?.status === 'responding';
   const statusColor =
     statusInfo?.status === 'waiting'
       ? AGENT_VIS_COLOR_PENDING
       : activeTool?.permissionState === 'pending'
         ? AGENT_VIS_COLOR_PENDING
-        : activeTool
+        : isWorking
           ? AGENT_VIS_COLOR_ACTIVE
           : AGENT_VIS_TEXT_DIM;
   const currentDuration = activeTool ? now - activeTool.startTime : undefined;
@@ -333,7 +334,7 @@ export function ToolOverlay({
             {character.folderName ?? 'workspace root'}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span
             style={{
               width: 10,
@@ -343,10 +344,10 @@ export function ToolOverlay({
               marginTop: 3,
             }}
           />
-          <span style={{ color: 'var(--pixel-text-dim)', fontSize: 14 }}>
-            {getStatusText(statusInfo)}
-          </span>
-        </div>
+        <span style={{ color: 'var(--pixel-text-dim)', fontSize: 14 }}>
+            {currentStatusLabel}
+        </span>
+      </div>
       </div>
 
       <div
@@ -359,7 +360,11 @@ export function ToolOverlay({
           gap: 6,
         }}
       >
-        <SummaryLine label="Current" value={activeTool?.statusText ?? 'Idle'} accent="high" />
+        <SummaryLine
+          label="Current"
+          value={activeTool?.statusText ?? currentStatusLabel}
+          accent="high"
+        />
         {activeTool?.target && <SummaryLine label="Target" value={activeTool.target} />}
         {activeTool?.command && <SummaryLine label="Command" value={activeTool.command} />}
         <SummaryLine

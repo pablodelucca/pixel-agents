@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
+import { formatAgentStatusLabel } from '../agentVisibilityUtils.js';
 import {
   AGENT_VIS_BG_WARNING,
   AGENT_VIS_BORDER,
@@ -100,7 +101,7 @@ export function AgentLabels({
           : status?.status === 'waiting';
         const summary = isSub
           ? (subagentStateForId?.summary ?? null)
-          : getActiveToolSummary(agentTools[id] ?? []);
+          : (getActiveToolSummary(agentTools[id] ?? []) ?? (status ? formatAgentStatusLabel(status) : null));
         const confidenceHint = isSub
           ? (subagentStateForId?.inferred ?? false)
           : status?.source === 'heuristic' || status?.inferred;

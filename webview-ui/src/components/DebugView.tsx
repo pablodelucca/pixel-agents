@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
 import {
+  formatAgentStatusLabel,
   formatToolDuration,
   getToolActivityColor,
   mergeToolActivityLists,
@@ -278,6 +279,7 @@ export function DebugView({
           );
           const statusInfo = agentStatuses[id];
           const waiting = statusInfo?.status === 'waiting';
+          const statusLabel = formatAgentStatusLabel(statusInfo);
           const latestTool = mergedTools[mergedTools.length - 1];
           const subagents = subagentsByParent.get(id) ?? [];
 
@@ -308,7 +310,7 @@ export function DebugView({
                   subtitle={
                     waiting
                       ? `waiting${statusInfo?.inferred ? ' · estimated' : ''}`
-                      : (latestTool?.statusText ?? 'idle')
+                      : (latestTool?.statusText ?? (statusInfo ? statusLabel : 'idle'))
                   }
                   waiting={waiting}
                   selected={selectedAgent === id}
