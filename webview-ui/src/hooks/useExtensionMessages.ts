@@ -57,8 +57,10 @@ export interface WorkspaceFolder {
   path: string;
 }
 
+export type AgentStatusState = 'active' | 'thinking' | 'responding' | 'waiting';
+
 export interface AgentStatusInfo {
-  status: string;
+  status: AgentStatusState;
   source: 'transcript' | 'heuristic';
   inferred: boolean;
   confidence: 'high' | 'medium' | 'low' | 'unknown';
@@ -534,17 +536,17 @@ export function useExtensionMessages(
         }
       } else if (msg.type === 'agentStatus') {
         const id = msg.id as number;
-        const status = msg.status as string;
+        const status = (msg.status as AgentStatusState | string) as AgentStatusState;
         const statusSource = (msg.source as 'transcript' | 'heuristic' | undefined) ?? 'transcript';
         const statusInferred = (msg.inferred as boolean | undefined) ?? false;
         const statusConfidence =
           (msg.confidence as 'high' | 'medium' | 'low' | 'unknown' | undefined) ?? 'high';
         setAgentStatuses((prev) => {
-          if (status === 'active') {
-            if (!(id in prev)) return prev;
-            const next = { ...prev };
-            delete next[id];
-            return next;
+          if (prev[id]?.status === status &&
+              prev[id]?.source === statusSource &&
+              prev[id]?.inferred === statusInferred &&
+              prev[id]?.confidence === statusConfidence) {
+            return prev;
           }
           return {
             ...prev,

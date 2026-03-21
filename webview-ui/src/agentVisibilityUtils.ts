@@ -6,6 +6,11 @@ import {
 } from './constants.js';
 import type { ToolActivity } from './office/types.js';
 
+export interface AgentStatusLike {
+  status: string;
+  inferred?: boolean;
+}
+
 export function formatToolDuration(ms?: number): string {
   if (ms === undefined) return '';
   if (ms < 1000) return `${Math.round(ms)} ms`;
@@ -25,4 +30,21 @@ export function getToolActivityColor(tool: ToolActivity): string {
   if (tool.permissionState === 'pending') return AGENT_VIS_COLOR_PENDING;
   if (tool.source === 'heuristic') return AGENT_VIS_COLOR_HEURISTIC;
   return tool.done ? AGENT_VIS_COLOR_DONE : AGENT_VIS_COLOR_ACTIVE;
+}
+
+export function formatAgentStatusLabel(statusInfo?: AgentStatusLike): string {
+  if (!statusInfo) return 'Idle';
+  const suffix = statusInfo.inferred ? ' (estimated)' : '';
+  switch (statusInfo.status) {
+    case 'waiting':
+      return `Waiting${suffix}`;
+    case 'thinking':
+      return `Thinking${suffix}`;
+    case 'responding':
+      return `Responding${suffix}`;
+    case 'active':
+      return `Active${suffix}`;
+    default:
+      return `${statusInfo.status.toUpperCase()}${suffix}`;
+  }
 }
