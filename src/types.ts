@@ -35,6 +35,8 @@ export interface AgentState {
   activeSubagentToolIds: Map<string, Set<string>>; // parentToolId → active sub-tool IDs
   activeSubagentToolNames: Map<string, Map<string, string>>; // parentToolId → (subToolId → toolName)
   activeSubagentToolActivities: Map<string, Map<string, ToolActivityPayload>>;
+  lastActivityAt: number;
+  currentStatus?: 'active' | 'thinking' | 'responding' | 'waiting';
   isWaiting: boolean;
   permissionSent: boolean;
   hadToolsInTurn: boolean;

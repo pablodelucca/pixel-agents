@@ -165,6 +165,26 @@ function finalizeToolActivity(activity?: ToolActivityPayload): ToolActivityPaylo
   return { ...activity, durationMs: Date.now() - activity.startTime };
 }
 
+function postAgentStatus(
+  agent: AgentState,
+  webview: vscode.Webview | undefined,
+  agentId: number,
+  status: 'active' | 'thinking' | 'responding' | 'waiting',
+  source: 'transcript' | 'heuristic' = 'transcript',
+  inferred = false,
+  confidence: 'high' | 'medium' | 'low' | 'unknown' = 'high',
+): void {
+  webview?.postMessage({
+    type: 'agentStatus',
+    id: agentId,
+    status,
+    source,
+    inferred,
+    confidence,
+  });
+  agent.currentStatus = status;
+}
+
 export function processCodexTranscriptLine(
   agentId: number,
   line: string,
@@ -195,8 +215,9 @@ export function processCodexTranscriptLine(
       const status = statusInfo.text;
       cancelWaitingTimer(agentId, waitingTimers);
       agent.isWaiting = false;
+      agent.lastActivityAt = Date.now();
       agent.hadToolsInTurn = true;
-      webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+      postAgentStatus(agent, webview, agentId, 'active');
 
       console.log(`[Pixel Agents] Agent ${agentId} tool start: ${toolId} ${status}`);
       agent.activeToolIds.add(toolId);
@@ -214,6 +235,38 @@ export function processCodexTranscriptLine(
         status,
         activity: agent.activeToolActivities.get(toolId),
       });
+      return;
+    }
+
+    if (record.type === 'response_item' && record.payload?.type === 'reasoning') {
+      cancelWaitingTimer(agentId, waitingTimers);
+      agent.isWaiting = false;
+      agent.lastActivityAt = Date.now();
+      postAgentStatus(agent, webview, agentId, 'thinking');
+      return;
+    }
+
+    if (record.type === 'response_item' && record.payload?.type === 'message') {
+      cancelWaitingTimer(agentId, waitingTimers);
+      agent.isWaiting = false;
+      agent.lastActivityAt = Date.now();
+      postAgentStatus(agent, webview, agentId, 'responding');
+      return;
+    }
+
+    if (record.type === 'response_item' && record.payload?.type === 'custom_tool_call') {
+      cancelWaitingTimer(agentId, waitingTimers);
+      agent.isWaiting = false;
+      agent.lastActivityAt = Date.now();
+      postAgentStatus(agent, webview, agentId, 'active');
+      return;
+    }
+
+    if (record.type === 'response_item' && record.payload?.type === 'custom_tool_call_output') {
+      cancelWaitingTimer(agentId, waitingTimers);
+      agent.isWaiting = false;
+      agent.lastActivityAt = Date.now();
+      postAgentStatus(agent, webview, agentId, 'responding');
       return;
     }
 
@@ -250,9 +303,41 @@ export function processCodexTranscriptLine(
       return;
     }
 
+    if (record.type === 'event_msg' && record.payload?.type === 'task_started') {
+      cancelWaitingTimer(agentId, waitingTimers);
+      agent.isWaiting = false;
+      agent.lastActivityAt = Date.now();
+      postAgentStatus(agent, webview, agentId, 'thinking');
+      return;
+    }
+
+    if (record.type === 'event_msg' && record.payload?.type === 'task_complete') {
+      cancelWaitingTimer(agentId, waitingTimers);
+      cancelPermissionTimer(agentId, permissionTimers);
+
+      if (agent.activeToolIds.size > 0) {
+        agent.activeToolIds.clear();
+        agent.activeToolStatuses.clear();
+        agent.activeToolNames.clear();
+        agent.activeToolActivities.clear();
+        agent.activeSubagentToolIds.clear();
+        agent.activeSubagentToolNames.clear();
+        agent.activeSubagentToolActivities.clear();
+        webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+      }
+
+      agent.isWaiting = true;
+      agent.lastActivityAt = Date.now();
+      agent.permissionSent = false;
+      agent.hadToolsInTurn = false;
+      postAgentStatus(agent, webview, agentId, 'waiting');
+      return;
+    }
+
     if (record.type === 'event_msg' && record.payload?.type === 'agent_message') {
       cancelWaitingTimer(agentId, waitingTimers);
       cancelPermissionTimer(agentId, permissionTimers);
+      agent.lastActivityAt = Date.now();
       startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
     }
   } catch {
@@ -285,8 +370,9 @@ export function processClaudeTranscriptLine(
       if (hasToolUse) {
         cancelWaitingTimer(agentId, waitingTimers);
         agent.isWaiting = false;
+        agent.lastActivityAt = Date.now();
         agent.hadToolsInTurn = true;
-        webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+        postAgentStatus(agent, webview, agentId, 'active');
         let hasNonExemptTool = false;
         for (const block of blocks) {
           if (block.type === 'tool_use' && block.id) {
@@ -317,6 +403,7 @@ export function processClaudeTranscriptLine(
           startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
         }
       } else if (blocks.some((b) => b.type === 'text') && !agent.hadToolsInTurn) {
+        agent.lastActivityAt = Date.now();
         startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
       }
     } else if (record.type === 'progress') {
@@ -329,6 +416,7 @@ export function processClaudeTranscriptLine(
         if (hasToolResult) {
           for (const block of blocks) {
             if (block.type === 'tool_result' && block.tool_use_id) {
+              agent.lastActivityAt = Date.now();
               console.log(`[Pixel Agents] Agent ${agentId} tool done: ${block.tool_use_id}`);
               const completedToolId = block.tool_use_id;
               const completedToolName = agent.activeToolNames.get(completedToolId);
@@ -371,6 +459,7 @@ export function processClaudeTranscriptLine(
         }
       } else if (typeof content === 'string' && content.trim()) {
         cancelWaitingTimer(agentId, waitingTimers);
+        agent.lastActivityAt = Date.now();
         clearAgentActivity(agent, agentId, permissionTimers, webview);
         agent.hadToolsInTurn = false;
       }
@@ -392,11 +481,7 @@ export function processClaudeTranscriptLine(
       agent.isWaiting = true;
       agent.permissionSent = false;
       agent.hadToolsInTurn = false;
-      webview?.postMessage({
-        type: 'agentStatus',
-        id: agentId,
-        status: 'waiting',
-      });
+      postAgentStatus(agent, webview, agentId, 'waiting');
     }
   } catch {
     // Ignore malformed lines
@@ -446,6 +531,7 @@ function processProgressRecord(
         const toolName = block.name || '';
         const statusInfo = formatToolStatus(toolName, block.input || {});
         const status = statusInfo.text;
+        agent.lastActivityAt = Date.now();
         console.log(
           `[Pixel Agents] Agent ${agentId} subagent tool start: ${block.id} ${status} (parent: ${parentToolId})`,
         );
@@ -492,6 +578,7 @@ function processProgressRecord(
   } else if (msgType === 'user') {
     for (const block of content) {
       if (block.type === 'tool_result' && block.tool_use_id) {
+        agent.lastActivityAt = Date.now();
         console.log(
           `[Pixel Agents] Agent ${agentId} subagent tool done: ${block.tool_use_id} (parent: ${parentToolId})`,
         );

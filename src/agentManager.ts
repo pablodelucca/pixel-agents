@@ -86,6 +86,8 @@ export async function launchNewTerminal(
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
     activeSubagentToolActivities: new Map(),
+    lastActivityAt: Date.now(),
+    currentStatus: 'active',
     isWaiting: false,
     permissionSent: false,
     hadToolsInTurn: false,
@@ -245,6 +247,8 @@ export function restoreAgents(
       activeSubagentToolIds: new Map(),
       activeSubagentToolNames: new Map(),
       activeSubagentToolActivities: new Map(),
+      lastActivityAt: Date.now(),
+      currentStatus: 'active',
       isWaiting: false,
       permissionSent: false,
       hadToolsInTurn: false,
@@ -387,6 +391,16 @@ export function sendCurrentAgentStatuses(
         toolId,
         status,
         activity: agent.activeToolActivities.get(toolId),
+      });
+    }
+    if (agent.currentStatus) {
+      webview.postMessage({
+        type: 'agentStatus',
+        id: agentId,
+        status: agent.currentStatus,
+        source: 'transcript',
+        inferred: false,
+        confidence: 'high',
       });
     }
     if (agent.isWaiting) {
