@@ -2,12 +2,16 @@
   "name": "pixel-agents",
   "displayName": "Pixel Agents",
   "description": "Pixel art office where your AI coding agents come to life as animated characters",
-  "version": "1.1.1",
+  "version": "0.1.0",
   "publisher": "pablodelucca",
   "repository": {
     "type": "git",
-    "url": "https://github.com/pablodelucca/pixel-agents"
+    "url": "https://github.com/DavidUmKongs/oh-my-pixel-agents.git"
   },
+  "bugs": {
+    "url": "https://github.com/DavidUmKongs/oh-my-pixel-agents/issues"
+  },
+  "homepage": "https://github.com/DavidUmKongs/oh-my-pixel-agents#readme",
   "icon": "icon.png",
   "license": "MIT",
   "engines": {

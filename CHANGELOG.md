@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.0
+
+Initial `oh-my-pixel-agents` fork release, cut from the current `codex` branch baseline and focused on making Pixel Agents feel first-class with Codex CLI as well as Claude Code.
+
+### Features
+
+- **Codex runtime support end-to-end** — adds a dedicated Codex adapter, Codex-aware session launch flow, JSONL transcript parsing, recursive transcript discovery, and workspace-safe matching so Codex sessions are tracked reliably.
+- **Inspector and timeline upgrades** — introduces a pinned agent inspector plus richer timeline/debug rails so tool activity, sub-agent branches, waiting states, and confidence signals are easier to follow in the office view.
+- **Configurable backend selection** — adds the `pixel-agents.agentType` setting so you can explicitly switch between Codex and Claude backends.
+
+### Fixes
+
+- **Codex session stability improvements** — restores tool metadata after permission clears, preserves agent context across turn clears, and normalizes selection/state handling so inspection remains meaningful during long sessions.
+- **Launch and watcher hardening** — improves Codex CLI launch behavior plus JSONL file watching/cwd checks to reduce missed sessions and cross-workspace interference.
+- **Inspector readability polish** — tightens overlay styling, visibility colors, and waiting indicators for a clearer, more consistent UI.
+
+### Docs & Maintenance
+
+- **Bilingual onboarding refresh** — updates the English and Korean READMEs with Codex-ready setup guidance and practical verification steps.
+- **Runtime/tooling alignment** — pins the repository Node version to the runtime the current toolchain expects and updates repo metadata for this fork's GitHub release flow.
+
 ## v1.1.1
 
 ### Fixes
