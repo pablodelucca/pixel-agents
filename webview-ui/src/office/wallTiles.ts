@@ -17,7 +17,7 @@ import type {
   SpriteData,
   TileType as TileTypeVal,
 } from './types.js';
-import { isWallTile, TILE_SIZE,TileType } from './types.js';
+import { isWallTile, TILE_SIZE, TileType } from './types.js';
 
 /** Wall tile sets: each set has 16 sprites indexed by bitmask (0-15) */
 let solidWallSets: SpriteData[][] = [];
@@ -125,14 +125,16 @@ export function getColorizedWallSprite(
   color: FloorColor,
   setIndex = 0,
 ): { sprite: SpriteData; offsetY: number } | null {
-  const sprites = getWallSpritesForTile(tileMap[row]?.[col], setIndex);
-  if (!sprites) return null;
+  const tile = tileMap[row]?.[col];
+  const material = getWallMaterial(tile);
+  const sprites = getWallSpritesForTile(tile, setIndex);
+  if (!material || !sprites) return null;
 
   const mask = buildWallMask(col, row, tileMap);
   const sprite = sprites[mask];
   if (!sprite) return null;
 
-  const cacheKey = `wall-${setIndex}-${mask}-${color.h}-${color.s}-${color.b}-${color.c}`;
+  const cacheKey = `wall-${material}-${setIndex}-${mask}-${color.h}-${color.s}-${color.b}-${color.c}`;
   const colorized = getColorizedSprite(cacheKey, sprite, { ...color, colorize: true });
 
   return { sprite: colorized, offsetY: TILE_SIZE - sprite.length };
