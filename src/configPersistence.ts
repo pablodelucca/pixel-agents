@@ -2,9 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { LAYOUT_FILE_DIR } from './constants.js';
-
-const CONFIG_FILE_NAME = 'config.json';
+import { CONFIG_FILE_NAME, LAYOUT_FILE_DIR } from './constants.js';
 
 export interface PixelAgentsConfig {
   externalAssetDirectories: string[];
@@ -26,7 +24,7 @@ export function readConfig(): PixelAgentsConfig {
     const parsed = JSON.parse(raw) as Partial<PixelAgentsConfig>;
     return {
       externalAssetDirectories: Array.isArray(parsed.externalAssetDirectories)
-        ? parsed.externalAssetDirectories
+        ? parsed.externalAssetDirectories.filter((d): d is string => typeof d === 'string')
         : [],
     };
   } catch (err) {

@@ -36,8 +36,10 @@ export interface LoadedAssets {
 }
 
 export function mergeLoadedAssets(a: LoadedAssets, b: LoadedAssets): LoadedAssets {
+  const bIds = new Set(b.catalog.map((item) => item.id));
+  const dedupedA = a.catalog.filter((item) => !bIds.has(item.id));
   return {
-    catalog: [...a.catalog, ...b.catalog],
+    catalog: [...dedupedA, ...b.catalog],
     sprites: new Map([...a.sprites, ...b.sprites]),
   };
 }
@@ -132,6 +134,17 @@ export async function loadFurnitureAssets(workspaceRoot: string): Promise<Loaded
         for (const asset of assets) {
           try {
             const assetPath = path.join(itemDir, asset.file);
+            const resolvedAsset = path.resolve(assetPath);
+            const resolvedDir = path.resolve(itemDir);
+            if (
+              !resolvedAsset.startsWith(resolvedDir + path.sep) &&
+              resolvedAsset !== resolvedDir
+            ) {
+              console.warn(
+                `  [AssetLoader] Skipping asset with path outside directory: ${asset.file}`,
+              );
+              continue;
+            }
             if (!fs.existsSync(assetPath)) {
               console.warn(`  ⚠️  Asset file not found: ${asset.file} in ${dir.name}`);
               continue;

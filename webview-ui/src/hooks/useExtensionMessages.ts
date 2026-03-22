@@ -390,7 +390,9 @@ export function useExtensionMessages(
           setExternalAssetDirectories(msg.externalAssetDirectories as string[]);
         }
       } else if (msg.type === 'externalAssetDirectoriesUpdated') {
-        setExternalAssetDirectories(msg.dirs as string[]);
+        if (Array.isArray(msg.dirs)) {
+          setExternalAssetDirectories(msg.dirs as string[]);
+        }
       } else if (msg.type === 'furnitureAssetsLoaded') {
         try {
           const catalog = msg.catalog as FurnitureAsset[];

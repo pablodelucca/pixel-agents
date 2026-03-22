@@ -149,6 +149,7 @@ export function SettingsModal({
         <button
           onClick={() => {
             vscode.postMessage({ type: 'addExternalAssetDirectory' });
+            onClose();
           }}
           onMouseEnter={() => setHovered('addAssets')}
           onMouseLeave={() => setHovered(null)}
@@ -181,7 +182,7 @@ export function SettingsModal({
               }}
               title={dir}
             >
-              {dir.split('/').pop() ?? dir}
+              {dir.split(/[/\\]/).pop() ?? dir}
             </span>
             <button
               onClick={() =>

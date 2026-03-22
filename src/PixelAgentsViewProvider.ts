@@ -12,6 +12,7 @@ import {
   sendExistingAgents,
   sendLayout,
 } from './agentManager.js';
+import type { LoadedAssets } from './assetLoader.js';
 import {
   loadCharacterSprites,
   loadDefaultLayout,
@@ -57,7 +58,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   defaultLayout: Record<string, unknown> | null = null;
 
   // Root path of bundled assets (set once on first load)
-  assetsRoot: string | null = null;
+  private assetsRoot: string | null = null;
 
   // Cross-window layout sync
   layoutWatcher: LayoutWatcher | null = null;
@@ -229,15 +230,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
                 sendWallTilesToWebview(this.webview, wallTiles);
               }
 
-              let assets = await loadFurnitureAssets(assetsRoot);
-              const extConfig = readConfig();
-              for (const extraDir of extConfig.externalAssetDirectories) {
-                console.log('[Extension] Loading external assets from:', extraDir);
-                const extra = await loadFurnitureAssets(extraDir);
-                if (extra) {
-                  assets = assets ? mergeLoadedAssets(assets, extra) : extra;
-                }
-              }
+              const assets = await this.loadAllFurnitureAssets();
               if (assets && this.webview) {
                 console.log('[Extension] ✅ Assets loaded, sending to webview');
                 sendAssetsToWebview(this.webview, assets);
@@ -425,17 +418,24 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     );
   }
 
+  private async loadAllFurnitureAssets(): Promise<LoadedAssets | null> {
+    if (!this.assetsRoot) return null;
+    let assets = await loadFurnitureAssets(this.assetsRoot);
+    const config = readConfig();
+    for (const extraDir of config.externalAssetDirectories) {
+      console.log('[Extension] Loading external assets from:', extraDir);
+      const extra = await loadFurnitureAssets(extraDir);
+      if (extra) {
+        assets = assets ? mergeLoadedAssets(assets, extra) : extra;
+      }
+    }
+    return assets;
+  }
+
   private async reloadAndSendFurniture(): Promise<void> {
     if (!this.assetsRoot || !this.webview) return;
     try {
-      let assets = await loadFurnitureAssets(this.assetsRoot);
-      const config = readConfig();
-      for (const extraDir of config.externalAssetDirectories) {
-        const extra = await loadFurnitureAssets(extraDir);
-        if (extra) {
-          assets = assets ? mergeLoadedAssets(assets, extra) : extra;
-        }
-      }
+      const assets = await this.loadAllFurnitureAssets();
       if (assets) {
         sendAssetsToWebview(this.webview, assets);
       }
