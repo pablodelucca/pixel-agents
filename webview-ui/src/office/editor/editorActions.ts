@@ -158,10 +158,10 @@ export function canPlaceFurniture(
       const idx = (row + dr) * layout.cols + (col + dc);
       const tileVal = layout.tiles[idx];
       if (entry.canPlaceOnWalls) {
-        if (tileVal !== TileType.WALL) return false;
+        if (!isWallTile(tileVal)) return false;
       } else {
         if (tileVal === TileType.VOID) return false; // Cannot place on VOID
-        if (tileVal === TileType.WALL) return false; // Normal items cannot overlap walls
+        if (isWallTile(tileVal)) return false; // Normal items cannot overlap walls
       }
     }
   }

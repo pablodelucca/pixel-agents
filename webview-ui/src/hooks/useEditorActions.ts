@@ -28,9 +28,12 @@ import type {
   PlacedFurniture,
   TileType as TileTypeVal,
 } from '../office/types.js';
-import { EditTool } from '../office/types.js';
-import { TileType } from '../office/types.js';
+import { EditTool, isWallTile, TileType } from '../office/types.js';
 import { vscode } from '../vscodeApi.js';
+
+export function isEditorWallTile(tile: TileTypeVal | undefined): boolean {
+  return tile !== undefined && isWallTile(tile);
+}
 
 export interface EditorActions {
   isEditMode: boolean;
@@ -117,7 +120,7 @@ export function useEditorActions(
         const layout = os.getLayout();
         if (layout.tileColors) {
           for (let i = 0; i < layout.tiles.length; i++) {
-            if (layout.tiles[i] === TileType.WALL && layout.tileColors[i]) {
+            if (isEditorWallTile(layout.tiles[i]) && layout.tileColors[i]) {
               editorState.wallColor = { ...layout.tileColors[i]! };
               break;
             }
@@ -181,7 +184,7 @@ export function useEditorActions(
       const newColors = [...existingColors];
       let changed = false;
       for (let i = 0; i < layout.tiles.length; i++) {
-        if (layout.tiles[i] === TileType.WALL) {
+        if (isEditorWallTile(layout.tiles[i])) {
           newColors[i] = { ...color };
           changed = true;
         }
@@ -461,7 +464,7 @@ export function useEditorActions(
         }
       } else if (editorState.activeTool === EditTool.WALL_PAINT) {
         const idx = effectiveRow * layout.cols + effectiveCol;
-        const isWall = layout.tiles[idx] === TileType.WALL;
+        const isWall = isEditorWallTile(layout.tiles[idx]);
 
         // First tile of drag sets direction
         if (editorState.wallDragAdding === null) {
@@ -553,14 +556,14 @@ export function useEditorActions(
       } else if (editorState.activeTool === EditTool.EYEDROPPER) {
         const idx = row * layout.cols + col;
         const tile = layout.tiles[idx];
-        if (tile !== undefined && tile !== TileType.WALL && tile !== TileType.VOID) {
+        if (tile !== undefined && !isEditorWallTile(tile) && tile !== TileType.VOID) {
           editorState.selectedTileType = tile;
           const color = layout.tileColors?.[idx];
           if (color) {
             editorState.floorColor = { ...color };
           }
           editorState.activeTool = EditTool.TILE_PAINT;
-        } else if (tile === TileType.WALL) {
+        } else if (isEditorWallTile(tile)) {
           // Pick wall color and switch to wall tool
           const color = layout.tileColors?.[idx];
           if (color) {
