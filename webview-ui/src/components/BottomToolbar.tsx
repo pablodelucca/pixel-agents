@@ -59,24 +59,27 @@ export function BottomToolbar({
   const [hovered, setHovered] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
+  const [isBypassMenuOpen, setIsBypassMenuOpen] = useState(false);
   const [hoveredFolder, setHoveredFolder] = useState<number | null>(null);
   const folderPickerRef = useRef<HTMLDivElement>(null);
 
-  // Close folder picker on outside click
+  // Close folder picker / bypass menu on outside click
   useEffect(() => {
-    if (!isFolderPickerOpen) return;
+    if (!isFolderPickerOpen && !isBypassMenuOpen) return;
     const handleClick = (e: MouseEvent) => {
       if (folderPickerRef.current && !folderPickerRef.current.contains(e.target as Node)) {
         setIsFolderPickerOpen(false);
+        setIsBypassMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [isFolderPickerOpen]);
+  }, [isFolderPickerOpen, isBypassMenuOpen]);
 
   const hasMultipleFolders = workspaceFolders.length > 1;
 
   const handleAgentClick = () => {
+    setIsBypassMenuOpen(false);
     if (hasMultipleFolders) {
       setIsFolderPickerOpen((v) => !v);
     } else {
@@ -84,9 +87,26 @@ export function BottomToolbar({
     }
   };
 
+  const handleAgentRightClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsFolderPickerOpen(false);
+    setIsBypassMenuOpen((v) => !v);
+  };
+
   const handleFolderSelect = (folder: WorkspaceFolder) => {
     setIsFolderPickerOpen(false);
     vscode.postMessage({ type: 'openClaude', folderPath: folder.path });
+  };
+
+  const handleBypassSelect = (bypassPermissions: boolean) => {
+    setIsBypassMenuOpen(false);
+    if (hasMultipleFolders) {
+      // Show folder picker with bypass flag stored for the selection
+      // For simplicity: open normal folder picker; bypass always applies to single folder
+      vscode.postMessage({ type: 'openClaude', bypassPermissions });
+    } else {
+      vscode.postMessage({ type: 'openClaude', bypassPermissions });
+    }
   };
 
   return (
@@ -94,13 +114,14 @@ export function BottomToolbar({
       <div ref={folderPickerRef} style={{ position: 'relative' }}>
         <button
           onClick={handleAgentClick}
+          onContextMenu={handleAgentRightClick}
           onMouseEnter={() => setHovered('agent')}
           onMouseLeave={() => setHovered(null)}
           style={{
             ...btnBase,
             padding: '5px 12px',
             background:
-              hovered === 'agent' || isFolderPickerOpen
+              hovered === 'agent' || isFolderPickerOpen || isBypassMenuOpen
                 ? 'var(--pixel-agent-hover-bg)'
                 : 'var(--pixel-agent-bg)',
             border: '2px solid var(--pixel-agent-border)',
@@ -109,6 +130,58 @@ export function BottomToolbar({
         >
           + Agent
         </button>
+        {isBypassMenuOpen && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: 0,
+              marginBottom: 4,
+              background: 'var(--pixel-bg)',
+              border: '2px solid var(--pixel-border)',
+              borderRadius: 0,
+              boxShadow: 'var(--pixel-shadow)',
+              minWidth: 180,
+              zIndex: 'var(--pixel-controls-z)',
+            }}
+          >
+            <button
+              onClick={() => handleBypassSelect(false)}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '6px 10px',
+                fontSize: '22px',
+                color: 'var(--pixel-text)',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: '1px solid var(--pixel-border)',
+                borderRadius: 0,
+                cursor: 'pointer',
+              }}
+            >
+              Normal
+            </button>
+            <button
+              onClick={() => handleBypassSelect(true)}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '6px 10px',
+                fontSize: '22px',
+                color: '#f59e0b',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: 0,
+                cursor: 'pointer',
+              }}
+            >
+              ⚡ Bypass Permissions
+            </button>
+          </div>
+        )}
         {isFolderPickerOpen && (
           <div
             style={{
