@@ -18,9 +18,14 @@ export const TileType = {
   FLOOR_7: 7,
   FLOOR_8: 8,
   FLOOR_9: 9,
+  GLASS_WALL: 10,
   VOID: 255,
 } as const;
 export type TileType = (typeof TileType)[keyof typeof TileType];
+
+export function isWallTile(tileType: TileType): boolean {
+  return tileType === TileType.WALL || tileType === TileType.GLASS_WALL;
+}
 
 /** Per-tile color settings for floor pattern colorization */
 export interface FloorColor {

@@ -17,7 +17,7 @@ import type {
   SpriteData,
   TileType as TileTypeVal,
 } from './types.js';
-import { TILE_SIZE, TileType } from './types.js';
+import { isWallTile, TILE_SIZE } from './types.js';
 
 /** Wall tile sets: each set has 16 sprites indexed by bitmask (0-15) */
 let wallSets: SpriteData[][] = [];
@@ -52,12 +52,14 @@ function buildWallMask(col: number, row: number, tileMap: TileTypeVal[][]): numb
   const tmCols = tmRows > 0 ? tileMap[0].length : 0;
 
   let mask = 0;
-  if (row > 0 && tileMap[row - 1][col] === TileType.WALL) mask |= 1; // N
-  if (col < tmCols - 1 && tileMap[row][col + 1] === TileType.WALL) mask |= 2; // E
-  if (row < tmRows - 1 && tileMap[row + 1][col] === TileType.WALL) mask |= 4; // S
-  if (col > 0 && tileMap[row][col - 1] === TileType.WALL) mask |= 8; // W
+  if (row > 0 && isWallTile(tileMap[row - 1][col])) mask |= 1; // N
+  if (col < tmCols - 1 && isWallTile(tileMap[row][col + 1])) mask |= 2; // E
+  if (row < tmRows - 1 && isWallTile(tileMap[row + 1][col])) mask |= 4; // S
+  if (col > 0 && isWallTile(tileMap[row][col - 1])) mask |= 8; // W
   return mask;
 }
+
+export const buildWallMaskForTest = buildWallMask;
 
 /**
  * Get the wall sprite for a tile based on its cardinal neighbors.

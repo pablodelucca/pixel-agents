@@ -7,7 +7,7 @@ import type {
   PlacedFurniture,
   TileType as TileTypeVal,
 } from '../types.js';
-import { MAX_COLS, MAX_ROWS, TileType } from '../types.js';
+import { isWallTile, MAX_COLS, MAX_ROWS, TileType } from '../types.js';
 
 /** Paint a single tile with pattern and color. Returns new layout (immutable). */
 export function paintTile(
@@ -23,9 +23,7 @@ export function paintTile(
   const existingColors = layout.tileColors || new Array(layout.tiles.length).fill(null);
   const newColor =
     color ??
-    (tileType === TileType.WALL || tileType === TileType.VOID
-      ? null
-      : { ...DEFAULT_NEUTRAL_COLOR });
+    (isWallTile(tileType) || tileType === TileType.VOID ? null : { ...DEFAULT_NEUTRAL_COLOR });
 
   // Check if anything actually changed
   if (layout.tiles[idx] === tileType) {
