@@ -14,11 +14,12 @@ test('mixed solid and glass wall neighbors share the same connectivity mask', ()
   assert.equal(buildWallMaskForTest(1, 1, tileMap), 15);
 });
 
-test('wall instances still ignore glass wall tiles in task 1', () => {
+test('wall instances render glass walls with the solid wall fallback for runtime safety', () => {
   const sprite = [['#ffffff']];
   setWallSprites([Array.from({ length: 16 }, () => sprite)]);
 
   const instances = getWallInstances([[TileType.GLASS_WALL]]);
 
-  assert.equal(instances.length, 0);
+  assert.equal(instances.length, 1);
+  assert.equal(instances[0]?.sprite, sprite);
 });

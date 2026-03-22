@@ -46,7 +46,7 @@ import type {
   SpriteData,
   TileType as TileTypeVal,
 } from '../types.js';
-import { CharacterState, TILE_SIZE, TileType } from '../types.js';
+import { CharacterState, isWallTile, TILE_SIZE, TileType } from '../types.js';
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles.js';
 import { getCharacterSprite } from './characters.js';
 import { renderMatrixEffect } from './matrixEffect.js';
@@ -76,9 +76,9 @@ export function renderTileGrid(
       // Skip VOID tiles entirely (transparent)
       if (tile === TileType.VOID) continue;
 
-      if (tile === TileType.WALL || !useSpriteFloors) {
+      if (isWallTile(tile) || !useSpriteFloors) {
         // Wall tiles or fallback: solid color
-        if (tile === TileType.WALL) {
+        if (isWallTile(tile)) {
           const colorIdx = r * layoutCols + c;
           const wallColor = tileColors?.[colorIdx];
           ctx.fillStyle = wallColor ? wallColorToHex(wallColor) : WALL_COLOR;
