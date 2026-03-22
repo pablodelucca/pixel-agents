@@ -26,7 +26,7 @@ concurrency:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -54,6 +54,12 @@ jobs:
         working-directory: webview-ui
         run: npm ci
 
+      - name: Install Playwright Dependencies
+        id: install_playwright_deps
+        if: always() && steps.install_root.outcome == 'success'
+        run: npx playwright install --with-deps chromium
+        continue-on-error: true
+
       # --- Quality Checks (blocking) ---
 
       - name: Type Check
@@ -75,6 +81,13 @@ jobs:
         run: npm run lint
         continue-on-error: true
 
+      - name: Webview Tests
+        id: webview_test
+        if: always() && steps.install_webview.outcome == 'success'
+        working-directory: webview-ui
+        run: npm test
+        continue-on-error: true
+
       - name: Format Check
         id: format_check
         if: always() && steps.install_root.outcome == 'success'
@@ -89,6 +102,12 @@ jobs:
         run: |
           node esbuild.js
           cd webview-ui && npm run build
+        continue-on-error: true
+
+      - name: E2E Tests
+        id: e2e_test
+        if: always() && steps.build.outcome == 'success' && steps.install_playwright_deps.outcome == 'success'
+        run: npm run e2e
         continue-on-error: true
 
       # --- Advisory Checks (non-blocking) ---
@@ -115,11 +134,14 @@ jobs:
           SETUP_NODE: ${{ steps.setup_node.outcome }}
           INSTALL_ROOT: ${{ steps.install_root.outcome }}
           INSTALL_WEBVIEW: ${{ steps.install_webview.outcome }}
+          INSTALL_PLAYWRIGHT_DEPS: ${{ steps.install_playwright_deps.outcome }}
           TYPE_CHECK: ${{ steps.type_check.outcome }}
           ROOT_LINT: ${{ steps.root_lint.outcome }}
           WEBVIEW_LINT: ${{ steps.webview_lint.outcome }}
+          WEBVIEW_TEST: ${{ steps.webview_test.outcome }}
           FORMAT_CHECK: ${{ steps.format_check.outcome }}
           BUILD: ${{ steps.build.outcome }}
+          E2E_TEST: ${{ steps.e2e_test.outcome }}
           AUDIT_ROOT: ${{ steps.audit_root.outcome }}
           AUDIT_WEBVIEW: ${{ steps.audit_webview.outcome }}
         run: |
@@ -135,11 +157,14 @@ jobs:
             echo "| Setup Node | $(status "$SETUP_NODE") |"
             echo "| Install root deps | $(status "$INSTALL_ROOT") |"
             echo "| Install webview deps | $(status "$INSTALL_WEBVIEW") |"
+            echo "| Install Playwright deps | $(status "$INSTALL_PLAYWRIGHT_DEPS") |"
             echo "| **Type check** | $(status "$TYPE_CHECK") |"
             echo "| **Root lint** | $(status "$ROOT_LINT") |"
             echo "| **Webview lint** | $(status "$WEBVIEW_LINT") |"
+            echo "| **Webview tests** | $(status "$WEBVIEW_TEST") |"
             echo "| **Format check** | $(status "$FORMAT_CHECK") |"
             echo "| **Build** | $(status "$BUILD") |"
+            echo "| **E2E tests** | $(status "$E2E_TEST") |"
             echo "| Audit root _(advisory)_ | $(status "$AUDIT_ROOT") |"
             echo "| Audit webview _(advisory)_ | $(status "$AUDIT_WEBVIEW") |"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -153,16 +178,19 @@ jobs:
           SETUP_NODE: ${{ steps.setup_node.outcome }}
           INSTALL_ROOT: ${{ steps.install_root.outcome }}
           INSTALL_WEBVIEW: ${{ steps.install_webview.outcome }}
+          INSTALL_PLAYWRIGHT_DEPS: ${{ steps.install_playwright_deps.outcome }}
           TYPE_CHECK: ${{ steps.type_check.outcome }}
           ROOT_LINT: ${{ steps.root_lint.outcome }}
           WEBVIEW_LINT: ${{ steps.webview_lint.outcome }}
+          WEBVIEW_TEST: ${{ steps.webview_test.outcome }}
           FORMAT_CHECK: ${{ steps.format_check.outcome }}
           BUILD: ${{ steps.build.outcome }}
+          E2E_TEST: ${{ steps.e2e_test.outcome }}
         run: |
           failed=0
           for step in CHECKOUT SETUP_NODE INSTALL_ROOT INSTALL_WEBVIEW \
-                      TYPE_CHECK ROOT_LINT WEBVIEW_LINT FORMAT_CHECK \
-                      BUILD; do
+                      INSTALL_PLAYWRIGHT_DEPS TYPE_CHECK ROOT_LINT WEBVIEW_LINT \
+                      WEBVIEW_TEST FORMAT_CHECK BUILD E2E_TEST; do
             eval "val=\$$step"
             if [ "$val" != "success" ]; then
               echo "::error::$step failed"

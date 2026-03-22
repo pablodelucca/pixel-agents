@@ -94,6 +94,52 @@ These conventions are enforced by custom ESLint rules (`eslint-rules/pixel-agent
 
 These rules are set to `warn` — they won't block your PR but will flag violations for cleanup.
 
+## End-to-End Tests
+
+The `e2e/` directory contains Playwright tests that launch a real VS Code instance with the extension loaded in development mode.
+
+### Running e2e tests locally
+
+```bash
+# Build the extension first (tests load the compiled output)
+npm run build
+
+# Headless (default — uses xvfb-run on Linux)
+npm run e2e
+
+# Headed (shows the VS Code window)
+npm run e2e:headed
+
+# Step-by-step debug mode
+npm run e2e:debug
+```
+
+On the first run, `@vscode/test-electron` will download a stable VS Code release into `.vscode-test/` (≈200 MB). Subsequent runs reuse the cache.
+
+### Artifacts
+
+All test artifacts are written to `test-results/e2e/`:
+
+| Path | Contents |
+|---|---|
+| `test-results/e2e/videos/<test-name>/` | `.webm` screen recording for every test |
+| `test-results/e2e/html/` | Playwright HTML report (`npx playwright show-report test-results/e2e/html`) |
+| `test-results/e2e/*.png` | Final screenshots saved on failure |
+
+On failure, the test output prints the path to the video for that run.
+
+### Mock claude
+
+Tests never invoke the real `claude` CLI. Instead, a bash script at `e2e/fixtures/mock-claude` is copied into an isolated `bin/` directory and prepended to `PATH` before VS Code starts.
+
+The mock:
+1. Parses `--session-id <uuid>` from its arguments.
+2. Appends a line to `$HOME/.claude-mock/invocations.log` so tests can assert it was called.
+3. Creates `$HOME/.claude/projects/<project-hash>/<session-id>.jsonl` with a minimal init line so the extension's file-watcher can detect the session.
+4. Sleeps for 30 s (keeps the terminal alive) then exits.
+
+Each test runs with an isolated `HOME` and `--user-data-dir`, so no test state leaks between runs or into your real VS Code profile.
+
 ## Submitting a Pull Request
 
 1. Fork the repo and create a feature branch from `main`
