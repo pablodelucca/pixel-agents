@@ -13,7 +13,7 @@ import {
   rotateFurniture,
   toggleFurnitureState,
 } from '../office/editor/editorActions.js';
-import type { EditorState } from '../office/editor/editorState.js';
+import type { EditorState, WallMaterial } from '../office/editor/editorState.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import {
   getCatalogEntry,
@@ -35,6 +35,52 @@ export function isEditorWallTile(tile: TileTypeVal | undefined): boolean {
   return tile !== undefined && isWallTile(tile);
 }
 
+export function getTileTypeForWallMaterial(material: WallMaterial): TileTypeVal {
+  return material === 'glass' ? TileType.GLASS_WALL : TileType.WALL;
+}
+
+export function getWallMaterialForTile(tile: TileTypeVal | undefined): WallMaterial {
+  return tile === TileType.GLASS_WALL ? 'glass' : 'solid';
+}
+
+export function applyWallPaintToLayoutForTest(
+  layout: OfficeLayout,
+  col: number,
+  row: number,
+  editorState: EditorState,
+): OfficeLayout {
+  return paintTile(
+    layout,
+    col,
+    row,
+    getTileTypeForWallMaterial(editorState.selectedWallMaterial),
+    editorState.wallColor,
+  );
+}
+
+export function applyEyedropperTileToEditorStateForTest(
+  editorState: EditorState,
+  tile: TileTypeVal | undefined,
+  color?: FloorColor | null,
+): void {
+  if (tile !== undefined && !isEditorWallTile(tile) && tile !== TileType.VOID) {
+    editorState.selectedTileType = tile;
+    if (color) {
+      editorState.floorColor = { ...color };
+    }
+    editorState.activeTool = EditTool.TILE_PAINT;
+    return;
+  }
+
+  if (isEditorWallTile(tile)) {
+    if (color) {
+      editorState.wallColor = { ...color };
+    }
+    editorState.selectedWallMaterial = getWallMaterialForTile(tile);
+    editorState.activeTool = EditTool.WALL_PAINT;
+  }
+}
+
 export interface EditorActions {
   isEditMode: boolean;
   editorTick: number;
@@ -49,6 +95,7 @@ export interface EditorActions {
   handleTileTypeChange: (type: TileTypeVal) => void;
   handleFloorColorChange: (color: FloorColor) => void;
   handleWallColorChange: (color: FloorColor) => void;
+  handleWallMaterialChange: (material: WallMaterial) => void;
   handleWallSetChange: (setIndex: number) => void;
   handleSelectedFurnitureColorChange: (color: FloorColor | null) => void;
   handleFurnitureTypeChange: (type: string) => void; // FurnitureType enum or asset ID
@@ -205,6 +252,14 @@ export function useEditorActions(
       setEditorTick((n) => n + 1);
     },
     [editorState, getOfficeState, saveLayout],
+  );
+
+  const handleWallMaterialChange = useCallback(
+    (material: WallMaterial) => {
+      editorState.selectedWallMaterial = material;
+      setEditorTick((n) => n + 1);
+    },
+    [editorState],
   );
 
   const handleWallSetChange = useCallback(
@@ -472,13 +527,12 @@ export function useEditorActions(
         }
 
         if (editorState.wallDragAdding) {
-          // Add wall with color
-          const newLayout = paintTile(
+          // Add wall with the selected material and color
+          const newLayout = applyWallPaintToLayoutForTest(
             layout,
             effectiveCol,
             effectiveRow,
-            TileType.WALL,
-            editorState.wallColor,
+            editorState,
           );
           if (newLayout !== layout) {
             applyEdit(newLayout);
@@ -555,22 +609,11 @@ export function useEditorActions(
         setEditorTick((n) => n + 1);
       } else if (editorState.activeTool === EditTool.EYEDROPPER) {
         const idx = row * layout.cols + col;
-        const tile = layout.tiles[idx];
-        if (tile !== undefined && !isEditorWallTile(tile) && tile !== TileType.VOID) {
-          editorState.selectedTileType = tile;
-          const color = layout.tileColors?.[idx];
-          if (color) {
-            editorState.floorColor = { ...color };
-          }
-          editorState.activeTool = EditTool.TILE_PAINT;
-        } else if (isEditorWallTile(tile)) {
-          // Pick wall color and switch to wall tool
-          const color = layout.tileColors?.[idx];
-          if (color) {
-            editorState.wallColor = { ...color };
-          }
-          editorState.activeTool = EditTool.WALL_PAINT;
-        }
+        applyEyedropperTileToEditorStateForTest(
+          editorState,
+          layout.tiles[idx],
+          layout.tileColors?.[idx] ?? null,
+        );
         setEditorTick((n) => n + 1);
       } else if (editorState.activeTool === EditTool.SELECT) {
         const hit = layout.furniture.find((f) => {
@@ -620,6 +663,7 @@ export function useEditorActions(
     handleTileTypeChange,
     handleFloorColorChange,
     handleWallColorChange,
+    handleWallMaterialChange,
     handleWallSetChange,
     handleSelectedFurnitureColorChange,
     handleFurnitureTypeChange,

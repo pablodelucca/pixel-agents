@@ -2,6 +2,8 @@ import { DEFAULT_FLOOR_COLOR, DEFAULT_WALL_COLOR, UNDO_STACK_MAX_SIZE } from '..
 import type { FloorColor, OfficeLayout, TileType as TileTypeVal } from '../types.js';
 import { EditTool, TileType } from '../types.js';
 
+export type WallMaterial = 'solid' | 'glass';
+
 export class EditorState {
   isEditMode = false;
   activeTool: EditTool = EditTool.SELECT;
@@ -16,6 +18,9 @@ export class EditorState {
 
   // Selected wall set index (0-based, indexes into loaded wall sets)
   selectedWallSet = 0;
+
+  // Selected wall material for wall painting
+  selectedWallMaterial: WallMaterial = 'solid';
 
   // Tracks toggle direction during wall drag (true=adding walls, false=removing, null=undecided)
   wallDragAdding: boolean | null = null;

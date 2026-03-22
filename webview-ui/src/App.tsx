@@ -332,11 +332,13 @@ function App() {
               selectedFurnitureColor={selColor}
               floorColor={editorState.floorColor}
               wallColor={editorState.wallColor}
+              selectedWallMaterial={editorState.selectedWallMaterial}
               selectedWallSet={editorState.selectedWallSet}
               onToolChange={editor.handleToolChange}
               onTileTypeChange={editor.handleTileTypeChange}
               onFloorColorChange={editor.handleFloorColorChange}
               onWallColorChange={editor.handleWallColorChange}
+              onWallMaterialChange={editor.handleWallMaterialChange}
               onWallSetChange={editor.handleWallSetChange}
               onSelectedFurnitureColorChange={editor.handleSelectedFurnitureColorChange}
               onFurnitureTypeChange={editor.handleFurnitureTypeChange}

@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { EditorState } from '../src/office/editor/editorState.js';
 import { buildDynamicCatalog } from '../src/office/layout/furnitureCatalog.js';
 import type { OfficeLayout } from '../src/office/types.js';
-import { TileType } from '../src/office/types.js';
+import { EditTool, TileType } from '../src/office/types.js';
 import { canPlaceFurniture, paintTile } from '../src/office/editor/editorActions.js';
+import {
+  applyEyedropperTileToEditorStateForTest,
+  applyWallPaintToLayoutForTest,
+  getTileTypeForWallMaterial,
+} from '../src/hooks/useEditorActions.js';
 
 function createLayout(): OfficeLayout {
   return {
@@ -24,6 +30,32 @@ test('painting a glass wall writes GLASS_WALL without adding a floor color', () 
   assert.equal(nextLayout.tiles[1], TileType.GLASS_WALL);
   assert.equal(nextLayout.tileColors?.[1] ?? null, null);
   assert.equal(layout.tiles[1], TileType.FLOOR_1);
+});
+
+test('wall material selection maps to the expected tile type', () => {
+  assert.equal(getTileTypeForWallMaterial('solid'), TileType.WALL);
+  assert.equal(getTileTypeForWallMaterial('glass'), TileType.GLASS_WALL);
+});
+
+test('wall paint uses the selected glass material and wall color', () => {
+  const editorState = new EditorState();
+  const wallColor = { h: 200, s: 40, b: 10, c: 5, colorize: true };
+  editorState.selectedWallMaterial = 'glass';
+  editorState.wallColor = wallColor;
+
+  const nextLayout = applyWallPaintToLayoutForTest(createLayout(), 0, 1, editorState);
+
+  assert.equal(nextLayout.tiles[2], TileType.GLASS_WALL);
+  assert.deepEqual(nextLayout.tileColors?.[2], wallColor);
+});
+
+test('eyedropper selects glass wall material from a glass wall tile', () => {
+  const editorState = new EditorState();
+
+  applyEyedropperTileToEditorStateForTest(editorState, TileType.GLASS_WALL);
+
+  assert.equal(editorState.selectedWallMaterial, 'glass');
+  assert.equal(editorState.activeTool, EditTool.WALL_PAINT);
 });
 
 function registerFurnitureTestCatalog(): void {

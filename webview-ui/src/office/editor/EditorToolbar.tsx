@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getColorizedSprite } from '../colorize.js';
 import { getColorizedFloorSprite, getFloorPatternCount, hasFloorSprites } from '../floorTiles.js';
 import type { FurnitureCategory, LoadedAssetData } from '../layout/furnitureCatalog.js';
-import { getWallSetCount, getWallSetPreviewSprite } from '../wallTiles.js';
 import {
   buildDynamicCatalog,
   getActiveCategories,
@@ -12,6 +11,8 @@ import {
 import { getCachedSprite } from '../sprites/spriteCache.js';
 import type { FloorColor, TileType as TileTypeVal } from '../types.js';
 import { EditTool } from '../types.js';
+import { getWallSetCount, getWallSetPreviewSprite } from '../wallTiles.js';
+import type { WallMaterial } from './editorState.js';
 
 const btnStyle: React.CSSProperties = {
   padding: '3px 8px',
@@ -55,11 +56,13 @@ interface EditorToolbarProps {
   selectedFurnitureColor: FloorColor | null;
   floorColor: FloorColor;
   wallColor: FloorColor;
+  selectedWallMaterial: WallMaterial;
   selectedWallSet: number;
   onToolChange: (tool: EditTool) => void;
   onTileTypeChange: (type: TileTypeVal) => void;
   onFloorColorChange: (color: FloorColor) => void;
   onWallColorChange: (color: FloorColor) => void;
+  onWallMaterialChange: (material: WallMaterial) => void;
   onWallSetChange: (setIndex: number) => void;
   onSelectedFurnitureColorChange: (color: FloorColor | null) => void;
   onFurnitureTypeChange: (type: string) => void;
@@ -237,11 +240,13 @@ export function EditorToolbar({
   selectedFurnitureColor,
   floorColor,
   wallColor,
+  selectedWallMaterial,
   selectedWallSet,
   onToolChange,
   onTileTypeChange,
   onFloorColorChange,
   onWallColorChange,
+  onWallMaterialChange,
   onWallSetChange,
   onSelectedFurnitureColorChange,
   onFurnitureTypeChange,
@@ -457,6 +462,20 @@ export function EditorToolbar({
         <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: 6 }}>
           {/* Color toggle — just above tool row */}
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <button
+              style={selectedWallMaterial === 'solid' ? activeBtnStyle : btnStyle}
+              onClick={() => onWallMaterialChange('solid')}
+              title="Paint solid walls"
+            >
+              Solid
+            </button>
+            <button
+              style={selectedWallMaterial === 'glass' ? activeBtnStyle : btnStyle}
+              onClick={() => onWallMaterialChange('glass')}
+              title="Paint glass walls"
+            >
+              Glass
+            </button>
             <button
               style={showWallColor ? activeBtnStyle : btnStyle}
               onClick={() => setShowWallColor((v) => !v)}
