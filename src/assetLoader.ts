@@ -35,6 +35,13 @@ export interface LoadedAssets {
   sprites: Map<string, string[][]>; // assetId -> SpriteData
 }
 
+export function mergeLoadedAssets(a: LoadedAssets, b: LoadedAssets): LoadedAssets {
+  return {
+    catalog: [...a.catalog, ...b.catalog],
+    sprites: new Map([...a.sprites, ...b.sprites]),
+  };
+}
+
 /**
  * Load furniture assets from per-folder manifests
  */

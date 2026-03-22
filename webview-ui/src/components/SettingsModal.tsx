@@ -10,6 +10,7 @@ interface SettingsModalProps {
   onToggleDebugMode: () => void;
   alwaysShowOverlay: boolean;
   onToggleAlwaysShowOverlay: () => void;
+  externalAssetDirectories: string[];
 }
 
 const menuItemBase: React.CSSProperties = {
@@ -34,6 +35,7 @@ export function SettingsModal({
   onToggleDebugMode,
   alwaysShowOverlay,
   onToggleAlwaysShowOverlay,
+  externalAssetDirectories,
 }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
@@ -144,6 +146,64 @@ export function SettingsModal({
         >
           Import Layout
         </button>
+        <button
+          onClick={() => {
+            vscode.postMessage({ type: 'addExternalAssetDirectory' });
+          }}
+          onMouseEnter={() => setHovered('addAssets')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...menuItemBase,
+            background: hovered === 'addAssets' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          }}
+        >
+          Add Asset Directory
+        </button>
+        {externalAssetDirectories.map((dir) => (
+          <div
+            key={dir}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '4px 10px',
+              gap: 8,
+            }}
+          >
+            <span
+              style={{
+                fontSize: '18px',
+                color: 'rgba(255, 255, 255, 0.5)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                maxWidth: 180,
+              }}
+              title={dir}
+            >
+              {dir.split('/').pop() ?? dir}
+            </span>
+            <button
+              onClick={() =>
+                vscode.postMessage({ type: 'removeExternalAssetDirectory', path: dir })
+              }
+              onMouseEnter={() => setHovered(`remove-${dir}`)}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                background: hovered === `remove-${dir}` ? 'rgba(255, 80, 80, 0.2)' : 'transparent',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: 0,
+                color: 'rgba(255, 255, 255, 0.5)',
+                fontSize: '18px',
+                cursor: 'pointer',
+                padding: '1px 6px',
+                flexShrink: 0,
+              }}
+            >
+              X
+            </button>
+          </div>
+        ))}
         <button
           onClick={() => {
             const newVal = !isSoundEnabled();
