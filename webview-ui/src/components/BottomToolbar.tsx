@@ -61,7 +61,9 @@ export function BottomToolbar({
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
   const [isBypassMenuOpen, setIsBypassMenuOpen] = useState(false);
   const [hoveredFolder, setHoveredFolder] = useState<number | null>(null);
+  const [hoveredBypass, setHoveredBypass] = useState<number | null>(null);
   const folderPickerRef = useRef<HTMLDivElement>(null);
+  const pendingBypassRef = useRef(false);
 
   // Close folder picker / bypass menu on outside click
   useEffect(() => {
@@ -80,6 +82,7 @@ export function BottomToolbar({
 
   const handleAgentClick = () => {
     setIsBypassMenuOpen(false);
+    pendingBypassRef.current = false;
     if (hasMultipleFolders) {
       setIsFolderPickerOpen((v) => !v);
     } else {
@@ -95,15 +98,16 @@ export function BottomToolbar({
 
   const handleFolderSelect = (folder: WorkspaceFolder) => {
     setIsFolderPickerOpen(false);
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path });
+    const bypassPermissions = pendingBypassRef.current;
+    pendingBypassRef.current = false;
+    vscode.postMessage({ type: 'openClaude', folderPath: folder.path, bypassPermissions });
   };
 
   const handleBypassSelect = (bypassPermissions: boolean) => {
     setIsBypassMenuOpen(false);
     if (hasMultipleFolders) {
-      // Show folder picker with bypass flag stored for the selection
-      // For simplicity: open normal folder picker; bypass always applies to single folder
-      vscode.postMessage({ type: 'openClaude', bypassPermissions });
+      pendingBypassRef.current = bypassPermissions;
+      setIsFolderPickerOpen(true);
     } else {
       vscode.postMessage({ type: 'openClaude', bypassPermissions });
     }
@@ -140,6 +144,7 @@ export function BottomToolbar({
               background: 'var(--pixel-bg)',
               border: '2px solid var(--pixel-border)',
               borderRadius: 0,
+              padding: 4,
               boxShadow: 'var(--pixel-shadow)',
               minWidth: 180,
               zIndex: 'var(--pixel-controls-z)',
@@ -147,38 +152,43 @@ export function BottomToolbar({
           >
             <button
               onClick={() => handleBypassSelect(false)}
+              onMouseEnter={() => setHoveredBypass(0)}
+              onMouseLeave={() => setHoveredBypass(null)}
               style={{
                 display: 'block',
                 width: '100%',
                 textAlign: 'left',
                 padding: '6px 10px',
-                fontSize: '22px',
+                fontSize: '24px',
                 color: 'var(--pixel-text)',
-                background: 'transparent',
+                background: hoveredBypass === 0 ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
                 border: 'none',
-                borderBottom: '1px solid var(--pixel-border)',
                 borderRadius: 0,
                 cursor: 'pointer',
               }}
             >
               Normal
             </button>
+            <div style={{ height: 1, margin: '4px 0', background: 'var(--pixel-border)' }} />
             <button
               onClick={() => handleBypassSelect(true)}
+              onMouseEnter={() => setHoveredBypass(1)}
+              onMouseLeave={() => setHoveredBypass(null)}
               style={{
                 display: 'block',
                 width: '100%',
                 textAlign: 'left',
                 padding: '6px 10px',
-                fontSize: '22px',
-                color: '#f59e0b',
-                background: 'transparent',
+                fontSize: '24px',
+                color: 'var(--pixel-warning-text)',
+                background: hoveredBypass === 1 ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
                 border: 'none',
                 borderRadius: 0,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
               }}
             >
-              ⚡ Bypass Permissions
+              <span style={{ fontSize: '16px' }}>⚡</span> Bypass Permissions
             </button>
           </div>
         )}
