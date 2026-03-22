@@ -1,6 +1,9 @@
 import { DEFAULT_NEUTRAL_COLOR } from '../../constants.js';
 import { getCatalogEntry, getRotatedType, getToggledType } from '../layout/furnitureCatalog.js';
-import { getPlacementBlockedTiles } from '../layout/layoutSerializer.js';
+import {
+  doesFurnitureFootprintRowBlock,
+  getPlacementBlockedTiles,
+} from '../layout/layoutSerializer.js';
 import type {
   FloorColor,
   OfficeLayout,
@@ -148,12 +151,9 @@ export function canPlaceFurniture(
   }
 
   // Wall/VOID placement check (background rows skip this check)
-  const bgRows = entry.backgroundTiles || 0;
   for (let dr = 0; dr < entry.footprintH; dr++) {
-    if (dr < bgRows) continue;
+    if (!doesFurnitureFootprintRowBlock(entry, dr)) continue;
     if (row + dr < 0) continue; // row above map (wall items extending upward)
-    // Wall items: only the bottom row must be on wall tiles; upper rows can overlap VOID/anything
-    if (entry.canPlaceOnWalls && dr < entry.footprintH - 1) continue;
     for (let dc = 0; dc < entry.footprintW; dc++) {
       const idx = (row + dr) * layout.cols + (col + dc);
       const tileVal = layout.tiles[idx];
@@ -186,9 +186,8 @@ export function canPlaceFurniture(
   }
 
   // Check overlap — also skip the NEW item's own background rows
-  const newBgRows = entry.backgroundTiles || 0;
   for (let dr = 0; dr < entry.footprintH; dr++) {
-    if (dr < newBgRows) continue; // new item's background rows can overlap existing items
+    if (!doesFurnitureFootprintRowBlock(entry, dr)) continue;
     if (row + dr < 0) continue; // row above map (wall items extending upward)
     for (let dc = 0; dc < entry.footprintW; dc++) {
       const key = `${col + dc},${row + dr}`;

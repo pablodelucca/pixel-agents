@@ -1,6 +1,7 @@
 import { getColorizedSprite } from '../colorize.js';
 import type {
   FloorColor,
+  FurnitureCatalogEntry,
   FurnitureInstance,
   OfficeLayout,
   PlacedFurniture,
@@ -9,6 +10,16 @@ import type {
 } from '../types.js';
 import { DEFAULT_COLS, DEFAULT_ROWS, Direction, TILE_SIZE, TileType } from '../types.js';
 import { getCatalogEntry, getOrientationInGroup } from './furnitureCatalog.js';
+
+export function doesFurnitureFootprintRowBlock(entry: FurnitureCatalogEntry, dr: number): boolean {
+  const bgRows = entry.backgroundTiles || 0;
+  if (dr < bgRows) return false;
+
+  // Wall-mounted items only use their bottom support row for collision/blocking.
+  if (entry.canPlaceOnWalls) return dr === entry.footprintH - 1;
+
+  return true;
+}
 
 /** Convert flat tile array from layout into 2D grid */
 export function layoutToTileMap(layout: OfficeLayout): TileTypeVal[][] {
@@ -107,9 +118,8 @@ export function getBlockedTiles(
   for (const item of furniture) {
     const entry = getCatalogEntry(item.type);
     if (!entry) continue;
-    const bgRows = entry.backgroundTiles || 0;
     for (let dr = 0; dr < entry.footprintH; dr++) {
-      if (dr < bgRows) continue; // skip background rows — characters can walk through
+      if (!doesFurnitureFootprintRowBlock(entry, dr)) continue;
       for (let dc = 0; dc < entry.footprintW; dc++) {
         const key = `${item.col + dc},${item.row + dr}`;
         if (excludeTiles && excludeTiles.has(key)) continue;
@@ -130,9 +140,8 @@ export function getPlacementBlockedTiles(
     if (item.uid === excludeUid) continue;
     const entry = getCatalogEntry(item.type);
     if (!entry) continue;
-    const bgRows = entry.backgroundTiles || 0;
     for (let dr = 0; dr < entry.footprintH; dr++) {
-      if (dr < bgRows) continue; // skip background rows
+      if (!doesFurnitureFootprintRowBlock(entry, dr)) continue;
       for (let dc = 0; dc < entry.footprintW; dc++) {
         tiles.add(`${item.col + dc},${item.row + dr}`);
       }

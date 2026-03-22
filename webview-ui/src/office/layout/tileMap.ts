@@ -1,5 +1,9 @@
 import { isWallTile, TileType } from '../types.js';
 
+export function isStructurallyBlockedTile(tile: TileType): boolean {
+  return isWallTile(tile) || tile === TileType.VOID;
+}
+
 /** Check if a tile is walkable (floor, carpet, or doorway, and not blocked by furniture) */
 export function isWalkable(
   col: number,
@@ -11,7 +15,7 @@ export function isWalkable(
   const cols = rows > 0 ? tileMap[0].length : 0;
   if (row < 0 || row >= rows || col < 0 || col >= cols) return false;
   const t = tileMap[row][col];
-  if (isWallTile(t) || t === TileType.VOID) return false;
+  if (isStructurallyBlockedTile(t)) return false;
   if (blockedTiles.has(`${col},${row}`)) return false;
   return true;
 }

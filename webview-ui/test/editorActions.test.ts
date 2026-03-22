@@ -3,6 +3,8 @@ import { test } from 'node:test';
 
 import { EditorState } from '../src/office/editor/editorState.js';
 import { buildDynamicCatalog } from '../src/office/layout/furnitureCatalog.js';
+import { getBlockedTiles } from '../src/office/layout/layoutSerializer.js';
+import { isWalkable } from '../src/office/layout/tileMap.js';
 import type { OfficeLayout } from '../src/office/types.js';
 import { EditTool, TileType } from '../src/office/types.js';
 import { canPlaceFurniture, paintTile } from '../src/office/editor/editorActions.js';
@@ -60,6 +62,7 @@ test('eyedropper selects glass wall material from a glass wall tile', () => {
 
 function registerFurnitureTestCatalog(): void {
   const sprite = [['#ffffff']];
+  const tallWallSprite = [['#ffffff'], ['#dddddd']];
   buildDynamicCatalog({
     catalog: [
       {
@@ -83,10 +86,22 @@ function registerFurnitureTestCatalog(): void {
         isDesk: false,
         canPlaceOnWalls: true,
       },
+      {
+        id: 'wall-banner',
+        label: 'Wall Banner',
+        category: 'wall',
+        width: 1,
+        height: 2,
+        footprintW: 1,
+        footprintH: 2,
+        isDesk: false,
+        canPlaceOnWalls: true,
+      },
     ],
     sprites: {
       chair: sprite,
       'wall-art': sprite,
+      'wall-banner': tallWallSprite,
     },
   });
 }
@@ -115,4 +130,34 @@ test('wall-mounted furniture can attach to a glass wall tile', () => {
   };
 
   assert.equal(canPlaceFurniture(layout, 'wall-art', 0, 0), true);
+});
+
+test('normal furniture can overlap the non-support rows of wall-mounted items', () => {
+  registerFurnitureTestCatalog();
+  const layout: OfficeLayout = {
+    version: 1,
+    cols: 1,
+    rows: 2,
+    tiles: [TileType.FLOOR_1, TileType.GLASS_WALL],
+    furniture: [{ uid: 'banner-1', type: 'wall-banner', col: 0, row: 0 }],
+  };
+
+  assert.equal(canPlaceFurniture(layout, 'chair', 0, 0), true);
+});
+
+test('wall-mounted non-support rows do not block walking on floor tiles', () => {
+  registerFurnitureTestCatalog();
+  const layout: OfficeLayout = {
+    version: 1,
+    cols: 1,
+    rows: 2,
+    tiles: [TileType.FLOOR_1, TileType.GLASS_WALL],
+    furniture: [{ uid: 'banner-1', type: 'wall-banner', col: 0, row: 0 }],
+  };
+  const blockedTiles = getBlockedTiles(layout.furniture);
+  const tileMap = [[TileType.FLOOR_1], [TileType.GLASS_WALL]];
+
+  assert.equal(blockedTiles.has('0,0'), false);
+  assert.equal(blockedTiles.has('0,1'), true);
+  assert.equal(isWalkable(0, 0, tileMap, blockedTiles), true);
 });
