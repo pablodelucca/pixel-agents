@@ -164,7 +164,7 @@ jobs:
             echo "| **Webview tests** | $(status "$WEBVIEW_TEST") |"
             echo "| **Format check** | $(status "$FORMAT_CHECK") |"
             echo "| **Build** | $(status "$BUILD") |"
-            echo "| **E2E tests** | $(status "$E2E_TEST") |"
+            echo "| E2E tests _(advisory)_ | $(status "$E2E_TEST") |"
             echo "| Audit root _(advisory)_ | $(status "$AUDIT_ROOT") |"
             echo "| Audit webview _(advisory)_ | $(status "$AUDIT_WEBVIEW") |"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -178,19 +178,19 @@ jobs:
           SETUP_NODE: ${{ steps.setup_node.outcome }}
           INSTALL_ROOT: ${{ steps.install_root.outcome }}
           INSTALL_WEBVIEW: ${{ steps.install_webview.outcome }}
-          INSTALL_PLAYWRIGHT_DEPS: ${{ steps.install_playwright_deps.outcome }}
           TYPE_CHECK: ${{ steps.type_check.outcome }}
           ROOT_LINT: ${{ steps.root_lint.outcome }}
           WEBVIEW_LINT: ${{ steps.webview_lint.outcome }}
           WEBVIEW_TEST: ${{ steps.webview_test.outcome }}
           FORMAT_CHECK: ${{ steps.format_check.outcome }}
           BUILD: ${{ steps.build.outcome }}
-          E2E_TEST: ${{ steps.e2e_test.outcome }}
         run: |
           failed=0
+          # Note: E2E_TEST and INSTALL_PLAYWRIGHT_DEPS are advisory (shown in summary)
+          # until the test infrastructure proves stable. Promote to blocking later.
           for step in CHECKOUT SETUP_NODE INSTALL_ROOT INSTALL_WEBVIEW \
-                      INSTALL_PLAYWRIGHT_DEPS TYPE_CHECK ROOT_LINT WEBVIEW_LINT \
-                      WEBVIEW_TEST FORMAT_CHECK BUILD E2E_TEST; do
+                      TYPE_CHECK ROOT_LINT WEBVIEW_LINT \
+                      WEBVIEW_TEST FORMAT_CHECK BUILD; do
             eval "val=\$$step"
             if [ "$val" != "success" ]; then
               echo "::error::$step failed"

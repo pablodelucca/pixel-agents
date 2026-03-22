@@ -123,7 +123,7 @@ All test artifacts are written to `test-results/e2e/`:
 | Path | Contents |
 |---|---|
 | `test-results/e2e/videos/<test-name>/` | `.webm` screen recording for every test |
-| `test-results/e2e/html/` | Playwright HTML report (`npx playwright show-report test-results/e2e/html`) |
+| `playwright-report/e2e/` | Playwright HTML report (`npx playwright show-report playwright-report/e2e`) |
 | `test-results/e2e/*.png` | Final screenshots saved on failure |
 
 On failure, the test output prints the path to the video for that run.

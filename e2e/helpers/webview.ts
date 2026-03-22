@@ -6,19 +6,26 @@ const PANEL_OPEN_TIMEOUT_MS = 15_000;
 const MIN_PANEL_HEIGHT_PX = 320;
 
 async function runCommand(window: Page, command: string): Promise<void> {
+  // Dismiss any previous quick-input state before opening a new one
+  await window.keyboard.press('Escape');
+  await window.waitForTimeout(200);
   await window.keyboard.press('F1');
-  await window.waitForSelector('.quick-input-widget', { timeout: PANEL_OPEN_TIMEOUT_MS });
+  await window.waitForSelector('.quick-input-widget .quick-input-filter input', {
+    timeout: PANEL_OPEN_TIMEOUT_MS,
+  });
   await window.keyboard.type(command);
   await window.waitForSelector('.quick-input-list .monaco-list-row', {
     timeout: PANEL_OPEN_TIMEOUT_MS,
   });
   await window.keyboard.press('Enter');
-  await window.waitForSelector('.quick-input-widget', {
-    state: 'hidden',
-    timeout: PANEL_OPEN_TIMEOUT_MS,
-  }).catch(() => {
-    // Some commands update layout without immediately dismissing quick input.
-  });
+  await window
+    .waitForSelector('.quick-input-widget', {
+      state: 'hidden',
+      timeout: PANEL_OPEN_TIMEOUT_MS,
+    })
+    .catch(() => {
+      // Some commands update layout without immediately dismissing quick input.
+    });
 }
 
 async function getPanelHeight(window: Page): Promise<number> {
@@ -55,11 +62,13 @@ export async function openPixelAgentsPanel(window: Page): Promise<void> {
   await runCommand(window, 'Pixel Agents: Show Panel');
 
   // Wait for the panel container to appear
-  await window.waitForSelector('[id="workbench.panel.bottom"], .part.panel', {
-    timeout: PANEL_OPEN_TIMEOUT_MS,
-  }).catch(() => {
-    // Panel might not use this id; just continue
-  });
+  await window
+    .waitForSelector('[id="workbench.panel.bottom"], .part.panel', {
+      timeout: PANEL_OPEN_TIMEOUT_MS,
+    })
+    .catch(() => {
+      // Panel might not use this id; just continue
+    });
 
   await ensurePanelIsLarge(window);
 }
