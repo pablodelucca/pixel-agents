@@ -222,8 +222,35 @@ export function loadDefaultLayout(assetsRoot: string): Record<string, unknown> |
 // ── Wall tile loading ────────────────────────────────────────
 
 export interface LoadedWallTiles {
-  /** Array of wall sets, each containing 16 sprites indexed by bitmask (N=1,E=2,S=4,W=8) */
-  sets: string[][][][];
+  /** Array of solid wall sets, each containing 16 sprites indexed by bitmask (N=1,E=2,S=4,W=8) */
+  solidSets: string[][][][];
+  /** Array of glass wall sets, each containing 16 sprites indexed by bitmask (N=1,E=2,S=4,W=8) */
+  glassSets: string[][][][];
+}
+
+function loadWallFamily(wallsDir: string, pattern: RegExp, label: string): string[][][][] {
+  const wallFiles: { index: number; filename: string }[] = [];
+  for (const entry of fs.readdirSync(wallsDir)) {
+    const match = pattern.exec(entry);
+    if (match) {
+      wallFiles.push({ index: parseInt(match[1], 10), filename: entry });
+    }
+  }
+
+  wallFiles.sort((a, b) => a.index - b.index);
+
+  const sets: string[][][][] = [];
+  for (const { filename } of wallFiles) {
+    const filePath = path.join(wallsDir, filename);
+    const pngBuffer = fs.readFileSync(filePath);
+    sets.push(parseWallPng(pngBuffer));
+  }
+
+  console.log(
+    `[AssetLoader] Loaded ${sets.length} ${label} wall tile set(s) (${sets.length * WALL_BITMASK_COUNT} pieces total)`,
+  );
+
+  return sets;
 }
 
 /**
@@ -241,35 +268,15 @@ export async function loadWallTiles(assetsRoot: string): Promise<LoadedWallTiles
 
     console.log('[AssetLoader] Loading wall tiles from:', wallsDir);
 
-    // Find all wall_N.png files and sort by index
-    const entries = fs.readdirSync(wallsDir);
-    const wallFiles: { index: number; filename: string }[] = [];
-    for (const entry of entries) {
-      const match = /^wall_(\d+)\.png$/i.exec(entry);
-      if (match) {
-        wallFiles.push({ index: parseInt(match[1], 10), filename: entry });
-      }
-    }
+    const solidSets = loadWallFamily(wallsDir, /^wall_(\d+)\.png$/i, 'solid');
+    const glassSets = loadWallFamily(wallsDir, /^glass_wall_(\d+)\.png$/i, 'glass');
 
-    if (wallFiles.length === 0) {
-      console.log('[AssetLoader] No wall_N.png files found in walls/');
+    if (solidSets.length === 0 && glassSets.length === 0) {
+      console.log('[AssetLoader] No wall_N.png or glass_wall_N.png files found in walls/');
       return null;
     }
 
-    wallFiles.sort((a, b) => a.index - b.index);
-
-    const sets: string[][][][] = [];
-    for (const { filename } of wallFiles) {
-      const filePath = path.join(wallsDir, filename);
-      const pngBuffer = fs.readFileSync(filePath);
-      const sprites = parseWallPng(pngBuffer);
-      sets.push(sprites);
-    }
-
-    console.log(
-      `[AssetLoader] ✅ Loaded ${sets.length} wall tile set(s) (${sets.length * WALL_BITMASK_COUNT} pieces total)`,
-    );
-    return { sets };
+    return { solidSets, glassSets };
   } catch (err) {
     console.error(
       `[AssetLoader] ❌ Error loading wall tiles: ${err instanceof Error ? err.message : err}`,
@@ -284,9 +291,12 @@ export async function loadWallTiles(assetsRoot: string): Promise<LoadedWallTiles
 export function sendWallTilesToWebview(webview: vscode.Webview, wallTiles: LoadedWallTiles): void {
   webview.postMessage({
     type: 'wallTilesLoaded',
-    sets: wallTiles.sets,
+    solidSets: wallTiles.solidSets,
+    glassSets: wallTiles.glassSets,
   });
-  console.log(`📤 Sent ${wallTiles.sets.length} wall tile set(s) to webview`);
+  console.log(
+    `[AssetLoader] Sent ${wallTiles.solidSets.length} solid and ${wallTiles.glassSets.length} glass wall tile set(s) to webview`,
+  );
 }
 
 export interface LoadedFloorTiles {

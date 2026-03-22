@@ -11,9 +11,15 @@ export interface CharacterDirectionSprites {
 
 export interface AssetIndex {
   floors: string[];
-  walls: string[];
+  solidWalls: string[];
+  glassWalls: string[];
   characters: string[];
   defaultLayout: string | null;
+}
+
+export interface DecodedWallSets {
+  solidSets: string[][][][];
+  glassSets: string[][][][];
 }
 
 export interface CatalogEntry {

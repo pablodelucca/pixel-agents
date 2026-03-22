@@ -375,9 +375,12 @@ export function useExtensionMessages(
         console.log(`[Webview] Received ${sprites.length} floor tile patterns`);
         setFloorSprites(sprites);
       } else if (msg.type === 'wallTilesLoaded') {
-        const sets = msg.sets as string[][][][];
-        console.log(`[Webview] Received ${sets.length} wall tile set(s)`);
-        setWallSprites(sets);
+        const solidSets = msg.solidSets as string[][][][];
+        const glassSets = msg.glassSets as string[][][][];
+        console.log(
+          `[Webview] Received ${solidSets.length} solid and ${glassSets.length} glass wall tile set(s)`,
+        );
+        setWallSprites(solidSets, glassSets);
       } else if (msg.type === 'workspaceFolders') {
         const folders = msg.folders as WorkspaceFolder[];
         setWorkspaceFolders(folders);

@@ -17,31 +17,62 @@ import type {
   SpriteData,
   TileType as TileTypeVal,
 } from './types.js';
-import { isWallTile, TILE_SIZE } from './types.js';
+import { isWallTile, TILE_SIZE,TileType } from './types.js';
 
 /** Wall tile sets: each set has 16 sprites indexed by bitmask (0-15) */
-let wallSets: SpriteData[][] = [];
+let solidWallSets: SpriteData[][] = [];
+let glassWallSets: SpriteData[][] = [];
 
 /** Set wall tile sets (called once when extension sends wallTilesLoaded) */
-export function setWallSprites(sets: SpriteData[][]): void {
-  wallSets = sets;
+export function setWallSprites(solidSets: SpriteData[][], glassSets: SpriteData[][]): void {
+  solidWallSets = solidSets;
+  glassWallSets = glassSets;
 }
 
 /** Check if wall sprites have been loaded */
 export function hasWallSprites(): boolean {
-  return wallSets.length > 0;
+  return solidWallSets.length > 0 || glassWallSets.length > 0;
 }
 
 /** Get number of available wall sets */
 export function getWallSetCount(): number {
-  return wallSets.length;
+  return Math.max(solidWallSets.length, glassWallSets.length);
 }
 
 /** Get the first sprite (bitmask 0, top-left piece) of a wall set for preview rendering */
 export function getWallSetPreviewSprite(setIndex: number): SpriteData | null {
-  const set = wallSets[setIndex];
+  const set =
+    solidWallSets[setIndex] ?? glassWallSets[setIndex] ?? solidWallSets[0] ?? glassWallSets[0];
   if (!set) return null;
   return set[0] ?? null;
+}
+
+type WallMaterial = 'solid' | 'glass';
+
+function getWallMaterial(tile: TileTypeVal | undefined): WallMaterial | null {
+  if (tile === TileType.WALL) return 'solid';
+  if (tile === TileType.GLASS_WALL) return 'glass';
+  return null;
+}
+
+function getWallSpritesForTile(
+  tile: TileTypeVal | undefined,
+  setIndex: number,
+): SpriteData[] | null {
+  const material = getWallMaterial(tile);
+  if (material === 'solid') {
+    return solidWallSets[setIndex] ?? solidWallSets[0] ?? null;
+  }
+  if (material === 'glass') {
+    return (
+      glassWallSets[setIndex] ??
+      glassWallSets[0] ??
+      solidWallSets[setIndex] ??
+      solidWallSets[0] ??
+      null
+    );
+  }
+  return null;
 }
 
 /**
@@ -71,8 +102,8 @@ export function getWallSprite(
   tileMap: TileTypeVal[][],
   setIndex = 0,
 ): { sprite: SpriteData; offsetY: number } | null {
-  if (wallSets.length === 0) return null;
-  const sprites = wallSets[setIndex] ?? wallSets[0];
+  const sprites = getWallSpritesForTile(tileMap[row]?.[col], setIndex);
+  if (!sprites) return null;
 
   const mask = buildWallMask(col, row, tileMap);
   const sprite = sprites[mask];
@@ -94,8 +125,8 @@ export function getColorizedWallSprite(
   color: FloorColor,
   setIndex = 0,
 ): { sprite: SpriteData; offsetY: number } | null {
-  if (wallSets.length === 0) return null;
-  const sprites = wallSets[setIndex] ?? wallSets[0];
+  const sprites = getWallSpritesForTile(tileMap[row]?.[col], setIndex);
+  if (!sprites) return null;
 
   const mask = buildWallMask(col, row, tileMap);
   const sprite = sprites[mask];
@@ -116,7 +147,7 @@ export function getWallInstances(
   tileColors?: Array<FloorColor | null>,
   cols?: number,
 ): FurnitureInstance[] {
-  if (wallSets.length === 0) return [];
+  if (!hasWallSprites()) return [];
   const tmRows = tileMap.length;
   const tmCols = tmRows > 0 ? tileMap[0].length : 0;
   const layoutCols = cols ?? tmCols;

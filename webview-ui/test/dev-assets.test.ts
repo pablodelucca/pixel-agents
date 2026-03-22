@@ -18,11 +18,17 @@ import { createServer } from 'vite';
 
 import type { AssetIndex, CatalogEntry } from '../../shared/assets/types.ts';
 
+interface DecodedWallSets {
+  solidSets: string[][][][];
+  glassSets: string[][][][];
+}
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 async function startDevServer(base: string, port: number): Promise<ViteDevServer> {
   const server = await createServer({
     configFile: path.resolve(root, 'vite.config.ts'),
+    root,
     base,
     server: { port, strictPort: false },
     logLevel: 'silent',
@@ -61,19 +67,25 @@ async function verifyAssetUrls(baseUrl: string, basePath: string): Promise<void>
   const catalog = await fetchJson<CatalogEntry[]>(
     assetUrl(baseUrl, basePath, 'furniture-catalog.json'),
   );
+  const decodedWalls = await fetchJson<DecodedWallSets>(
+    assetUrl(baseUrl, basePath, 'decoded/walls.json'),
+  );
 
   await assertUrlOk(assetUrl(baseUrl, basePath, 'decoded/characters.json'));
   await assertUrlOk(assetUrl(baseUrl, basePath, 'decoded/floors.json'));
-  await assertUrlOk(assetUrl(baseUrl, basePath, 'decoded/walls.json'));
   await assertUrlOk(assetUrl(baseUrl, basePath, 'decoded/furniture.json'));
 
   assert.ok(assetIndex.floors.length > 0, 'floors index should not be empty');
-  assert.ok(assetIndex.walls.length > 0, 'walls index should not be empty');
+  assert.ok(assetIndex.solidWalls.length > 0, 'solidWalls index should not be empty');
+  assert.ok(assetIndex.glassWalls.length > 0, 'glassWalls index should not be empty');
   assert.ok(assetIndex.characters.length > 0, 'characters index should not be empty');
   assert.ok(catalog.length > 0, 'furniture catalog should not be empty');
+  assert.ok(decodedWalls.solidSets.length > 0, 'decoded solid wall sets should not be empty');
+  assert.ok(decodedWalls.glassSets.length > 0, 'decoded glass wall sets should not be empty');
 
   await assertUrlOk(assetUrl(baseUrl, basePath, indexedPath('floors', assetIndex.floors[0])));
-  await assertUrlOk(assetUrl(baseUrl, basePath, indexedPath('walls', assetIndex.walls[0])));
+  await assertUrlOk(assetUrl(baseUrl, basePath, indexedPath('walls', assetIndex.solidWalls[0])));
+  await assertUrlOk(assetUrl(baseUrl, basePath, indexedPath('walls', assetIndex.glassWalls[0])));
   await assertUrlOk(
     assetUrl(baseUrl, basePath, indexedPath('characters', assetIndex.characters[0])),
   );

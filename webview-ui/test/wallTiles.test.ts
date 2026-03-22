@@ -14,12 +14,17 @@ test('mixed solid and glass wall neighbors share the same connectivity mask', ()
   assert.equal(buildWallMaskForTest(1, 1, tileMap), 15);
 });
 
-test('wall instances render glass walls with the solid wall fallback for runtime safety', () => {
-  const sprite = [['#ffffff']];
-  setWallSprites([Array.from({ length: 16 }, () => sprite)]);
+test('wall instances choose sprite families by material while sharing mixed-wall connectivity', () => {
+  const solidSprite = [['#111111']];
+  const glassSprite = [['#22FFFFFF']];
+  setWallSprites(
+    [Array.from({ length: 16 }, () => solidSprite)],
+    [Array.from({ length: 16 }, () => glassSprite)],
+  );
 
-  const instances = getWallInstances([[TileType.GLASS_WALL]]);
+  const instances = getWallInstances([[TileType.WALL, TileType.GLASS_WALL]]);
 
-  assert.equal(instances.length, 1);
-  assert.equal(instances[0]?.sprite, sprite);
+  assert.equal(instances.length, 2);
+  assert.equal(instances[0]?.sprite, solidSprite);
+  assert.equal(instances[1]?.sprite, glassSprite);
 });

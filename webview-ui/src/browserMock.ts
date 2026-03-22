@@ -24,12 +24,14 @@ import type {
   AssetIndex,
   CatalogEntry,
   CharacterDirectionSprites,
+  DecodedWallSets,
 } from '../../shared/assets/types.ts';
 
 interface MockPayload {
   characters: CharacterDirectionSprites[];
   floorSprites: string[][][];
-  wallSets: string[][][][];
+  solidWallSets: string[][][][];
+  glassWallSets: string[][][][];
   furnitureCatalog: CatalogEntry[];
   furnitureSprites: Record<string, string[][]>;
   layout: unknown;
@@ -152,9 +154,9 @@ async function decodeFloorsFromPng(base: string, index: AssetIndex): Promise<str
   return floors;
 }
 
-async function decodeWallsFromPng(base: string, index: AssetIndex): Promise<string[][][][]> {
+async function decodeWallFamilyFromPng(base: string, relPaths: string[]): Promise<string[][][][]> {
   const wallSets: string[][][][] = [];
-  for (const relPath of index.walls) {
+  for (const relPath of relPaths) {
     const png = await decodePng(`${base}assets/${getIndexedAssetPath('walls', relPath)}`);
     const set: string[][][] = [];
     for (let mask = 0; mask < WALL_BITMASK_COUNT; mask++) {
@@ -165,6 +167,14 @@ async function decodeWallsFromPng(base: string, index: AssetIndex): Promise<stri
     wallSets.push(set);
   }
   return wallSets;
+}
+
+async function decodeWallsFromPng(base: string, index: AssetIndex): Promise<DecodedWallSets> {
+  const [solidSets, glassSets] = await Promise.all([
+    decodeWallFamilyFromPng(base, index.solidWalls),
+    decodeWallFamilyFromPng(base, index.glassWalls),
+  ]);
+  return { solidSets, glassSets };
 }
 
 async function decodeFurnitureFromPng(
@@ -201,7 +211,7 @@ export async function initBrowserMock(): Promise<void> {
     ? await Promise.all([
         fetchJsonOptional<CharacterDirectionSprites[]>(`${base}assets/decoded/characters.json`),
         fetchJsonOptional<string[][][]>(`${base}assets/decoded/floors.json`),
-        fetchJsonOptional<string[][][][]>(`${base}assets/decoded/walls.json`),
+        fetchJsonOptional<DecodedWallSets>(`${base}assets/decoded/walls.json`),
         fetchJsonOptional<Record<string, string[][]>>(`${base}assets/decoded/furniture.json`),
       ])
     : [null, null, null, null];
@@ -232,14 +242,15 @@ export async function initBrowserMock(): Promise<void> {
   mockPayload = {
     characters,
     floorSprites,
-    wallSets,
+    solidWallSets: wallSets.solidSets,
+    glassWallSets: wallSets.glassSets,
     furnitureCatalog: catalog,
     furnitureSprites,
     layout,
   };
 
   console.log(
-    `[BrowserMock] Ready (${hasDecoded ? 'decoded-json' : 'browser-png-decode'}) — ${characters.length} chars, ${floorSprites.length} floors, ${wallSets.length} wall sets, ${catalog.length} furniture items`,
+    `[BrowserMock] Ready (${hasDecoded ? 'decoded-json' : 'browser-png-decode'}) — ${characters.length} chars, ${floorSprites.length} floors, ${wallSets.solidSets.length} solid wall sets, ${wallSets.glassSets.length} glass wall sets, ${catalog.length} furniture items`,
   );
 }
 
@@ -250,8 +261,15 @@ export async function initBrowserMock(): Promise<void> {
 export function dispatchMockMessages(): void {
   if (!mockPayload) return;
 
-  const { characters, floorSprites, wallSets, furnitureCatalog, furnitureSprites, layout } =
-    mockPayload;
+  const {
+    characters,
+    floorSprites,
+    solidWallSets,
+    glassWallSets,
+    furnitureCatalog,
+    furnitureSprites,
+    layout,
+  } = mockPayload;
 
   function dispatch(data: unknown): void {
     window.dispatchEvent(new MessageEvent('message', { data }));
@@ -261,7 +279,7 @@ export function dispatchMockMessages(): void {
   // characterSpritesLoaded → floorTilesLoaded → wallTilesLoaded → furnitureAssetsLoaded → layoutLoaded
   dispatch({ type: 'characterSpritesLoaded', characters });
   dispatch({ type: 'floorTilesLoaded', sprites: floorSprites });
-  dispatch({ type: 'wallTilesLoaded', sets: wallSets });
+  dispatch({ type: 'wallTilesLoaded', solidSets: solidWallSets, glassSets: glassWallSets });
   dispatch({ type: 'furnitureAssetsLoaded', catalog: furnitureCatalog, sprites: furnitureSprites });
   dispatch({ type: 'layoutLoaded', layout });
   dispatch({ type: 'settingsLoaded', soundEnabled: false });

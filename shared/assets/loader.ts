@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { decodeCharacterPng, decodeFloorPng, parseWallPng, pngToSpriteData } from './pngDecoder.js';
-import type { CatalogEntry, CharacterDirectionSprites } from './types.js';
+import type { CatalogEntry, CharacterDirectionSprites, DecodedWallSets } from './types.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -46,13 +46,20 @@ export function decodeAllFloors(assetsDir: string): string[][][] {
   });
 }
 
-export function decodeAllWalls(assetsDir: string): string[][][][] {
+function decodeWallFamily(assetsDir: string, pattern: RegExp): string[][][][] {
   const wallsDir = path.join(assetsDir, 'walls');
-  const files = listSortedPngs(wallsDir, /^wall_(\d+)\.png$/i);
+  const files = listSortedPngs(wallsDir, pattern);
   return files.map(({ filename }) => {
     const pngBuffer = fs.readFileSync(path.join(wallsDir, filename));
     return parseWallPng(pngBuffer);
   });
+}
+
+export function decodeAllWalls(assetsDir: string): DecodedWallSets {
+  return {
+    solidSets: decodeWallFamily(assetsDir, /^wall_(\d+)\.png$/i),
+    glassSets: decodeWallFamily(assetsDir, /^glass_wall_(\d+)\.png$/i),
+  };
 }
 
 export function decodeAllFurniture(
