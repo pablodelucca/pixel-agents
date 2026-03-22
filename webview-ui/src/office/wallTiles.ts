@@ -123,7 +123,7 @@ export function getWallInstances(
   const instances: FurnitureInstance[] = [];
   for (let r = 0; r < tmRows; r++) {
     for (let c = 0; c < tmCols; c++) {
-      if (tileMap[r][c] !== TileType.WALL) continue;
+      if (!isWallTile(tileMap[r][c])) continue;
       const colorIdx = r * layoutCols + c;
       const wallColor = tileColors?.[colorIdx];
       const wallInfo = wallColor

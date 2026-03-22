@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { OfficeLayout } from '../types.js';
-import { TileType } from '../types.js';
-import { paintTile } from './editorActions.js';
+import type { OfficeLayout } from '../src/office/types.js';
+import { TileType } from '../src/office/types.js';
+import { paintTile } from '../src/office/editor/editorActions.js';
 
 function createLayout(): OfficeLayout {
   return {
