@@ -67,7 +67,6 @@
     "format": "prettier --write \"src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
     "e2e": "playwright test --config e2e/playwright.config.ts",
-    "e2e:headed": "playwright test --config e2e/playwright.config.ts --headed",
     "e2e:debug": "playwright test --config e2e/playwright.config.ts --debug"
   },
   "devDependencies": {
