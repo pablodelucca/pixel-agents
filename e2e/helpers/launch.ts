@@ -7,7 +7,10 @@ import path from 'path';
 const REPO_ROOT = path.join(__dirname, '../..');
 const VSCODE_PATH_FILE = path.join(REPO_ROOT, '.vscode-test/vscode-executable.txt');
 const MOCK_CLAUDE_PATH = path.join(REPO_ROOT, 'e2e/fixtures/mock-claude');
+const MOCK_CLAUDE_CMD_PATH = path.join(REPO_ROOT, 'e2e/fixtures/mock-claude.cmd');
 const ARTIFACTS_DIR = path.join(REPO_ROOT, 'test-results/e2e');
+const IS_WINDOWS = process.platform === 'win32';
+const PATH_SEP = IS_WINDOWS ? ';' : ':';
 
 export interface VSCodeSession {
   app: ElectronApplication;
@@ -60,10 +63,15 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
     }
   }
 
-  // Copy mock-claude into an isolated bin dir and symlink as 'claude'
-  const mockDest = path.join(mockBinDir, 'claude');
-  fs.copyFileSync(MOCK_CLAUDE_PATH, mockDest);
-  fs.chmodSync(mockDest, 0o755);
+  // Copy mock-claude into an isolated bin dir
+  if (IS_WINDOWS) {
+    // Windows: copy the .cmd batch file as 'claude.cmd'
+    fs.copyFileSync(MOCK_CLAUDE_CMD_PATH, path.join(mockBinDir, 'claude.cmd'));
+  } else {
+    const mockDest = path.join(mockBinDir, 'claude');
+    fs.copyFileSync(MOCK_CLAUDE_PATH, mockDest);
+    fs.chmodSync(mockDest, 0o755);
+  }
 
   // macOS: VS Code's integrated terminal resolves PATH from the login shell,
   // ignoring the process env. Define a custom terminal profile that uses a
@@ -108,7 +116,7 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
     ...(process.env as Record<string, string>),
     HOME: tmpHome,
     // Prepend mock bin so 'claude' resolves to our mock
-    PATH: `${mockBinDir}:${process.env['PATH'] ?? '/usr/local/bin:/usr/bin:/bin'}`,
+    PATH: `${mockBinDir}${PATH_SEP}${process.env['PATH'] ?? '/usr/local/bin:/usr/bin:/bin'}`,
     // Prevent VS Code from trying to talk to real accounts / telemetry
     VSCODE_TELEMETRY_DISABLED: '1',
   };
@@ -148,21 +156,24 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
   let app: ElectronApplication | undefined;
 
   try {
-    app = await electron.launch({
+    // Playwright's video recording freezes VS Code's renderer on Windows,
+    // so only enable it on non-Windows platforms.
+    const launchOptions: Parameters<typeof electron.launch>[0] = {
       executablePath: vscodePath,
       args,
       env,
       cwd: workspaceDir,
-      recordVideo: {
+      timeout: 60_000,
+    };
+    if (!IS_WINDOWS) {
+      launchOptions.recordVideo = {
         dir: videoDir,
         size: { width: 1280, height: 800 },
-      },
-      timeout: 60_000,
-    });
+      };
+    }
 
-    // Electron can expose the window before the page lifecycle events settle.
-    // The test waits for `.monaco-workbench`, so returning the window here is
-    // more reliable than waiting on `domcontentloaded` in CI.
+    app = await electron.launch(launchOptions);
+
     const window = await app.firstWindow();
 
     return { app, window, tmpHome, workspaceDir, mockLogFile, cleanup };
