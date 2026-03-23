@@ -7,7 +7,10 @@ import path from 'path';
 const REPO_ROOT = path.join(__dirname, '../..');
 const VSCODE_PATH_FILE = path.join(REPO_ROOT, '.vscode-test/vscode-executable.txt');
 const MOCK_CLAUDE_PATH = path.join(REPO_ROOT, 'e2e/fixtures/mock-claude');
+const MOCK_CLAUDE_CMD_PATH = path.join(REPO_ROOT, 'e2e/fixtures/mock-claude.cmd');
 const ARTIFACTS_DIR = path.join(REPO_ROOT, 'test-results/e2e');
+const IS_WINDOWS = process.platform === 'win32';
+const PATH_SEP = IS_WINDOWS ? ';' : ':';
 
 export interface VSCodeSession {
   app: ElectronApplication;
@@ -42,6 +45,13 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
   fs.mkdirSync(userDataDir, { recursive: true });
   fs.mkdirSync(mockBinDir, { recursive: true });
 
+  // On Windows, os.tmpdir() may return an 8.3 short path (e.g. RUNNER~1) while
+  // child processes see the long path (e.g. runneradmin) via %CD%. Normalize to
+  // the canonical long path so the project hash computed here matches mock-claude.
+  // fs.realpathSync only resolves symlinks; .native uses GetFinalPathNameByHandleW
+  // which also resolves 8.3 short names to their full form.
+  const resolvedWorkspaceDir = IS_WINDOWS ? fs.realpathSync.native(workspaceDir) : workspaceDir;
+
   // macOS: create a temporary keychain so the OS doesn't show "Keychain Not Found" dialog.
   // The isolated HOME has no keychain, and VS Code/Electron's safeStorage triggers a system prompt.
   if (process.platform === 'darwin') {
@@ -60,10 +70,15 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
     }
   }
 
-  // Copy mock-claude into an isolated bin dir and symlink as 'claude'
-  const mockDest = path.join(mockBinDir, 'claude');
-  fs.copyFileSync(MOCK_CLAUDE_PATH, mockDest);
-  fs.chmodSync(mockDest, 0o755);
+  // Copy mock-claude into an isolated bin dir
+  if (IS_WINDOWS) {
+    // Windows: copy the .cmd batch file as 'claude.cmd'
+    fs.copyFileSync(MOCK_CLAUDE_CMD_PATH, path.join(mockBinDir, 'claude.cmd'));
+  } else {
+    const mockDest = path.join(mockBinDir, 'claude');
+    fs.copyFileSync(MOCK_CLAUDE_PATH, mockDest);
+    fs.chmodSync(mockDest, 0o755);
+  }
 
   // macOS: VS Code's integrated terminal resolves PATH from the login shell,
   // ignoring the process env. Define a custom terminal profile that uses a
@@ -108,7 +123,7 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
     ...(process.env as Record<string, string>),
     HOME: tmpHome,
     // Prepend mock bin so 'claude' resolves to our mock
-    PATH: `${mockBinDir}:${process.env['PATH'] ?? '/usr/local/bin:/usr/bin:/bin'}`,
+    PATH: `${mockBinDir}${PATH_SEP}${process.env['PATH'] ?? '/usr/local/bin:/usr/bin:/bin'}`,
     // Prevent VS Code from trying to talk to real accounts / telemetry
     VSCODE_TELEMETRY_DISABLED: '1',
   };
@@ -126,8 +141,14 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
     '--skip-release-notes',
     '--skip-welcome',
     '--no-sandbox',
+    // Disable GPU acceleration: prevents Electron GPU-sandbox stalls in headless
+    // CI environments (required on macOS arm64 runners, harmless elsewhere).
+    '--disable-gpu',
+    // On Linux, use the Ozone headless platform so Electron runs without a
+    // display server (equivalent to what --disable-gpu achieves on macOS/Windows).
+    ...(process.platform === 'linux' ? ['--ozone-platform=headless'] : []),
     // Open the workspace folder
-    workspaceDir,
+    resolvedWorkspaceDir,
   ];
 
   const cleanup = async (): Promise<void> => {
@@ -148,24 +169,39 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
   let app: ElectronApplication | undefined;
 
   try {
-    app = await electron.launch({
+    // Playwright's video recording freezes VS Code's renderer on Windows,
+    // so only enable it on non-Windows platforms.
+    const launchOptions: Parameters<typeof electron.launch>[0] = {
       executablePath: vscodePath,
       args,
       env,
-      cwd: workspaceDir,
-      recordVideo: {
+      cwd: resolvedWorkspaceDir,
+      timeout: 60_000,
+    };
+    if (!IS_WINDOWS) {
+      launchOptions.recordVideo = {
         dir: videoDir,
         size: { width: 1280, height: 800 },
-      },
-      timeout: 60_000,
-    });
+      };
+    }
 
-    // Electron can expose the window before the page lifecycle events settle.
-    // The test waits for `.monaco-workbench`, so returning the window here is
-    // more reliable than waiting on `domcontentloaded` in CI.
+    app = await electron.launch(launchOptions);
+
     const window = await app.firstWindow();
 
-    return { app, window, tmpHome, workspaceDir, mockLogFile, cleanup };
+    // The Ozone headless backend ignores --window-size CLI flags, so VS Code
+    // opens at a tiny default size on Linux. Resize via the Electron API after
+    // the window exists — getAllWindows() is empty before firstWindow() resolves.
+    if (process.platform === 'linux') {
+      await app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]?.setSize(1280, 800);
+      });
+      // Give VS Code's layout system time to respond to the resize before tests
+      // start measuring panel heights.
+      await window.waitForTimeout(500);
+    }
+
+    return { app, window, tmpHome, workspaceDir: resolvedWorkspaceDir, mockLogFile, cleanup };
   } catch (error) {
     await cleanup();
     throw error;
