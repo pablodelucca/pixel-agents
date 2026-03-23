@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
@@ -212,6 +213,104 @@ function scanForNewJsonlFiles(
         }
       }
     }
+  }
+}
+
+/**
+ * Scan ALL project directories under ~/.claude/projects/ for active sessions.
+ * Creates virtual agents (no terminal ref) for sessions from other directories.
+ */
+export function scanAllProjectDirs(
+  knownJsonlFiles: Set<string>,
+  nextAgentIdRef: { current: number },
+  agents: Map<number, AgentState>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+): void {
+  const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects');
+  try {
+    if (!fs.existsSync(claudeProjectsDir)) return;
+    const entries = fs.readdirSync(claudeProjectsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const projectDir = path.join(claudeProjectsDir, entry.name);
+      let files: string[];
+      try {
+        files = fs
+          .readdirSync(projectDir)
+          .filter((f) => f.endsWith('.jsonl'))
+          .map((f) => path.join(projectDir, f));
+      } catch {
+        continue;
+      }
+
+      for (const file of files) {
+        if (knownJsonlFiles.has(file)) continue;
+
+        // Only adopt files modified in the last 30 minutes
+        try {
+          const stat = fs.statSync(file);
+          if (Date.now() - stat.mtimeMs > 30 * 60 * 1000) continue;
+        } catch {
+          continue;
+        }
+
+        knownJsonlFiles.add(file);
+        const id = nextAgentIdRef.current++;
+        const folderName =
+          path.basename(projectDir).split('-').filter(Boolean).pop() || path.basename(projectDir);
+        const agent: AgentState = {
+          id,
+          terminalRef: null,
+          projectDir,
+          jsonlFile: file,
+          fileOffset: 0,
+          lineBuffer: '',
+          activeToolIds: new Set(),
+          activeToolStatuses: new Map(),
+          activeToolNames: new Map(),
+          activeSubagentToolIds: new Map(),
+          activeSubagentToolNames: new Map(),
+          isWaiting: false,
+          permissionSent: false,
+          hadToolsInTurn: false,
+          folderName,
+        };
+
+        // Skip to near end of file
+        try {
+          const stat = fs.statSync(file);
+          agent.fileOffset = Math.max(0, stat.size - 50 * 1024);
+        } catch {
+          /* start from beginning */
+        }
+
+        agents.set(id, agent);
+        persistAgents();
+        console.log(
+          `[Pixel Agents] Agent ${id}: adopted external session in ${folderName}: ${path.basename(file)}`,
+        );
+        webview?.postMessage({ type: 'agentCreated', id, folderName });
+
+        startFileWatching(
+          id,
+          file,
+          agents,
+          fileWatchers,
+          pollingTimers,
+          waitingTimers,
+          permissionTimers,
+          webview,
+        );
+        readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+      }
+    }
+  } catch {
+    /* ignore */
   }
 }
 
