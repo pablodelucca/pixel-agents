@@ -141,6 +141,7 @@ function App() {
     selectedAgent,
     agentTools,
     agentStatuses,
+    agentNames,
     subagentTools,
     subagentCharacters,
     layoutReady,
@@ -280,7 +281,7 @@ function App() {
 
       <BottomToolbar
         isEditMode={editor.isEditMode}
-        onOpenClaude={editor.handleOpenClaude}
+        onOpenCodexSessions={editor.handleOpenCodexSessions}
         onToggleEditMode={editor.handleToggleEditMode}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
@@ -367,6 +368,7 @@ function App() {
           selectedAgent={selectedAgent}
           agentTools={agentTools}
           agentStatuses={agentStatuses}
+          agentNames={agentNames}
           subagentTools={subagentTools}
           onSelectAgent={handleSelectAgent}
         />

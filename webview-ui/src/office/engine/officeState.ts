@@ -38,6 +38,7 @@ export class OfficeState {
   layout: OfficeLayout;
   tileMap: TileTypeVal[][];
   seats: Map<string, Seat>;
+  workSeatIds: Set<string>;
   blockedTiles: Set<string>;
   furniture: FurnitureInstance[];
   walkableTiles: Array<{ col: number; row: number }>;
@@ -58,6 +59,7 @@ export class OfficeState {
     this.layout = layout || createDefaultLayout();
     this.tileMap = layoutToTileMap(this.layout);
     this.seats = layoutToSeats(this.layout.furniture);
+    this.workSeatIds = this.getWorkSeatIds(this.layout.furniture, this.seats);
     this.blockedTiles = getBlockedTiles(this.layout.furniture);
     this.furniture = layoutToFurnitureInstances(this.layout.furniture);
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles);
@@ -69,6 +71,7 @@ export class OfficeState {
     this.layout = layout;
     this.tileMap = layoutToTileMap(layout);
     this.seats = layoutToSeats(layout.furniture);
+    this.workSeatIds = this.getWorkSeatIds(layout.furniture, this.seats);
     this.blockedTiles = getBlockedTiles(layout.furniture);
     this.rebuildFurnitureInstances();
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles);
@@ -114,7 +117,7 @@ export class OfficeState {
     // Second pass: assign remaining characters to free seats
     for (const ch of this.characters.values()) {
       if (ch.seatId) continue;
-      const seatId = this.findFreeSeat();
+      const seatId = this.findFreeSeat(true) ?? this.findFreeSeat();
       if (seatId) {
         this.seats.get(seatId)!.assigned = true;
         ch.seatId = seatId;
@@ -125,6 +128,10 @@ export class OfficeState {
         ch.y = seat.seatRow * TILE_SIZE + TILE_SIZE / 2;
         ch.dir = seat.facingDir;
       }
+    }
+
+    for (const ch of this.characters.values()) {
+      this.ensureWorkSeat(ch);
     }
 
     // Relocate any characters that ended up outside bounds or on non-walkable tiles
@@ -174,11 +181,98 @@ export class OfficeState {
     return result;
   }
 
-  private findFreeSeat(): string | null {
-    for (const [uid, seat] of this.seats) {
-      if (!seat.assigned) return uid;
+  private getWorkSeatIds(furniture: PlacedFurniture[], seats: Map<string, Seat>): Set<string> {
+    const workstationTiles = new Set<string>();
+    for (const item of furniture) {
+      const entry = getCatalogEntry(item.type);
+      if (!entry || !item.type.startsWith('PC_')) continue;
+      for (let dr = 0; dr < entry.footprintH; dr++) {
+        for (let dc = 0; dc < entry.footprintW; dc++) {
+          workstationTiles.add(`${item.col + dc},${item.row + dr}`);
+        }
+      }
+    }
+
+    const directionOffset = (dir: Direction): { col: number; row: number } => {
+      switch (dir) {
+        case Direction.UP:
+          return { col: 0, row: -1 };
+        case Direction.DOWN:
+          return { col: 0, row: 1 };
+        case Direction.LEFT:
+          return { col: -1, row: 0 };
+        case Direction.RIGHT:
+          return { col: 1, row: 0 };
+        default:
+          return { col: 0, row: 0 };
+      }
+    };
+
+    const workSeats = new Set<string>();
+    for (const [seatId, seat] of seats) {
+      const offset = directionOffset(seat.facingDir);
+      let isWorkSeat = false;
+
+      for (let depth = 1; depth <= AUTO_ON_FACING_DEPTH && !isWorkSeat; depth++) {
+        const baseCol = seat.seatCol + offset.col * depth;
+        const baseRow = seat.seatRow + offset.row * depth;
+
+        if (workstationTiles.has(`${baseCol},${baseRow}`)) {
+          isWorkSeat = true;
+          break;
+        }
+
+        for (let side = 1; side <= AUTO_ON_SIDE_DEPTH && !isWorkSeat; side++) {
+          if (offset.col !== 0) {
+            if (
+              workstationTiles.has(`${baseCol},${baseRow - side}`) ||
+              workstationTiles.has(`${baseCol},${baseRow + side}`)
+            ) {
+              isWorkSeat = true;
+            }
+          } else if (
+            workstationTiles.has(`${baseCol - side},${baseRow}`) ||
+            workstationTiles.has(`${baseCol + side},${baseRow}`)
+          ) {
+            isWorkSeat = true;
+          }
+        }
+      }
+
+      if (isWorkSeat) {
+        workSeats.add(seatId);
+      }
+    }
+    return workSeats;
+  }
+
+  private findFreeSeat(preferredWorkSeat = false): string | null {
+    const candidates = [...this.seats.entries()]
+      .filter(([, seat]) => !seat.assigned)
+      .filter(([uid]) => !preferredWorkSeat || this.workSeatIds.has(uid))
+      .sort(([, a], [, b]) => a.seatRow - b.seatRow || a.seatCol - b.seatCol);
+    if (candidates.length > 0) {
+      return candidates[0][0];
     }
     return null;
+  }
+
+  private ensureWorkSeat(ch: Character): void {
+    if (ch.seatId && this.workSeatIds.has(ch.seatId)) return;
+
+    const workSeatId = this.findFreeSeat(true);
+    if (!workSeatId) return;
+
+    if (ch.seatId) {
+      const oldSeat = this.seats.get(ch.seatId);
+      if (oldSeat) oldSeat.assigned = false;
+    }
+
+    const seat = this.seats.get(workSeatId);
+    if (!seat) return;
+
+    seat.assigned = true;
+    ch.seatId = workSeatId;
   }
 
   /**
@@ -238,7 +332,7 @@ export class OfficeState {
       }
     }
     if (!seatId) {
-      seatId = this.findFreeSeat();
+      seatId = this.findFreeSeat(true) ?? this.findFreeSeat();
     }
 
     let ch: Character;
@@ -335,7 +429,9 @@ export class OfficeState {
   /** Send an agent back to their currently assigned seat */
   sendToSeat(agentId: number): void {
     const ch = this.characters.get(agentId);
-    if (!ch || !ch.seatId) return;
+    if (!ch) return;
+    this.ensureWorkSeat(ch);
+    if (!ch.seatId) return;
     const seat = this.seats.get(ch.seatId);
     if (!seat) return;
     const path = this.withOwnSeatUnblocked(ch, () =>
@@ -398,11 +494,23 @@ export class OfficeState {
     let bestSeatId: string | null = null;
     let bestDist = Infinity;
     for (const [uid, seat] of this.seats) {
-      if (!seat.assigned) {
+      if (!seat.assigned && this.workSeatIds.has(uid)) {
         const d = dist(seat.seatCol, seat.seatRow);
         if (d < bestDist) {
           bestDist = d;
           bestSeatId = uid;
+        }
+      }
+    }
+
+    if (!bestSeatId) {
+      for (const [uid, seat] of this.seats) {
+        if (!seat.assigned) {
+          const d = dist(seat.seatCol, seat.seatRow);
+          if (d < bestDist) {
+            bestDist = d;
+            bestSeatId = uid;
+          }
         }
       }
     }
@@ -519,8 +627,13 @@ export class OfficeState {
   setAgentActive(id: number, active: boolean): void {
     const ch = this.characters.get(id);
     if (ch) {
+      if (active) {
+        this.ensureWorkSeat(ch);
+      }
       ch.isActive = active;
-      if (!active) {
+      if (active) {
+        this.sendToSeat(id);
+      } else {
         // Sentinel -1: signals turn just ended, skip next seat rest timer.
         // Prevents the WALK handler from setting a 2-4 min rest on arrival.
         ch.seatTimer = -1;
@@ -537,6 +650,7 @@ export class OfficeState {
     const autoOnTiles = new Set<string>();
     for (const ch of this.characters.values()) {
       if (!ch.isActive || !ch.seatId) continue;
+      if (!this.workSeatIds.has(ch.seatId)) continue;
       const seat = this.seats.get(ch.seatId);
       if (!seat) continue;
       // Find the desk tile(s) the agent faces from their seat

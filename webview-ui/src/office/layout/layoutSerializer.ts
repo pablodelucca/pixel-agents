@@ -191,14 +191,17 @@ export function layoutToSeats(furniture: PlacedFurniture[]): Map<string, Seat> {
     { dc: 1, dr: 0, facing: Direction.RIGHT }, // desk is right of chair → face RIGHT
   ];
 
-  // For each chair, every footprint tile becomes a seat.
-  // Multi-tile chairs (e.g. 2-tile couches) produce multiple seats.
+  // For each chair, every non-background footprint tile becomes a seat.
+  // This keeps tall chairs with decorative top rows from creating floating seats,
+  // while still allowing multi-seat furniture such as couches.
   for (const item of furniture) {
     const entry = getCatalogEntry(item.type);
     if (!entry || entry.category !== 'chairs') continue;
 
+    const bgRows = entry.backgroundTiles || 0;
     let seatCount = 0;
     for (let dr = 0; dr < entry.footprintH; dr++) {
+      if (dr < bgRows) continue;
       for (let dc = 0; dc < entry.footprintW; dc++) {
         const tileCol = item.col + dc;
         const tileRow = item.row + dr;

@@ -39,6 +39,10 @@ function getActivityText(
     }
   }
 
+  if (isActive) {
+    return 'Working';
+  }
+
   return 'Idle';
 }
 

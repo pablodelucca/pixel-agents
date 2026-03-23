@@ -104,7 +104,7 @@ export function SettingsModal({
         {/* Menu items */}
         <button
           onClick={() => {
-            vscode.postMessage({ type: 'openSessionsFolder' });
+            vscode.postMessage({ type: 'openCodexSessions' });
             onClose();
           }}
           onMouseEnter={() => setHovered('sessions')}

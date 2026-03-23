@@ -51,6 +51,7 @@ export interface ExtensionMessageState {
   selectedAgent: number | null;
   agentTools: Record<number, ToolActivity[]>;
   agentStatuses: Record<number, string>;
+  agentNames: Record<number, string>;
   subagentTools: Record<number, Record<string, ToolActivity[]>>;
   subagentCharacters: SubagentCharacter[];
   layoutReady: boolean;
@@ -77,6 +78,7 @@ export function useExtensionMessages(
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null);
   const [agentTools, setAgentTools] = useState<Record<number, ToolActivity[]>>({});
   const [agentStatuses, setAgentStatuses] = useState<Record<number, string>>({});
+  const [agentNames, setAgentNames] = useState<Record<number, string>>({});
   const [subagentTools, setSubagentTools] = useState<
     Record<number, Record<string, ToolActivity[]>>
   >({});
@@ -90,6 +92,7 @@ export function useExtensionMessages(
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
+  const furnitureAssetsReadyRef = useRef(false);
 
   useEffect(() => {
     // Buffer agents from existingAgents until layout is loaded
@@ -100,6 +103,115 @@ export function useExtensionMessages(
       seatId?: string;
       folderName?: string;
     }> = [];
+    let pendingOfficeMessages: Array<
+      | { type: 'agentToolStart'; id: number; toolId: string; status: string }
+      | { type: 'agentToolsClear'; id: number }
+      | { type: 'agentStatus'; id: number; status: string }
+      | {
+          type: 'subagentToolStart';
+          id: number;
+          parentToolId: string;
+          toolId: string;
+          status: string;
+        }
+      | { type: 'subagentClear'; id: number; parentToolId: string }
+    > = [];
+
+    const shouldDelayAgentPlacement = (os: OfficeState): boolean =>
+      !furnitureAssetsReadyRef.current &&
+      os.getLayout().furniture.length > 0 &&
+      os.seats.size === 0;
+
+    const flushPendingAgents = (os: OfficeState): void => {
+      if (!layoutReadyRef.current || shouldDelayAgentPlacement(os)) return;
+      for (const p of pendingAgents) {
+        os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName);
+      }
+      pendingAgents = [];
+      if (os.characters.size > 0) {
+        saveAgentSeats(os);
+      }
+    };
+
+    const flushPendingOfficeMessages = (os: OfficeState): void => {
+      if (!layoutReadyRef.current || shouldDelayAgentPlacement(os)) return;
+      for (const pending of pendingOfficeMessages) {
+        switch (pending.type) {
+          case 'agentToolStart':
+            applyAgentToolStart(os, pending.id, pending.toolId, pending.status);
+            break;
+          case 'agentToolsClear':
+            applyAgentToolsClear(os, pending.id);
+            break;
+          case 'agentStatus':
+            applyAgentStatus(os, pending.id, pending.status);
+            break;
+          case 'subagentToolStart':
+            applySubagentToolStart(os, pending.id, pending.parentToolId, pending.status);
+            break;
+          case 'subagentClear':
+            applySubagentClear(os, pending.id, pending.parentToolId);
+            break;
+        }
+      }
+      pendingOfficeMessages = [];
+    };
+
+    const applyAgentToolStart = (
+      os: OfficeState,
+      id: number,
+      toolId: string,
+      status: string,
+    ): void => {
+      const toolName = extractToolName(status);
+      os.setAgentTool(id, toolName);
+      os.setAgentActive(id, true);
+      os.clearPermissionBubble(id);
+      if (status.startsWith('Subtask:')) {
+        const label = status.slice('Subtask:'.length).trim();
+        const subId = os.addSubagent(id, toolId);
+        setSubagentCharacters((prev) => {
+          if (prev.some((s) => s.id === subId)) return prev;
+          return [...prev, { id: subId, parentAgentId: id, parentToolId: toolId, label }];
+        });
+      }
+    };
+
+    const applyAgentToolsClear = (os: OfficeState, id: number): void => {
+      os.removeAllSubagents(id);
+      setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
+      os.setAgentTool(id, null);
+      os.clearPermissionBubble(id);
+    };
+
+    const applyAgentStatus = (os: OfficeState, id: number, status: string): void => {
+      os.setAgentActive(id, status === 'active');
+      if (status === 'waiting') {
+        os.showWaitingBubble(id);
+        playDoneSound();
+      }
+    };
+
+    const applySubagentToolStart = (
+      os: OfficeState,
+      id: number,
+      parentToolId: string,
+      status: string,
+    ): void => {
+      const subId = os.getSubagentId(id, parentToolId);
+      if (subId !== null) {
+        const subToolName = extractToolName(status);
+        os.setAgentTool(subId, subToolName);
+        os.setAgentActive(subId, true);
+      }
+    };
+
+    const applySubagentClear = (os: OfficeState, id: number, parentToolId: string): void => {
+      os.removeSubagent(id, parentToolId);
+      setSubagentCharacters((prev) =>
+        prev.filter((s) => !(s.parentAgentId === id && s.parentToolId === parentToolId)),
+      );
+    };
 
     const handler = (e: MessageEvent) => {
       const msg = e.data;
@@ -120,26 +232,27 @@ export function useExtensionMessages(
           // Default layout — snapshot whatever OfficeState built
           onLayoutLoaded?.(os.getLayout());
         }
-        // Add buffered agents now that layout (and seats) are correct
-        for (const p of pendingAgents) {
-          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName);
-        }
-        pendingAgents = [];
         layoutReadyRef.current = true;
+        flushPendingAgents(os);
+        flushPendingOfficeMessages(os);
         setLayoutReady(true);
         if (msg.wasReset) {
           setLayoutWasReset(true);
-        }
-        if (os.characters.size > 0) {
-          saveAgentSeats(os);
         }
       } else if (msg.type === 'agentCreated') {
         const id = msg.id as number;
         const folderName = msg.folderName as string | undefined;
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
         setSelectedAgent(id);
-        os.addAgent(id, undefined, undefined, undefined, undefined, folderName);
-        saveAgentSeats(os);
+        if (folderName) {
+          setAgentNames((prev) => ({ ...prev, [id]: folderName }));
+        }
+        if (shouldDelayAgentPlacement(os)) {
+          pendingAgents.push({ id, folderName });
+        } else {
+          os.addAgent(id, undefined, undefined, undefined, undefined, folderName);
+          saveAgentSeats(os);
+        }
       } else if (msg.type === 'agentClosed') {
         const id = msg.id as number;
         setAgents((prev) => prev.filter((a) => a !== id));
@@ -151,6 +264,12 @@ export function useExtensionMessages(
           return next;
         });
         setAgentStatuses((prev) => {
+          if (!(id in prev)) return prev;
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        setAgentNames((prev) => {
           if (!(id in prev)) return prev;
           const next = { ...prev };
           delete next[id];
@@ -173,6 +292,18 @@ export function useExtensionMessages(
           { palette?: number; hueShift?: number; seatId?: string }
         >;
         const folderNames = (msg.folderNames || {}) as Record<number, string>;
+        setAgentNames((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const id of incoming) {
+            const folderName = folderNames[id];
+            if (folderName && next[id] !== folderName) {
+              next[id] = folderName;
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
         // Buffer agents — they'll be added in layoutLoaded after seats are built
         for (const id of incoming) {
           const m = meta[id];
@@ -203,18 +334,10 @@ export function useExtensionMessages(
           if (list.some((t) => t.toolId === toolId)) return prev;
           return { ...prev, [id]: [...list, { toolId, status, done: false }] };
         });
-        const toolName = extractToolName(status);
-        os.setAgentTool(id, toolName);
-        os.setAgentActive(id, true);
-        os.clearPermissionBubble(id);
-        // Create sub-agent character for Task tool subtasks
-        if (status.startsWith('Subtask:')) {
-          const label = status.slice('Subtask:'.length).trim();
-          const subId = os.addSubagent(id, toolId);
-          setSubagentCharacters((prev) => {
-            if (prev.some((s) => s.id === subId)) return prev;
-            return [...prev, { id: subId, parentAgentId: id, parentToolId: toolId, label }];
-          });
+        if (!layoutReadyRef.current) {
+          pendingOfficeMessages.push({ type: 'agentToolStart', id, toolId, status });
+        } else {
+          applyAgentToolStart(os, id, toolId, status);
         }
       } else if (msg.type === 'agentToolDone') {
         const id = msg.id as number;
@@ -241,11 +364,11 @@ export function useExtensionMessages(
           delete next[id];
           return next;
         });
-        // Remove all sub-agent characters belonging to this agent
-        os.removeAllSubagents(id);
-        setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
-        os.setAgentTool(id, null);
-        os.clearPermissionBubble(id);
+        if (!layoutReadyRef.current) {
+          pendingOfficeMessages.push({ type: 'agentToolsClear', id });
+        } else {
+          applyAgentToolsClear(os, id);
+        }
       } else if (msg.type === 'agentSelected') {
         const id = msg.id as number;
         setSelectedAgent(id);
@@ -261,10 +384,10 @@ export function useExtensionMessages(
           }
           return { ...prev, [id]: status };
         });
-        os.setAgentActive(id, status === 'active');
-        if (status === 'waiting') {
-          os.showWaitingBubble(id);
-          playDoneSound();
+        if (!layoutReadyRef.current) {
+          pendingOfficeMessages.push({ type: 'agentStatus', id, status });
+        } else {
+          applyAgentStatus(os, id, status);
         }
       } else if (msg.type === 'agentToolPermission') {
         const id = msg.id as number;
@@ -318,12 +441,16 @@ export function useExtensionMessages(
             [id]: { ...agentSubs, [parentToolId]: [...list, { toolId, status, done: false }] },
           };
         });
-        // Update sub-agent character's tool and active state
-        const subId = os.getSubagentId(id, parentToolId);
-        if (subId !== null) {
-          const subToolName = extractToolName(status);
-          os.setAgentTool(subId, subToolName);
-          os.setAgentActive(subId, true);
+        if (!layoutReadyRef.current) {
+          pendingOfficeMessages.push({
+            type: 'subagentToolStart',
+            id,
+            parentToolId,
+            toolId,
+            status,
+          });
+        } else {
+          applySubagentToolStart(os, id, parentToolId, status);
         }
       } else if (msg.type === 'subagentToolDone') {
         const id = msg.id as number;
@@ -357,11 +484,11 @@ export function useExtensionMessages(
           }
           return { ...prev, [id]: next };
         });
-        // Remove sub-agent character
-        os.removeSubagent(id, parentToolId);
-        setSubagentCharacters((prev) =>
-          prev.filter((s) => !(s.parentAgentId === id && s.parentToolId === parentToolId)),
-        );
+        if (!layoutReadyRef.current) {
+          pendingOfficeMessages.push({ type: 'subagentClear', id, parentToolId });
+        } else {
+          applySubagentClear(os, id, parentToolId);
+        }
       } else if (msg.type === 'characterSpritesLoaded') {
         const characters = msg.characters as Array<{
           down: string[][][];
@@ -394,6 +521,12 @@ export function useExtensionMessages(
           console.log(`📦 Webview: Loaded ${catalog.length} furniture assets`);
           // Build dynamic catalog immediately so getCatalogEntry() works when layoutLoaded arrives next
           buildDynamicCatalog({ catalog, sprites });
+          furnitureAssetsReadyRef.current = true;
+          if (layoutReadyRef.current) {
+            os.rebuildFromLayout(os.getLayout());
+            flushPendingAgents(os);
+            flushPendingOfficeMessages(os);
+          }
           setLoadedAssets({ catalog, sprites });
         } catch (err) {
           console.error(`❌ Webview: Error processing furnitureAssetsLoaded:`, err);
@@ -410,6 +543,7 @@ export function useExtensionMessages(
     selectedAgent,
     agentTools,
     agentStatuses,
+    agentNames,
     subagentTools,
     subagentCharacters,
     layoutReady,

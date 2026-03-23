@@ -6,7 +6,7 @@ import { SettingsModal } from './SettingsModal.js';
 
 interface BottomToolbarProps {
   isEditMode: boolean;
-  onOpenClaude: () => void;
+  onOpenCodexSessions: () => void;
   onToggleEditMode: () => void;
   isDebugMode: boolean;
   onToggleDebugMode: () => void;
@@ -48,7 +48,7 @@ const btnActive: React.CSSProperties = {
 
 export function BottomToolbar({
   isEditMode,
-  onOpenClaude,
+  onOpenCodexSessions,
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
@@ -80,13 +80,13 @@ export function BottomToolbar({
     if (hasMultipleFolders) {
       setIsFolderPickerOpen((v) => !v);
     } else {
-      onOpenClaude();
+      onOpenCodexSessions();
     }
   };
 
   const handleFolderSelect = (folder: WorkspaceFolder) => {
     setIsFolderPickerOpen(false);
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path });
+    vscode.postMessage({ type: 'openCodexSessions', folderPath: folder.path });
   };
 
   return (
@@ -106,8 +106,9 @@ export function BottomToolbar({
             border: '2px solid var(--pixel-agent-border)',
             color: 'var(--pixel-agent-text)',
           }}
+          title={hasMultipleFolders ? 'Choose a Codex session' : 'Open a Codex session'}
         >
-          + Agent
+          + Session
         </button>
         {isFolderPickerOpen && (
           <div

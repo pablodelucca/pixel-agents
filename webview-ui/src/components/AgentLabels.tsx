@@ -8,6 +8,7 @@ interface AgentLabelsProps {
   officeState: OfficeState;
   agents: number[];
   agentStatuses: Record<number, string>;
+  agentNames?: Record<number, string>;
   containerRef: React.RefObject<HTMLDivElement | null>;
   zoom: number;
   panRef: React.RefObject<{ x: number; y: number }>;
@@ -18,6 +19,7 @@ export function AgentLabels({
   officeState,
   agents,
   agentStatuses,
+  agentNames,
   containerRef,
   zoom,
   panRef,
@@ -79,7 +81,8 @@ export function AgentLabels({
           dotColor = 'var(--vscode-charts-blue, #3794ff)';
         }
 
-        const labelText = subLabelMap.get(id) || `Agent #${id}`;
+        const labelText =
+          ch.folderName || agentNames?.[id] || subLabelMap.get(id) || `Session #${id}`;
 
         return (
           <div
