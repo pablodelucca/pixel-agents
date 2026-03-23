@@ -42,10 +42,59 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
   fs.mkdirSync(userDataDir, { recursive: true });
   fs.mkdirSync(mockBinDir, { recursive: true });
 
+  // macOS: create a temporary keychain so the OS doesn't show "Keychain Not Found" dialog.
+  // The isolated HOME has no keychain, and VS Code/Electron's safeStorage triggers a system prompt.
+  if (process.platform === 'darwin') {
+    const keychainDir = path.join(tmpHome, 'Library', 'Keychains');
+    fs.mkdirSync(keychainDir, { recursive: true });
+    const keychainPath = path.join(keychainDir, 'login.keychain-db');
+    try {
+      const { execSync } = require('child_process');
+      execSync(`security create-keychain -p "" "${keychainPath}"`, { stdio: 'ignore' });
+      execSync(`security default-keychain -s "${keychainPath}"`, {
+        stdio: 'ignore',
+        env: { ...process.env, HOME: tmpHome },
+      });
+    } catch {
+      // keychain creation failure is non-fatal, test may still work
+    }
+  }
+
   // Copy mock-claude into an isolated bin dir and symlink as 'claude'
   const mockDest = path.join(mockBinDir, 'claude');
   fs.copyFileSync(MOCK_CLAUDE_PATH, mockDest);
   fs.chmodSync(mockDest, 0o755);
+
+  // macOS: VS Code's integrated terminal resolves PATH from the login shell,
+  // ignoring the process env. Define a custom terminal profile that uses a
+  // non-login shell with our mock bin dir in PATH. On Linux the process env
+  // propagates directly, so no custom profile is needed.
+  if (process.platform === 'darwin') {
+    const userSettingsDir = path.join(userDataDir, 'User');
+    fs.mkdirSync(userSettingsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(userSettingsDir, 'settings.json'),
+      JSON.stringify(
+        {
+          'terminal.integrated.profiles.osx': {
+            e2e: {
+              path: '/bin/zsh',
+              args: ['--no-globalrcs'],
+              env: {
+                PATH: `${mockBinDir}:/usr/local/bin:/usr/bin:/bin`,
+                HOME: tmpHome,
+                ZDOTDIR: tmpHome,
+              },
+            },
+          },
+          'terminal.integrated.defaultProfile.osx': 'e2e',
+          'terminal.integrated.inheritEnv': false,
+        },
+        null,
+        2,
+      ),
+    );
+  }
 
   const mockLogFile = path.join(tmpHome, '.claude-mock', 'invocations.log');
 
@@ -56,7 +105,7 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
 
   // --- Environment for VS Code process ---
   const env: Record<string, string> = {
-    ...process.env as Record<string, string>,
+    ...(process.env as Record<string, string>),
     HOME: tmpHome,
     // Prepend mock bin so 'claude' resolves to our mock
     PATH: `${mockBinDir}:${process.env['PATH'] ?? '/usr/local/bin:/usr/bin:/bin'}`,

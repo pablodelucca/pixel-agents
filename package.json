@@ -66,14 +66,12 @@
     "import-tileset": "tsx scripts/import-tileset-cli.ts",
     "format": "prettier --write \"src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
-    "e2e": "xvfb-run --auto-servernum --server-args='-screen 0 1280x800x24' playwright test --config e2e/playwright.config.ts",
+    "e2e": "node -e \"const{execSync:r}=require('child_process'),c='playwright test --config e2e/playwright.config.ts';try{r('which xvfb-run',{stdio:'ignore'});r('xvfb-run --auto-servernum --server-args=\\'-screen 0 1280x800x24\\' '+c,{stdio:'inherit'})}catch{r(c,{stdio:'inherit'})}\"",
     "e2e:headed": "playwright test --config e2e/playwright.config.ts --headed",
     "e2e:debug": "playwright test --config e2e/playwright.config.ts --debug"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
-    "@playwright/test": "^1.58.2",
-    "@vscode/test-electron": "^2.5.2",
     "@playwright/test": "^1.58.2",
     "@types/node": "25.x",
     "@types/pngjs": "^6.0.5",

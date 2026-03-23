@@ -28,7 +28,7 @@ echo "$(date -Iseconds) session-id=${SESSION_ID} cwd=$(pwd) args=$*" >> "${LOG_D
 if [ -n "$SESSION_ID" ]; then
   CWD="$(pwd)"
   # Replicate agentManager.ts: workspacePath.replace(/[^a-zA-Z0-9-]/g, '-')
-  DIR_NAME="$(printf '%s' "$CWD" | tr -cs 'a-zA-Z0-9-' '-')"
+  DIR_NAME="$(printf '%s' "$CWD" | tr -c 'a-zA-Z0-9-' '-')"
   PROJECT_DIR="${HOME}/.claude/projects/${DIR_NAME}"
   mkdir -p "$PROJECT_DIR"
   JSONL_FILE="${PROJECT_DIR}/${SESSION_ID}.jsonl"

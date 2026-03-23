@@ -5,6 +5,11 @@
  *   1. The mock `claude` binary was invoked (invocations.log exists and is non-empty).
  *   2. The expected JSONL session file was created in the isolated HOME.
  *   3. A VS Code terminal named "Claude Code #1" appears in the workbench.
+ *
+ * NOTE FOR NEW TESTS: As more specs are added, refactor session setup into a
+ * Playwright fixture using test.extend<{ session: VSCodeSession }>() so that
+ * launch/cleanup is automatic and tests stay focused on assertions. See:
+ * https://playwright.dev/docs/test-fixtures
  */
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
