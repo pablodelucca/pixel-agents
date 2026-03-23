@@ -205,6 +205,12 @@ jobs:
             package-lock.json
             webview-ui/package-lock.json
 
+      - name: Cache VS Code
+        uses: actions/cache@v4
+        with:
+          path: ~/.vscode-test
+          key: vscode-test-${{ runner.os }}-1.112.0
+
       - name: Install Root Dependencies
         run: npm ci
 
