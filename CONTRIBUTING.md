@@ -104,10 +104,10 @@ The `e2e/` directory contains Playwright tests that launch a real VS Code instan
 # Build the extension first (tests load the compiled output)
 npm run build
 
-# Headless (default — uses the Linux Ozone headless backend, no display required)
+# Headless (default — uses xvfb-run on Linux)
 npm run e2e
 
-# Headed (shows the VS Code window; on Linux, requires DISPLAY or WAYLAND_DISPLAY)
+# Headed (shows the VS Code window)
 npm run e2e:headed
 
 # Step-by-step debug mode

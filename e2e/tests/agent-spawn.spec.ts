@@ -19,9 +19,7 @@ import { launchVSCode, waitForWorkbench } from '../helpers/launch';
 import { clickAddAgent, getPixelAgentsFrame, openPixelAgentsPanel } from '../helpers/webview';
 
 test('clicking + Agent spawns mock claude and creates a JSONL session file', async ({}, testInfo) => {
-  const session = await launchVSCode(testInfo.title, {
-    headed: testInfo.project.use.headless === false,
-  });
+  const session = await launchVSCode(testInfo.title);
   const { window, tmpHome, mockLogFile } = session;
   const runVideo = window.video();
 
