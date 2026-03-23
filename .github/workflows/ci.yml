@@ -189,6 +189,8 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: .playwright-browsers
 
     steps:
       - name: Checkout
@@ -213,6 +215,15 @@ jobs:
           key: vscode-test-${{ runner.os }}-1.112.0-v2
           restore-keys: |
             vscode-test-${{ runner.os }}-1.112.0-v2-
+
+      - name: Restore Playwright Cache
+        id: cache_playwright_restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .playwright-browsers
+          key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-v1
+          restore-keys: |
+            playwright-browsers-${{ runner.os }}-
 
       - name: Install Root Dependencies
         run: npm ci
@@ -245,6 +256,13 @@ jobs:
         with:
           path: .vscode-test
           key: ${{ steps.cache_vscode_restore.outputs.cache-primary-key }}
+
+      - name: Save Playwright Cache
+        if: always() && steps.cache_playwright_restore.outputs.cache-hit != 'true' && steps.install_playwright_deps.outcome == 'success' && hashFiles('.playwright-browsers/**') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .playwright-browsers
+          key: ${{ steps.cache_playwright_restore.outputs.cache-primary-key }}
 
       - name: Write Step Summary
         if: always()
