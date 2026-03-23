@@ -210,9 +210,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .vscode-test
-          key: vscode-test-${{ runner.os }}-1.112.0
+          key: vscode-test-${{ runner.os }}-1.112.0-v2
           restore-keys: |
-            vscode-test-${{ runner.os }}-
+            vscode-test-${{ runner.os }}-1.112.0-v2-
 
       - name: Install Root Dependencies
         run: npm ci
@@ -240,7 +240,7 @@ jobs:
         continue-on-error: true
 
       - name: Save VS Code Cache
-        if: always() && steps.cache_vscode_restore.outputs.cache-hit != 'true' && hashFiles('.vscode-test/**') != ''
+        if: always() && steps.cache_vscode_restore.outputs.cache-hit != 'true' && steps.e2e_test.outcome == 'success' && hashFiles('.vscode-test/vscode-executable.txt') != ''
         uses: actions/cache/save@v4
         with:
           path: .vscode-test
