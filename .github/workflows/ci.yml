@@ -205,11 +205,14 @@ jobs:
             package-lock.json
             webview-ui/package-lock.json
 
-      - name: Cache VS Code
-        uses: actions/cache@v4
+      - name: Restore VS Code Cache
+        id: cache_vscode_restore
+        uses: actions/cache/restore@v4
         with:
           path: .vscode-test
           key: vscode-test-${{ runner.os }}-1.112.0
+          restore-keys: |
+            vscode-test-${{ runner.os }}-
 
       - name: Install Root Dependencies
         run: npm ci
@@ -235,6 +238,13 @@ jobs:
         if: steps.install_playwright_deps.outcome == 'success'
         run: npm run e2e
         continue-on-error: true
+
+      - name: Save VS Code Cache
+        if: always() && steps.cache_vscode_restore.outputs.cache-hit != 'true' && hashFiles('.vscode-test/**') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .vscode-test
+          key: ${{ steps.cache_vscode_restore.outputs.cache-primary-key }}
 
       - name: Write Step Summary
         if: always()
