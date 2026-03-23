@@ -20,7 +20,7 @@ import { clickAddAgent, getPixelAgentsFrame, openPixelAgentsPanel } from '../hel
 
 test('clicking + Agent spawns mock claude and creates a JSONL session file', async ({}, testInfo) => {
   const session = await launchVSCode(testInfo.title);
-  const { window, tmpHome, workspaceDir, mockLogFile } = session;
+  const { window, tmpHome, mockLogFile } = session;
   const runVideo = window.video();
 
   test.setTimeout(120_000);
@@ -63,33 +63,41 @@ test('clicking + Agent spawns mock claude and creates a JSONL session file', asy
       contentType: 'text/plain',
     });
 
-    // 5. Assert: JSONL session file was created
-    //    Compute the project hash the same way agentManager.ts does:
-    //    workspacePath.replace(/[^a-zA-Z0-9-]/g, '-')
-    const projectHash = workspaceDir.replace(/[^a-zA-Z0-9-]/g, '-');
-    const projectDir = path.join(tmpHome, '.claude', 'projects', projectHash);
+    // 5. Assert: JSONL session file was created.
+    //    Scan all subdirectories under .claude/projects/ rather than hard-coding a
+    //    specific hash. On Windows, os.tmpdir() may return an 8.3 short path while
+    //    the VS Code terminal sees the long path, making the hashes differ even after
+    //    normalisation attempts.
+    const projectsDir = path.join(tmpHome, '.claude', 'projects');
+
+    const findJsonlFiles = (): string[] => {
+      try {
+        if (!fs.existsSync(projectsDir)) return [];
+        return fs.readdirSync(projectsDir).flatMap((entry) => {
+          const sub = path.join(projectsDir, entry);
+          try {
+            return fs.statSync(sub).isDirectory()
+              ? fs.readdirSync(sub).filter((f) => f.endsWith('.jsonl'))
+              : [];
+          } catch {
+            return [];
+          }
+        });
+      } catch {
+        return [];
+      }
+    };
 
     await expect
-      .poll(
-        () => {
-          try {
-            const files = fs.readdirSync(projectDir).filter((f) => f.endsWith('.jsonl'));
-            return files.length > 0;
-          } catch {
-            return false;
-          }
-        },
-        {
-          message: `Expected at least one .jsonl file in ${projectDir}`,
-          timeout: 20_000,
-          intervals: [500, 1000],
-        },
-      )
-      .toBe(true);
+      .poll(findJsonlFiles, {
+        message: `Expected at least one .jsonl file under ${projectsDir}`,
+        timeout: 20_000,
+        intervals: [500, 1000],
+      })
+      .not.toHaveLength(0);
 
-    const jsonlFiles = fs.readdirSync(projectDir).filter((f) => f.endsWith('.jsonl'));
     await testInfo.attach('jsonl-files', {
-      body: jsonlFiles.join('\n'),
+      body: findJsonlFiles().join('\n'),
       contentType: 'text/plain',
     });
 

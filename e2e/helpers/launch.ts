@@ -45,6 +45,13 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
   fs.mkdirSync(userDataDir, { recursive: true });
   fs.mkdirSync(mockBinDir, { recursive: true });
 
+  // On Windows, os.tmpdir() may return an 8.3 short path (e.g. RUNNER~1) while
+  // child processes see the long path (e.g. runneradmin) via %CD%. Normalize to
+  // the canonical long path so the project hash computed here matches mock-claude.
+  // fs.realpathSync only resolves symlinks; .native uses GetFinalPathNameByHandleW
+  // which also resolves 8.3 short names to their full form.
+  const resolvedWorkspaceDir = IS_WINDOWS ? fs.realpathSync.native(workspaceDir) : workspaceDir;
+
   // macOS: create a temporary keychain so the OS doesn't show "Keychain Not Found" dialog.
   // The isolated HOME has no keychain, and VS Code/Electron's safeStorage triggers a system prompt.
   if (process.platform === 'darwin') {
@@ -134,8 +141,14 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
     '--skip-release-notes',
     '--skip-welcome',
     '--no-sandbox',
+    // Disable GPU acceleration: prevents Electron GPU-sandbox stalls in headless
+    // CI environments (required on macOS arm64 runners, harmless elsewhere).
+    '--disable-gpu',
+    // On Linux, use the Ozone headless platform so Electron runs without a
+    // display server (equivalent to what --disable-gpu achieves on macOS/Windows).
+    ...(process.platform === 'linux' ? ['--ozone-platform=headless'] : []),
     // Open the workspace folder
-    workspaceDir,
+    resolvedWorkspaceDir,
   ];
 
   const cleanup = async (): Promise<void> => {
@@ -162,7 +175,7 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
       executablePath: vscodePath,
       args,
       env,
-      cwd: workspaceDir,
+      cwd: resolvedWorkspaceDir,
       timeout: 60_000,
     };
     if (!IS_WINDOWS) {
@@ -176,7 +189,19 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
 
     const window = await app.firstWindow();
 
-    return { app, window, tmpHome, workspaceDir, mockLogFile, cleanup };
+    // The Ozone headless backend ignores --window-size CLI flags, so VS Code
+    // opens at a tiny default size on Linux. Resize via the Electron API after
+    // the window exists — getAllWindows() is empty before firstWindow() resolves.
+    if (process.platform === 'linux') {
+      await app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]?.setSize(1280, 800);
+      });
+      // Give VS Code's layout system time to respond to the resize before tests
+      // start measuring panel heights.
+      await window.waitForTimeout(500);
+    }
+
+    return { app, window, tmpHome, workspaceDir: resolvedWorkspaceDir, mockLogFile, cleanup };
   } catch (error) {
     await cleanup();
     throw error;
