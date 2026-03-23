@@ -104,11 +104,8 @@ The `e2e/` directory contains Playwright tests that launch a real VS Code instan
 # Build the extension first (tests load the compiled output)
 npm run build
 
-# Headless (default — uses xvfb-run on Linux)
+# Runs the e2e test
 npm run e2e
-
-# Headed (shows the VS Code window)
-npm run e2e:headed
 
 # Step-by-step debug mode
 npm run e2e:debug
