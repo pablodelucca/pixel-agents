@@ -24,14 +24,30 @@ export interface VSCodeSession {
   cleanup: () => Promise<void>;
 }
 
+export interface LaunchVSCodeOptions {
+  headed?: boolean;
+}
+
 /**
  * Launch VS Code with the Pixel Agents extension loaded in development mode.
  *
  * Uses an isolated temp HOME and injects the mock `claude` binary at the
  * front of PATH so no real Claude CLI is needed.
  */
-export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
+export async function launchVSCode(
+  testTitle: string,
+  options: LaunchVSCodeOptions = {},
+): Promise<VSCodeSession> {
+  const { headed = false } = options;
   const vscodePath = fs.readFileSync(VSCODE_PATH_FILE, 'utf8').trim();
+  const hasLinuxDisplay = Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
+  const useLinuxOzoneHeadless = process.platform === 'linux' && !headed;
+
+  if (process.platform === 'linux' && headed && !hasLinuxDisplay) {
+    throw new Error(
+      'Headed e2e runs on Linux require a graphical session. Set DISPLAY or WAYLAND_DISPLAY, or use `npm run e2e` for headless mode.',
+    );
+  }
 
   // --- Isolated temp directories ---
   const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'pixel-e2e-'));
@@ -144,9 +160,8 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
     // Disable GPU acceleration: prevents Electron GPU-sandbox stalls in headless
     // CI environments (required on macOS arm64 runners, harmless elsewhere).
     '--disable-gpu',
-    // On Linux, use the Ozone headless platform so Electron runs without a
-    // display server (equivalent to what --disable-gpu achieves on macOS/Windows).
-    ...(process.platform === 'linux' ? ['--ozone-platform=headless'] : []),
+    // On Linux, only force the Ozone headless platform for headless runs.
+    ...(useLinuxOzoneHeadless ? ['--ozone-platform=headless'] : []),
     // Open the workspace folder
     resolvedWorkspaceDir,
   ];
@@ -189,9 +204,9 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
 
     const window = await app.firstWindow();
 
-    // The Ozone headless backend ignores --window-size CLI flags, so VS Code
-    // opens at a tiny default size on Linux. Resize via the Electron API after
-    // the window exists — getAllWindows() is empty before firstWindow() resolves.
+    // Linux headless runs ignore --window-size CLI flags under the Ozone
+    // headless backend. Resize after firstWindow(); this is harmless in headed
+    // runs and keeps the workbench size stable for assertions.
     if (process.platform === 'linux') {
       await app.evaluate(({ BrowserWindow }) => {
         BrowserWindow.getAllWindows()[0]?.setSize(1280, 800);
