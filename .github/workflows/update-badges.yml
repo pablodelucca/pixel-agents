@@ -2,7 +2,7 @@ name: Update Badge Stats
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '0 6,14,22 * * *'
   workflow_dispatch:
 
 jobs:

@@ -38,6 +38,7 @@ export async function launchNewTerminal(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
   folderPath?: string,
+  bypassPermissions?: boolean,
 ): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   const cwd = folderPath || folders?.[0]?.uri.fsPath;
@@ -50,7 +51,10 @@ export async function launchNewTerminal(
   terminal.show();
 
   const sessionId = crypto.randomUUID();
-  terminal.sendText(`claude --session-id ${sessionId}`);
+  const claudeCmd = bypassPermissions
+    ? `claude --session-id ${sessionId} --dangerously-skip-permissions`
+    : `claude --session-id ${sessionId}`;
+  terminal.sendText(claudeCmd);
 
   const projectDir = getProjectDirPath(cwd);
   if (!projectDir) {

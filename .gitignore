@@ -32,3 +32,6 @@ playwright-report/
 # Project-specific
 .claude/
 /sprites-export
+
+# Local notes (not for commit)
+/notes/

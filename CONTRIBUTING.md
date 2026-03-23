@@ -152,9 +152,12 @@ Each test runs with an isolated `HOME` and `--user-data-dir`, so no test state l
    ```
    CI runs these same checks automatically on every PR.
 4. Open a pull request against `main` with:
+   - A **conventional commit PR title** (e.g. `feat: add zoom controls`, `fix: character freezing on terminal close`, `refactor: extract pathfinding module`). CI enforces this format — see [Conventional Commits](https://www.conventionalcommits.org/).
    - A clear description of what changed and why
    - How you tested the changes (steps to reproduce / verify)
    - **Screenshots or GIFs for any UI changes**
+
+> **Note:** PRs are merged using **squash and merge** — all commits in your PR are combined into a single commit on `main`. Your PR title becomes the commit message, which is why the conventional commit format matters.
 
 ## Reporting Bugs
 
@@ -162,7 +165,7 @@ Each test runs with an isolated `HOME` and `--user-data-dir`, so no test state l
 
 ## Feature Requests
 
-Have an idea? [Start a discussion](https://github.com/pablodelucca/pixel-agents/discussions/categories/ideas) in the Ideas category. We love hearing new ideas, and discussing them first helps us collaborate on the best approach together.
+Have an idea? [Open a feature request](https://github.com/pablodelucca/pixel-agents/issues/new?template=feature_request.yml) — the form will guide you through describing the problem and your proposed solution. You can also browse and join ongoing conversations in [Discussions](https://github.com/pablodelucca/pixel-agents/discussions).
 
 ## Security Issues
 
