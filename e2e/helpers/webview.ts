@@ -28,7 +28,8 @@ async function runCommand(window: Page, command: string): Promise<void> {
     }
   }
   await window.keyboard.type(command);
-  await window.waitForSelector('.quick-input-list .monaco-list-row', {
+  // Wait for a list row matching the typed command (not stale results from a previous palette)
+  await window.waitForSelector(`.quick-input-list .monaco-list-row[aria-label*="${command}"]`, {
     timeout: PANEL_OPEN_TIMEOUT_MS,
   });
   await window.keyboard.press('Enter');
