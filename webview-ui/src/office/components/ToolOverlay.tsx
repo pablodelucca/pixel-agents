@@ -114,17 +114,15 @@ export function ToolOverlay({
           }
         } else {
           const rawActivity = getActivityText(id, agentTools, ch.isActive);
-          // For teammates: show name as primary, team/activity as subtitle
-          if (ch.folderName) {
-            activityText = ch.folderName;
-            if (rawActivity !== 'Idle') {
-              subtitleText = rawActivity;
-            } else {
-              // Show team description as subtitle when idle
-              subtitleText = ch.teamDescription ?? ch.teamName ?? null;
-            }
+          // Primary label: agent identity (name or "Agent #N")
+          // Subtitle: current activity when working, team info when idle
+          const agentName = ch.folderName || `Agent #${id}`;
+          if (rawActivity !== 'Idle') {
+            activityText = agentName;
+            subtitleText = rawActivity;
           } else {
-            activityText = rawActivity;
+            activityText = agentName;
+            subtitleText = ch.teamDescription ?? ch.teamName ?? null;
           }
         }
 
