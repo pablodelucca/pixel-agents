@@ -116,7 +116,7 @@ export function ToolOverlay({
           const rawActivity = getActivityText(id, agentTools, ch.isActive);
           // Primary label: agent identity (name or "Agent #N")
           // Subtitle: current activity when working, team info when idle
-          const agentName = ch.folderName || `Agent #${id}`;
+          const agentName = ch.folderName || `Leader #${id}`;
           if (rawActivity !== 'Idle') {
             activityText = agentName;
             subtitleText = rawActivity;
