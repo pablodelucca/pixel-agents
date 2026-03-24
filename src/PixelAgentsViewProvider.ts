@@ -247,13 +247,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             }
           })();
         } else {
-          // No project dir — still try to load floor/wall tiles, then send saved layout
+          // No project dir — still try to load floor/wall tiles + furniture, then send saved layout
           (async () => {
             try {
               const ep = this.extensionUri.fsPath;
               const bundled = path.join(ep, 'dist', 'assets');
               if (fs.existsSync(bundled)) {
                 const distRoot = path.join(ep, 'dist');
+                this.assetsRoot = distRoot;
                 this.defaultLayout = loadDefaultLayout(distRoot);
                 const cs = await loadCharacterSprites(distRoot);
                 if (cs && this.webview) {
@@ -266,6 +267,11 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
                 const wt = await loadWallTiles(distRoot);
                 if (wt && this.webview) {
                   sendWallTilesToWebview(this.webview, wt);
+                }
+                // Load furniture assets
+                const assets = await this.loadAllFurnitureAssets();
+                if (assets && this.webview) {
+                  sendAssetsToWebview(this.webview, assets);
                 }
               }
             } catch {

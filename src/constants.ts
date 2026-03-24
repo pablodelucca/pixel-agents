@@ -24,7 +24,22 @@ export const GLOBAL_KEY_SOUND_ENABLED = 'pixel-agents.soundEnabled';
 export const VIEW_ID = 'pixel-agents.panelView';
 export const COMMAND_SHOW_PANEL = 'pixel-agents.showPanel';
 export const COMMAND_EXPORT_DEFAULT_LAYOUT = 'pixel-agents.exportDefaultLayout';
+export const COMMAND_START_MCP_SERVER = 'pixel-agents.startMcpServer';
+export const COMMAND_STOP_MCP_SERVER = 'pixel-agents.stopMcpServer';
 export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';
 export const WORKSPACE_KEY_AGENT_SEATS = 'pixel-agents.agentSeats';
 export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
 export const TERMINAL_NAME_PREFIX = 'Claude Code';
+
+// ── Copilot Integration ─────────────────────────────────────
+export const COPILOT_TERMINAL_PREFIX_DEFAULT = 'Copilot';
+export const COPILOT_ACTIVITY_POLL_MS = 500;
+
+// ── MCP Server ──────────────────────────────────────────────
+export const MCP_DEFAULT_PORT = 3100;
+export const MCP_SERVER_NAME = 'pixel-agents-mcp';
+export const MCP_SERVER_VERSION = '1.0.0';
+
+// ── Telegram ────────────────────────────────────────────────
+export const TELEGRAM_POLL_INTERVAL_MS = 2000;
+export const TELEGRAM_API_BASE = 'https://api.telegram.org';

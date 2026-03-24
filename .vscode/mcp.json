@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "pixel-agents-mcp": {
+      "type": "sse",
+      "url": "http://127.0.0.1:3100/sse",
+      "description": "Pixel Agents MCP server - provides ask_user (Telegram), notify_user, and agent activity reporting tools. Start the server with 'Pixel Agents: Start MCP Server' command or enable pixelAgents.mcp.enabled."
+    }
+  }
+}

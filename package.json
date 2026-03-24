@@ -27,6 +27,56 @@
       {
         "command": "pixel-agents.exportDefaultLayout",
         "title": "Pixel Agents: Export Layout as Default"
+      },
+      {
+        "command": "pixel-agents.startMcpServer",
+        "title": "Pixel Agents: Start MCP Server"
+      },
+      {
+        "command": "pixel-agents.stopMcpServer",
+        "title": "Pixel Agents: Stop MCP Server"
+      }
+    ],
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixelAgents.agentMode": {
+          "type": "string",
+          "enum": ["claude", "copilot", "both"],
+          "default": "both",
+          "description": "Which AI agent backend to monitor: Claude Code, GitHub Copilot, or both."
+        },
+        "pixelAgents.copilotTerminalPrefix": {
+          "type": "string",
+          "default": "Copilot",
+          "description": "Terminal name prefix used to identify GitHub Copilot agent terminals."
+        },
+        "pixelAgents.mcp.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable the built-in MCP server for agent communication."
+        },
+        "pixelAgents.mcp.port": {
+          "type": "number",
+          "default": 3100,
+          "description": "Port for the MCP server (Streamable HTTP transport)."
+        },
+        "pixelAgents.telegram.botToken": {
+          "type": "string",
+          "default": "",
+          "description": "Telegram bot token for the ask_user MCP tool."
+        },
+        "pixelAgents.telegram.chatId": {
+          "type": "string",
+          "default": "",
+          "description": "Telegram chat ID to send messages to and receive responses from."
+        }
+      }
+    },
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "pixel-agents-mcp-provider",
+        "label": "Pixel Agents MCP Server"
       }
     ],
     "viewsContainers": {
@@ -90,5 +140,8 @@
     "webview-ui/src/**/*.{ts,tsx}": "eslint --fix",
     "*.{ts,tsx,js,mjs,css,json,md}": "prettier --write",
     "webview-ui/**/*.{ts,tsx,js,css,json}": "prettier --write"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1"
   }
 }
