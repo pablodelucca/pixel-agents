@@ -347,12 +347,14 @@ function scanForTeammateFiles(
     return;
   }
 
-  // Find the parent agent for teammate association
+  // Find the parent agent for teammate association and collect existing teammate names
   let parentAgentId: number | null = null;
+  const existingTeammateNames = new Set<string>();
   for (const agent of agents.values()) {
-    if (!agent.isTeammate) {
+    if (agent.isTeammate && agent.teammateName) {
+      existingTeammateNames.add(agent.teammateName);
+    } else if (!agent.isTeammate) {
       parentAgentId = agent.id;
-      break;
     }
   }
 
@@ -374,6 +376,10 @@ function scanForTeammateFiles(
 
       const teammateName = readTeammateMeta(file);
       if (!teammateName) continue; // Not a teammate, skip
+
+      // Skip if we already have a character for this teammate name
+      if (existingTeammateNames.has(teammateName)) continue;
+      existingTeammateNames.add(teammateName);
 
       console.log(
         `[Pixel Agents] Teammate JSONL detected: ${teammateName} (${path.basename(file)})`,
