@@ -189,15 +189,29 @@ export class PixelAgentsMcpServer implements vscode.Disposable {
     // ── ask_user: Send question to Telegram, wait for reply ──────
     srv.tool(
       'ask_user',
-      'Send a question to the user via Telegram and wait for their reply. Use this when you need user input or approval.',
+      'Send a question to the user via Telegram and wait for their reply. Use this when you need user input or approval. Supports sending an image alongside the question, and receiving image replies.',
       {
         message: z.string().describe('The question or message to send to the user'),
         timeout_seconds: z
           .number()
           .optional()
           .describe('Max seconds to wait for reply (0 or omit for no limit)'),
+        image_url: z
+          .string()
+          .optional()
+          .describe(
+            'Optional HTTP URL of an image to send alongside the question. Telegram will fetch the image from this URL.',
+          ),
       },
-      async ({ message, timeout_seconds }: { message: string; timeout_seconds?: number }) => {
+      async ({
+        message,
+        timeout_seconds,
+        image_url,
+      }: {
+        message: string;
+        timeout_seconds?: number;
+        image_url?: string;
+      }) => {
         // Refresh bot from settings on each call to pick up config changes
         const bot = this.refreshTelegramBot();
         if (!bot) {
@@ -213,10 +227,35 @@ export class PixelAgentsMcpServer implements vscode.Disposable {
         }
         try {
           const timeoutMs = timeout_seconds ? timeout_seconds * 1000 : 0;
-          const reply = await bot.askUser(message, timeoutMs);
-          return {
-            content: [{ type: 'text' as const, text: reply }],
-          };
+          const reply = await bot.askUser(message, timeoutMs, image_url);
+
+          const content: Array<
+            { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
+          > = [];
+
+          // Add text content if present
+          if (reply.text) {
+            content.push({ type: 'text' as const, text: reply.text });
+          }
+
+          // Add image content if user replied with a photo
+          if (reply.image) {
+            content.push({
+              type: 'image' as const,
+              data: reply.image.data,
+              mimeType: reply.image.mimeType,
+            });
+            if (!reply.text) {
+              content.push({ type: 'text' as const, text: '[User sent a photo]' });
+            }
+          }
+
+          // Fallback if somehow no content
+          if (content.length === 0) {
+            content.push({ type: 'text' as const, text: '[Empty reply]' });
+          }
+
+          return { content };
         } catch (e) {
           return {
             content: [
@@ -234,11 +273,17 @@ export class PixelAgentsMcpServer implements vscode.Disposable {
     // ── notify_user: One-way notification to Telegram ────────────
     srv.tool(
       'notify_user',
-      'Send a one-way notification to the user via Telegram. Does not wait for a reply.',
+      'Send a one-way notification to the user via Telegram. Does not wait for a reply. Supports sending an image alongside the notification.',
       {
         message: z.string().describe('The notification message to send'),
+        image_url: z
+          .string()
+          .optional()
+          .describe(
+            'Optional HTTP URL of an image to send alongside the notification. Telegram will fetch the image from this URL.',
+          ),
       },
-      async ({ message }: { message: string }) => {
+      async ({ message, image_url }: { message: string; image_url?: string }) => {
         const bot = this.refreshTelegramBot();
         if (!bot) {
           return {
@@ -252,7 +297,7 @@ export class PixelAgentsMcpServer implements vscode.Disposable {
           };
         }
         try {
-          await bot.notifyUser(message);
+          await bot.notifyUser(message, image_url);
           return {
             content: [{ type: 'text' as const, text: 'Notification sent successfully.' }],
           };

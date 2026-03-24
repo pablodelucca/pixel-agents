@@ -33,17 +33,21 @@ Remove your agent from the office when your session ends.
 - `agent_id` (string, required): Your agent_id from register_agent
 
 ### `ask_user`
-Send a question to the user via Telegram and wait for their reply. **Use this for ALL questions — never ask in chat.**
+Send a question to the user via Telegram and wait for their reply. **Use this for ALL questions — never ask in chat.** Supports sending an image alongside the question, and receiving image replies.
 
 **Parameters:**
 - `message` (string, required): The question to send
-- `timeout_seconds` (number, optional): Max seconds to wait (default: no limit)
+- `timeout_seconds` (number, optional): Max seconds to wait for reply (0 or omit for no limit)
+- `image_url` (string, optional): HTTP URL of an image to send alongside the question
+
+**Returns:** Text and/or image content. If the user replies with a photo, the response includes an MCP image content block (base64-encoded).
 
 ### `notify_user`
-Send a one-way notification to the user via Telegram. Does not wait for a reply.
+Send a one-way notification to the user via Telegram. Does not wait for a reply. Supports sending an image alongside the notification.
 
 **Parameters:**
 - `message` (string, required): The notification message
+- `image_url` (string, optional): HTTP URL of an image to send alongside the notification
 
 ### `report_activity`
 Report your current activity to the Pixel Agents office visualization.
