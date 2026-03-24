@@ -53,8 +53,10 @@ export function layoutToFurnitureInstances(furniture: PlacedFurniture[]): Furnit
     if (entry.category === 'chairs') {
       if (entry.orientation === 'back') {
         // Back-facing chairs render IN FRONT of the seated character
-        // (the chair back visually occludes the character behind it)
-        zY = (item.row + 1) * TILE_SIZE + 1;
+        // (the chair back visually occludes the character behind it).
+        // Use the bottom footprint row so it sorts after the character
+        // even when the chair has background tiles that push seats down.
+        zY = (item.row + entry.footprintH) * TILE_SIZE + 1;
       } else {
         // All other chairs: cap zY to first row bottom so characters
         // at any seat tile render in front of the chair
@@ -189,7 +191,8 @@ export function layoutToSeats(furniture: PlacedFurniture[]): Map<string, Seat> {
     if (!entry || entry.category !== 'chairs') continue;
 
     let seatCount = 0;
-    for (let dr = 0; dr < entry.footprintH; dr++) {
+    const bgRows = entry.backgroundTiles ?? 0;
+    for (let dr = bgRows; dr < entry.footprintH; dr++) {
       for (let dc = 0; dc < entry.footprintW; dc++) {
         const tileCol = item.col + dc;
         const tileRow = item.row + dr;
