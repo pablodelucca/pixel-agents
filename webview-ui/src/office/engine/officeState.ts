@@ -175,9 +175,60 @@ export class OfficeState {
   }
 
   private findFreeSeat(): string | null {
-    for (const [uid, seat] of this.seats) {
-      if (!seat.assigned) return uid;
+    // Build set of tiles occupied by electronics (PCs, monitors, etc.)
+    const electronicsTiles = new Set<string>();
+    for (const item of this.layout.furniture) {
+      const entry = getCatalogEntry(item.type);
+      if (!entry || entry.category !== 'electronics') continue;
+      for (let dr = 0; dr < entry.footprintH; dr++) {
+        for (let dc = 0; dc < entry.footprintW; dc++) {
+          electronicsTiles.add(`${item.col + dc},${item.row + dr}`);
+        }
+      }
     }
+
+    // Collect free seats, split into those facing electronics and the rest
+    const pcSeats: string[] = [];
+    const otherSeats: string[] = [];
+    for (const [uid, seat] of this.seats) {
+      if (seat.assigned) continue;
+
+      // Check if this seat faces electronics (same logic as auto-state detection)
+      let facesPC = false;
+      const dCol =
+        seat.facingDir === Direction.RIGHT ? 1 : seat.facingDir === Direction.LEFT ? -1 : 0;
+      const dRow = seat.facingDir === Direction.DOWN ? 1 : seat.facingDir === Direction.UP ? -1 : 0;
+      for (let d = 1; d <= AUTO_ON_FACING_DEPTH && !facesPC; d++) {
+        const tileCol = seat.seatCol + dCol * d;
+        const tileRow = seat.seatRow + dRow * d;
+        if (electronicsTiles.has(`${tileCol},${tileRow}`)) {
+          facesPC = true;
+          break;
+        }
+        if (dCol !== 0) {
+          if (
+            electronicsTiles.has(`${tileCol},${tileRow - 1}`) ||
+            electronicsTiles.has(`${tileCol},${tileRow + 1}`)
+          ) {
+            facesPC = true;
+            break;
+          }
+        } else {
+          if (
+            electronicsTiles.has(`${tileCol - 1},${tileRow}`) ||
+            electronicsTiles.has(`${tileCol + 1},${tileRow}`)
+          ) {
+            facesPC = true;
+            break;
+          }
+        }
+      }
+      (facesPC ? pcSeats : otherSeats).push(uid);
+    }
+
+    // Pick randomly: prefer PC seats, then any seat
+    if (pcSeats.length > 0) return pcSeats[Math.floor(Math.random() * pcSeats.length)];
+    if (otherSeats.length > 0) return otherSeats[Math.floor(Math.random() * otherSeats.length)];
     return null;
   }
 
