@@ -141,14 +141,22 @@ export function useExtensionMessages(
         const isTeammate = msg.isTeammate as boolean | undefined;
         const teammateName = msg.teammateName as string | undefined;
         const teammateParentId = msg.parentAgentId as number | undefined;
+        const teamName = msg.teamName as string | undefined;
+        const teamDescription = msg.teamDescription as string | undefined;
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
         setSelectedAgent(id);
         if (isTeammate && teammateParentId !== undefined) {
-          // Add teammate as a sub-agent character linked to the parent
+          // Add teammate character linked to the parent
           const parentCh = os.characters.get(teammateParentId);
           const palette = parentCh ? parentCh.palette : undefined;
           const hueShift = parentCh ? parentCh.hueShift : undefined;
           os.addAgent(id, palette, hueShift, undefined, undefined, teammateName);
+          // Enrich character with team metadata
+          const ch = os.characters.get(id);
+          if (ch) {
+            ch.teamDescription = teamDescription;
+            ch.teamName = teamName;
+          }
         } else {
           os.addAgent(id, undefined, undefined, undefined, undefined, folderName);
         }

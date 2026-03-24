@@ -1,11 +1,12 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
-import type { AgentState } from './types.js';
+import type { AgentState, TeamConfig } from './types.js';
 
 /** Read teammate name from a .meta.json sidecar file */
 function readTeammateMeta(jsonlFile: string): string | null {
@@ -19,6 +20,49 @@ function readTeammateMeta(jsonlFile: string): string | null {
     /* ignore */
   }
   return null;
+}
+
+/**
+ * Read all team configs from ~/.claude/teams/ and find teams whose
+ * leadSessionId matches one of the given session directory names.
+ * Returns a map of teammateName → { teamName, teamDescription, teamColor }.
+ */
+function readTeamConfigs(
+  sessionDirs: string[],
+): Map<string, { teamName: string; teamDescription: string; teamColor?: string }> {
+  const result = new Map<
+    string,
+    { teamName: string; teamDescription: string; teamColor?: string }
+  >();
+  const teamsDir = path.join(os.homedir(), '.claude', 'teams');
+  let teamDirs: string[];
+  try {
+    teamDirs = fs
+      .readdirSync(teamsDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+  } catch {
+    return result;
+  }
+
+  for (const teamDir of teamDirs) {
+    try {
+      const configPath = path.join(teamsDir, teamDir, 'config.json');
+      const config: TeamConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      // Only include teams whose leader session matches one of our project sessions
+      if (!sessionDirs.includes(config.leadSessionId)) continue;
+      for (const member of config.members) {
+        result.set(`${config.leadSessionId}:${member.name}`, {
+          teamName: config.name,
+          teamDescription: config.description,
+          teamColor: member.color,
+        });
+      }
+    } catch {
+      /* ignore malformed configs */
+    }
+  }
+  return result;
 }
 
 export function startFileWatching(
@@ -323,6 +367,7 @@ function adoptTerminalForFile(
  * Scan for Agent Teams teammate JSONL files inside subagents/ directories.
  * Teammates write their transcripts to: {projectDir}/{sessionId}/subagents/agent-{hash}.jsonl
  * with metadata in agent-{hash}.meta.json containing {"agentType": "teammate-name"}.
+ * Also reads ~/.claude/teams/{name}/config.json for team names, descriptions, and colors.
  */
 function scanForTeammateFiles(
   projectDir: string,
@@ -347,16 +392,22 @@ function scanForTeammateFiles(
     return;
   }
 
-  // Find the parent agent for teammate association and collect existing teammate names
+  // Find the parent agent for teammate association
+  // Deduplicate by session:name key (allows same name in different teams)
   let parentAgentId: number | null = null;
-  const existingTeammateNames = new Set<string>();
+  const existingTeammateKeys = new Set<string>();
   for (const agent of agents.values()) {
     if (agent.isTeammate && agent.teammateName) {
-      existingTeammateNames.add(agent.teammateName);
+      // Use the session dir from the JSONL path as part of the key
+      const sessionFromPath = path.basename(path.dirname(path.dirname(agent.jsonlFile)));
+      existingTeammateKeys.add(`${sessionFromPath}:${agent.teammateName}`);
     } else if (!agent.isTeammate) {
       parentAgentId = agent.id;
     }
   }
+
+  // Read team configs to enrich teammates with team metadata
+  const teamConfigMap = readTeamConfigs(sessionDirs);
 
   for (const sessionDir of sessionDirs) {
     const subagentsDir = path.join(projectDir, sessionDir, 'subagents');
@@ -377,16 +428,21 @@ function scanForTeammateFiles(
       const teammateName = readTeammateMeta(file);
       if (!teammateName) continue; // Not a teammate, skip
 
-      // Skip if we already have a character for this teammate name
-      if (existingTeammateNames.has(teammateName)) continue;
-      existingTeammateNames.add(teammateName);
+      // Deduplicate by session + name (allows same name in different teams)
+      const dedupKey = `${sessionDir}:${teammateName}`;
+      if (existingTeammateKeys.has(dedupKey)) continue;
+      existingTeammateKeys.add(dedupKey);
+
+      // Look up team metadata from config
+      const teamInfo = teamConfigMap.get(`${sessionDir}:${teammateName}`);
 
       console.log(
-        `[Pixel Agents] Teammate JSONL detected: ${teammateName} (${path.basename(file)})`,
+        `[Pixel Agents] Teammate JSONL detected: ${teammateName}` +
+          (teamInfo ? ` (team: ${teamInfo.teamName})` : '') +
+          ` (${path.basename(file)})`,
       );
 
       const id = nextAgentIdRef.current++;
-      // Teammates don't have their own terminal — use a dummy reference
       const dummyTerminal = { name: `Teammate: ${teammateName}` } as vscode.Terminal;
       const agent: AgentState = {
         id,
@@ -406,6 +462,9 @@ function scanForTeammateFiles(
         isTeammate: true,
         teammateName,
         parentAgentId: parentAgentId ?? undefined,
+        teamName: teamInfo?.teamName,
+        teamDescription: teamInfo?.teamDescription,
+        teamColor: teamInfo?.teamColor,
       };
 
       agents.set(id, agent);
@@ -417,6 +476,9 @@ function scanForTeammateFiles(
         isTeammate: true,
         teammateName,
         parentAgentId,
+        teamName: teamInfo?.teamName,
+        teamDescription: teamInfo?.teamDescription,
+        teamColor: teamInfo?.teamColor,
       });
 
       startFileWatching(
