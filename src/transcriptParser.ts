@@ -124,10 +124,23 @@ export function processTranscriptLine(
         if (hasToolResult) {
           for (const block of blocks) {
             if (block.type === 'tool_result' && block.tool_use_id) {
-              console.log(`[Pixel Agents] Agent ${agentId} tool done: ${block.tool_use_id}`);
               const completedToolId = block.tool_use_id;
-              // If the completed tool was a Task/Agent, clear its subagent tools
               const completedToolName = agent.activeToolNames.get(completedToolId);
+
+              // Detect background agent launches — keep the tool alive until queue-operation
+              if (
+                (completedToolName === 'Task' || completedToolName === 'Agent') &&
+                isAsyncAgentResult(block)
+              ) {
+                console.log(
+                  `[Pixel Agents] Agent ${agentId} background agent launched: ${completedToolId}`,
+                );
+                agent.backgroundAgentToolIds.add(completedToolId);
+                continue; // don't mark as done yet
+              }
+
+              console.log(`[Pixel Agents] Agent ${agentId} tool done: ${block.tool_use_id}`);
+              // If the completed tool was a Task/Agent, clear its subagent tools
               if (completedToolName === 'Task' || completedToolName === 'Agent') {
                 agent.activeSubagentToolIds.delete(completedToolId);
                 agent.activeSubagentToolNames.delete(completedToolId);
@@ -167,12 +180,72 @@ export function processTranscriptLine(
         clearAgentActivity(agent, agentId, permissionTimers, webview);
         agent.hadToolsInTurn = false;
       }
+    } else if (record.type === 'queue-operation' && record.operation === 'enqueue') {
+      // Background agent completed — parse tool-use-id from XML content
+      const content = record.content as string | undefined;
+      if (content) {
+        const toolIdMatch = content.match(/<tool-use-id>(.*?)<\/tool-use-id>/);
+        if (toolIdMatch) {
+          const completedToolId = toolIdMatch[1];
+          if (agent.backgroundAgentToolIds.has(completedToolId)) {
+            console.log(
+              `[Pixel Agents] Agent ${agentId} background agent done: ${completedToolId}`,
+            );
+            agent.backgroundAgentToolIds.delete(completedToolId);
+            agent.activeSubagentToolIds.delete(completedToolId);
+            agent.activeSubagentToolNames.delete(completedToolId);
+            webview?.postMessage({
+              type: 'subagentClear',
+              id: agentId,
+              parentToolId: completedToolId,
+            });
+            agent.activeToolIds.delete(completedToolId);
+            agent.activeToolStatuses.delete(completedToolId);
+            agent.activeToolNames.delete(completedToolId);
+            const toolId = completedToolId;
+            setTimeout(() => {
+              webview?.postMessage({
+                type: 'agentToolDone',
+                id: agentId,
+                toolId,
+              });
+            }, TOOL_DONE_DELAY_MS);
+          }
+        }
+      }
     } else if (record.type === 'system' && record.subtype === 'turn_duration') {
       cancelWaitingTimer(agentId, waitingTimers);
       cancelPermissionTimer(agentId, permissionTimers);
 
-      // Definitive turn-end: clean up any stale tool state
-      if (agent.activeToolIds.size > 0) {
+      // Definitive turn-end: clean up any stale tool state, but preserve background agents
+      const hasForegroundTools = agent.activeToolIds.size > agent.backgroundAgentToolIds.size;
+      if (hasForegroundTools) {
+        // Remove only non-background tool state
+        for (const toolId of agent.activeToolIds) {
+          if (agent.backgroundAgentToolIds.has(toolId)) continue;
+          agent.activeToolIds.delete(toolId);
+          agent.activeToolStatuses.delete(toolId);
+          const toolName = agent.activeToolNames.get(toolId);
+          agent.activeToolNames.delete(toolId);
+          if (toolName === 'Task' || toolName === 'Agent') {
+            agent.activeSubagentToolIds.delete(toolId);
+            agent.activeSubagentToolNames.delete(toolId);
+          }
+        }
+        webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+        // Re-send background agent tools so webview keeps their sub-agents alive
+        for (const toolId of agent.backgroundAgentToolIds) {
+          const status = agent.activeToolStatuses.get(toolId);
+          if (status) {
+            webview?.postMessage({
+              type: 'agentToolStart',
+              id: agentId,
+              toolId,
+              status,
+            });
+          }
+        }
+      } else if (agent.activeToolIds.size > 0 && agent.backgroundAgentToolIds.size === 0) {
         agent.activeToolIds.clear();
         agent.activeToolStatuses.clear();
         agent.activeToolNames.clear();
@@ -320,4 +393,26 @@ function processProgressRecord(
       startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
     }
   }
+}
+
+/** Check if a tool_result block indicates an async/background agent launch */
+function isAsyncAgentResult(block: Record<string, unknown>): boolean {
+  const content = block.content;
+  if (Array.isArray(content)) {
+    for (const item of content) {
+      if (
+        typeof item === 'object' &&
+        item !== null &&
+        typeof (item as Record<string, unknown>).text === 'string' &&
+        ((item as Record<string, unknown>).text as string).startsWith(
+          'Async agent launched successfully.',
+        )
+      ) {
+        return true;
+      }
+    }
+  } else if (typeof content === 'string') {
+    return content.startsWith('Async agent launched successfully.');
+  }
+  return false;
 }

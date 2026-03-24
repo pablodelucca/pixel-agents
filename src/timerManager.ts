@@ -10,15 +10,44 @@ export function clearAgentActivity(
   webview: vscode.Webview | undefined,
 ): void {
   if (!agent) return;
-  agent.activeToolIds.clear();
-  agent.activeToolStatuses.clear();
-  agent.activeToolNames.clear();
-  agent.activeSubagentToolIds.clear();
-  agent.activeSubagentToolNames.clear();
+
+  // Preserve background agent tools — only clear foreground state
+  if (agent.backgroundAgentToolIds.size > 0) {
+    for (const toolId of agent.activeToolIds) {
+      if (agent.backgroundAgentToolIds.has(toolId)) continue;
+      agent.activeToolIds.delete(toolId);
+      agent.activeToolStatuses.delete(toolId);
+      const toolName = agent.activeToolNames.get(toolId);
+      agent.activeToolNames.delete(toolId);
+      if (toolName === 'Task' || toolName === 'Agent') {
+        agent.activeSubagentToolIds.delete(toolId);
+        agent.activeSubagentToolNames.delete(toolId);
+      }
+    }
+  } else {
+    agent.activeToolIds.clear();
+    agent.activeToolStatuses.clear();
+    agent.activeToolNames.clear();
+    agent.activeSubagentToolIds.clear();
+    agent.activeSubagentToolNames.clear();
+  }
+
   agent.isWaiting = false;
   agent.permissionSent = false;
   cancelPermissionTimer(agentId, permissionTimers);
   webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+  // Re-send background agent tools so webview re-creates their sub-agents
+  for (const toolId of agent.backgroundAgentToolIds) {
+    const status = agent.activeToolStatuses.get(toolId);
+    if (status) {
+      webview?.postMessage({
+        type: 'agentToolStart',
+        id: agentId,
+        toolId,
+        status,
+      });
+    }
+  }
   webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
 }
 

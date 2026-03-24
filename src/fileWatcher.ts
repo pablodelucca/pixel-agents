@@ -242,6 +242,7 @@ function adoptTerminalForFile(
     activeToolNames: new Map(),
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
+    backgroundAgentToolIds: new Set(),
     isWaiting: false,
     permissionSent: false,
     hadToolsInTurn: false,
