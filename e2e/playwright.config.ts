@@ -20,13 +20,11 @@ export default defineConfig({
     ],
   ],
   outputDir: artifactsDir,
-  // For Electron tests, video/trace are configured in the launch helper.
-  // screenshot-on-failure is handled via test.afterEach in fixtures.
-  use: {
-    video: 'on',
-    screenshot: 'only-on-failure',
-    trace: 'on-first-retry',
-  },
+  // NOTE: These settings are no-ops for Electron tests launched via electron.launch().
+  // Playwright's built-in artifact handling only applies to browser contexts.
+  // Video is configured in launch.ts (recordVideo option) and screenshots are
+  // handled manually in the test's afterEach/finally blocks.
+  use: {},
   // Single worker: VS Code windows don't share well in parallel on one display
   workers: 1,
 });

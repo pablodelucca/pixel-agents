@@ -159,6 +159,16 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
     } catch {
       // ignore close errors
     }
+    // macOS: deregister the temporary keychain to avoid orphaned references
+    if (process.platform === 'darwin') {
+      try {
+        const keychainPath = path.join(tmpHome, 'Library', 'Keychains', 'login.keychain-db');
+        const { execSync } = require('child_process');
+        execSync(`security delete-keychain "${keychainPath}"`, { stdio: 'ignore' });
+      } catch {
+        // keychain may not exist or already be removed
+      }
+    }
     try {
       fs.rmSync(tmpBase, { recursive: true, force: true });
     } catch {
