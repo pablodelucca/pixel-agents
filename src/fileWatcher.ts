@@ -137,6 +137,30 @@ export function ensureProjectScan(
     /* dir may not exist yet */
   }
 
+  // Also seed existing teammate JSONL files in subagents/ directories
+  try {
+    const sessionDirs = fs
+      .readdirSync(projectDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+    for (const sessionDir of sessionDirs) {
+      const subagentsDir = path.join(projectDir, sessionDir, 'subagents');
+      try {
+        const subFiles = fs
+          .readdirSync(subagentsDir)
+          .filter((f) => f.endsWith('.jsonl'))
+          .map((f) => path.join(subagentsDir, f));
+        for (const f of subFiles) {
+          knownJsonlFiles.add(f);
+        }
+      } catch {
+        /* subagents/ may not exist */
+      }
+    }
+  } catch {
+    /* dir may not exist yet */
+  }
+
   projectScanTimerRef.current = setInterval(() => {
     scanForNewJsonlFiles(
       projectDir,
