@@ -70,7 +70,7 @@
     "e2e:debug": "playwright test --config e2e/playwright.config.ts --debug"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.78.0",
+    "@anthropic-ai/sdk": "^0.80.0",
     "@playwright/test": "^1.58.2",
     "@types/node": "25.x",
     "@types/pngjs": "^6.0.5",
