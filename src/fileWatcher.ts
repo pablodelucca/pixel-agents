@@ -7,6 +7,20 @@ import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from '.
 import { processTranscriptLine } from './transcriptParser.js';
 import type { AgentState } from './types.js';
 
+/** Read teammate name from a .meta.json sidecar file */
+function readTeammateMeta(jsonlFile: string): string | null {
+  try {
+    const metaFile = jsonlFile.replace(/\.jsonl$/, '.meta.json');
+    if (fs.existsSync(metaFile)) {
+      const data = JSON.parse(fs.readFileSync(metaFile, 'utf-8'));
+      return typeof data.agentType === 'string' ? data.agentType : null;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 export function startFileWatching(
   agentId: number,
   filePath: string,
@@ -128,6 +142,18 @@ export function ensureProjectScan(
       projectDir,
       knownJsonlFiles,
       activeAgentIdRef,
+      nextAgentIdRef,
+      agents,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
+      webview,
+      persistAgents,
+    );
+    scanForTeammateFiles(
+      projectDir,
+      knownJsonlFiles,
       nextAgentIdRef,
       agents,
       fileWatchers,
@@ -267,6 +293,115 @@ function adoptTerminalForFile(
     webview,
   );
   readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+}
+
+/**
+ * Scan for Agent Teams teammate JSONL files inside subagents/ directories.
+ * Teammates write their transcripts to: {projectDir}/{sessionId}/subagents/agent-{hash}.jsonl
+ * with metadata in agent-{hash}.meta.json containing {"agentType": "teammate-name"}.
+ */
+function scanForTeammateFiles(
+  projectDir: string,
+  knownJsonlFiles: Set<string>,
+  nextAgentIdRef: { current: number },
+  agents: Map<number, AgentState>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+): void {
+  // Look for session directories (UUIDs) that contain a subagents/ folder
+  let sessionDirs: string[];
+  try {
+    sessionDirs = fs
+      .readdirSync(projectDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+  } catch {
+    return;
+  }
+
+  // Find the parent agent for teammate association
+  let parentAgentId: number | null = null;
+  for (const agent of agents.values()) {
+    if (!agent.isTeammate) {
+      parentAgentId = agent.id;
+      break;
+    }
+  }
+
+  for (const sessionDir of sessionDirs) {
+    const subagentsDir = path.join(projectDir, sessionDir, 'subagents');
+    let files: string[];
+    try {
+      files = fs
+        .readdirSync(subagentsDir)
+        .filter((f) => f.endsWith('.jsonl'))
+        .map((f) => path.join(subagentsDir, f));
+    } catch {
+      continue; // subagents/ doesn't exist for this session
+    }
+
+    for (const file of files) {
+      if (knownJsonlFiles.has(file)) continue;
+      knownJsonlFiles.add(file);
+
+      const teammateName = readTeammateMeta(file);
+      if (!teammateName) continue; // Not a teammate, skip
+
+      console.log(
+        `[Pixel Agents] Teammate JSONL detected: ${teammateName} (${path.basename(file)})`,
+      );
+
+      const id = nextAgentIdRef.current++;
+      // Teammates don't have their own terminal — use a dummy reference
+      const dummyTerminal = { name: `Teammate: ${teammateName}` } as vscode.Terminal;
+      const agent: AgentState = {
+        id,
+        terminalRef: dummyTerminal,
+        projectDir,
+        jsonlFile: file,
+        fileOffset: 0,
+        lineBuffer: '',
+        activeToolIds: new Set(),
+        activeToolStatuses: new Map(),
+        activeToolNames: new Map(),
+        activeSubagentToolIds: new Map(),
+        activeSubagentToolNames: new Map(),
+        isWaiting: false,
+        permissionSent: false,
+        hadToolsInTurn: false,
+        isTeammate: true,
+        teammateName,
+        parentAgentId: parentAgentId ?? undefined,
+      };
+
+      agents.set(id, agent);
+      persistAgents();
+
+      webview?.postMessage({
+        type: 'agentCreated',
+        id,
+        isTeammate: true,
+        teammateName,
+        parentAgentId,
+      });
+
+      startFileWatching(
+        id,
+        file,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+      );
+      readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+    }
+  }
 }
 
 export function reassignAgentToFile(

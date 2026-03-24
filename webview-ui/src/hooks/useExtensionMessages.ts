@@ -138,9 +138,20 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentCreated') {
         const id = msg.id as number;
         const folderName = msg.folderName as string | undefined;
+        const isTeammate = msg.isTeammate as boolean | undefined;
+        const teammateName = msg.teammateName as string | undefined;
+        const teammateParentId = msg.parentAgentId as number | undefined;
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
         setSelectedAgent(id);
-        os.addAgent(id, undefined, undefined, undefined, undefined, folderName);
+        if (isTeammate && teammateParentId !== undefined) {
+          // Add teammate as a sub-agent character linked to the parent
+          const parentCh = os.characters.get(teammateParentId);
+          const palette = parentCh ? parentCh.palette : undefined;
+          const hueShift = parentCh ? parentCh.hueShift : undefined;
+          os.addAgent(id, palette, hueShift, undefined, undefined, teammateName);
+        } else {
+          os.addAgent(id, undefined, undefined, undefined, undefined, folderName);
+        }
         saveAgentSeats(os);
       } else if (msg.type === 'agentClosed') {
         const id = msg.id as number;

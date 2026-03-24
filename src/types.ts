@@ -17,6 +17,12 @@ export interface AgentState {
   hadToolsInTurn: boolean;
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+  /** Whether this agent is an Agent Teams teammate (has its own JSONL in subagents/) */
+  isTeammate?: boolean;
+  /** Teammate name from .meta.json (e.g. "domain-reviewer") */
+  teammateName?: string;
+  /** Parent agent ID if this is a teammate */
+  parentAgentId?: number;
 }
 
 export interface PersistedAgent {
