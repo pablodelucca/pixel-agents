@@ -30,6 +30,25 @@ export class PixelAgentsMcpServer implements vscode.Disposable {
   private copilotDetector: CopilotDetector | null = null;
   private port: number;
 
+  // Agent registration: each register_agent call creates a unique agent
+  private registeredAgents = new Map<string, string>(); // agentId → agentName
+  private nextRegisteredId = 1;
+
+  // Callback when a new agent registers
+  onAgentRegistered?: (agentId: string, agentName: string) => void;
+  // Callback when an agent unregisters
+  onAgentUnregistered?: (agentId: string, agentName: string) => void;
+
+  // Callbacks for subagent events (set by extension.ts)
+  onSubagentActivity?: (
+    parentId: number,
+    toolId: string,
+    subagentName: string,
+    toolName: string,
+    status: string,
+  ) => void;
+  onSubagentDone?: (parentId: number, toolId: string) => void;
+
   constructor(private readonly outputChannel: vscode.OutputChannel) {
     const config = vscode.workspace.getConfiguration('pixelAgents');
     this.port = config.get<number>('mcp.port', MCP_DEFAULT_PORT);
@@ -37,6 +56,18 @@ export class PixelAgentsMcpServer implements vscode.Disposable {
 
   setCopilotDetector(detector: CopilotDetector): void {
     this.copilotDetector = detector;
+  }
+
+  /**
+   * Resolve the effective agent name from an agent_id.
+   * If agent_id is provided and registered, use that agent's name.
+   * Otherwise, fall back to the provided agent_name.
+   */
+  private resolveAgentName(agentId?: string, fallbackName?: string): string {
+    if (agentId && this.registeredAgents.has(agentId)) {
+      return this.registeredAgents.get(agentId)!;
+    }
+    return fallbackName || 'Copilot';
   }
 
   async start(): Promise<void> {
@@ -85,6 +116,75 @@ export class PixelAgentsMcpServer implements vscode.Disposable {
   private registerTools(): void {
     if (!this.server) return;
     const srv = this.server;
+
+    // ── register_agent: Create a new unique agent ────────────────
+    srv.tool(
+      'register_agent',
+      'Register a new agent in the Pixel Agents office. Call this FIRST before any other reporting tools. Returns your unique agent_id that you must use in all subsequent tool calls. Each chat session should register its own agent.',
+      {
+        agent_name: z
+          .string()
+          .optional()
+          .describe('Display name for this agent (default: "Copilot")'),
+      },
+      async ({ agent_name }: { agent_name?: string }) => {
+        const baseName = agent_name || 'Copilot';
+        const agentId = `agent-${this.nextRegisteredId++}`;
+
+        // Generate unique display name
+        const usedNames = new Set(this.registeredAgents.values());
+        let displayName = baseName;
+        if (usedNames.has(displayName)) {
+          let counter = 2;
+          while (usedNames.has(`${baseName} #${counter}`)) counter++;
+          displayName = `${baseName} #${counter}`;
+        }
+
+        this.registeredAgents.set(agentId, displayName);
+        this.outputChannel.appendLine(`[MCP] Agent registered: ${agentId} → "${displayName}"`);
+
+        // Create the agent character in the office
+        if (this.copilotDetector) {
+          this.copilotDetector.reportMcpActivity(displayName, 'register', 'Joining office');
+        }
+        this.onAgentRegistered?.(agentId, displayName);
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Agent registered. Your agent_id is "${agentId}" and display name is "${displayName}". Use this agent_id in all subsequent tool calls.`,
+            },
+          ],
+        };
+      },
+    );
+
+    // ── unregister_agent: Remove an agent ────────────────────────
+    srv.tool(
+      'unregister_agent',
+      'Unregister an agent from the Pixel Agents office. Call this when your chat session is ending.',
+      {
+        agent_id: z.string().describe('Your agent_id from register_agent'),
+      },
+      async ({ agent_id }: { agent_id: string }) => {
+        const name = this.registeredAgents.get(agent_id);
+        if (!name) {
+          return {
+            content: [{ type: 'text' as const, text: 'Unknown agent_id.' }],
+            isError: true,
+          };
+        }
+        this.registeredAgents.delete(agent_id);
+        if (this.copilotDetector) {
+          this.copilotDetector.reportMcpIdle(name);
+        }
+        this.onAgentUnregistered?.(agent_id, name);
+        return {
+          content: [{ type: 'text' as const, text: 'Agent unregistered.' }],
+        };
+      },
+    );
 
     // ── ask_user: Send question to Telegram, wait for reply ──────
     srv.tool(
@@ -175,7 +275,14 @@ export class PixelAgentsMcpServer implements vscode.Disposable {
       'report_activity',
       'Report current agent activity to the Pixel Agents office visualization. Call this when starting a new tool/action so the user can see your character animate.',
       {
-        agent_name: z.string().describe('Display name for this agent in the office'),
+        agent_id: z
+          .string()
+          .optional()
+          .describe('Your agent_id from register_agent (recommended for multi-agent support)'),
+        agent_name: z
+          .string()
+          .optional()
+          .describe('Display name for this agent (fallback if agent_id not provided)'),
         tool_name: z
           .string()
           .describe(
@@ -188,19 +295,22 @@ export class PixelAgentsMcpServer implements vscode.Disposable {
           ),
       },
       async ({
+        agent_id,
         agent_name,
         tool_name,
         status,
       }: {
-        agent_name: string;
+        agent_id?: string;
+        agent_name?: string;
         tool_name: string;
         status: string;
       }) => {
+        const effectiveName = this.resolveAgentName(agent_id, agent_name);
         if (this.copilotDetector) {
-          this.copilotDetector.reportMcpActivity(agent_name, tool_name, status);
+          this.copilotDetector.reportMcpActivity(effectiveName, tool_name, status);
         }
         return {
-          content: [{ type: 'text' as const, text: 'Activity reported.' }],
+          content: [{ type: 'text' as const, text: `Activity reported as "${effectiveName}".` }],
         };
       },
     );
@@ -210,11 +320,16 @@ export class PixelAgentsMcpServer implements vscode.Disposable {
       'report_idle',
       'Report that the agent has finished its current task and is idle or waiting. Call this when you complete a task or are waiting for input.',
       {
-        agent_name: z.string().describe('Display name for this agent in the office'),
+        agent_id: z.string().optional().describe('Your agent_id from register_agent'),
+        agent_name: z
+          .string()
+          .optional()
+          .describe('Display name for this agent (fallback if agent_id not provided)'),
       },
-      async ({ agent_name }: { agent_name: string }) => {
+      async ({ agent_id, agent_name }: { agent_id?: string; agent_name?: string }) => {
+        const effectiveName = this.resolveAgentName(agent_id, agent_name);
         if (this.copilotDetector) {
-          this.copilotDetector.reportMcpIdle(agent_name);
+          this.copilotDetector.reportMcpIdle(effectiveName);
         }
         return {
           content: [{ type: 'text' as const, text: 'Idle state reported.' }],
@@ -222,8 +337,98 @@ export class PixelAgentsMcpServer implements vscode.Disposable {
       },
     );
 
+    // ── report_subagent_activity: Spawn a subagent character ─────
+    srv.tool(
+      'report_subagent_activity',
+      'Report that a sub-agent (sub-task) has started working under a parent agent. This spawns a new pixel character near the parent agent. Use this when you delegate work to a sub-agent or start a parallel task.',
+      {
+        agent_id: z.string().optional().describe('Your agent_id from register_agent'),
+        parent_agent_name: z
+          .string()
+          .optional()
+          .describe('Display name of the parent agent (fallback if agent_id not provided)'),
+        subagent_name: z
+          .string()
+          .describe('Display name for the subagent (e.g., "Search Agent", "Test Runner")'),
+        tool_name: z.string().describe('Name of the tool/action the subagent is performing'),
+        status: z
+          .string()
+          .describe('Human-readable status (e.g., "Running tests", "Searching codebase")'),
+      },
+      async ({
+        agent_id,
+        parent_agent_name,
+        subagent_name,
+        tool_name,
+        status,
+      }: {
+        agent_id?: string;
+        parent_agent_name?: string;
+        subagent_name: string;
+        tool_name: string;
+        status: string;
+      }) => {
+        const effectiveParent = this.resolveAgentName(agent_id, parent_agent_name);
+        if (this.copilotDetector) {
+          const result = this.copilotDetector.reportSubagentActivity(
+            effectiveParent,
+            subagent_name,
+            tool_name,
+            status,
+          );
+          if (result && this.onSubagentActivity) {
+            this.onSubagentActivity(
+              result.parentId,
+              result.toolId,
+              subagent_name,
+              tool_name,
+              status,
+            );
+          }
+        }
+        return {
+          content: [{ type: 'text' as const, text: 'Subagent activity reported.' }],
+        };
+      },
+    );
+
+    // ── report_subagent_done: Remove a subagent character ────────
+    srv.tool(
+      'report_subagent_done',
+      'Report that a sub-agent (sub-task) has finished its work. This removes the subagent pixel character from the office.',
+      {
+        agent_id: z.string().optional().describe('Your agent_id from register_agent'),
+        parent_agent_name: z
+          .string()
+          .optional()
+          .describe('Display name of the parent agent (fallback if agent_id not provided)'),
+        subagent_name: z.string().describe('Display name of the subagent that finished'),
+      },
+      async ({
+        agent_id,
+        parent_agent_name,
+        subagent_name,
+      }: {
+        agent_id?: string;
+        parent_agent_name?: string;
+        subagent_name: string;
+      }) => {
+        const effectiveParent = this.resolveAgentName(agent_id, parent_agent_name);
+        if (this.copilotDetector) {
+          const parentId = this.copilotDetector.getParentAgentId(effectiveParent);
+          const toolId = `copilot-sub-${subagent_name}`;
+          if (parentId !== null && this.onSubagentDone) {
+            this.onSubagentDone(parentId, toolId);
+          }
+        }
+        return {
+          content: [{ type: 'text' as const, text: 'Subagent completion reported.' }],
+        };
+      },
+    );
+
     this.outputChannel.appendLine(
-      '[MCP] Tools registered: ask_user, notify_user, report_activity, report_idle',
+      '[MCP] Tools registered: register_agent, unregister_agent, ask_user, notify_user, report_activity, report_idle, report_subagent_activity, report_subagent_done',
     );
   }
 
@@ -254,9 +459,11 @@ export class PixelAgentsMcpServer implements vscode.Disposable {
         // SSE endpoint — client connects here to establish the session
         const transport = new SSEServerTransport('/messages', res);
         sessions.set(transport.sessionId, transport);
+        this.outputChannel.appendLine(`[MCP] New SSE session: ${transport.sessionId}`);
 
         transport.onclose = () => {
           sessions.delete(transport.sessionId);
+          this.outputChannel.appendLine(`[MCP] SSE session closed: ${transport.sessionId}`);
         };
 
         await this.server!.connect(transport);

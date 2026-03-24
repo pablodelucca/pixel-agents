@@ -50,6 +50,8 @@ export function activate(context: vscode.ExtensionContext) {
     );
     copilotDetectorInstance = new CopilotDetector(terminalPrefix, {
       onAgentActivity: (info) => {
+        // Track Copilot agent in provider for persistence across webview reloads
+        provider.addCopilotAgent(info.id, info.label);
         provider.webviewView?.webview.postMessage({
           type: 'agentCreated',
           id: info.id,
@@ -117,6 +119,57 @@ async function startMcpServer(): Promise<void> {
   if (copilotDetectorInstance) {
     mcpServerInstance.setCopilotDetector(copilotDetectorInstance);
   }
+
+  // Wire agent registration lifecycle
+  mcpServerInstance.onAgentRegistered = (agentId, agentName) => {
+    outputChannel?.appendLine(`[MCP] Agent registered: ${agentId} → "${agentName}"`);
+  };
+
+  mcpServerInstance.onAgentUnregistered = (agentId, agentName) => {
+    outputChannel?.appendLine(`[MCP] Agent unregistered: ${agentId} → "${agentName}"`);
+    // Find the agent by name and remove it from the provider
+    if (copilotDetectorInstance && providerInstance) {
+      const id = copilotDetectorInstance.getParentAgentId(agentName);
+      if (id !== null) {
+        providerInstance.removeCopilotAgent(id);
+      }
+    }
+  };
+
+  // Wire subagent events to the webview
+  mcpServerInstance.onSubagentActivity = (parentId, toolId, subagentName, toolName, status) => {
+    const webview = providerInstance?.webviewView?.webview;
+    if (!webview) return;
+
+    // First, trigger the subagent spawn via agentToolStart with "Subtask:" prefix
+    webview.postMessage({
+      type: 'agentToolStart',
+      id: parentId,
+      toolId,
+      status: `Subtask: ${subagentName}`,
+    });
+
+    // Then report the subagent's own tool activity
+    webview.postMessage({
+      type: 'subagentToolStart',
+      id: parentId,
+      parentToolId: toolId,
+      toolId: `${toolId}-${Date.now()}`,
+      status: `${toolName}: ${status}`,
+    });
+  };
+
+  mcpServerInstance.onSubagentDone = (parentId, toolId) => {
+    const webview = providerInstance?.webviewView?.webview;
+    if (!webview) return;
+
+    webview.postMessage({
+      type: 'subagentClear',
+      id: parentId,
+      parentToolId: toolId,
+    });
+  };
+
   try {
     await mcpServerInstance.start();
   } catch (e) {

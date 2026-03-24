@@ -63,6 +63,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   // Cross-window layout sync
   layoutWatcher: LayoutWatcher | null = null;
 
+  // Track active Copilot agents (for re-sending on webview reload)
+  private copilotAgents = new Map<number, { label: string; status: string }>();
+
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   private get extensionUri(): vscode.Uri {
@@ -76,6 +79,37 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   private persistAgents = (): void => {
     persistAgents(this.agents, this.context);
   };
+
+  /**
+   * Track a Copilot agent so it can be re-sent on webview reload.
+   */
+  addCopilotAgent(id: number, label: string): void {
+    this.copilotAgents.set(id, { label, status: 'active' });
+  }
+
+  /**
+   * Remove a Copilot agent (session ended).
+   */
+  removeCopilotAgent(id: number): void {
+    this.copilotAgents.delete(id);
+    // Tell webview the agent is gone
+    this.webview?.postMessage({ type: 'agentClosed', id });
+  }
+
+  /**
+   * Re-send all active Copilot agents to the webview (after reload).
+   */
+  private sendExistingCopilotAgents(): void {
+    if (!this.webview || this.copilotAgents.size === 0) return;
+    for (const [id, info] of this.copilotAgents) {
+      this.webview.postMessage({
+        type: 'agentCreated',
+        id,
+        folderName: info.label,
+        agentType: 'copilot',
+      });
+    }
+  }
 
   resolveWebviewView(webviewView: vscode.WebviewView) {
     this.webviewView = webviewView;
@@ -101,6 +135,16 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           message.folderPath as string | undefined,
           message.bypassPermissions as boolean | undefined,
         );
+      } else if (message.type === 'openCopilot') {
+        // Open GitHub Copilot chat panel
+        try {
+          await vscode.commands.executeCommand('workbench.action.chat.open');
+        } catch {
+          // Fallback if the chat command isn't available
+          vscode.window.showWarningMessage(
+            'GitHub Copilot Chat is not available. Make sure the Copilot extension is installed.',
+          );
+        }
       } else if (message.type === 'focusAgent') {
         const agent = this.agents.get(message.id);
         if (agent) {
@@ -140,10 +184,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         // Send persisted settings to webview
         const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
         const config = readConfig();
+        const agentMode = vscode.workspace
+          .getConfiguration('pixelAgents')
+          .get<string>('agentMode', 'both');
         this.webview?.postMessage({
           type: 'settingsLoaded',
           soundEnabled,
           externalAssetDirectories: config.externalAssetDirectories,
+          agentMode,
         });
 
         // Send workspace folders to webview (only when multi-root)
@@ -284,6 +332,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           })();
         }
         sendExistingAgents(this.agents, this.context, this.webview);
+        this.sendExistingCopilotAgents();
       } else if (message.type === 'openSessionsFolder') {
         const projectDir = getProjectDirPath();
         if (projectDir && fs.existsSync(projectDir)) {

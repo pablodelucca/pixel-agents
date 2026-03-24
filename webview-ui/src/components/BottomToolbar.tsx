@@ -14,6 +14,7 @@ interface BottomToolbarProps {
   onToggleAlwaysShowOverlay: () => void;
   workspaceFolders: WorkspaceFolder[];
   externalAssetDirectories: string[];
+  agentMode: string;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -57,6 +58,7 @@ export function BottomToolbar({
   onToggleAlwaysShowOverlay,
   workspaceFolders,
   externalAssetDirectories,
+  agentMode,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -81,8 +83,14 @@ export function BottomToolbar({
   }, [isFolderPickerOpen, isBypassMenuOpen]);
 
   const hasMultipleFolders = workspaceFolders.length > 1;
+  const isCopilotMode = agentMode === 'copilot';
 
   const handleAgentClick = () => {
+    if (isCopilotMode) {
+      // Open GitHub Copilot chat instead of launching a Claude terminal
+      vscode.postMessage({ type: 'openCopilot' });
+      return;
+    }
     setIsBypassMenuOpen(false);
     pendingBypassRef.current = false;
     if (hasMultipleFolders) {
@@ -94,6 +102,7 @@ export function BottomToolbar({
 
   const handleAgentRightClick = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (isCopilotMode) return; // No right-click menu for Copilot mode
     setIsFolderPickerOpen(false);
     setIsBypassMenuOpen((v) => !v);
   };
@@ -136,7 +145,7 @@ export function BottomToolbar({
         >
           + Agent
         </button>
-        {isBypassMenuOpen && (
+        {!isCopilotMode && isBypassMenuOpen && (
           <div
             style={{
               position: 'absolute',
@@ -194,7 +203,7 @@ export function BottomToolbar({
             </button>
           </div>
         )}
-        {isFolderPickerOpen && (
+        {!isCopilotMode && isFolderPickerOpen && (
           <div
             style={{
               position: 'absolute',

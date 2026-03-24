@@ -210,6 +210,38 @@ export class CopilotDetector implements vscode.Disposable {
     }
   }
 
+  /**
+   * Called by MCP server when a subagent starts working under a parent agent.
+   * Returns the parent agent's ID, or null if parent not found.
+   */
+  reportSubagentActivity(
+    parentAgentLabel: string,
+    subagentLabel: string,
+    toolName: string,
+    status: string,
+  ): { parentId: number; toolId: string } | null {
+    for (const [id, info] of this.activeCopilotAgents) {
+      if (info.source === 'mcp' && info.label === parentAgentLabel) {
+        // Use a deterministic toolId based on the subagent label
+        const toolId = `copilot-sub-${subagentLabel}`;
+        return { parentId: id, toolId };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Called by MCP server when a subagent finishes.
+   */
+  getParentAgentId(parentAgentLabel: string): number | null {
+    for (const [id, info] of this.activeCopilotAgents) {
+      if (info.source === 'mcp' && info.label === parentAgentLabel) {
+        return id;
+      }
+    }
+    return null;
+  }
+
   getActiveAgents(): CopilotAgentInfo[] {
     return [...this.activeCopilotAgents.values()];
   }
