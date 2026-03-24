@@ -8,11 +8,25 @@ const MIN_PANEL_HEIGHT_PX = 320;
 async function runCommand(window: Page, command: string): Promise<void> {
   // Dismiss any previous quick-input state before opening a new one
   await window.keyboard.press('Escape');
-  await window.waitForTimeout(200);
-  await window.keyboard.press('F1');
-  await window.waitForSelector('.quick-input-widget .quick-input-filter input', {
-    timeout: PANEL_OPEN_TIMEOUT_MS,
-  });
+  await window.waitForTimeout(300);
+
+  // Retry F1 up to 3 times — macOS CI sometimes swallows the first keypress
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await window.keyboard.press('F1');
+    try {
+      await window.waitForSelector('.quick-input-widget .quick-input-filter input', {
+        state: 'visible',
+        timeout: 5_000,
+      });
+      break;
+    } catch {
+      if (attempt === 2) {
+        throw new Error(`Command palette did not open after 3 attempts for "${command}"`);
+      }
+      await window.keyboard.press('Escape');
+      await window.waitForTimeout(300);
+    }
+  }
   await window.keyboard.type(command);
   await window.waitForSelector('.quick-input-list .monaco-list-row', {
     timeout: PANEL_OPEN_TIMEOUT_MS,
