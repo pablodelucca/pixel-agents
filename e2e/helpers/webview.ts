@@ -6,32 +6,31 @@ const PANEL_OPEN_TIMEOUT_MS = 15_000;
 const MIN_PANEL_HEIGHT_PX = 320;
 
 async function runCommand(window: Page, command: string): Promise<void> {
-  // Dismiss any previous quick-input state before opening a new one
-  await window.keyboard.press('Escape');
-  await window.waitForTimeout(300);
-
-  // Retry F1 up to 3 times — macOS CI sometimes swallows the first keypress
+  // Retry the full command palette interaction up to 3 times.
+  // macOS CI can swallow keypresses or fail to populate results.
   for (let attempt = 0; attempt < 3; attempt++) {
-    await window.keyboard.press('F1');
+    // Dismiss any previous quick-input state
+    await window.keyboard.press('Escape');
+    await window.waitForTimeout(300);
+
     try {
+      await window.keyboard.press('F1');
       await window.waitForSelector('.quick-input-widget .quick-input-filter input', {
         state: 'visible',
+        timeout: 5_000,
+      });
+      await window.keyboard.type(command);
+      // Wait for a list row matching the typed command (not stale results)
+      await window.waitForSelector(`.quick-input-list .monaco-list-row[aria-label*="${command}"]`, {
         timeout: 5_000,
       });
       break;
     } catch {
       if (attempt === 2) {
-        throw new Error(`Command palette did not open after 3 attempts for "${command}"`);
+        throw new Error(`Command palette failed after 3 attempts for "${command}"`);
       }
-      await window.keyboard.press('Escape');
-      await window.waitForTimeout(300);
     }
   }
-  await window.keyboard.type(command);
-  // Wait for a list row matching the typed command (not stale results from a previous palette)
-  await window.waitForSelector(`.quick-input-list .monaco-list-row[aria-label*="${command}"]`, {
-    timeout: PANEL_OPEN_TIMEOUT_MS,
-  });
   await window.keyboard.press('Enter');
   await window
     .waitForSelector('.quick-input-widget', {
