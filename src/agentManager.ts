@@ -14,14 +14,13 @@ import { migrateAndLoadLayout } from './layoutPersistence.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
 import type { AgentState, PersistedAgent } from './types.js';
 
-export function getProjectDirPath(cwd?: string): string | null {
+export function getProjectDirPath(cwd?: string): string {
   // Fall back to home directory when no workspace folder is open.
   // This is the common case on Linux/macOS when VS Code is launched without a folder
   // (e.g. `code` with no arguments). Claude Code writes JSONL files to
   // ~/.claude/projects/<hash>/ where <hash> is derived from the process cwd, so we
   // must use the same directory as the terminal's working directory.
   const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || os.homedir();
-  if (!workspacePath) return null;
   const dirName = workspacePath.replace(/[^a-zA-Z0-9-]/g, '-');
   const projectDir = path.join(os.homedir(), '.claude', 'projects', dirName);
   console.log(`[Pixel Agents] Project dir: ${workspacePath} → ${dirName}`);
@@ -65,10 +64,6 @@ export async function launchNewTerminal(
   terminal.sendText(claudeCmd);
 
   const projectDir = getProjectDirPath(cwd);
-  if (!projectDir) {
-    console.log(`[Pixel Agents] No project dir, cannot track agent`);
-    return;
-  }
 
   // Pre-register expected JSONL file so project scan won't treat it as a /clear file
   const expectedFile = path.join(projectDir, `${sessionId}.jsonl`);

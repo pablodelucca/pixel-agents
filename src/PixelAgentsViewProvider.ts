@@ -160,123 +160,91 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         console.log('[Extension] workspaceRoot:', workspaceRoot);
         console.log('[Extension] projectDir:', projectDir);
-        if (projectDir) {
-          ensureProjectScan(
-            projectDir,
-            this.knownJsonlFiles,
-            this.projectScanTimer,
-            this.activeAgentId,
-            this.nextAgentId,
-            this.agents,
-            this.fileWatchers,
-            this.pollingTimers,
-            this.waitingTimers,
-            this.permissionTimers,
-            this.webview,
-            this.persistAgents,
-          );
+        ensureProjectScan(
+          projectDir,
+          this.knownJsonlFiles,
+          this.projectScanTimer,
+          this.activeAgentId,
+          this.nextAgentId,
+          this.agents,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.webview,
+          this.persistAgents,
+        );
 
-          // Load furniture assets BEFORE sending layout
-          (async () => {
-            try {
-              console.log('[Extension] Loading furniture assets...');
-              const extensionPath = this.extensionUri.fsPath;
-              console.log('[Extension] extensionPath:', extensionPath);
+        // Load furniture assets BEFORE sending layout
+        (async () => {
+          try {
+            console.log('[Extension] Loading furniture assets...');
+            const extensionPath = this.extensionUri.fsPath;
+            console.log('[Extension] extensionPath:', extensionPath);
 
-              // Check bundled location first: extensionPath/dist/assets/
-              const bundledAssetsDir = path.join(extensionPath, 'dist', 'assets');
-              let assetsRoot: string | null = null;
-              if (fs.existsSync(bundledAssetsDir)) {
-                console.log('[Extension] Found bundled assets at dist/');
-                assetsRoot = path.join(extensionPath, 'dist');
-              } else if (workspaceRoot) {
-                // Fall back to workspace root (development or external assets)
-                console.log('[Extension] Trying workspace for assets...');
-                assetsRoot = workspaceRoot;
-              }
-
-              if (!assetsRoot) {
-                console.log('[Extension] ⚠️  No assets directory found');
-                if (this.webview) {
-                  sendLayout(this.context, this.webview, this.defaultLayout);
-                  this.startLayoutWatcher();
-                }
-                return;
-              }
-
-              console.log('[Extension] Using assetsRoot:', assetsRoot);
-              this.assetsRoot = assetsRoot;
-
-              // Load bundled default layout
-              this.defaultLayout = loadDefaultLayout(assetsRoot);
-
-              // Load character sprites
-              const charSprites = await loadCharacterSprites(assetsRoot);
-              if (charSprites && this.webview) {
-                console.log('[Extension] Character sprites loaded, sending to webview');
-                sendCharacterSpritesToWebview(this.webview, charSprites);
-              }
-
-              // Load floor tiles
-              const floorTiles = await loadFloorTiles(assetsRoot);
-              if (floorTiles && this.webview) {
-                console.log('[Extension] Floor tiles loaded, sending to webview');
-                sendFloorTilesToWebview(this.webview, floorTiles);
-              }
-
-              // Load wall tiles
-              const wallTiles = await loadWallTiles(assetsRoot);
-              if (wallTiles && this.webview) {
-                console.log('[Extension] Wall tiles loaded, sending to webview');
-                sendWallTilesToWebview(this.webview, wallTiles);
-              }
-
-              const assets = await this.loadAllFurnitureAssets();
-              if (assets && this.webview) {
-                console.log('[Extension] ✅ Assets loaded, sending to webview');
-                sendAssetsToWebview(this.webview, assets);
-              }
-            } catch (err) {
-              console.error('[Extension] ❌ Error loading assets:', err);
+            // Check bundled location first: extensionPath/dist/assets/
+            const bundledAssetsDir = path.join(extensionPath, 'dist', 'assets');
+            let assetsRoot: string | null = null;
+            if (fs.existsSync(bundledAssetsDir)) {
+              console.log('[Extension] Found bundled assets at dist/');
+              assetsRoot = path.join(extensionPath, 'dist');
+            } else if (workspaceRoot) {
+              // Fall back to workspace root (development or external assets)
+              console.log('[Extension] Trying workspace for assets...');
+              assetsRoot = workspaceRoot;
             }
-            // Always send saved layout (or null for default)
-            if (this.webview) {
-              console.log('[Extension] Sending saved layout');
-              sendLayout(this.context, this.webview, this.defaultLayout);
-              this.startLayoutWatcher();
-            }
-          })();
-        } else {
-          // No project dir — still try to load floor/wall tiles, then send saved layout
-          (async () => {
-            try {
-              const ep = this.extensionUri.fsPath;
-              const bundled = path.join(ep, 'dist', 'assets');
-              if (fs.existsSync(bundled)) {
-                const distRoot = path.join(ep, 'dist');
-                this.defaultLayout = loadDefaultLayout(distRoot);
-                const cs = await loadCharacterSprites(distRoot);
-                if (cs && this.webview) {
-                  sendCharacterSpritesToWebview(this.webview, cs);
-                }
-                const ft = await loadFloorTiles(distRoot);
-                if (ft && this.webview) {
-                  sendFloorTilesToWebview(this.webview, ft);
-                }
-                const wt = await loadWallTiles(distRoot);
-                if (wt && this.webview) {
-                  sendWallTilesToWebview(this.webview, wt);
-                }
+
+            if (!assetsRoot) {
+              console.log('[Extension] ⚠️  No assets directory found');
+              if (this.webview) {
+                sendLayout(this.context, this.webview, this.defaultLayout);
+                this.startLayoutWatcher();
               }
-            } catch {
-              /* ignore */
+              return;
             }
-            if (this.webview) {
-              sendLayout(this.context, this.webview, this.defaultLayout);
-              this.startLayoutWatcher();
+
+            console.log('[Extension] Using assetsRoot:', assetsRoot);
+            this.assetsRoot = assetsRoot;
+
+            // Load bundled default layout
+            this.defaultLayout = loadDefaultLayout(assetsRoot);
+
+            // Load character sprites
+            const charSprites = await loadCharacterSprites(assetsRoot);
+            if (charSprites && this.webview) {
+              console.log('[Extension] Character sprites loaded, sending to webview');
+              sendCharacterSpritesToWebview(this.webview, charSprites);
             }
-          })();
-        }
+
+            // Load floor tiles
+            const floorTiles = await loadFloorTiles(assetsRoot);
+            if (floorTiles && this.webview) {
+              console.log('[Extension] Floor tiles loaded, sending to webview');
+              sendFloorTilesToWebview(this.webview, floorTiles);
+            }
+
+            // Load wall tiles
+            const wallTiles = await loadWallTiles(assetsRoot);
+            if (wallTiles && this.webview) {
+              console.log('[Extension] Wall tiles loaded, sending to webview');
+              sendWallTilesToWebview(this.webview, wallTiles);
+            }
+
+            const assets = await this.loadAllFurnitureAssets();
+            if (assets && this.webview) {
+              console.log('[Extension] ✅ Assets loaded, sending to webview');
+              sendAssetsToWebview(this.webview, assets);
+            }
+          } catch (err) {
+            console.error('[Extension] ❌ Error loading assets:', err);
+          }
+          // Always send saved layout (or null for default)
+          if (this.webview) {
+            console.log('[Extension] Sending saved layout');
+            sendLayout(this.context, this.webview, this.defaultLayout);
+            this.startLayoutWatcher();
+          }
+        })();
         sendExistingAgents(this.agents, this.context, this.webview);
       } else if (message.type === 'openSessionsFolder') {
         const projectDir = getProjectDirPath();
