@@ -52,6 +52,10 @@ export function startFileWatching(
   pollingTimers.set(agentId, interval);
 }
 
+/** Track last read time per agent to debounce triple-redundant watcher callbacks */
+const lastReadTime = new Map<number, number>();
+const READ_DEBOUNCE_MS = 100;
+
 export function readNewLines(
   agentId: number,
   agents: Map<number, AgentState>,
@@ -61,15 +65,26 @@ export function readNewLines(
 ): void {
   const agent = agents.get(agentId);
   if (!agent) return;
+
+  // Debounce: skip if we read within the last 100ms (prevents triple-read from redundant watchers)
+  const now = Date.now();
+  const lastRead = lastReadTime.get(agentId) ?? 0;
+  if (now - lastRead < READ_DEBOUNCE_MS) return;
+  lastReadTime.set(agentId, now);
+
   try {
     const stat = fs.statSync(agent.jsonlFile);
     if (stat.size <= agent.fileOffset) return;
 
-    const buf = Buffer.alloc(stat.size - agent.fileOffset);
+    // Cap single read at 64KB to prevent blocking on massive JSONL dumps.
+    // Remaining data will be picked up on the next poll cycle.
+    const MAX_READ_BYTES = 65536;
+    const bytesToRead = Math.min(stat.size - agent.fileOffset, MAX_READ_BYTES);
+    const buf = Buffer.alloc(bytesToRead);
     const fd = fs.openSync(agent.jsonlFile, 'r');
     fs.readSync(fd, buf, 0, buf.length, agent.fileOffset);
     fs.closeSync(fd);
-    agent.fileOffset = stat.size;
+    agent.fileOffset += bytesToRead;
 
     const text = agent.lineBuffer + buf.toString('utf-8');
     const lines = text.split('\n');
@@ -209,8 +224,37 @@ function scanForNewJsonlFiles(
               persistAgents,
             );
           }
+        } else {
+          console.log(
+            `[Pixel Agents] New JSONL detected but no active agent or terminal to adopt: ${path.basename(file)}`,
+          );
         }
       }
+    }
+  }
+
+  // Clean up orphaned agents whose terminals have been closed
+  for (const [id, agent] of agents) {
+    if (agent.terminalRef.exitStatus !== undefined) {
+      console.log(`[Pixel Agents] Agent ${id}: terminal closed, cleaning up orphan`);
+      // Stop file watching
+      fileWatchers.get(id)?.close();
+      fileWatchers.delete(id);
+      const pt = pollingTimers.get(id);
+      if (pt) {
+        clearInterval(pt);
+      }
+      pollingTimers.delete(id);
+      try {
+        fs.unwatchFile(agent.jsonlFile);
+      } catch {
+        /* ignore */
+      }
+      cancelWaitingTimer(id, waitingTimers);
+      cancelPermissionTimer(id, permissionTimers);
+      agents.delete(id);
+      persistAgents();
+      webview?.postMessage({ type: 'agentClosed', id });
     }
   }
 }
@@ -246,6 +290,9 @@ function adoptTerminalForFile(
     isWaiting: false,
     permissionSent: false,
     hadToolsInTurn: false,
+    lastDataAt: 0,
+    linesProcessed: 0,
+    seenUnknownRecordTypes: new Set(),
   };
 
   agents.set(id, agent);

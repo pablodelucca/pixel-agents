@@ -24,6 +24,34 @@ export function getProjectDirPath(cwd?: string): string {
   const dirName = workspacePath.replace(/[^a-zA-Z0-9-]/g, '-');
   const projectDir = path.join(os.homedir(), '.claude', 'projects', dirName);
   console.log(`[Pixel Agents] Project dir: ${workspacePath} → ${dirName}`);
+
+  // Verify the directory exists; if not, try fuzzy matching against existing dirs
+  if (!fs.existsSync(projectDir)) {
+    const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
+    try {
+      if (fs.existsSync(projectsRoot)) {
+        const candidates = fs.readdirSync(projectsRoot);
+        // Try case-insensitive match (handles Windows drive letter casing)
+        const lowerDirName = dirName.toLowerCase();
+        const match = candidates.find((c) => c.toLowerCase() === lowerDirName);
+        if (match && match !== dirName) {
+          const matchedDir = path.join(projectsRoot, match);
+          console.log(
+            `[Pixel Agents] Project dir not found, using case-insensitive match: ${dirName} → ${match}`,
+          );
+          return matchedDir;
+        }
+        if (!match) {
+          console.warn(
+            `[Pixel Agents] Project dir does not exist: ${projectDir}. ` +
+              `Available dirs (${candidates.length}): ${candidates.slice(0, 5).join(', ')}${candidates.length > 5 ? '...' : ''}`,
+          );
+        }
+      }
+    } catch {
+      // Ignore scan errors
+    }
+  }
   return projectDir;
 }
 
@@ -88,6 +116,9 @@ export async function launchNewTerminal(
     isWaiting: false,
     permissionSent: false,
     hadToolsInTurn: false,
+    lastDataAt: 0,
+    linesProcessed: 0,
+    seenUnknownRecordTypes: new Set(),
     folderName,
   };
 
@@ -113,11 +144,14 @@ export async function launchNewTerminal(
   );
 
   // Poll for the specific JSONL file to appear
+  let pollCount = 0;
+  console.log(`[Pixel Agents] Agent ${id}: waiting for JSONL at ${agent.jsonlFile}`);
   const pollTimer = setInterval(() => {
+    pollCount++;
     try {
       if (fs.existsSync(agent.jsonlFile)) {
         console.log(
-          `[Pixel Agents] Agent ${id}: found JSONL file ${path.basename(agent.jsonlFile)}`,
+          `[Pixel Agents] Agent ${id}: found JSONL file ${path.basename(agent.jsonlFile)} (after ${pollCount}s)`,
         );
         clearInterval(pollTimer);
         jsonlPollTimers.delete(id);
@@ -132,6 +166,27 @@ export async function launchNewTerminal(
           webview,
         );
         readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+      } else if (pollCount === 10) {
+        // After 10s of polling, warn with path details to help diagnose path encoding mismatches
+        const dirExists = fs.existsSync(projectDir);
+        let dirContents = '';
+        if (dirExists) {
+          try {
+            const files = fs.readdirSync(projectDir).filter((f) => f.endsWith('.jsonl'));
+            dirContents =
+              files.length > 0
+                ? `Dir has ${files.length} JSONL file(s): ${files.slice(0, 3).join(', ')}${files.length > 3 ? '...' : ''}`
+                : 'Dir exists but has no JSONL files';
+          } catch {
+            dirContents = 'Dir exists but unreadable';
+          }
+        } else {
+          dirContents = 'Dir does not exist';
+        }
+        console.warn(
+          `[Pixel Agents] Agent ${id}: JSONL file not found after 10s. ` +
+            `Expected: ${agent.jsonlFile}. ${dirContents}`,
+        );
       }
     } catch {
       /* file may not exist yet */
@@ -244,6 +299,9 @@ export function restoreAgents(
       isWaiting: false,
       permissionSent: false,
       hadToolsInTurn: false,
+      lastDataAt: 0,
+      linesProcessed: 0,
+      seenUnknownRecordTypes: new Set(),
       folderName: p.folderName,
     };
 

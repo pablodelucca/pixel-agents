@@ -246,6 +246,32 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           }
         })();
         sendExistingAgents(this.agents, this.context, this.webview);
+      } else if (message.type === 'requestDiagnostics') {
+        // Send connection diagnostics for all agents to the Debug View
+        const diagnostics: Array<Record<string, unknown>> = [];
+        for (const [, agent] of this.agents) {
+          let jsonlExists = false;
+          let fileSize = 0;
+          try {
+            const stat = fs.statSync(agent.jsonlFile);
+            jsonlExists = true;
+            fileSize = stat.size;
+          } catch {
+            /* file doesn't exist */
+          }
+          diagnostics.push({
+            id: agent.id,
+            projectDir: agent.projectDir,
+            projectDirExists: fs.existsSync(agent.projectDir),
+            jsonlFile: agent.jsonlFile,
+            jsonlExists,
+            fileSize,
+            fileOffset: agent.fileOffset,
+            lastDataAt: agent.lastDataAt,
+            linesProcessed: agent.linesProcessed,
+          });
+        }
+        this.webview?.postMessage({ type: 'agentDiagnostics', agents: diagnostics });
       } else if (message.type === 'openSessionsFolder') {
         const projectDir = getProjectDirPath();
         if (projectDir && fs.existsSync(projectDir)) {

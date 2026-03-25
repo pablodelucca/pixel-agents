@@ -18,6 +18,12 @@ export interface AgentState {
   hadToolsInTurn: boolean;
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+  /** Timestamp of last JSONL data received (ms since epoch) */
+  lastDataAt: number;
+  /** Total JSONL lines processed for this agent */
+  linesProcessed: number;
+  /** Set of record.type values we've already warned about (prevents log spam) */
+  seenUnknownRecordTypes: Set<string>;
 }
 
 export interface PersistedAgent {

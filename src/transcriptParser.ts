@@ -67,11 +67,17 @@ export function processTranscriptLine(
 ): void {
   const agent = agents.get(agentId);
   if (!agent) return;
+  agent.lastDataAt = Date.now();
+  agent.linesProcessed++;
   try {
     const record = JSON.parse(line);
 
-    if (record.type === 'assistant' && Array.isArray(record.message?.content)) {
-      const blocks = record.message.content as Array<{
+    // Resilient content extraction: support both record.message.content and record.content
+    // Claude Code may change the JSONL structure across versions
+    const assistantContent = record.message?.content ?? record.content;
+
+    if (record.type === 'assistant' && Array.isArray(assistantContent)) {
+      const blocks = assistantContent as Array<{
         type: string;
         id?: string;
         name?: string;
@@ -114,10 +120,20 @@ export function processTranscriptLine(
         // if no new JSONL data arrives within TEXT_IDLE_DELAY_MS, mark as waiting.
         startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
       }
+    } else if (record.type === 'assistant' && typeof assistantContent === 'string') {
+      // Text-only assistant response (content is a string, not an array)
+      if (!agent.hadToolsInTurn) {
+        startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
+      }
+    } else if (record.type === 'assistant' && assistantContent === undefined) {
+      // Assistant record with no recognizable content structure
+      console.warn(
+        `[Pixel Agents] Agent ${agentId}: assistant record has no content. Keys: ${Object.keys(record).join(', ')}`,
+      );
     } else if (record.type === 'progress') {
       processProgressRecord(agentId, record, agents, waitingTimers, permissionTimers, webview);
     } else if (record.type === 'user') {
-      const content = record.message?.content;
+      const content = record.message?.content ?? record.content;
       if (Array.isArray(content)) {
         const blocks = content as Array<{ type: string; tool_use_id?: string }>;
         const hasToolResult = blocks.some((b) => b.type === 'tool_result');
@@ -262,6 +278,18 @@ export function processTranscriptLine(
         id: agentId,
         status: 'waiting',
       });
+    } else if (record.type && !agent.seenUnknownRecordTypes.has(record.type)) {
+      // Log first occurrence of unrecognized record types to help diagnose issues
+      // where Claude Code changes JSONL format. Known types we intentionally skip:
+      // file-history-snapshot, queue-operation (non-enqueue), etc.
+      const knownSkippableTypes = new Set(['file-history-snapshot', 'system', 'queue-operation']);
+      if (!knownSkippableTypes.has(record.type)) {
+        agent.seenUnknownRecordTypes.add(record.type);
+        console.log(
+          `[Pixel Agents] Agent ${agentId}: unrecognized record type '${record.type}'. ` +
+            `Keys: ${Object.keys(record).join(', ')}`,
+        );
+      }
     }
   } catch {
     // Ignore malformed lines

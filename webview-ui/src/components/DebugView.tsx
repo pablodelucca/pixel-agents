@@ -1,5 +1,19 @@
+import { useEffect, useState } from 'react';
+
 import type { ToolActivity } from '../office/types.js';
 import { vscode } from '../vscodeApi.js';
+
+interface AgentDiagnostics {
+  id: number;
+  projectDir: string;
+  projectDirExists: boolean;
+  jsonlFile: string;
+  jsonlExists: boolean;
+  fileSize: number;
+  fileOffset: number;
+  lastDataAt: number;
+  linesProcessed: number;
+}
 
 interface DebugViewProps {
   agents: number[];
@@ -50,6 +64,15 @@ function ToolLine({ tool }: { tool: ToolActivity }) {
   );
 }
 
+function formatTimeAgo(ms: number): string {
+  if (ms === 0) return 'never';
+  const seconds = Math.round((Date.now() - ms) / 1000);
+  if (seconds < 2) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
+}
+
 export function DebugView({
   agents,
   selectedAgent,
@@ -58,12 +81,40 @@ export function DebugView({
   subagentTools,
   onSelectAgent,
 }: DebugViewProps) {
+  const [diagnostics, setDiagnostics] = useState<Record<number, AgentDiagnostics>>({});
+
+  // Request diagnostics from extension periodically
+  useEffect(() => {
+    vscode.postMessage({ type: 'requestDiagnostics' });
+    const interval = setInterval(() => {
+      vscode.postMessage({ type: 'requestDiagnostics' });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Listen for diagnostics response
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      const msg = event.data;
+      if (msg.type === 'agentDiagnostics') {
+        const map: Record<number, AgentDiagnostics> = {};
+        for (const a of msg.agents as AgentDiagnostics[]) {
+          map[a.id] = a;
+        }
+        setDiagnostics(map);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
   const renderAgentCard = (id: number) => {
     const isSelected = selectedAgent === id;
     const tools = agentTools[id] || [];
     const subs = subagentTools[id] || {};
     const status = agentStatuses[id];
     const hasActiveTools = tools.some((t) => !t.done);
+    const diag = diagnostics[id];
     return (
       <div
         key={id}
@@ -158,6 +209,44 @@ export function DebugView({
                   }}
                 />
                 Might be waiting for input
+              </span>
+            )}
+          </div>
+        )}
+        {/* Connection diagnostics */}
+        {diag && (
+          <div
+            style={{
+              marginTop: 6,
+              padding: '4px 6px',
+              fontSize: '18px',
+              opacity: 0.7,
+              borderTop: '1px solid rgba(255,255,255,0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+            }}
+          >
+            <span>
+              <span style={{ color: diag.jsonlExists ? '#89d185' : '#f14c4c' }}>
+                {diag.jsonlExists ? 'JSONL connected' : 'JSONL not found'}
+              </span>
+              {' | '}
+              Lines: {diag.linesProcessed}
+              {' | '}
+              Last data: {formatTimeAgo(diag.lastDataAt)}
+            </span>
+            <span style={{ opacity: 0.6, fontSize: '16px', wordBreak: 'break-all' }}>
+              {diag.jsonlFile}
+            </span>
+            {!diag.projectDirExists && (
+              <span style={{ color: '#f14c4c', fontSize: '16px' }}>
+                Project dir does not exist: {diag.projectDir}
+              </span>
+            )}
+            {diag.jsonlExists && diag.fileSize > 0 && diag.linesProcessed === 0 && (
+              <span style={{ color: '#cca700', fontSize: '16px' }}>
+                File has data ({diag.fileSize} bytes) but 0 lines parsed. Possible format issue.
               </span>
             )}
           </div>
