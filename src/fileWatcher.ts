@@ -32,10 +32,6 @@ export function startFileWatching(
   pollingTimers.set(agentId, interval);
 }
 
-/** Track last read time per agent to debounce triple-redundant watcher callbacks */
-const lastReadTime = new Map<number, number>();
-const READ_DEBOUNCE_MS = 100;
-
 export function readNewLines(
   agentId: number,
   agents: Map<number, AgentState>,
@@ -45,13 +41,6 @@ export function readNewLines(
 ): void {
   const agent = agents.get(agentId);
   if (!agent) return;
-
-  // Debounce: skip if we read within the last 100ms (prevents triple-read from redundant watchers)
-  const now = Date.now();
-  const lastRead = lastReadTime.get(agentId) ?? 0;
-  if (now - lastRead < READ_DEBOUNCE_MS) return;
-  lastReadTime.set(agentId, now);
-
   try {
     const stat = fs.statSync(agent.jsonlFile);
     if (stat.size <= agent.fileOffset) return;
