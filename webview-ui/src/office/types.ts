@@ -188,6 +188,10 @@ export interface Character {
   matrixEffectTimer: number;
   /** Per-column random seeds (16 values) for staggered rain timing */
   matrixEffectSeeds: number[];
-  /** Workspace folder name (only set for multi-root workspaces) */
+  /** Workspace folder name, or teammate name for Agent Teams teammates */
   folderName?: string;
+  /** Team description for Agent Teams teammates */
+  teamDescription?: string;
+  /** Team name for Agent Teams teammates */
+  teamName?: string;
 }

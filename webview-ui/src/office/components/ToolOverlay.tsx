@@ -101,9 +101,10 @@ export function ToolOverlay({
         const screenY =
           (deviceOffsetY + (ch.y + sittingOffset - TOOL_OVERLAY_VERTICAL_OFFSET) * zoom) / dpr;
 
-        // Get activity text
+        // Get activity text and optional subtitle
         const subHasPermission = isSub && ch.bubbleType === 'permission';
         let activityText: string;
+        let subtitleText: string | null = null;
         if (isSub) {
           if (subHasPermission) {
             activityText = 'Needs approval';
@@ -112,7 +113,17 @@ export function ToolOverlay({
             activityText = sub ? sub.label : 'Subtask';
           }
         } else {
-          activityText = getActivityText(id, agentTools, ch.isActive);
+          const rawActivity = getActivityText(id, agentTools, ch.isActive);
+          // Primary label: agent identity (name or "Agent #N")
+          // Subtitle: current activity when working, team info when idle
+          const agentName = ch.folderName || `Leader #${id}`;
+          if (rawActivity !== 'Idle') {
+            activityText = agentName;
+            subtitleText = rawActivity;
+          } else {
+            activityText = agentName;
+            subtitleText = ch.teamDescription ?? ch.teamName ?? null;
+          }
         }
 
         // Determine dot color
@@ -185,7 +196,7 @@ export function ToolOverlay({
                 >
                   {activityText}
                 </span>
-                {ch.folderName && (
+                {subtitleText && (
                   <span
                     style={{
                       fontSize: '16px',
@@ -195,7 +206,7 @@ export function ToolOverlay({
                       display: 'block',
                     }}
                   >
-                    {ch.folderName}
+                    {subtitleText || ch.folderName}
                   </span>
                 )}
               </div>

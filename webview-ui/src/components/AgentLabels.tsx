@@ -79,7 +79,7 @@ export function AgentLabels({
           dotColor = 'var(--vscode-charts-blue, #3794ff)';
         }
 
-        const labelText = subLabelMap.get(id) || `Agent #${id}`;
+        const labelText = subLabelMap.get(id) || ch.folderName || `Agent #${id}`;
 
         return (
           <div
