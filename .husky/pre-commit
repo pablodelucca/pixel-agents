@@ -1,1 +1,2 @@
 npx lint-staged
+npm run check-types
