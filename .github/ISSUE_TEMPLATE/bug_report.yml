@@ -44,14 +44,23 @@ body:
     id: screenshots
     attributes:
       label: "Screenshots / GIFs"
-      description: "If applicable, add screenshots or screen recordings."
+      description: "If applicable, add screenshots or screen recordings. For agent tracking issues (stuck on idle, not spawning), include a screenshot of the **Debug View**: in the Pixel Agents panel, click the gear icon (Settings) and toggle Debug View. This shows JSONL connection status, lines parsed, and file paths. **Note:** paths may contain your username -- redact anything sensitive before posting."
 
   - type: input
     id: vscode-version
     attributes:
       label: "VS Code version"
       description: "Run 'Help > About' to find your version."
-      placeholder: "e.g., 1.109.0"
+      placeholder: "e.g., 1.112.0"
+    validations:
+      required: true
+
+  - type: input
+    id: claude-code-version
+    attributes:
+      label: "Claude Code CLI version"
+      description: "Run `claude --version` in your terminal."
+      placeholder: "e.g., 2.1.78"
     validations:
       required: true
 
@@ -63,6 +72,7 @@ body:
         - Windows
         - macOS
         - Linux
+        - WSL2
     validations:
       required: true
 
@@ -70,5 +80,5 @@ body:
     id: logs
     attributes:
       label: "Logs"
-      description: "Open Developer Tools (Help > Toggle Developer Tools) and paste any relevant console output."
+      description: "If running from source (F5), open **View > Debug Console** and paste any lines containing `[Pixel Agents]`. Otherwise, open **Help > Toggle Developer Tools > Console** and paste relevant output. **Note:** logs may contain file paths with your username -- redact anything sensitive before posting."
       render: shell
