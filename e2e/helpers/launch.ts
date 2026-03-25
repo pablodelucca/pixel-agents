@@ -141,6 +141,9 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
     '--skip-release-notes',
     '--skip-welcome',
     '--no-sandbox',
+    // Prevent "Code is currently being updated" errors when the host VS Code
+    // is mid-update — the test instance must not participate in update checks.
+    '--disable-updates',
     // Disable GPU acceleration: prevents Electron GPU-sandbox stalls in headless
     // CI environments (required on macOS arm64 runners, harmless elsewhere).
     '--disable-gpu',
