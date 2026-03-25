@@ -1,0 +1,68 @@
+name: Publish Extension
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Package without publishing'
+        type: boolean
+        default: false
+
+concurrency:
+  group: publish-extension
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            webview-ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install webview dependencies
+        run: npm ci
+        working-directory: webview-ui
+
+      - name: Check types and lint
+        run: npm run check-types && npm run lint
+
+      - name: Publish to VS Code Marketplace
+        id: publish-vscode
+        uses: HaaLeo/publish-vscode-extension@v2
+        with:
+          pat: ${{ secrets.VSCE_PAT }}
+          registryUrl: https://marketplace.visualstudio.com
+          skipDuplicate: true
+          dryRun: ${{ inputs.dry_run == 'true' }}
+
+      - name: Publish to Open VSX
+        uses: HaaLeo/publish-vscode-extension@v2
+        with:
+          pat: ${{ secrets.OPEN_VSX_TOKEN }}
+          registryUrl: https://open-vsx.org
+          extensionFile: ${{ steps.publish-vscode.outputs.vsixPath }}
+          skipDuplicate: true
+          dryRun: ${{ inputs.dry_run == 'true' }}
+
+      - name: Upload VSIX to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.publish-vscode.outputs.vsixPath }}

@@ -1,17 +1,17 @@
-import type { ToolActivity } from '../office/types.js'
-import { vscode } from '../vscodeApi.js'
+import type { ToolActivity } from '../office/types.js';
+import { vscode } from '../vscodeApi.js';
 
 interface DebugViewProps {
-  agents: number[]
-  selectedAgent: number | null
-  agentTools: Record<number, ToolActivity[]>
-  agentStatuses: Record<number, string>
-  subagentTools: Record<number, Record<string, ToolActivity[]>>
-  onSelectAgent: (id: number) => void
+  agents: number[];
+  selectedAgent: number | null;
+  agentTools: Record<number, ToolActivity[]>;
+  agentStatuses: Record<number, string>;
+  subagentTools: Record<number, Record<string, ToolActivity[]>>;
+  onSelectAgent: (id: number) => void;
 }
 
 /** Z-index just below the floating toolbar (50) so the toolbar stays on top */
-const DEBUG_Z = 40
+const DEBUG_Z = 40;
 
 function ToolDot({ tool }: { tool: ToolActivity }) {
   return (
@@ -30,7 +30,7 @@ function ToolDot({ tool }: { tool: ToolActivity }) {
         flexShrink: 0,
       }}
     />
-  )
+  );
 }
 
 function ToolLine({ tool }: { tool: ToolActivity }) {
@@ -47,7 +47,7 @@ function ToolLine({ tool }: { tool: ToolActivity }) {
       <ToolDot tool={tool} />
       {tool.permissionWait && !tool.done ? 'Needs approval' : tool.status}
     </span>
-  )
+  );
 }
 
 export function DebugView({
@@ -59,11 +59,11 @@ export function DebugView({
   onSelectAgent,
 }: DebugViewProps) {
   const renderAgentCard = (id: number) => {
-    const isSelected = selectedAgent === id
-    const tools = agentTools[id] || []
-    const subs = subagentTools[id] || {}
-    const status = agentStatuses[id]
-    const hasActiveTools = tools.some((t) => !t.done)
+    const isSelected = selectedAgent === id;
+    const tools = agentTools[id] || [];
+    const subs = subagentTools[id] || {};
+    const status = agentStatuses[id];
+    const hasActiveTools = tools.some((t) => !t.done);
     return (
       <div
         key={id}
@@ -71,7 +71,9 @@ export function DebugView({
           border: `2px solid ${isSelected ? '#5a8cff' : '#4a4a6a'}`,
           borderRadius: 0,
           padding: '6px 8px',
-          background: isSelected ? 'var(--vscode-list-activeSelectionBackground, rgba(255,255,255,0.04))' : undefined,
+          background: isSelected
+            ? 'var(--vscode-list-activeSelectionBackground, rgba(255,255,255,0.04))'
+            : undefined,
         }}
       >
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
@@ -104,7 +106,15 @@ export function DebugView({
           </button>
         </span>
         {(tools.length > 0 || status === 'waiting') && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 4, paddingLeft: 4 }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+              marginTop: 4,
+              paddingLeft: 4,
+            }}
+          >
             {tools.map((tool) => (
               <div key={tool.toolId}>
                 <ToolLine tool={tool} />
@@ -153,8 +163,8 @@ export function DebugView({
           </div>
         )}
       </div>
-    )
-  }
+    );
+  };
 
   return (
     <div
@@ -176,5 +186,5 @@ export function DebugView({
         </div>
       </div>
     </div>
-  )
+  );
 }

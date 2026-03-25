@@ -1,0 +1,44 @@
+{
+  "id": "SOFA",
+  "name": "Sofa",
+  "category": "chairs",
+  "type": "group",
+  "groupType": "rotation",
+  "rotationScheme": "3-way-mirror",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 0,
+  "members": [
+    {
+      "type": "asset",
+      "id": "SOFA_FRONT",
+      "file": "SOFA_FRONT.png",
+      "width": 32,
+      "height": 16,
+      "footprintW": 2,
+      "footprintH": 1,
+      "orientation": "front"
+    },
+    {
+      "type": "asset",
+      "id": "SOFA_BACK",
+      "file": "SOFA_BACK.png",
+      "width": 32,
+      "height": 16,
+      "footprintW": 2,
+      "footprintH": 1,
+      "orientation": "back"
+    },
+    {
+      "type": "asset",
+      "id": "SOFA_SIDE",
+      "file": "SOFA_SIDE.png",
+      "width": 16,
+      "height": 32,
+      "footprintW": 1,
+      "footprintH": 2,
+      "orientation": "side",
+      "mirrorSide": true
+    }
+  ]
+}

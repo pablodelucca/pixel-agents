@@ -46,10 +46,31 @@
     .resize-handle { width: 4px; background: #333; cursor: col-resize; user-select: none; flex-shrink: 0; }
     .resize-handle:hover { background: #3498db; }
 
-    /* Center: Preview */
-    #preview-panel { flex: 1; display: flex; flex-direction: column; background: #1a1a2e; border-right: 1px solid #333; min-width: 200px; }
-    #preview-header { padding: 8px 10px; font-size: 12px; font-weight: 600; border-bottom: 1px solid #333; background: #0f3460; display: flex; justify-content: space-between; align-items: center; }
-    #preview-header select { font-size: 11px; padding: 2px 6px; background: #2a2a4a; border: 1px solid #555; color: #e0e0e0; border-radius: 2px; cursor: pointer; }
+    /* Center: Split preview panel */
+    #center-panel { flex: 1; display: flex; flex-direction: row; min-width: 400px; }
+
+    /* Left half: Tileset */
+    #tileset-pane { flex: 1; display: flex; flex-direction: column; background: #1a1a2e; border-right: 1px solid #333; min-width: 150px; }
+    #tileset-pane .pane-header { padding: 8px 10px; font-size: 12px; font-weight: 600; border-bottom: 1px solid #333; background: #0f3460; display: flex; justify-content: space-between; align-items: center; }
+    #tileset-pane .pane-header select { font-size: 11px; padding: 2px 6px; background: #2a2a4a; border: 1px solid #555; color: #e0e0e0; border-radius: 2px; cursor: pointer; }
+    #tileset-pane .pane-header label { font-size: 10px; color: #aaa; }
+    #tileset-wrap { flex: 1; overflow: auto; background: #111; position: relative; cursor: default; }
+    #tileset-canvas { display: block; image-rendering: pixelated; }
+    #select-rect { position: absolute; border: 2px solid #2ecc71; background: rgba(46,204,113,0.15); pointer-events: none; display: none; }
+    #tileset-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px; }
+    .add-mode-bar { padding: 5px 10px; background: #1a3a1a; border-bottom: 1px solid #2a5a2a; display: flex; gap: 10px; align-items: center; font-size: 11px; flex-shrink: 0; }
+    .add-mode-bar span { color: #8c8; }
+    .add-mode-bar button { font-size: 11px; padding: 3px 10px; background: #6b2020; border: 1px solid #8b3030; color: #e0e0e0; border-radius: 2px; cursor: pointer; }
+    .add-mode-bar button:hover { background: #8b3030; }
+
+    /* Center resize handle */
+    #handle-center { width: 4px; background: #333; cursor: col-resize; user-select: none; flex-shrink: 0; }
+    #handle-center:hover { background: #3498db; }
+
+    /* Right half: Asset preview */
+    #preview-pane { flex: 1; display: flex; flex-direction: column; background: #1a1a2e; min-width: 150px; }
+    #preview-pane .pane-header { padding: 8px 10px; font-size: 12px; font-weight: 600; border-bottom: 1px solid #333; background: #0f3460; display: flex; justify-content: space-between; align-items: center; }
+    #preview-pane .pane-header select { font-size: 11px; padding: 2px 6px; background: #2a2a4a; border: 1px solid #555; color: #e0e0e0; border-radius: 2px; cursor: pointer; }
     #preview-container { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; overflow: auto; }
     #preview-canvas { image-rendering: pixelated; border: 2px solid #555; background: #000; }
     #preview-canvas.invalid { border-color: #e74c3c; }
@@ -62,19 +83,8 @@
     #eraser-info { font-size: 9px; color: #e74c3c; display: none; }
     #eraser-info.visible { display: inline; }
 
-    /* Tileset view (Add Asset mode) */
-    #tileset-view { display: none; flex: 1; flex-direction: column; min-height: 0; }
-    #tileset-view.active { display: flex; }
-    #tileset-view .tv-bar { padding: 6px 10px; background: #1a3a1a; border-bottom: 1px solid #2a5a2a; display: flex; gap: 10px; align-items: center; font-size: 11px; flex-shrink: 0; }
-    #tileset-view .tv-bar span { color: #8c8; }
-    #tileset-view .tv-bar select, #tileset-view .tv-bar label { font-size: 11px; color: #aaa; }
-    #tileset-view .tv-bar select { padding: 2px 6px; background: #2a2a4a; border: 1px solid #555; color: #e0e0e0; border-radius: 2px; cursor: pointer; }
-    #tileset-view .tv-bar button { font-size: 11px; padding: 3px 10px; background: #6b2020; border: 1px solid #8b3030; color: #e0e0e0; border-radius: 2px; cursor: pointer; }
-    #tileset-view .tv-bar button:hover { background: #8b3030; }
-    #tileset-wrap { flex: 1; overflow: auto; background: #111; position: relative; cursor: crosshair; }
-    #tileset-canvas { display: block; image-rendering: pixelated; }
-    #select-rect { position: absolute; border: 2px solid #2ecc71; background: rgba(46,204,113,0.15); pointer-events: none; display: none; }
-
+    .dropdown-item { display:block; width:100%; text-align:left; padding:6px 12px; font-size:12px; border:none; background:none; color:#e0e0e0; cursor:pointer; }
+    .dropdown-item:hover { background:#1a5276; }
     #toolbar button.add-btn { background: #1a5a2a; border-color: #2a8a3a; }
     #toolbar button.add-btn:hover { background: #2a8a3a; }
     #toolbar button.add-btn.active { background: #2ecc71; border-color: #27ae60; color: #000; font-weight: 600; }
@@ -100,6 +110,8 @@
     .geo-row input { flex: 1; min-width: 0; }
     .geo-row .step-btn { padding: 2px 6px; font-size: 10px; background: #2a2a4a; border: 1px solid #555; color: #e0e0e0; border-radius: 2px; cursor: pointer; flex-shrink: 0; line-height: 1; }
     .geo-row .step-btn:hover { background: #3a3a6a; }
+    .geo-row .step-spacer { width: 28px; flex-shrink: 0; }
+    .geo-row .fp-label { font-size: 9px; color: #6aa; width: 40px; text-align: right; flex-shrink: 0; }
 
     .field-row { display: flex; gap: 8px; }
     .field-row .field { flex: 1; }
@@ -110,9 +122,50 @@
     .checkbox-item input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; accent-color: #3498db; }
     .checkbox-item label { cursor: pointer; font-size: 11px; }
 
-    .rotation-fields { margin-top: 6px; display: none; }
-    .rotation-fields.visible { display: block; }
-    .rotation-fields .field { margin-bottom: 8px; }
+    .asset-item.multi-selected { border-color: #9b59b6; background: #2a1a3e; }
+    .badge-group { display: inline-block; padding: 1px 5px; border-radius: 2px; font-size: 8px; font-weight: 600; margin-left: 4px; vertical-align: middle; }
+    .badge-group-rotation { background: #1a4a6a; color: #5dade2; }
+    .badge-group-state { background: #4a3a0a; color: #f1c40f; }
+    .badge-group-animation { background: #1a4a2a; color: #2ecc71; }
+    .group-type-btn { font-size: 10px; padding: 4px 10px; border: 1px solid #555; background: #2a2a4a; color: #aaa; border-radius: 2px; cursor: pointer; flex: 1; text-align: center; }
+    .group-type-btn:hover { background: #3a3a6a; }
+    .group-type-btn.selected { background: #1a5276; border-color: #2980b9; color: #e0e0e0; font-weight: 600; }
+    .group-member-row { display: flex; gap: 6px; align-items: center; padding: 4px 0; border-bottom: 1px solid #2a2a4a; font-size: 11px; }
+    .group-member-row .gm-thumb { width: 24px; height: 24px; flex-shrink: 0; image-rendering: pixelated; background: #000; border: 1px solid #444; border-radius: 2px; }
+    .group-member-row .gm-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .group-member-row select { font-size: 10px; padding: 2px 4px; background: #2a2a4a; border: 1px solid #555; color: #e0e0e0; border-radius: 2px; width: 70px; flex-shrink: 0; }
+
+    /* Group wrapper in asset list */
+    .group-wrapper {
+      margin: 3px 4px; border: 1px solid #333; border-radius: 4px; background: #161630; overflow: hidden;
+    }
+    .group-wrapper.group-selected { border-color: #9b59b6; background: #1e1640; }
+    .group-wrapper .group-header {
+      padding: 4px 8px; font-size: 10px; font-weight: 600; color: #aaa; background: #1a1a3e;
+      border-bottom: 1px solid #2a2a4a; display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+    }
+    .group-wrapper.group-selected .group-header { color: #c9a0dc; background: #231845; }
+    .group-wrapper .group-header .group-header-type { font-size: 8px; font-weight: 600; padding: 1px 5px; border-radius: 2px; }
+    .group-wrapper .group-header .group-header-type.rotation { background: #1a4a6a; color: #5dade2; }
+    .group-wrapper .group-header .group-header-type.state { background: #4a3a0a; color: #f1c40f; }
+    .group-wrapper .group-header .group-header-type.animation { background: #1a4a2a; color: #2ecc71; }
+    .group-wrapper .asset-item { margin: 0; border-radius: 0; border-left: none; border-right: none; border-top: none; border-bottom: 1px solid #2a2a4a; }
+    .group-wrapper .asset-item:last-child { border-bottom: none; }
+
+    /* Compound group: member unit rows */
+    .group-member-row.group-unit { background: #1a1a3e; border-radius: 2px; padding: 5px 6px; }
+    .group-member-row .gm-type-badge { font-size: 8px; font-weight: 600; padding: 1px 5px; border-radius: 2px; margin-right: 4px; flex-shrink: 0; }
+    .gm-type-badge.animation { background: #1a4a2a; color: #2ecc71; }
+    .gm-type-badge.state { background: #4a3a0a; color: #f1c40f; }
+    .gm-type-badge.rotation { background: #1a4a6a; color: #5dade2; }
+    /* Nested group wrappers */
+    .group-wrapper .group-wrapper { margin: 0; border-left: 2px solid #444; border-top: none; border-right: none; border-bottom: none; border-radius: 0; background: #141428; }
+    .group-wrapper .group-wrapper.group-selected { border-left-color: #9b59b6; background: #1e1640; }
+    .group-wrapper .group-wrapper .group-header { background: #161630; font-size: 9px; padding: 3px 8px; }
+    .group-wrapper .group-wrapper.group-selected .group-header { color: #c9a0dc; background: #231845; }
+    .group-wrapper .group-wrapper .asset-item { background: #141428; }
+    .group-wrapper .group-wrapper .asset-item.selected { border-color: #3498db; background: #1a3a5e; }
+    .group-wrapper .group-wrapper .asset-item.multi-selected { border-color: #9b59b6; background: #2a1a3e; }
 
     .discard-section { padding: 8px 10px; margin-top: 6px; background: #4a1a1a; border: 1px solid #6b2020; border-radius: 3px; }
     .discard-section label { color: #ff9988; font-weight: 600; }
@@ -139,8 +192,17 @@
 
 <!-- Toolbar -->
 <div id="toolbar">
-  <button id="btn-load-json">Load JSON</button>
-  <button id="btn-load-png">Load PNG</button>
+  <div style="position:relative; display:inline-block;">
+    <button id="btn-file-menu" style="background:#1a5276; border-color:#2980b9; font-weight:600;">File ▾</button>
+    <div id="file-dropdown" style="display:none; position:absolute; top:100%; left:0; margin-top:2px; background:#2a2a4a; border:1px solid #555; border-radius:3px; min-width:140px; z-index:100; box-shadow:0 4px 12px rgba(0,0,0,0.4);">
+      <button id="btn-new-project" class="dropdown-item">New</button>
+      <button id="btn-load-json" class="dropdown-item">Load JSON</button>
+      <div style="height:1px; background:#444; margin:2px 0;"></div>
+      <button id="btn-save-file" class="dropdown-item" style="display:none">Save</button>
+      <button id="btn-save-as" class="dropdown-item">Save As</button>
+    </div>
+  </div>
+  <button id="btn-load-png">Load Tileset</button>
   <span class="sep"></span>
   <label>Filter:</label>
   <select id="filter-cat">
@@ -153,17 +215,11 @@
     <option value="wall">Wall</option>
     <option value="misc">Misc</option>
   </select>
-  <label>Show:</label>
-  <select id="filter-show">
-    <option value="all">All</option>
-    <option value="approved">Approved only</option>
-    <option value="discarded">Discarded only</option>
-  </select>
   <span class="sep"></span>
   <button class="add-btn" id="btn-add-asset">+ Add Asset</button>
-  <span class="sep"></span>
-  <button class="primary" id="btn-save-file" style="display:none">Save</button>
-  <button id="btn-save-as">Save As</button>
+  <button id="btn-duplicate" title="Duplicate selected asset">Duplicate</button>
+  <div style="flex:1;"></div>
+  <button id="btn-export" style="background:#8e44ad; border-color:#9b59b6; font-weight:600;">Export Assets</button>
 </div>
 
 <!-- Main 3-panel layout -->
@@ -175,52 +231,64 @@
       <span id="counter" style="font-weight: 400; color: #aaa;">0 / 0</span>
     </div>
     <div id="search-box">
-      <input type="text" id="search" placeholder="Search name or label...">
+      <input type="text" id="search" placeholder="Search label or ID...">
     </div>
     <div id="asset-list"></div>
   </div>
 
   <div class="resize-handle" id="handle-left"></div>
 
-  <!-- Center: Preview -->
-  <div id="preview-panel">
-    <div id="preview-header">
-      <span>Preview</span>
-      <div id="preview-tools">
-        <button id="btn-eraser">Eraser</button>
-        <button id="btn-clear-erased" class="clear-btn">Clear Erased</button>
-        <span id="eraser-info">click/drag to erase pixels</span>
-        <label style="font-size:10px; color:#aaa; margin-right:4px;">Zoom:</label>
-        <select id="preview-zoom">
-          <option value="1">1x</option>
-          <option value="2">2x</option>
-          <option value="3">3x</option>
-          <option value="4" selected>4x</option>
-          <option value="6">6x</option>
-          <option value="8">8x</option>
-        </select>
+  <!-- Center: Split panes -->
+  <div id="center-panel">
+    <!-- Left half: Tileset overview -->
+    <div id="tileset-pane">
+      <div class="pane-header">
+        <span>Tileset</span>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <label>Zoom:</label>
+          <select id="tileset-zoom">
+            <option value="1">1x</option>
+            <option value="2" selected>2x</option>
+            <option value="3">3x</option>
+            <option value="4">4x</option>
+          </select>
+          <label><input type="checkbox" id="snap-grid" checked> Snap 16px</label>
+        </div>
       </div>
-    </div>
-    <div id="preview-container">
-      <canvas id="preview-canvas"></canvas>
-    </div>
-    <!-- Tileset view for Add Asset mode -->
-    <div id="tileset-view">
-      <div class="tv-bar">
-        <span>Drag to select a region on the tileset</span>
-        <label>Zoom:</label>
-        <select id="tileset-zoom">
-          <option value="1">1x</option>
-          <option value="2" selected>2x</option>
-          <option value="3">3x</option>
-          <option value="4">4x</option>
-        </select>
-        <label><input type="checkbox" id="snap-grid" checked> Snap 16px</label>
+      <div class="add-mode-bar" id="add-mode-bar" style="display:none">
+        <span id="add-mode-label">Drag to select a region on the tileset</span>
         <button id="btn-cancel-add">Cancel</button>
       </div>
       <div id="tileset-wrap">
         <canvas id="tileset-canvas"></canvas>
         <div id="select-rect"></div>
+      </div>
+      <div id="tileset-empty">Load a PNG to view the tileset</div>
+    </div>
+
+    <div id="handle-center"></div>
+
+    <!-- Right half: Asset preview -->
+    <div id="preview-pane">
+      <div class="pane-header">
+        <span>Asset Preview</span>
+        <div id="preview-tools">
+          <button id="btn-eraser">Eraser</button>
+          <button id="btn-clear-erased" class="clear-btn">Clear Erased</button>
+          <span id="eraser-info">click/drag to erase pixels</span>
+          <label style="font-size:10px; color:#aaa; margin-right:4px;">Zoom:</label>
+          <select id="preview-zoom">
+            <option value="1">1x</option>
+            <option value="2">2x</option>
+            <option value="3">3x</option>
+            <option value="4" selected>4x</option>
+            <option value="6">6x</option>
+            <option value="8">8x</option>
+          </select>
+        </div>
+      </div>
+      <div id="preview-container">
+        <canvas id="preview-canvas"></canvas>
       </div>
     </div>
   </div>
@@ -252,103 +320,138 @@
       <div class="geo-row">
         <label>W:</label>
         <button class="step-btn" data-field="paddedWidth" data-delta="-16">-16</button>
-        <button class="step-btn" data-field="paddedWidth" data-delta="-1">-1</button>
-        <input id="geo-w" type="number" min="1">
-        <button class="step-btn" data-field="paddedWidth" data-delta="1">+1</button>
+        <span class="step-spacer"></span>
+        <input id="geo-w" type="number" min="16" step="16">
+        <span class="step-spacer"></span>
         <button class="step-btn" data-field="paddedWidth" data-delta="16">+16</button>
+        <span id="fp-w" class="fp-label"></span>
       </div>
       <div class="geo-row">
         <label>H:</label>
         <button class="step-btn" data-field="paddedHeight" data-delta="-16">-16</button>
-        <button class="step-btn" data-field="paddedHeight" data-delta="-1">-1</button>
-        <input id="geo-h" type="number" min="1">
-        <button class="step-btn" data-field="paddedHeight" data-delta="1">+1</button>
+        <span class="step-spacer"></span>
+        <input id="geo-h" type="number" min="16" step="16">
+        <span class="step-spacer"></span>
         <button class="step-btn" data-field="paddedHeight" data-delta="16">+16</button>
+        <span id="fp-h" class="fp-label"></span>
       </div>
 
       <!-- Metadata -->
       <div class="section-title">Metadata</div>
       <div class="field">
-        <label class="field-label">ID</label>
-        <input id="f-id" type="text" readonly>
-      </div>
-      <div class="field">
-        <label class="field-label">Name</label>
-        <input id="f-name" type="text" placeholder="e.g., DESK_WOOD_SM">
-      </div>
-      <div class="field">
         <label class="field-label">Label</label>
         <input id="f-label" type="text" placeholder="e.g., Small Wood Desk">
       </div>
       <div class="field">
-        <label class="field-label">Category</label>
-        <select id="f-category">
-          <option value="desks">Desks</option>
-          <option value="chairs">Chairs</option>
-          <option value="storage">Storage</option>
-          <option value="decor">Decor</option>
-          <option value="electronics">Electronics</option>
-          <option value="wall">Wall</option>
-          <option value="misc">Misc</option>
-        </select>
+        <label class="field-label">ID <span style="font-weight:400; text-transform:none; letter-spacing:0;">(auto-generated from label, editable)</span></label>
+        <input id="f-id" type="text" placeholder="e.g., SMALL_WOOD_DESK">
       </div>
-      <div class="field-row">
+      <div id="individual-category-flags">
         <div class="field">
-          <label class="field-label">Footprint W</label>
-          <input id="f-fpw" type="number" min="1" max="10">
+          <label class="field-label">Category</label>
+          <select id="f-category">
+            <option value="desks">Desks</option>
+            <option value="chairs">Chairs</option>
+            <option value="storage">Storage</option>
+            <option value="decor">Decor</option>
+            <option value="electronics">Electronics</option>
+            <option value="wall">Wall</option>
+            <option value="misc">Misc</option>
+          </select>
         </div>
-        <div class="field">
-          <label class="field-label">Footprint H</label>
-          <input id="f-fph" type="number" min="1" max="10">
+
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label">Background Tiles</label>
+            <input id="f-bgtiles" type="number" min="0" max="10" title="Number of top rows that allow placement behind this furniture">
+            <div class="field-hint">Top rows where other items can be placed behind (shown <span style="color:#5dade2">blue</span> in preview)</div>
+          </div>
+        </div>
+
+        <!-- Flags -->
+        <div class="section-title">Flags</div>
+        <div class="checkbox-group">
+          <div class="checkbox-item">
+            <input id="f-walls" type="checkbox">
+            <label for="f-walls">Can Place On Walls</label>
+          </div>
+          <div class="checkbox-item">
+            <input id="f-ontop" type="checkbox">
+            <label for="f-ontop">Can Place On Surfaces</label>
+          </div>
         </div>
       </div>
 
-      <div class="field-row">
+      <!-- Group Membership (shown when asset is in a group) -->
+      <div id="group-membership" style="display:none">
+        <div class="section-title">Group Membership</div>
+        <div id="group-info" style="font-size:11px; line-height:1.6;"></div>
+        <div style="display:flex; gap:6px; margin-top:8px;">
+          <button id="btn-edit-group" style="font-size:10px; padding:3px 8px; background:#2a2a4a; border:1px solid #555; color:#e0e0e0; border-radius:2px; cursor:pointer;">Edit Group</button>
+          <button id="btn-dissolve-group" style="font-size:10px; padding:3px 8px; background:#4a3a0a; border:1px solid #6b5a10; color:#e0e0e0; border-radius:2px; cursor:pointer;">Dissolve Group</button>
+          <button id="btn-remove-from-group" style="font-size:10px; padding:3px 8px; background:#4a1a1a; border:1px solid #6b2020; color:#e0e0e0; border-radius:2px; cursor:pointer;">Remove from Group</button>
+        </div>
+      </div>
+
+      <!-- Multi-select group creation (shown when 2+ assets selected) -->
+      <div id="group-creator" style="display:none">
+        <div class="section-title">Create Group <span style="font-weight:400; text-transform:none; letter-spacing:0; color:#aaa;" id="group-creator-count"></span></div>
+        <div class="field">
+          <label class="field-label">Group Type</label>
+          <div style="display:flex; gap:4px;">
+            <button class="group-type-btn selected" data-type="rotation">Rotation</button>
+            <button class="group-type-btn" data-type="state">State</button>
+            <button class="group-type-btn" data-type="animation">Animation</button>
+          </div>
+        </div>
+        <div class="field" id="rotation-scheme-field" style="display:none">
+          <label class="field-label">Rotation Scheme</label>
+          <select id="rotation-scheme">
+            <option value="4-way">4-way (Front / Back / Left / Right)</option>
+            <option value="3-way-mirror">3-way + Mirror (Front / Back / Side → Left mirrored)</option>
+            <option value="2-way">2-way (Front / Side)</option>
+          </select>
+          <div class="field-hint" id="rotation-scheme-hint"></div>
+        </div>
+        <div class="field">
+          <label class="field-label">Group Name</label>
+          <input id="group-name-input" type="text" placeholder="e.g., Wooden Chair">
+        </div>
+        <div class="field">
+          <label class="field-label">Group ID <span style="font-weight:400; text-transform:none; letter-spacing:0;">(auto-generated from name, editable)</span></label>
+          <input id="group-id-input" type="text" placeholder="e.g., WOODEN_CHAIR">
+        </div>
+        <div class="field">
+          <label class="field-label">Category</label>
+          <select id="group-category">
+            <option value="desks">Desks</option>
+            <option value="chairs">Chairs</option>
+            <option value="storage">Storage</option>
+            <option value="decor">Decor</option>
+            <option value="electronics">Electronics</option>
+            <option value="wall">Wall</option>
+            <option value="misc">Misc</option>
+          </select>
+        </div>
         <div class="field">
           <label class="field-label">Background Tiles</label>
-          <input id="f-bgtiles" type="number" min="0" max="10" title="Number of top rows that allow placement behind this furniture">
-          <div class="field-hint">Top rows where other items can be placed behind (shown <span style="color:#5dade2">blue</span> in preview)</div>
+          <input id="group-bgtiles" type="number" min="0" max="10" value="0" title="Number of top rows that allow placement behind this furniture">
         </div>
-      </div>
-
-      <!-- Flags -->
-      <div class="section-title">Flags</div>
-      <div class="checkbox-group">
-        <div class="checkbox-item">
-          <input id="f-isdesk" type="checkbox">
-          <label for="f-isdesk">Is Desk</label>
+        <div class="checkbox-group" style="margin:8px 0;">
+          <div class="checkbox-item">
+            <input id="group-walls" type="checkbox">
+            <label for="group-walls">Can Place On Walls</label>
+          </div>
+          <div class="checkbox-item">
+            <input id="group-ontop" type="checkbox">
+            <label for="group-ontop">Can Place On Surfaces</label>
+          </div>
         </div>
-        <div class="checkbox-item">
-          <input id="f-walls" type="checkbox">
-          <label for="f-walls">Can Place On Walls</label>
-        </div>
-        <div class="checkbox-item">
-          <input id="f-ontop" type="checkbox">
-          <label for="f-ontop">Can Place On Surfaces</label>
-        </div>
-      </div>
-
-      <!-- Rotation Group -->
-      <div class="section-title">Rotation Group</div>
-      <div class="checkbox-group">
-        <div class="checkbox-item">
-          <input id="f-grouped" type="checkbox">
-          <label for="f-grouped">Part of rotation group</label>
-        </div>
-      </div>
-      <div class="rotation-fields" id="rotation-fields">
-        <div class="field">
-          <label class="field-label">Group ID</label>
-          <input id="f-group-id" type="text" placeholder="e.g., CUSHIONED_CHAIR">
-        </div>
-        <div class="field">
-          <label class="field-label">Orientation</label>
-          <select id="f-orientation">
-            <option value="front">Front</option>
-            <option value="right">Right</option>
-            <option value="back">Back</option>
-            <option value="left">Left</option>
-          </select>
+        <div id="group-members-list"></div>
+        <div id="group-validation" style="font-size:9px; color:#e74c3c; margin:6px 0; display:none;"></div>
+        <div style="display:flex; gap:6px; margin-top:8px;">
+          <button id="btn-create-group" class="primary" style="flex:1; font-size:11px; padding:5px 10px; border-radius:3px; border:1px solid #2ecc71; background:#27ae60; color:#e0e0e0; cursor:pointer; font-weight:600;">Create Group</button>
+          <button id="btn-cancel-group" style="flex:1; font-size:11px; padding:5px 10px; border-radius:3px; border:1px solid #555; background:#2a2a4a; color:#e0e0e0; cursor:pointer;">Cancel</button>
         </div>
       </div>
 
@@ -365,6 +468,43 @@
     <div id="editor-buttons">
       <button class="primary" id="btn-save">Save</button>
       <button id="btn-reset">Reset</button>
+      <button id="btn-delete" style="background:#6b2020; border-color:#8b3030;" title="Delete this asset">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export Modal -->
+<div id="export-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:#1a1a2e; border:2px solid #8e44ad; border-radius:6px; width:480px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+    <div style="padding:12px 16px; background:#16213e; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-weight:600; font-size:14px;">Export Assets</span>
+      <button id="export-modal-close" style="background:none; border:none; color:#888; cursor:pointer; font-size:18px; padding:0 4px;">&times;</button>
+    </div>
+    <div style="padding:16px; overflow-y:auto;">
+      <div id="export-summary" style="font-size:12px; line-height:1.6; margin-bottom:16px; padding:10px; background:#16213e; border:1px solid #333; border-radius:3px;"></div>
+      <div style="margin-bottom:16px;">
+        <label class="field-label">Folder Organization</label>
+        <div style="display:flex; gap:8px; margin-top:6px;">
+          <label style="display:flex; align-items:center; gap:4px; font-size:12px; cursor:pointer;">
+            <input type="radio" name="export-org" value="flat" checked style="accent-color:#9b59b6;"> Flat
+          </label>
+          <label style="display:flex; align-items:center; gap:4px; font-size:12px; cursor:pointer;">
+            <input type="radio" name="export-org" value="category" style="accent-color:#9b59b6;"> By Category
+          </label>
+        </div>
+        <div class="field-hint" style="margin-top:4px;">Flat: <code>furniture/DESK/</code> &nbsp; By Category: <code>furniture/desks/DESK/</code></div>
+      </div>
+      <div id="export-progress" style="display:none; margin-bottom:12px;">
+        <div style="font-size:11px; margin-bottom:4px;" id="export-progress-text">Exporting...</div>
+        <div style="background:#2a2a4a; height:8px; border-radius:4px; overflow:hidden;">
+          <div id="export-progress-bar" style="background:#9b59b6; height:100%; width:0%; transition:width 0.2s;"></div>
+        </div>
+      </div>
+      <div id="export-result" style="display:none; font-size:12px; padding:10px; border-radius:3px; margin-bottom:12px;"></div>
+    </div>
+    <div style="padding:12px 16px; border-top:1px solid #333; display:flex; gap:8px; justify-content:flex-end;">
+      <button id="export-cancel-btn" style="font-size:12px; padding:6px 16px; border-radius:3px; border:1px solid #555; background:#2a2a4a; color:#e0e0e0; cursor:pointer;">Cancel</button>
+      <button id="export-start-btn" style="font-size:12px; padding:6px 16px; border-radius:3px; border:1px solid #9b59b6; background:#8e44ad; color:#e0e0e0; cursor:pointer; font-weight:600;">Export to Folder</button>
     </div>
   </div>
 </div>
@@ -386,7 +526,11 @@
 
 let data = null          // Full JSON (version, assets[], etc.)
 let tilesetImg = null    // Loaded tileset Image
-let selectedIdx = -1     // Index into data.assets
+let selectedIdx = -1     // Index into data.assets (primary selection for form/preview)
+let selectedIndices = new Set()  // Multi-select set
+let lastClickedIdx = -1  // Anchor for shift-click range select
+let selectedGroupId = null // Currently group-selected group ID (first click selects group, second drills into item)
+let selectedGroupUnits = new Set()  // Set of groupIds selected as compound units (for Ctrl+click on group headers)
 let filtered = []        // Indices into data.assets matching current filter
 let previewZoom = 4
 let savedSnapshot = null // Deep copy for Reset button
@@ -420,6 +564,33 @@ const previewCtx = previewCanvas.getContext('2d')
 // ════════════════════════════════════════════════════════════════════════
 // FILE LOADING
 // ════════════════════════════════════════════════════════════════════════
+
+// New Project — start with empty data
+// File dropdown menu toggle
+const fileMenuBtn = document.getElementById('btn-file-menu')
+const fileDropdown = document.getElementById('file-dropdown')
+fileMenuBtn.onclick = (e) => {
+  e.stopPropagation()
+  fileDropdown.style.display = fileDropdown.style.display === 'none' ? 'block' : 'none'
+}
+document.addEventListener('click', () => { fileDropdown.style.display = 'none' })
+fileDropdown.addEventListener('click', () => { fileDropdown.style.display = 'none' })
+
+document.getElementById('btn-new-project').onclick = () => {
+  if (data && data.assets.length > 0) {
+    if (!confirm('Start a new project? Unsaved changes will be lost.')) return
+  }
+  jsonFileHandle = null
+  loadJsonData({
+    version: 1,
+    timestamp: new Date().toISOString(),
+    sourceFile: '',
+    tileset: '',
+    backgroundColor: null,
+    assets: []
+  })
+  statusMsg.textContent = 'New project created — load a PNG and start adding assets'
+}
 
 document.getElementById('btn-load-json').onclick = async () => {
   // Try File System Access API first (Chromium) — gives us a handle for direct save-back
@@ -469,9 +640,22 @@ document.getElementById('png-file').onchange = (e) => {
     const img = new Image()
     img.onload = () => {
       tilesetImg = img
+      // Auto-initialize empty project if no data loaded yet
+      if (!data) {
+        loadJsonData({
+          version: 1,
+          timestamp: new Date().toISOString(),
+          sourceFile: file.name,
+          tileset: file.name,
+          backgroundColor: null,
+          assets: []
+        })
+      }
+      updateTilesetVisibility()
+      renderTileset()
       renderList()
       renderPreview()
-      statusMsg.textContent = '\u2713 Tileset loaded: ' + img.width + 'x' + img.height + 'px'
+      statusMsg.textContent = '\u2713 Tileset loaded: ' + img.width + 'x' + img.height + 'px' + (!data || data.assets.length === 0 ? ' — click "+ Add Asset" to start defining assets' : '')
     }
     img.src = ev.target.result
   }
@@ -481,13 +665,21 @@ document.getElementById('png-file').onchange = (e) => {
 
 function loadJsonData(parsed) {
   data = parsed
+  migrateGroupsFromAssets()
+  selectedGroupId = null
+  selectedGroupUnits.clear()
   selectedIdx = data.assets.length > 0 ? 0 : -1
+  selectedIndices.clear()
+  if (selectedIdx >= 0) selectedIndices.add(selectedIdx)
+  lastClickedIdx = selectedIdx
   savedSnapshot = JSON.parse(JSON.stringify(data))
   undoStack.length = 0
   redoStack.length = 0
   updateFilter()
   if (selectedIdx >= 0) loadForm(selectedIdx)
+  updateEditorForSelection()
   renderPreview()
+  renderTileset()
   updateCounts()
   scheduleSave()
   updateSaveButton()
@@ -498,7 +690,7 @@ function updateSaveButton() {
   if (!data) {
     btn.style.display = 'none'
   } else {
-    btn.style.display = ''
+    btn.style.display = 'block'
     if (jsonFileHandle) {
       btn.textContent = 'Save'
       btn.title = 'Write directly to ' + jsonFileHandle.name
@@ -511,11 +703,14 @@ function updateSaveButton() {
 
 // Auto-load from localStorage
 window.addEventListener('load', () => {
+  updateTilesetVisibility()
   try {
     const saved = localStorage.getItem('asset-manager-data')
     if (saved) {
       loadJsonData(JSON.parse(saved))
-      statusMsg.textContent = 'Restored from localStorage'
+      statusMsg.textContent = 'Restored from localStorage (' + data.assets.length + ' assets)'
+    } else {
+      statusMsg.textContent = 'Click "New" to start a new project, or "Load JSON" to open an existing one'
     }
   } catch {}
 })
@@ -538,31 +733,41 @@ function scheduleSave() {
 // ════════════════════════════════════════════════════════════════════════
 
 function pushUndo() {
-  undoStack.push(JSON.stringify(data.assets))
+  undoStack.push(JSON.stringify({ assets: data.assets, groups: data.groups || [] }))
   if (undoStack.length > MAX_UNDO) undoStack.shift()
   redoStack.length = 0
 }
 
 function undo() {
   if (undoStack.length === 0) return
-  redoStack.push(JSON.stringify(data.assets))
-  data.assets = JSON.parse(undoStack.pop())
+  redoStack.push(JSON.stringify({ assets: data.assets, groups: data.groups || [] }))
+  const restored = JSON.parse(undoStack.pop())
+  data.assets = restored.assets
+  data.groups = restored.groups
   refreshAfterUndoRedo()
 }
 
 function redo() {
   if (redoStack.length === 0) return
-  undoStack.push(JSON.stringify(data.assets))
-  data.assets = JSON.parse(redoStack.pop())
+  undoStack.push(JSON.stringify({ assets: data.assets, groups: data.groups || [] }))
+  const restored = JSON.parse(redoStack.pop())
+  data.assets = restored.assets
+  data.groups = restored.groups
   refreshAfterUndoRedo()
 }
 
 function refreshAfterUndoRedo() {
   // Clamp selectedIdx
+  selectedGroupId = null
+  selectedGroupUnits.clear()
   if (selectedIdx >= data.assets.length) selectedIdx = data.assets.length - 1
+  selectedIndices.clear()
+  if (selectedIdx >= 0) selectedIndices.add(selectedIdx)
   updateFilter()
   if (selectedIdx >= 0) loadForm(selectedIdx)
+  updateEditorForSelection()
   renderPreview()
+  renderTileset()
   updateCounts()
   scheduleSave()
   statusMsg.textContent = 'Undo/Redo applied'
@@ -573,25 +778,19 @@ function refreshAfterUndoRedo() {
 // ════════════════════════════════════════════════════════════════════════
 
 document.getElementById('filter-cat').onchange = () => updateFilter()
-document.getElementById('filter-show').onchange = () => updateFilter()
 document.getElementById('search').oninput = () => updateFilter()
 
 function updateFilter() {
   if (!data) return
   const search = document.getElementById('search').value.toLowerCase()
   const cat = document.getElementById('filter-cat').value
-  const show = document.getElementById('filter-show').value
-
   filtered = []
   data.assets.forEach((asset, idx) => {
     if (cat && asset.category !== cat) return
-    if (show === 'approved' && asset.discard) return
-    if (show === 'discarded' && !asset.discard) return
     if (search) {
-      const name = (asset.name || '').toLowerCase()
       const label = (asset.label || '').toLowerCase()
       const id = (asset.id || '').toLowerCase()
-      if (!name.includes(search) && !label.includes(search) && !id.includes(search)) return
+      if (!label.includes(search) && !id.includes(search)) return
     }
     filtered.push(idx)
   })
@@ -612,63 +811,359 @@ function updateCounts() {
 // ASSET LIST RENDERING
 // ════════════════════════════════════════════════════════════════════════
 
+function renderAssetItem(idx) {
+  const asset = data.assets[idx]
+  const isSel = idx === selectedIdx
+  const isMulti = selectedIndices.has(idx) && selectedIndices.size > 1
+  const div = document.createElement('div')
+  div.className = 'asset-item' + (isSel ? ' selected' : '') + (isMulti && !isSel ? ' multi-selected' : '') + (asset.discard ? ' discarded' : '')
+  div.dataset.idx = idx
+  div.onclick = (e) => { e.stopPropagation(); handleListClick(idx, e) }
+
+  // Thumbnail
+  const thumb = document.createElement('canvas')
+  thumb.width = 40; thumb.height = 40
+  thumb.className = 'asset-thumb'
+  if (tilesetImg && asset.paddedWidth > 0 && asset.paddedHeight > 0) {
+    const tctx = thumb.getContext('2d')
+    tctx.imageSmoothingEnabled = false
+    const srcX = Math.max(0, asset.paddedX)
+    const srcY = Math.max(0, asset.paddedY)
+    const offX = Math.max(0, -asset.paddedX)
+    const offY = Math.max(0, -asset.paddedY)
+    const srcW = asset.paddedWidth - offX
+    const srcH = asset.paddedHeight - offY
+    if (srcW > 0 && srcH > 0 && srcX < tilesetImg.width && srcY < tilesetImg.height) {
+      const s = Math.min(40 / asset.paddedWidth, 40 / asset.paddedHeight)
+      const dw = asset.paddedWidth * s
+      const dh = asset.paddedHeight * s
+      const dx = (40 - dw) / 2 + offX * s
+      const dy = (40 - dh) / 2 + offY * s
+      tctx.drawImage(tilesetImg,
+        srcX, srcY, Math.min(srcW, tilesetImg.width - srcX), Math.min(srcH, tilesetImg.height - srcY),
+        dx, dy, Math.min(srcW, tilesetImg.width - srcX) * s, Math.min(srcH, tilesetImg.height - srcY) * s
+      )
+    }
+  }
+  div.appendChild(thumb)
+
+  // Info
+  const meta = document.createElement('div')
+  meta.className = 'asset-meta'
+  const group = findGroupForAsset(asset)
+  let nameHtml = '<div class="name">' + escHtml(asset.id || asset.label) + '</div>'
+  nameHtml += '<div class="dims">' + asset.paddedWidth + '\u00d7' + asset.paddedHeight + 'px'
+  const listFpW = Math.max(1, Math.round(asset.paddedWidth / 16))
+  const listFpH = Math.max(1, Math.round(asset.paddedHeight / 16))
+  nameHtml += '  \u2022  ' + listFpW + '\u00d7' + listFpH + ' tiles'
+  nameHtml += '</div>'
+  // Show role within group (no need for full group badge since we have the wrapper)
+  if (group) {
+    let role = ''
+    if (group.memberRoles && group.memberRoles[asset.id]) {
+      role = group.memberRoles[asset.id]
+    } else if (group.type === 'rotation') {
+      role = asset.orientation || '?'
+    } else if (group.type === 'state') {
+      role = asset.state || '?'
+    } else {
+      role = 'Frame ' + (group.members.indexOf(asset.id) + 1)
+    }
+    nameHtml += '<div class="cat">' + escHtml(role) + '</div>'
+  } else {
+    nameHtml += '<div class="cat">' + escHtml(asset.category || '')
+    if (asset.discard) nameHtml += ' <span class="badge badge-discard">DISCARDED</span>'
+    nameHtml += '</div>'
+  }
+  meta.innerHTML = nameHtml
+  div.appendChild(meta)
+
+  return div
+}
+
 function renderList() {
   if (!data) return
   assetListEl.innerHTML = ''
 
-  filtered.forEach(idx => {
-    const asset = data.assets[idx]
-    const div = document.createElement('div')
-    div.className = 'asset-item' + (idx === selectedIdx ? ' selected' : '') + (asset.discard ? ' discarded' : '')
-    div.dataset.idx = idx
-    div.onclick = () => selectAsset(idx)
-
-    // Thumbnail
-    const thumb = document.createElement('canvas')
-    thumb.width = 40; thumb.height = 40
-    thumb.className = 'asset-thumb'
-    if (tilesetImg && asset.paddedWidth > 0 && asset.paddedHeight > 0) {
-      const tctx = thumb.getContext('2d')
-      tctx.imageSmoothingEnabled = false
-      const srcX = Math.max(0, asset.paddedX)
-      const srcY = Math.max(0, asset.paddedY)
-      const offX = Math.max(0, -asset.paddedX)
-      const offY = Math.max(0, -asset.paddedY)
-      const srcW = asset.paddedWidth - offX
-      const srcH = asset.paddedHeight - offY
-      if (srcW > 0 && srcH > 0 && srcX < tilesetImg.width && srcY < tilesetImg.height) {
-        const s = Math.min(40 / asset.paddedWidth, 40 / asset.paddedHeight)
-        const dw = asset.paddedWidth * s
-        const dh = asset.paddedHeight * s
-        const dx = (40 - dw) / 2 + offX * s
-        const dy = (40 - dh) / 2 + offY * s
-        tctx.drawImage(tilesetImg,
-          srcX, srcY, Math.min(srcW, tilesetImg.width - srcX), Math.min(srcH, tilesetImg.height - srcY),
-          dx, dy, Math.min(srcW, tilesetImg.width - srcX) * s, Math.min(srcH, tilesetImg.height - srcY) * s
-        )
+  // Build set of asset indices that belong to sub-groups (whose parent is a compound group)
+  // These should be rendered inside their parent group wrapper, not standalone
+  const subGroupAssetIndices = new Set()
+  const topLevelGroupIds = new Set()
+  if (data.groups) {
+    for (const g of data.groups) {
+      if (g.members.some(m => m.startsWith('@'))) {
+        // This is a compound group — collect all leaf assets from sub-groups
+        for (const mid of g.members) {
+          if (mid.startsWith('@')) {
+            const leafIds = resolveGroupAssets(mid)
+            for (const lid of leafIds) {
+              const idx = data.assets.findIndex(a => a.id === lid)
+              if (idx >= 0) subGroupAssetIndices.add(idx)
+            }
+          }
+        }
       }
     }
-    div.appendChild(thumb)
+    // Identify top-level groups (not sub-groups of another)
+    for (const g of data.groups) {
+      if (!findParentGroup(g.id)) topLevelGroupIds.add(g.id)
+    }
+  }
 
-    // Info
-    const meta = document.createElement('div')
-    meta.className = 'asset-meta'
-    let nameHtml = '<div class="name">' + escHtml(asset.name || asset.id) + '</div>'
-    nameHtml += '<div class="dims">' + asset.paddedWidth + '\u00d7' + asset.paddedHeight + 'px'
-    if (asset.footprintW && asset.footprintH) nameHtml += '  \u2022  ' + asset.footprintW + '\u00d7' + asset.footprintH + ' tiles'
-    nameHtml += '</div>'
-    nameHtml += '<div class="cat">' + escHtml(asset.category || '')
-    if (asset.discard) nameHtml += ' <span class="badge badge-discard">DISCARDED</span>'
-    nameHtml += '</div>'
-    meta.innerHTML = nameHtml
-    div.appendChild(meta)
+  // Pre-collect filtered indices per top-level group
+  const groupFilteredMap = {} // groupId → [filtered indices]
+  const ungroupedOrdered = [] // { type: 'item', idx } | { type: 'group', groupId }
+  const seenGroups = new Set()
 
-    assetListEl.appendChild(div)
-  })
+  for (const idx of filtered) {
+    const asset = data.assets[idx]
+    const group = findGroupForAsset(asset)
+    if (group) {
+      // Find the top-level group for this asset
+      let topGroup = group
+      let parent = findParentGroup(topGroup.id)
+      while (parent) { topGroup = parent; parent = findParentGroup(topGroup.id) }
+
+      if (!seenGroups.has(topGroup.id)) {
+        seenGroups.add(topGroup.id)
+        groupFilteredMap[topGroup.id] = []
+        ungroupedOrdered.push({ type: 'group', groupId: topGroup.id })
+      }
+      groupFilteredMap[topGroup.id].push(idx)
+    } else {
+      ungroupedOrdered.push({ type: 'item', idx })
+    }
+  }
+
+  // Helper to render a group wrapper (possibly with nested sub-group wrappers)
+  function renderGroupWrapper(groupId, filteredIndices) {
+    const group = data.groups.find(g => g.id === groupId)
+    if (!group) return null
+
+    const wrapper = document.createElement('div')
+    const isSelected = selectedGroupId === groupId || selectedGroupUnits.has(groupId)
+    wrapper.className = 'group-wrapper' + (isSelected ? ' group-selected' : '')
+    wrapper.dataset.groupId = groupId
+
+    // Group header
+    const header = document.createElement('div')
+    header.className = 'group-header'
+    let typeLabel = group.type === 'rotation' ? 'Rotation' : group.type === 'state' ? 'State' : 'Animation'
+    if (group.type === 'rotation' && group.rotationScheme && group.rotationScheme !== '4-way') {
+      typeLabel += ' (' + (group.rotationScheme === '3-way-mirror' ? '3+M' : '2') + ')'
+    }
+    const memberCount = filteredIndices.length
+    header.innerHTML = '<span>' + escHtml(group.name || group.id) + ' <span style="color:#666; font-weight:400;">(' + memberCount + ')</span></span>' +
+      '<span class="group-header-type ' + group.type + '">' + escHtml(typeLabel) + '</span>'
+    header.onclick = (e) => { e.stopPropagation(); handleGroupHeaderClick(groupId, e) }
+    wrapper.appendChild(header)
+
+    // Check if this is a compound group
+    const hasSubGroups = group.members.some(m => m.startsWith('@'))
+
+    if (hasSubGroups) {
+      // Render members in order, with sub-group wrappers for @refs
+      for (const mid of group.members) {
+        if (mid.startsWith('@')) {
+          const subGroupId = mid.slice(1)
+          // Collect filtered indices that belong to this sub-group
+          const subLeafIds = new Set(resolveGroupAssets(mid))
+          const subIndices = filteredIndices.filter(idx => subLeafIds.has(data.assets[idx].id))
+          if (subIndices.length > 0) {
+            const subWrapper = renderGroupWrapper(subGroupId, subIndices)
+            if (subWrapper) wrapper.appendChild(subWrapper)
+          }
+        } else {
+          // Direct asset member
+          const idx = data.assets.findIndex(a => a.id === mid)
+          if (idx >= 0 && filteredIndices.includes(idx)) {
+            wrapper.appendChild(renderAssetItem(idx))
+          }
+        }
+      }
+    } else {
+      // Simple group: render all items directly
+      for (const gIdx of filteredIndices) {
+        wrapper.appendChild(renderAssetItem(gIdx))
+      }
+    }
+
+    return wrapper
+  }
+
+  // Render in order
+  for (const entry of ungroupedOrdered) {
+    if (entry.type === 'item') {
+      assetListEl.appendChild(renderAssetItem(entry.idx))
+    } else {
+      const groupId = entry.groupId
+      const groupIndices = groupFilteredMap[groupId]
+      if (!groupIndices || groupIndices.length === 0) continue
+      const wrapper = renderGroupWrapper(groupId, groupIndices)
+      if (wrapper) assetListEl.appendChild(wrapper)
+    }
+  }
 
   // Scroll selected into view
   const sel = assetListEl.querySelector('.selected')
   if (sel) sel.scrollIntoView({ block: 'nearest' })
+}
+
+// Click on group header — select all group members (multi-select)
+// With Ctrl: add group as a compound unit for compound group creation
+function handleGroupHeaderClick(groupId, e) {
+  if (!data || !data.groups) return
+  const group = data.groups.find(g => g.id === groupId)
+  if (!group) return
+
+  // Resolve all leaf asset indices for this group (handles @sub-group refs)
+  function resolveGroupIndices(g) {
+    const indices = []
+    for (const mid of g.members) {
+      if (mid.startsWith('@')) {
+        const subGroup = data.groups.find(sg => sg.id === mid.slice(1))
+        if (subGroup) indices.push(...resolveGroupIndices(subGroup))
+      } else {
+        const idx = data.assets.findIndex(a => a.id === mid)
+        if (idx >= 0) indices.push(idx)
+      }
+    }
+    return indices
+  }
+
+  if (e && e.ctrlKey) {
+    // Ctrl+click: toggle this group as a compound unit
+    selectedGroupId = null
+    if (selectedGroupUnits.has(groupId)) {
+      // Toggle off: remove group and its member indices
+      selectedGroupUnits.delete(groupId)
+      const groupIndices = resolveGroupIndices(group)
+      groupIndices.forEach(i => selectedIndices.delete(i))
+    } else {
+      // Toggle on: add group and its member indices
+      selectedGroupUnits.add(groupId)
+      const groupIndices = resolveGroupIndices(group)
+      groupIndices.forEach(i => selectedIndices.add(i))
+    }
+    selectedIdx = selectedIndices.size === 1 ? [...selectedIndices][0] : -1
+    lastClickedIdx = [...selectedIndices][0] || -1
+  } else {
+    // Normal click: select just this group
+    selectedGroupId = groupId
+    selectedGroupUnits = new Set([groupId])
+    selectedIndices.clear()
+    const groupIndices = resolveGroupIndices(group)
+    groupIndices.forEach(i => selectedIndices.add(i))
+    selectedIdx = -1
+    lastClickedIdx = [...selectedIndices][0] || -1
+  }
+
+  deactivateEraser()
+  updateEditorForSelection()
+  renderList()
+  renderPreview()
+  renderTileset()
+}
+
+function handleListClick(idx, e) {
+  const asset = data.assets[idx]
+  const group = findGroupForAsset(asset)
+
+  if (e.shiftKey && lastClickedIdx >= 0) {
+    // Range select — keep existing group units, add range to selectedIndices
+    selectedGroupId = null
+    const posA = filtered.indexOf(lastClickedIdx)
+    const posB = filtered.indexOf(idx)
+    if (posA >= 0 && posB >= 0) {
+      const lo = Math.min(posA, posB), hi = Math.max(posA, posB)
+      if (!e.ctrlKey) {
+        // Clear only non-group-unit indices, keep group unit indices
+        const groupUnitIndices = new Set()
+        for (const gid of selectedGroupUnits) {
+          const g = data.groups.find(gr => gr.id === gid)
+          if (g) {
+            for (const mid of g.members) {
+              for (const aid of resolveGroupAssets(mid)) {
+                const ai = data.assets.findIndex(a => a.id === aid)
+                if (ai >= 0) groupUnitIndices.add(ai)
+              }
+            }
+          }
+        }
+        selectedIndices.clear()
+        groupUnitIndices.forEach(i => selectedIndices.add(i))
+      }
+      for (let i = lo; i <= hi; i++) selectedIndices.add(filtered[i])
+    }
+  } else if (e.ctrlKey) {
+    // Toggle individual asset — preserve existing group units
+    selectedGroupId = null
+    if (selectedIndices.has(idx)) selectedIndices.delete(idx)
+    else selectedIndices.add(idx)
+    lastClickedIdx = idx
+  } else if (group) {
+    // Grouped item: drill-down logic
+    // Build the full ancestor chain for this asset's group: [directGroup, parent, grandparent, ...]
+    const ancestorChain = []
+    let cur = group
+    while (cur) {
+      ancestorChain.push(cur)
+      cur = findParentGroup(cur.id)
+      if (cur) cur = data.groups.find(g => g.id === cur.id)
+    }
+    // ancestorChain[0] = direct group, ancestorChain[last] = top-level group
+
+    if (!selectedGroupId) {
+      // No group selected yet: select the top-level group
+      const topGroup = ancestorChain[ancestorChain.length - 1]
+      handleGroupHeaderClick(topGroup.id)
+      return
+    }
+
+    // Find where selectedGroupId sits in the chain
+    const selectedLevel = ancestorChain.findIndex(g => g.id === selectedGroupId)
+    if (selectedLevel < 0) {
+      // selectedGroupId is not an ancestor of this asset — select its top-level group
+      const topGroup = ancestorChain[ancestorChain.length - 1]
+      handleGroupHeaderClick(topGroup.id)
+      return
+    }
+
+    if (selectedLevel > 0) {
+      // Drill down one level: select the next sub-group
+      const nextGroup = ancestorChain[selectedLevel - 1]
+      handleGroupHeaderClick(nextGroup.id)
+      return
+    }
+
+    // selectedLevel === 0: we're at the direct group already, drill into individual asset
+    selectedGroupId = null
+    selectedGroupUnits.clear()
+    selectedIndices.clear()
+    selectedIndices.add(idx)
+    lastClickedIdx = idx
+  } else {
+    // Normal click (ungrouped item)
+    selectedGroupId = null
+    selectedGroupUnits.clear()
+    selectedIndices.clear()
+    selectedIndices.add(idx)
+    lastClickedIdx = idx
+  }
+
+  // Update selectedIdx: if exactly one selected, use it; otherwise -1
+  if (selectedIndices.size === 1) {
+    selectedIdx = [...selectedIndices][0]
+  } else {
+    selectedIdx = -1
+  }
+
+  deactivateEraser()
+  if (selectedIdx >= 0) loadForm(selectedIdx)
+  updateEditorForSelection()
+  renderList()
+  renderPreview()
+  renderTileset()
 }
 
 function escHtml(s) {
@@ -681,11 +1176,18 @@ function escHtml(s) {
 
 function selectAsset(idx) {
   if (!data || idx < 0 || idx >= data.assets.length) return
+  selectedGroupId = null
+  selectedGroupUnits.clear()
+  selectedIndices.clear()
+  selectedIndices.add(idx)
+  lastClickedIdx = idx
   selectedIdx = idx
   deactivateEraser()
   loadForm(idx)
+  updateEditorForSelection()
   renderList()
   renderPreview()
+  renderTileset()
 }
 
 function deactivateEraser() {
@@ -697,46 +1199,116 @@ function deactivateEraser() {
   previewCanvas.classList.remove('eraser-active')
 }
 
+// Convert a label string to an ID: uppercase, spaces/hyphens → underscores, strip non-alphanumeric
+function labelToId(label) {
+  return label.trim().toUpperCase().replace(/[\s\-]+/g, '_').replace(/[^A-Z0-9_]/g, '')
+}
+
+// Deduplicate IDs: when multiple assets share the same ID, append _2, _3, etc.
+// Preserves manually-set and group-assigned IDs; only deduplicates collisions.
+function deduplicateIds() {
+  if (!data) return
+  const seen = {}  // id → count seen so far
+  for (const asset of data.assets) {
+    // Use the asset's current ID (which may have been manually set or group-assigned)
+    const baseId = asset.id || labelToId(asset.label) || 'UNNAMED'
+    if (!seen[baseId]) {
+      seen[baseId] = 1
+      asset.id = baseId
+    } else {
+      seen[baseId]++
+      asset.id = baseId + '_' + seen[baseId]
+    }
+    asset.name = asset.id
+  }
+}
+
+// Track whether user has manually edited the ID field
+let idManuallyEdited = false
+
+// Live-update ID preview as label is typed (unless user manually edited ID)
+document.getElementById('f-label').oninput = () => {
+  if (idManuallyEdited) return
+  const label = document.getElementById('f-label').value
+  document.getElementById('f-id').value = labelToId(label) || ''
+}
+
+// Mark ID as manually edited when user types in it
+document.getElementById('f-id').oninput = () => {
+  idManuallyEdited = true
+}
+
+// Track whether user has manually edited the group ID field
+let groupIdManuallyEdited = false
+
+// Live-update group ID from group name
+document.getElementById('group-name-input').oninput = () => {
+  if (groupIdManuallyEdited) return
+  const name = document.getElementById('group-name-input').value
+  document.getElementById('group-id-input').value = labelToId(name) || ''
+}
+
+// Mark group ID as manually edited when user types in it
+document.getElementById('group-id-input').oninput = () => {
+  groupIdManuallyEdited = true
+}
+
 function loadForm(idx) {
   const a = data.assets[idx]
   document.getElementById('geo-x').value = a.paddedX
   document.getElementById('geo-y').value = a.paddedY
   document.getElementById('geo-w').value = a.paddedWidth
   document.getElementById('geo-h').value = a.paddedHeight
-  document.getElementById('f-id').value = a.id
-  document.getElementById('f-name').value = a.name || ''
   document.getElementById('f-label').value = a.label || ''
+  document.getElementById('f-id').value = a.id || labelToId(a.label || '')
+  // Reset manual edit tracking — if the current ID matches labelToId, it wasn't manually edited
+  idManuallyEdited = !!(a.id && a.id !== labelToId(a.label || ''))
   document.getElementById('f-category').value = a.category || 'misc'
-  document.getElementById('f-fpw').value = a.footprintW || 1
-  document.getElementById('f-fph').value = a.footprintH || 1
+  updateFootprintDisplay()
   document.getElementById('f-bgtiles').value = a.backgroundTiles || 0
-  document.getElementById('f-isdesk').checked = !!a.isDesk
   document.getElementById('f-walls').checked = !!a.canPlaceOnWalls
   document.getElementById('f-ontop').checked = !!a.canPlaceOnSurfaces
-  document.getElementById('f-grouped').checked = !!a.partOfGroup
-  document.getElementById('f-group-id').value = a.groupId || ''
-  document.getElementById('f-orientation').value = a.orientation || 'front'
   document.getElementById('f-discard').checked = !!a.discard
-  updateRotationVisibility()
+  updateGroupMembershipDisplay(a)
 }
 
-function updateRotationVisibility() {
-  const visible = document.getElementById('f-grouped').checked
-  document.getElementById('rotation-fields').classList.toggle('visible', visible)
+// Compute footprint from W/H and update the display labels
+function updateFootprintDisplay() {
+  const w = +document.getElementById('geo-w').value || 0
+  const h = +document.getElementById('geo-h').value || 0
+  const fpW = Math.max(1, Math.round(w / 16))
+  const fpH = Math.max(1, Math.round(h / 16))
+  document.getElementById('fp-w').textContent = fpW + ' tile' + (fpW > 1 ? 's' : '')
+  document.getElementById('fp-h').textContent = fpH + ' tile' + (fpH > 1 ? 's' : '')
 }
 
-document.getElementById('f-grouped').onchange = updateRotationVisibility
-
-// Footprint + background tiles live preview
-;['f-fpw', 'f-fph', 'f-bgtiles'].forEach(id => {
-  document.getElementById(id).oninput = () => {
-    renderPreview()
-  }
-})
+// Background tiles live preview
+document.getElementById('f-bgtiles').oninput = () => {
+  renderPreview()
+}
 
 // ════════════════════════════════════════════════════════════════════════
 // GEOMETRY INPUTS (live preview)
 // ════════════════════════════════════════════════════════════════════════
+
+// Snap W/H to multiples of 16 on blur
+;['geo-w', 'geo-h'].forEach(id => {
+  document.getElementById(id).onblur = () => {
+    const el = document.getElementById(id)
+    const raw = +el.value
+    const snapped = Math.max(16, Math.round(raw / 16) * 16)
+    if (snapped !== raw) el.value = snapped
+    // Push to asset
+    if (selectedIdx >= 0 && data) {
+      const a = data.assets[selectedIdx]
+      a.paddedWidth = +document.getElementById('geo-w').value || 16
+      a.paddedHeight = +document.getElementById('geo-h').value || 16
+      updateFootprintDisplay()
+      renderPreview()
+      renderTileset()
+    }
+  }
+})
 
 // Number input live update
 ;['geo-x', 'geo-y', 'geo-w', 'geo-h'].forEach(id => {
@@ -745,9 +1317,11 @@ document.getElementById('f-grouped').onchange = updateRotationVisibility
     const a = data.assets[selectedIdx]
     a.paddedX = +document.getElementById('geo-x').value
     a.paddedY = +document.getElementById('geo-y').value
-    a.paddedWidth = +document.getElementById('geo-w').value || 1
-    a.paddedHeight = +document.getElementById('geo-h').value || 1
+    a.paddedWidth = +document.getElementById('geo-w').value || 16
+    a.paddedHeight = +document.getElementById('geo-h').value || 16
+    updateFootprintDisplay()
     renderPreview()
+    renderTileset()
   }
 })
 
@@ -760,10 +1334,11 @@ document.querySelectorAll('.step-btn').forEach(btn => {
     const a = data.assets[selectedIdx]
     pushUndo()
     a[field] = (a[field] || 0) + delta
-    if (field === 'paddedWidth' && a.paddedWidth < 1) a.paddedWidth = 1
-    if (field === 'paddedHeight' && a.paddedHeight < 1) a.paddedHeight = 1
+    if (field === 'paddedWidth' && a.paddedWidth < 16) a.paddedWidth = 16
+    if (field === 'paddedHeight' && a.paddedHeight < 16) a.paddedHeight = 16
     loadForm(selectedIdx)
     renderPreview()
+    renderTileset()
     scheduleSave()
   }
 })
@@ -777,35 +1352,54 @@ document.getElementById('btn-save').onclick = () => {
   pushUndo()
 
   const a = data.assets[selectedIdx]
+  const oldId = a.id  // capture before rename
   // Geometry
   a.paddedX = +document.getElementById('geo-x').value
   a.paddedY = +document.getElementById('geo-y').value
-  a.paddedWidth = +document.getElementById('geo-w').value || a.paddedWidth
-  a.paddedHeight = +document.getElementById('geo-h').value || a.paddedHeight
-  // Metadata
-  a.name = document.getElementById('f-name').value.trim() || a.name
+  a.paddedWidth = Math.max(16, Math.round((+document.getElementById('geo-w').value || a.paddedWidth) / 16) * 16)
+  a.paddedHeight = Math.max(16, Math.round((+document.getElementById('geo-h').value || a.paddedHeight) / 16) * 16)
+  // Metadata — ID from field (may be manually edited or auto-generated from label)
   a.label = document.getElementById('f-label').value.trim() || a.label
+  const fieldId = document.getElementById('f-id').value.trim()
+  a.id = fieldId || labelToId(a.label) || a.id
+  a.name = a.id
+
+  // Sync ID change into groups
+  if (oldId !== a.id && data.groups) {
+    for (const g of data.groups) {
+      const memberIdx = g.members.indexOf(oldId)
+      if (memberIdx >= 0) {
+        g.members[memberIdx] = a.id
+      }
+      if (g.memberRoles && g.memberRoles[oldId] !== undefined) {
+        g.memberRoles[a.id] = g.memberRoles[oldId]
+        delete g.memberRoles[oldId]
+      }
+    }
+  }
+
   a.category = document.getElementById('f-category').value
-  a.footprintW = +document.getElementById('f-fpw').value || a.footprintW
-  a.footprintH = +document.getElementById('f-fph').value || a.footprintH
+  a.footprintW = Math.max(1, a.paddedWidth / 16)
+  a.footprintH = Math.max(1, a.paddedHeight / 16)
   a.backgroundTiles = +document.getElementById('f-bgtiles').value || 0
-  // Flags
-  a.isDesk = document.getElementById('f-isdesk').checked
+  // Flags — isDesk derived from category
+  a.isDesk = a.category === 'desks'
   a.canPlaceOnWalls = document.getElementById('f-walls').checked
   a.canPlaceOnSurfaces = document.getElementById('f-ontop').checked
-  // Rotation
-  a.partOfGroup = document.getElementById('f-grouped').checked
-  a.groupId = document.getElementById('f-group-id').value.trim() || null
-  a.orientation = document.getElementById('f-grouped').checked ? document.getElementById('f-orientation').value : undefined
   // Discard
   a.discard = document.getElementById('f-discard').checked
 
+  // Deduplicate IDs across all assets
+  deduplicateIds()
+
   updateFilter()
+  loadForm(selectedIdx)
   renderList()
   renderPreview()
+  renderTileset()
   updateCounts()
   scheduleSave()
-  statusMsg.textContent = '\u2713 Saved ' + a.name
+  statusMsg.textContent = '\u2713 Saved ' + a.label
 }
 
 document.getElementById('btn-reset').onclick = () => {
@@ -815,6 +1409,45 @@ document.getElementById('btn-reset').onclick = () => {
   statusMsg.textContent = 'Reset to last saved'
 }
 
+document.getElementById('btn-delete').onclick = () => {
+  if (selectedIdx < 0 || !data) return
+  const asset = data.assets[selectedIdx]
+  if (!confirm('Delete "' + (asset.label || asset.id) + '"? This cannot be undone.')) return
+  pushUndo()
+  removeAssetFromGroup(asset)
+  data.assets.splice(selectedIdx, 1)
+  if (selectedIdx >= data.assets.length) selectedIdx = data.assets.length - 1
+  selectedIndices.clear()
+  if (selectedIdx >= 0) selectedIndices.add(selectedIdx)
+  updateFilter()
+  if (selectedIdx >= 0) loadForm(selectedIdx)
+  updateEditorForSelection()
+  renderPreview()
+  renderTileset()
+  updateCounts()
+  scheduleSave()
+  statusMsg.textContent = '\u2713 Deleted ' + (asset.label || asset.id)
+}
+
+document.getElementById('btn-duplicate').onclick = () => {
+  if (selectedIdx < 0 || !data) return
+  pushUndo()
+  const clone = JSON.parse(JSON.stringify(data.assets[selectedIdx]))
+  data.assets.splice(selectedIdx + 1, 0, clone)
+  deduplicateIds()
+  selectedIdx = selectedIdx + 1
+  selectedIndices.clear()
+  selectedIndices.add(selectedIdx)
+  updateFilter()
+  loadForm(selectedIdx)
+  updateEditorForSelection()
+  renderPreview()
+  renderTileset()
+  updateCounts()
+  scheduleSave()
+  statusMsg.textContent = '\u2713 Duplicated as ' + data.assets[selectedIdx].id
+}
+
 function buildOutputJson() {
   return JSON.stringify({
     version: data.version || 1,
@@ -822,7 +1455,8 @@ function buildOutputJson() {
     sourceFile: data.sourceFile,
     tileset: data.tileset,
     backgroundColor: data.backgroundColor,
-    assets: data.assets
+    assets: data.assets,
+    groups: data.groups || []
   }, null, 2)
 }
 
@@ -920,6 +1554,11 @@ document.getElementById('preview-zoom').onchange = (e) => {
 
 function renderPreview() {
   if (!data || selectedIdx < 0 || selectedIdx >= data.assets.length) {
+    // Multi-select / group preview: show all selected assets side by side
+    if (data && selectedIndices.size > 1 && tilesetImg) {
+      renderGroupPreview()
+      return
+    }
     previewCanvas.width = 100; previewCanvas.height = 100
     previewCtx.fillStyle = '#111'; previewCtx.fillRect(0, 0, 100, 100)
     previewCtx.fillStyle = '#444'; previewCtx.font = '12px sans-serif'; previewCtx.textAlign = 'center'
@@ -988,8 +1627,8 @@ function renderPreview() {
   }
 
   // Footprint overlay — shows blocked rows (orange) vs background rows (blue)
-  const fpW = +document.getElementById('f-fpw').value || 0
-  const fpH = +document.getElementById('f-fph').value || 0
+  const fpW = Math.max(1, Math.round(asset.paddedWidth / 16))
+  const fpH = Math.max(1, Math.round(asset.paddedHeight / 16))
   const bgTiles = +document.getElementById('f-bgtiles').value || 0
   if (fpW > 0 && fpH > 0) {
     const tileZoom = 16 * previewZoom
@@ -1028,6 +1667,1148 @@ function renderPreview() {
   previewCtx.strokeRect(0, 0, w, h)
 }
 
+function renderGroupPreview() {
+  const indices = [...selectedIndices]
+  const assets = indices.map(i => data.assets[i]).filter(a => a.paddedWidth > 0 && a.paddedHeight > 0)
+  if (assets.length === 0) return
+
+  previewCanvas.classList.remove('invalid')
+
+  const gap = 4  // px gap between assets (in sprite pixels)
+  const maxH = Math.max(...assets.map(a => a.paddedHeight))
+  const totalW = assets.reduce((sum, a) => sum + a.paddedWidth, 0) + gap * (assets.length - 1)
+
+  const cw = totalW * previewZoom
+  const ch = maxH * previewZoom
+  previewCanvas.width = cw
+  previewCanvas.height = ch
+  previewCtx.imageSmoothingEnabled = false
+  previewCtx.clearRect(0, 0, cw, ch)
+
+  let curX = 0
+  for (const asset of assets) {
+    const aw = asset.paddedWidth * previewZoom
+    const ah = asset.paddedHeight * previewZoom
+    // Bottom-align each asset
+    const dy = ch - ah
+
+    // Draw tileset region
+    const srcX = Math.max(0, asset.paddedX)
+    const srcY = Math.max(0, asset.paddedY)
+    const offX = Math.max(0, -asset.paddedX)
+    const offY = Math.max(0, -asset.paddedY)
+    const srcW = asset.paddedWidth - offX
+    const srcH = asset.paddedHeight - offY
+
+    if (srcW > 0 && srcH > 0 && srcX < tilesetImg.width && srcY < tilesetImg.height) {
+      const clampW = Math.min(srcW, tilesetImg.width - srcX)
+      const clampH = Math.min(srcH, tilesetImg.height - srcY)
+      previewCtx.drawImage(tilesetImg,
+        srcX, srcY, clampW, clampH,
+        curX + offX * previewZoom, dy + offY * previewZoom,
+        clampW * previewZoom, clampH * previewZoom
+      )
+    }
+
+    // Erased pixels
+    if (asset.erasedPixels && asset.erasedPixels.length > 0) {
+      previewCtx.fillStyle = 'rgba(255, 0, 0, 0.35)'
+      for (const p of asset.erasedPixels) {
+        previewCtx.fillRect(curX + p.x * previewZoom, dy + p.y * previewZoom, previewZoom, previewZoom)
+      }
+    }
+
+    // Border per asset
+    previewCtx.strokeStyle = 'rgba(52, 152, 219, 0.6)'
+    previewCtx.lineWidth = 1
+    previewCtx.strokeRect(curX + 0.5, dy + 0.5, aw - 1, ah - 1)
+
+    // Label below top
+    const label = asset.id || asset.label || ''
+    if (label) {
+      const fontSize = Math.max(8, previewZoom * 3)
+      previewCtx.font = fontSize + 'px sans-serif'
+      previewCtx.fillStyle = 'rgba(255,255,255,0.7)'
+      previewCtx.textAlign = 'center'
+      previewCtx.textBaseline = 'top'
+      previewCtx.fillText(label, curX + aw / 2, dy + 2, aw - 4)
+    }
+
+    curX += aw + gap * previewZoom
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// GROUPS SYSTEM
+// ════════════════════════════════════════════════════════════════════════
+
+let groupCreatorType = 'rotation'
+let rotationScheme = '4-way'  // '4-way' | '3-way-mirror' | '2-way'
+let editingGroupId = null  // non-null when editing an existing group
+
+// Ensure data.groups exists
+function ensureGroups() {
+  if (data && !data.groups) data.groups = []
+}
+
+// Find the group that contains a given asset
+function findGroupForAsset(asset) {
+  if (!data || !data.groups || !asset.groupId) return null
+  return data.groups.find(g => g.id === asset.groupId) || null
+}
+
+// Find the parent group that contains a sub-group reference
+function findParentGroup(groupId) {
+  if (!data || !data.groups) return null
+  return data.groups.find(g => g.members.includes('@' + groupId)) || null
+}
+
+// Resolve all leaf asset IDs from a member reference
+// If starts with '@' → find the group, recursively resolve its members
+// Otherwise → return [memberId] (it's a leaf asset)
+function resolveGroupAssets(memberId) {
+  if (memberId.startsWith('@')) {
+    const gid = memberId.slice(1)
+    const group = data.groups.find(g => g.id === gid)
+    if (!group) return []
+    const results = []
+    for (const mid of group.members) {
+      results.push(...resolveGroupAssets(mid))
+    }
+    return results
+  }
+  return [memberId]
+}
+
+// Resolve full metadata for an asset by walking up the group hierarchy
+function resolveAssetMetadata(assetId) {
+  const meta = {}
+  const asset = data.assets.find(a => a.id === assetId)
+  if (!asset || !asset.groupId) return meta
+
+  // Find direct group
+  const directGroup = data.groups.find(g => g.id === asset.groupId)
+  if (!directGroup) return meta
+
+  // Get role from direct group's memberRoles
+  if (directGroup.memberRoles) {
+    const role = directGroup.memberRoles[assetId]
+    if (directGroup.type === 'rotation') meta.orientation = role
+    else if (directGroup.type === 'state') meta.state = role
+    else if (directGroup.type === 'animation') meta.animationFrame = directGroup.members.indexOf(assetId)
+  }
+
+  // Walk up to parent
+  const parent = findParentGroup(directGroup.id)
+  if (parent && parent.memberRoles) {
+    const parentRole = parent.memberRoles['@' + directGroup.id]
+    if (parent.type === 'rotation') meta.orientation = parentRole
+    else if (parent.type === 'state') meta.state = parentRole
+
+    // Walk up one more level
+    const grandparent = findParentGroup(parent.id)
+    if (grandparent && grandparent.memberRoles) {
+      const gpRole = grandparent.memberRoles['@' + parent.id]
+      if (grandparent.type === 'rotation') meta.orientation = gpRole
+      else if (grandparent.type === 'state') meta.state = gpRole
+    }
+  }
+
+  return meta
+}
+
+// Check if a group is a sub-group of any compound group
+function isSubGroup(groupId) {
+  return !!findParentGroup(groupId)
+}
+
+// Get all top-level groups (groups that are not sub-groups of another group)
+function getTopLevelGroups() {
+  if (!data || !data.groups) return []
+  return data.groups.filter(g => !findParentGroup(g.id))
+}
+
+// Migrate: rebuild data.groups from per-asset fields if groups[] is missing
+function migrateGroupsFromAssets() {
+  if (!data || data.groups) return
+  data.groups = []
+  const byGroupId = {}
+  for (const asset of data.assets) {
+    if (!asset.groupId) continue
+    if (!byGroupId[asset.groupId]) byGroupId[asset.groupId] = []
+    byGroupId[asset.groupId].push(asset)
+  }
+  for (const [gid, members] of Object.entries(byGroupId)) {
+    const hasOrientation = members.some(a => a.orientation)
+    const hasState = members.some(a => a.state)
+    const type = hasState ? 'state' : hasOrientation ? 'rotation' : 'rotation'
+    data.groups.push({ id: gid, type, members: members.map(a => a.id) })
+  }
+}
+
+// Sync group definition -> per-asset fields
+function syncGroupToAssets(group) {
+  if (!data) return
+  for (let i = 0; i < group.members.length; i++) {
+    const asset = data.assets.find(a => a.id === group.members[i])
+    if (!asset) continue
+    asset.groupId = group.id
+    asset.partOfGroup = true
+    if (group.type === 'rotation') {
+      // Try to infer orientation from suffix, or use position-based default
+      const suffixes = ['front', 'right', 'back', 'left']
+      const nameLower = (asset.id || '').toLowerCase()
+      const matched = suffixes.find(s => nameLower.endsWith('_' + s))
+      asset.orientation = matched || asset.orientation || suffixes[i % 4]
+    } else if (group.type === 'state') {
+      asset.state = i === 0 ? 'off' : 'on'
+    } else if (group.type === 'animation') {
+      asset.animationFrame = i
+    }
+  }
+}
+
+// Remove asset from its group
+function removeAssetFromGroup(asset) {
+  if (!data || !asset.groupId) return
+  ensureGroups()
+  const group = data.groups.find(g => g.id === asset.groupId)
+  if (group) {
+    group.members = group.members.filter(id => id !== asset.id)
+    // Also remove from memberRoles
+    if (group.memberRoles) delete group.memberRoles[asset.id]
+
+    if (group.members.length < 2) {
+      // Dissolve the group — remove per-asset fields from remaining member too
+      for (const mid of group.members) {
+        if (mid.startsWith('@')) continue
+        const m = data.assets.find(a => a.id === mid)
+        if (m) { m.groupId = undefined; m.partOfGroup = false; m.orientation = undefined; m.state = undefined; m.animationFrame = undefined }
+      }
+      // If this group is a sub-group of a compound group, remove the reference
+      const parent = findParentGroup(group.id)
+      if (parent) {
+        parent.members = parent.members.filter(m => m !== '@' + group.id)
+        if (parent.memberRoles) delete parent.memberRoles['@' + group.id]
+        // Dissolve parent if < 2 members
+        if (parent.members.length < 2) {
+          for (const mid of parent.members) {
+            if (mid.startsWith('@')) continue
+            const m = data.assets.find(a => a.id === mid)
+            if (m) { m.groupId = undefined; m.partOfGroup = false; m.orientation = undefined; m.state = undefined; m.animationFrame = undefined }
+          }
+          data.groups = data.groups.filter(g => g.id !== parent.id)
+        }
+      }
+      data.groups = data.groups.filter(g => g.id !== group.id)
+    }
+  }
+  asset.groupId = undefined
+  asset.partOfGroup = false
+  asset.orientation = undefined
+  asset.state = undefined
+  asset.animationFrame = undefined
+}
+
+// Show group membership info for a single selected asset
+function updateGroupMembershipDisplay(asset) {
+  const el = document.getElementById('group-membership')
+  const catFlags = document.getElementById('individual-category-flags')
+  const group = findGroupForAsset(asset)
+  if (!group) {
+    el.style.display = 'none'
+    catFlags.style.display = ''
+    return
+  }
+  el.style.display = ''
+  // Restore all buttons for individual asset view
+  document.getElementById('btn-edit-group').style.display = ''
+  document.getElementById('btn-dissolve-group').style.display = ''
+  document.getElementById('btn-remove-from-group').style.display = ''
+  // Hide individual category/flags — they're managed at the group level
+  catFlags.style.display = 'none'
+  const typeLabel = group.type === 'rotation' ? 'Rotation' : group.type === 'state' ? 'State' : 'Animation'
+  let role = ''
+  if (group.memberRoles && group.memberRoles[asset.id]) {
+    role = group.memberRoles[asset.id]
+  } else if (group.type === 'rotation') {
+    role = asset.orientation || '?'
+  } else if (group.type === 'state') {
+    role = asset.state || '?'
+  } else {
+    role = 'Frame ' + (group.members.indexOf(asset.id) + 1)
+  }
+  const catLabel = (asset.category || 'misc').charAt(0).toUpperCase() + (asset.category || 'misc').slice(1)
+  let flagsStr = ''
+  if (asset.canPlaceOnWalls) flagsStr += 'Walls '
+  if (asset.canPlaceOnSurfaces) flagsStr += 'Surfaces '
+  if (asset.backgroundTiles) flagsStr += 'BG:' + asset.backgroundTiles
+  const schemeLabel = group.type === 'rotation' ? (group.rotationScheme === '3-way-mirror' ? '3-way + Mirror' : group.rotationScheme === '2-way' ? '2-way' : '4-way') : ''
+
+  // Show compound group hierarchy
+  let hierarchyHtml = ''
+  const parent = findParentGroup(group.id)
+  if (parent) {
+    const parentType = parent.type === 'rotation' ? 'Rotation' : parent.type === 'state' ? 'State' : 'Animation'
+    const parentRole = parent.memberRoles ? (parent.memberRoles['@' + group.id] || '?') : '?'
+    hierarchyHtml = '<div style="margin-top:4px; padding:4px 6px; background:#1a1a3e; border-radius:2px; font-size:10px;">' +
+      '<b>Parent:</b> ' + escHtml(parent.name || parent.id) + ' <span class="gm-type-badge ' + parent.type + '" style="display:inline-block;">' + parentType + '</span>' +
+      ' (role: ' + escHtml(parentRole) + ')' +
+      '</div>'
+
+    // Check for grandparent
+    const grandparent = findParentGroup(parent.id)
+    if (grandparent) {
+      const gpType = grandparent.type === 'rotation' ? 'Rotation' : grandparent.type === 'state' ? 'State' : 'Animation'
+      const gpRole = grandparent.memberRoles ? (grandparent.memberRoles['@' + parent.id] || '?') : '?'
+      hierarchyHtml += '<div style="padding:4px 6px; background:#1a1a3e; border-radius:2px; font-size:10px; margin-top:2px;">' +
+        '<b>Root:</b> ' + escHtml(grandparent.name || grandparent.id) + ' <span class="gm-type-badge ' + grandparent.type + '" style="display:inline-block;">' + gpType + '</span>' +
+        ' (role: ' + escHtml(gpRole) + ')' +
+        '</div>'
+    }
+  }
+
+  document.getElementById('group-info').innerHTML =
+    '<div><b>Group:</b> ' + escHtml(group.name || group.id) + '</div>' +
+    '<div><b>Group ID:</b> ' + escHtml(group.id) + '</div>' +
+    '<div><b>Type:</b> ' + typeLabel + '</div>' +
+    (schemeLabel ? '<div><b>Scheme:</b> ' + schemeLabel + '</div>' : '') +
+    '<div><b>Role:</b> ' + role + '</div>' +
+    '<div><b>Category:</b> ' + escHtml(catLabel) + '</div>' +
+    (flagsStr ? '<div><b>Flags:</b> ' + escHtml(flagsStr.trim()) + '</div>' : '') +
+    '<div><b>Members:</b> ' + group.members.length + '</div>' +
+    hierarchyHtml
+}
+
+// Update editor panel based on selection count
+function updateEditorForSelection() {
+  const form = document.getElementById('editor-form')
+  const creator = document.getElementById('group-creator')
+  const header = document.getElementById('editor-header')
+
+  // Detect if exactly one group is selected with no extra items
+  let singleSelectedGroup = null
+  if (selectedIndices.size > 1 && selectedGroupId && data.groups) {
+    const group = data.groups.find(g => g.id === selectedGroupId)
+    if (group) {
+      // Check that selected indices exactly match this group's leaf assets
+      const leafIds = new Set()
+      for (const mid of group.members) {
+        for (const aid of resolveGroupAssets(mid)) leafIds.add(aid)
+      }
+      const selectedAssetIds = new Set([...selectedIndices].map(i => data.assets[i].id))
+      if (leafIds.size === selectedAssetIds.size && [...leafIds].every(id => selectedAssetIds.has(id))) {
+        singleSelectedGroup = group
+      }
+    }
+  }
+
+  if (singleSelectedGroup) {
+    // Single group selected: show group info panel (not the creator)
+    for (const child of form.children) {
+      if (child.id !== 'group-membership') child.style.display = 'none'
+    }
+    creator.style.display = 'none'
+    const group = singleSelectedGroup
+    const typeLabel = group.type === 'rotation' ? 'Rotation' : group.type === 'state' ? 'State' : 'Animation'
+    header.textContent = escHtml(group.name || group.id)
+
+    // Resolve first leaf asset for category/flags display
+    const firstLeafId = resolveGroupAssets(group.members[0])[0]
+    const firstMember = firstLeafId ? data.assets.find(a => a.id === firstLeafId) : null
+    const catLabel = ((group.category || (firstMember && firstMember.category) || 'misc'))
+    const catDisplay = catLabel.charAt(0).toUpperCase() + catLabel.slice(1)
+    let flagsStr = ''
+    const walls = group.canPlaceOnWalls != null ? group.canPlaceOnWalls : (firstMember && firstMember.canPlaceOnWalls)
+    const surfaces = group.canPlaceOnSurfaces != null ? group.canPlaceOnSurfaces : (firstMember && firstMember.canPlaceOnSurfaces)
+    const bgTiles = group.backgroundTiles != null ? group.backgroundTiles : (firstMember && firstMember.backgroundTiles)
+    if (walls) flagsStr += 'Walls '
+    if (surfaces) flagsStr += 'Surfaces '
+    if (bgTiles) flagsStr += 'BG:' + bgTiles
+    const schemeLabel = group.type === 'rotation' ? (group.rotationScheme === '3-way-mirror' ? '3-way + Mirror' : group.rotationScheme === '2-way' ? '2-way' : '4-way') : ''
+
+    // List members with roles
+    let membersHtml = ''
+    for (const mid of group.members) {
+      const role = group.memberRoles ? (group.memberRoles[mid] || '') : ''
+      const roleStr = role ? ' <span style="color:#6aa;">(' + escHtml(role) + ')</span>' : ''
+      if (mid.startsWith('@')) {
+        const subGroup = data.groups.find(g => g.id === mid.slice(1))
+        const subType = subGroup ? (subGroup.type === 'rotation' ? 'Rotation' : subGroup.type === 'state' ? 'State' : 'Animation') : '?'
+        const subTypeClass = subGroup ? subGroup.type : ''
+        membersHtml += '<div style="padding:2px 0;"><span class="gm-type-badge ' + subTypeClass + '" style="display:inline-block;">' + escHtml(subType) + '</span> ' + escHtml(subGroup ? (subGroup.name || subGroup.id) : mid.slice(1)) + roleStr + '</div>'
+      } else {
+        membersHtml += '<div style="padding:2px 0;">' + escHtml(mid) + roleStr + '</div>'
+      }
+    }
+
+    const el = document.getElementById('group-membership')
+    el.style.display = ''
+    // Show Edit Group + Dissolve, hide Remove from Group (doesn't apply to group view)
+    document.getElementById('btn-edit-group').style.display = ''
+    document.getElementById('btn-dissolve-group').style.display = ''
+    document.getElementById('btn-remove-from-group').style.display = 'none'
+    document.getElementById('group-info').innerHTML =
+      '<div><b>Group:</b> ' + escHtml(group.name || group.id) + '</div>' +
+      '<div><b>Group ID:</b> ' + escHtml(group.id) + '</div>' +
+      '<div><b>Type:</b> ' + typeLabel + '</div>' +
+      (schemeLabel ? '<div><b>Scheme:</b> ' + schemeLabel + '</div>' : '') +
+      '<div><b>Category:</b> ' + escHtml(catDisplay) + '</div>' +
+      (flagsStr ? '<div><b>Flags:</b> ' + escHtml(flagsStr.trim()) + '</div>' : '') +
+      '<div style="margin-top:6px;"><b>Members (' + group.members.length + '):</b></div>' +
+      membersHtml
+  } else if (selectedIndices.size > 1) {
+    // Multi-select: hide form fields, show group creator
+    for (const child of form.children) {
+      if (child.id !== 'group-creator') child.style.display = 'none'
+    }
+    creator.style.display = ''
+    if (selectedGroupUnits.size > 0) {
+      const units = getSelectedMemberUnits()
+      const gCount = units.filter(u => u.type === 'group').length
+      const aCount = units.filter(u => u.type === 'asset').length
+      const parts = []
+      if (gCount > 0) parts.push(gCount + ' group' + (gCount > 1 ? 's' : ''))
+      if (aCount > 0) parts.push(aCount + ' asset' + (aCount > 1 ? 's' : ''))
+      header.textContent = units.length + ' items selected (' + parts.join(' + ') + ')'
+      document.getElementById('group-creator-count').textContent = '(' + units.length + ' items)'
+    } else {
+      header.textContent = selectedIndices.size + ' assets selected'
+      document.getElementById('group-creator-count').textContent = '(' + selectedIndices.size + ' assets)'
+    }
+    editingGroupId = null
+    initGroupCreator()
+  } else {
+    // Single or no selection: show form fields, hide group creator
+    for (const child of form.children) {
+      child.style.display = ''
+    }
+    creator.style.display = 'none'
+    header.textContent = 'Editor'
+    // Check if all selected are in same group — if editing from "Edit Group" button
+    if (selectedIdx >= 0) {
+      updateGroupMembershipDisplay(data.assets[selectedIdx])
+    } else {
+      document.getElementById('group-membership').style.display = 'none'
+    }
+  }
+}
+
+// Detect common prefix of asset IDs
+function commonPrefix(ids) {
+  if (ids.length === 0) return ''
+  let prefix = ids[0]
+  for (let i = 1; i < ids.length; i++) {
+    while (ids[i].indexOf(prefix) !== 0 && prefix.length > 0) {
+      prefix = prefix.substring(0, prefix.length - 1)
+    }
+  }
+  // Trim trailing underscore
+  if (prefix.endsWith('_')) prefix = prefix.slice(0, -1)
+  return prefix
+}
+
+// Auto-detect group type from name suffixes
+function detectGroupType(assets) {
+  const ids = assets.map(a => (a.id || '').toUpperCase())
+  const orientations = ['FRONT', 'BACK', 'LEFT', 'RIGHT', 'SIDE']
+  const states = ['ON', 'OFF', 'OPEN', 'CLOSED']
+  if (ids.every(id => orientations.some(o => id.endsWith('_' + o)))) return 'rotation'
+  if (ids.every(id => states.some(s => id.endsWith('_' + s)))) return 'state'
+  return 'rotation'
+}
+
+// Auto-detect rotation scheme from assets in the group
+function detectRotationScheme(assets) {
+  const suffixes = new Set()
+  for (const asset of assets) {
+    const o = asset.orientation || inferOrientation(asset.id)
+    if (o) suffixes.add(o)
+  }
+  if (suffixes.size <= 2 && !suffixes.has('back') && !suffixes.has('left')) return '2-way'
+  if (!suffixes.has('left') && suffixes.has('right') && suffixes.has('front') && suffixes.has('back')) return '3-way-mirror'
+  if (suffixes.size === 3 && suffixes.has('front') && suffixes.has('back') && (suffixes.has('right') || suffixes.has('side'))) return '3-way-mirror'
+  return '4-way'
+}
+
+// Initialize the group creator panel for current multi-selection
+function initGroupCreator() {
+  const indices = [...selectedIndices]
+  const assets = indices.map(i => data.assets[i])
+  const units = getSelectedMemberUnits()
+  const ids = units.map(u => u.type === 'group' ? u.groupId : u.id)
+
+  // Reset manual edit tracking for group ID
+  groupIdManuallyEdited = false
+
+  // Check if all selected units are already members of the same parent group (compound edit)
+  if (units.length >= 2 && data.groups) {
+    // For compound groups: check if all units (group refs + assets) belong to the same parent
+    let candidateParent = null
+    for (const g of data.groups) {
+      const memberSet = new Set(g.members)
+      const allMatch = units.every(u => {
+        const ref = u.type === 'group' ? '@' + u.groupId : u.id
+        return memberSet.has(ref)
+      })
+      if (allMatch && g.members.length === units.length) {
+        candidateParent = g
+        break
+      }
+    }
+    if (candidateParent) {
+      editingGroupId = candidateParent.id
+      groupCreatorType = candidateParent.type
+      if (candidateParent.type === 'rotation') {
+        rotationScheme = candidateParent.rotationScheme || '4-way'
+        document.getElementById('rotation-scheme').value = rotationScheme
+      }
+      document.getElementById('group-name-input').value = candidateParent.name || ''
+      document.getElementById('group-id-input').value = candidateParent.id
+      groupIdManuallyEdited = !!(candidateParent.id && candidateParent.name && candidateParent.id !== labelToId(candidateParent.name))
+      // Resolve first leaf asset for defaults
+      const firstLeafId = resolveGroupAssets(candidateParent.members[0])[0]
+      const firstMember = firstLeafId ? data.assets.find(a => a.id === firstLeafId) : null
+      document.getElementById('group-category').value = candidateParent.category || (firstMember && firstMember.category) || 'misc'
+      document.getElementById('group-bgtiles').value = candidateParent.backgroundTiles != null ? candidateParent.backgroundTiles : (firstMember && firstMember.backgroundTiles) || 0
+      document.getElementById('group-walls').checked = candidateParent.canPlaceOnWalls != null ? candidateParent.canPlaceOnWalls : !!(firstMember && firstMember.canPlaceOnWalls)
+      document.getElementById('group-ontop').checked = candidateParent.canPlaceOnSurfaces != null ? candidateParent.canPlaceOnSurfaces : !!(firstMember && firstMember.canPlaceOnSurfaces)
+      document.getElementById('btn-create-group').textContent = 'Update Group'
+      selectGroupTypeBtn(candidateParent.type)
+      renderGroupMembers()
+      return
+    }
+  }
+
+  // Check if all assets are already in the same simple group (legacy / non-compound)
+  const groups = assets.map(a => a.groupId).filter(Boolean)
+  const uniqueGroups = [...new Set(groups)]
+  if (selectedGroupUnits.size === 0 && uniqueGroups.length === 1 && data.groups) {
+    const existing = data.groups.find(g => g.id === uniqueGroups[0])
+    if (existing && !existing.members.some(m => m.startsWith('@'))) {
+      editingGroupId = existing.id
+      groupCreatorType = existing.type
+      if (existing.type === 'rotation') {
+        const memberAssets = existing.members.map(mid => data.assets.find(a => a.id === mid)).filter(Boolean)
+        rotationScheme = existing.rotationScheme || detectRotationScheme(memberAssets)
+        document.getElementById('rotation-scheme').value = rotationScheme
+      }
+      document.getElementById('group-name-input').value = existing.name || ''
+      document.getElementById('group-id-input').value = existing.id
+      groupIdManuallyEdited = !!(existing.id && existing.name && existing.id !== labelToId(existing.name))
+      const firstMember = data.assets.find(a => a.id === existing.members[0])
+      document.getElementById('group-category').value = existing.category || (firstMember && firstMember.category) || 'misc'
+      document.getElementById('group-bgtiles').value = existing.backgroundTiles != null ? existing.backgroundTiles : (firstMember && firstMember.backgroundTiles) || 0
+      document.getElementById('group-walls').checked = existing.canPlaceOnWalls != null ? existing.canPlaceOnWalls : !!(firstMember && firstMember.canPlaceOnWalls)
+      document.getElementById('group-ontop').checked = existing.canPlaceOnSurfaces != null ? existing.canPlaceOnSurfaces : !!(firstMember && firstMember.canPlaceOnSurfaces)
+      document.getElementById('btn-create-group').textContent = 'Update Group'
+      selectGroupTypeBtn(existing.type)
+      renderGroupMembers()
+      return
+    }
+  }
+
+  editingGroupId = null
+
+  // Auto-detect type based on selected units
+  let detected = 'rotation'
+  const hasGroupUnits = units.some(u => u.type === 'group')
+  if (hasGroupUnits) {
+    // Suggest "next level up" type based on sub-group types
+    const subTypes = units.filter(u => u.type === 'group').map(u => u.groupType)
+    if (subTypes.some(t => t === 'state')) detected = 'rotation'
+    else if (subTypes.some(t => t === 'animation')) detected = 'state'
+    else detected = 'rotation'
+  } else {
+    detected = detectGroupType(assets)
+  }
+
+  groupCreatorType = detected
+  if (detected === 'rotation') {
+    if (!hasGroupUnits) {
+      rotationScheme = detectRotationScheme(assets)
+    } else {
+      rotationScheme = '4-way'
+    }
+    document.getElementById('rotation-scheme').value = rotationScheme
+  } else {
+    rotationScheme = '4-way'
+  }
+  selectGroupTypeBtn(detected)
+  document.getElementById('group-name-input').value = ''
+  document.getElementById('group-id-input').value = commonPrefix(ids) || ''
+  // Default category/flags from first selected asset
+  const first = assets[0]
+  document.getElementById('group-category').value = first.category || 'misc'
+  document.getElementById('group-bgtiles').value = first.backgroundTiles || 0
+  document.getElementById('group-walls').checked = !!first.canPlaceOnWalls
+  document.getElementById('group-ontop').checked = !!first.canPlaceOnSurfaces
+  document.getElementById('btn-create-group').textContent = 'Create Group'
+  renderGroupMembers()
+}
+
+function selectGroupTypeBtn(type) {
+  groupCreatorType = type
+  document.querySelectorAll('.group-type-btn').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.type === type)
+  })
+  // Show/hide rotation scheme selector
+  const schemeField = document.getElementById('rotation-scheme-field')
+  schemeField.style.display = type === 'rotation' ? '' : 'none'
+  updateRotationSchemeHint()
+  renderGroupMembers()
+}
+
+function updateRotationSchemeHint() {
+  const hint = document.getElementById('rotation-scheme-hint')
+  if (rotationScheme === '3-way-mirror') {
+    hint.textContent = 'Side sprite = Right. Left will be auto-mirrored at runtime.'
+    hint.style.display = ''
+  } else if (rotationScheme === '2-way') {
+    hint.textContent = 'Side sprite = Right. No back orientation.'
+    hint.style.display = ''
+  } else {
+    hint.textContent = ''
+    hint.style.display = 'none'
+  }
+}
+
+function getOrientationsForScheme(scheme) {
+  if (scheme === '3-way-mirror') return ['front', 'back', 'right']
+  if (scheme === '2-way') return ['front', 'right']
+  return ['front', 'right', 'back', 'left']  // 4-way
+}
+
+document.querySelectorAll('.group-type-btn').forEach(btn => {
+  btn.onclick = () => selectGroupTypeBtn(btn.dataset.type)
+})
+
+document.getElementById('rotation-scheme').onchange = (e) => {
+  rotationScheme = e.target.value
+  updateRotationSchemeHint()
+  renderGroupMembers()
+}
+
+// Build member units from selection: groups (from selectedGroupUnits) + individual assets
+function getSelectedMemberUnits() {
+  const units = []  // { type: 'group'|'asset', id, groupId?, indices, label, groupType? }
+  const coveredIndices = new Set()
+
+  // First: group units
+  for (const gid of selectedGroupUnits) {
+    const group = data.groups.find(g => g.id === gid)
+    if (!group) continue
+    // Resolve all leaf indices for this group
+    const leafAssetIds = []
+    for (const mid of group.members) {
+      leafAssetIds.push(...resolveGroupAssets(mid))
+    }
+    const indices = leafAssetIds
+      .map(aid => data.assets.findIndex(a => a.id === aid))
+      .filter(i => i >= 0 && selectedIndices.has(i))
+    if (indices.length === 0) continue
+    indices.forEach(i => coveredIndices.add(i))
+    units.push({ type: 'group', id: '@' + gid, groupId: gid, indices, label: group.name || gid, groupType: group.type })
+  }
+
+  // Then: individual assets not in any selected group unit
+  for (const idx of selectedIndices) {
+    if (coveredIndices.has(idx)) continue
+    const asset = data.assets[idx]
+    units.push({ type: 'asset', id: asset.id, indices: [idx], label: asset.label || asset.id })
+  }
+  return units
+}
+
+function renderGroupMembers() {
+  const list = document.getElementById('group-members-list')
+  const units = getSelectedMemberUnits()
+  const orientations = getOrientationsForScheme(rotationScheme)
+
+  // When editing an existing compound group, restore roles from memberRoles
+  let existingRoles = null
+  if (editingGroupId) {
+    const existing = data.groups.find(g => g.id === editingGroupId)
+    if (existing && existing.memberRoles) existingRoles = existing.memberRoles
+  }
+
+  let html = ''
+  units.forEach((unit, i) => {
+    const isGroup = unit.type === 'group'
+    html += '<div class="group-member-row' + (isGroup ? ' group-unit' : '') + '">'
+
+    if (isGroup) {
+      const typeLabel = unit.groupType === 'rotation' ? 'Rotation' : unit.groupType === 'state' ? 'State' : 'Animation'
+      html += '<span class="gm-type-badge ' + unit.groupType + '">' + escHtml(typeLabel) + '</span>'
+    }
+
+    html += '<span class="gm-name">' + escHtml(unit.label) + '</span>'
+
+    // Determine current role
+    const ref = isGroup ? '@' + unit.groupId : unit.id
+    let cur = existingRoles ? existingRoles[ref] : null
+
+    if (groupCreatorType === 'rotation') {
+      if (!cur) {
+        if (isGroup) {
+          // Try to infer from group name
+          cur = inferOrientation(unit.groupId) || orientations[i % orientations.length]
+        } else {
+          const asset = data.assets[unit.indices[0]]
+          const inferred = asset.orientation || inferOrientation(asset.id)
+          cur = inferred
+          if (cur === 'left' && !orientations.includes('left')) cur = 'right'
+          if (cur === 'side') cur = 'right'
+          cur = cur || orientations[i % orientations.length]
+        }
+      }
+      html += '<select data-unit-idx="' + i + '" class="gm-role-select">'
+      orientations.forEach(o => {
+        const label = (rotationScheme !== '4-way' && o === 'right') ? 'Side' : o.charAt(0).toUpperCase() + o.slice(1)
+        html += '<option value="' + o + '"' + (o === cur ? ' selected' : '') + '>' + label + '</option>'
+      })
+      html += '</select>'
+    } else if (groupCreatorType === 'state') {
+      if (!cur) {
+        if (isGroup) {
+          cur = inferState(unit.groupId) || (i === 0 ? 'off' : 'on')
+        } else {
+          const asset = data.assets[unit.indices[0]]
+          cur = asset.state || inferState(asset.id) || (i === 0 ? 'off' : 'on')
+        }
+      }
+      html += '<input type="text" data-unit-idx="' + i + '" class="gm-role-input" value="' + escHtml(cur) + '" placeholder="e.g. off, on, open, closed" style="width:90px; font-size:11px; padding:2px 6px; background:#2a2a4a; border:1px solid #555; color:#e0e0e0; border-radius:2px;" />'
+    } else {
+      html += '<span style="font-size:10px; color:#888; width:70px; text-align:center; flex-shrink:0;">Frame ' + (i + 1) + '</span>'
+    }
+    html += '</div>'
+  })
+  list.innerHTML = html
+}
+
+function inferOrientation(id) {
+  const lower = (id || '').toLowerCase()
+  for (const o of ['front', 'back', 'left', 'right', 'side']) {
+    if (lower.endsWith('_' + o)) return o === 'side' ? 'right' : o
+  }
+  return null
+}
+
+function inferState(id) {
+  const lower = (id || '').toLowerCase()
+  for (const s of ['on', 'off', 'open', 'closed']) {
+    if (lower.endsWith('_' + s)) return s
+  }
+  return null
+}
+
+// Validate and create/update group
+document.getElementById('btn-create-group').onclick = () => {
+  if (!data || selectedIndices.size < 2) return
+  const units = getSelectedMemberUnits()
+  const groupName = document.getElementById('group-name-input').value.trim()
+  const groupId = document.getElementById('group-id-input').value.trim()
+
+  if (!groupName) {
+    showGroupValidation('Group Name is required')
+    return
+  }
+
+  if (!groupId) {
+    showGroupValidation('Group ID is required (enter a Group Name to auto-generate)')
+    return
+  }
+
+  if (units.length < 2) {
+    showGroupValidation('At least 2 members required')
+    return
+  }
+
+  if (groupCreatorType === 'state' && units.length < 2) {
+    showGroupValidation('State groups require at least 2 members')
+    return
+  }
+
+  // Validate: animation groups cannot contain sub-groups
+  if (groupCreatorType === 'animation' && units.some(u => u.type === 'group')) {
+    showGroupValidation('Animation groups can only contain individual assets')
+    return
+  }
+
+  // Validate: no circular references
+  if (units.some(u => u.type === 'group' && u.groupId === groupId)) {
+    showGroupValidation('A group cannot contain itself')
+    return
+  }
+
+  // Validate hierarchy: state groups cannot contain rotation groups, etc.
+  const groupUnits = units.filter(u => u.type === 'group')
+  for (const gu of groupUnits) {
+    if (groupCreatorType === 'state' && gu.groupType === 'rotation') {
+      showGroupValidation('State groups cannot contain rotation groups')
+      return
+    }
+    if (groupCreatorType === 'animation') {
+      showGroupValidation('Animation groups can only contain individual assets')
+      return
+    }
+  }
+
+  // Check for duplicate orientations in rotation groups
+  if (groupCreatorType === 'rotation') {
+    const selects = document.querySelectorAll('#group-members-list .gm-role-select')
+    const orientations = [...selects].map(s => s.value)
+    const unique = new Set(orientations)
+    if (unique.size < orientations.length) {
+      showGroupValidation('Each orientation can only be assigned once')
+      return
+    }
+    const schemeOrients = getOrientationsForScheme(rotationScheme)
+    if (units.length > schemeOrients.length) {
+      showGroupValidation(rotationScheme + ' scheme only supports ' + schemeOrients.length + ' members (got ' + units.length + ')')
+      return
+    }
+  }
+
+  // Check for duplicate or empty states in state groups
+  if (groupCreatorType === 'state') {
+    const stateInputs = document.querySelectorAll('#group-members-list .gm-role-input')
+    const stateValues = [...stateInputs].map(s => s.value.trim().toLowerCase())
+    if (stateValues.some(s => !s)) {
+      showGroupValidation('Each state must have a non-empty value')
+      return
+    }
+    const unique = new Set(stateValues)
+    if (unique.size < stateValues.length) {
+      showGroupValidation('Each state value must be unique')
+      return
+    }
+  }
+
+  pushUndo()
+  ensureGroups()
+
+  const isEditing = !!editingGroupId
+
+  // Remove old group if editing
+  if (editingGroupId) {
+    const oldGroup = data.groups.find(g => g.id === editingGroupId)
+    if (oldGroup) {
+      // Clear old simple asset members that are no longer in the group
+      for (const mid of oldGroup.members) {
+        if (mid.startsWith('@')) continue  // sub-group refs don't need per-asset cleanup
+        const m = data.assets.find(a => a.id === mid)
+        const stillIncluded = units.some(u => u.type === 'asset' && u.indices.some(idx => data.assets[idx] === m))
+        if (m && !stillIncluded) {
+          m.groupId = undefined; m.partOfGroup = false; m.orientation = undefined; m.state = undefined; m.animationFrame = undefined
+        }
+      }
+      data.groups = data.groups.filter(g => g.id !== editingGroupId)
+    }
+  }
+
+  // Read group-level category/flags
+  const groupCategory = document.getElementById('group-category').value
+  const groupBgTiles = +document.getElementById('group-bgtiles').value || 0
+  const groupWalls = document.getElementById('group-walls').checked
+  const groupOnTop = document.getElementById('group-ontop').checked
+
+  // Collect roles from dropdowns or text inputs
+  const selects = document.querySelectorAll('#group-members-list .gm-role-select')
+  const stateInputs = document.querySelectorAll('#group-members-list .gm-role-input')
+
+  // Build member refs and memberRoles
+  const memberRefs = []
+  const memberRoles = {}
+  const hasCompoundMembers = units.some(u => u.type === 'group')
+
+  units.forEach((unit, i) => {
+    let role
+    if (groupCreatorType === 'state') {
+      role = stateInputs[i] ? stateInputs[i].value.trim() || (i === 0 ? 'off' : 'on') : (i === 0 ? 'off' : 'on')
+    } else {
+      role = selects[i] ? selects[i].value : (groupCreatorType === 'animation' ? String(i) : undefined)
+    }
+    const ref = unit.type === 'group' ? '@' + unit.groupId : null  // asset refs will be updated after rename
+
+    if (unit.type === 'group') {
+      memberRefs.push(ref)
+      if (role) memberRoles[ref] = role
+
+      // Rename leaf assets within the sub-group based on compound hierarchy
+      const subGroup = data.groups.find(g => g.id === unit.groupId)
+      if (subGroup) {
+        // Build the role suffix for this sub-group in the parent
+        const roleSuffix = role ? role.toUpperCase() : ''
+        const sideLabel = (rotationScheme !== '4-way' && role === 'right') ? 'SIDE' : roleSuffix
+
+        // Walk sub-group members and rename
+        renameSubGroupAssets(subGroup, groupId, groupCreatorType === 'rotation' ? sideLabel : roleSuffix, groupCreatorType, groupName, groupCategory, groupBgTiles, groupWalls, groupOnTop)
+      }
+    } else {
+      // Individual asset member
+      const asset = data.assets[unit.indices[0]]
+
+      // Remove from any existing group first
+      if (asset.groupId && asset.groupId !== groupId) removeAssetFromGroup(asset)
+
+      asset.groupId = groupId
+      asset.partOfGroup = true
+      asset.label = groupName
+      asset.category = groupCategory
+      asset.isDesk = groupCategory === 'desks'
+      asset.backgroundTiles = groupBgTiles
+      asset.canPlaceOnWalls = groupWalls
+      asset.canPlaceOnSurfaces = groupOnTop
+
+      if (groupCreatorType === 'rotation') {
+        const orientation = role || 'front'
+        asset.orientation = orientation
+        asset.state = undefined
+        asset.animationFrame = undefined
+        const suffix = (rotationScheme !== '4-way' && orientation === 'right') ? 'SIDE' : orientation.toUpperCase()
+        asset.id = groupId + '_' + suffix
+        asset.name = asset.id
+      } else if (groupCreatorType === 'state') {
+        const state = role || (i === 0 ? 'off' : 'on')
+        asset.state = state
+        asset.orientation = undefined
+        asset.animationFrame = undefined
+        asset.id = groupId + '_' + state.toUpperCase()
+        asset.name = asset.id
+      } else {
+        asset.animationFrame = i
+        asset.orientation = undefined
+        asset.state = undefined
+        asset.id = groupId + '_' + (i + 1)
+        asset.name = asset.id
+      }
+
+      // For non-compound groups, use asset id directly
+      const assetRef = asset.id
+      memberRefs.push(assetRef)
+      if (role) memberRoles[assetRef] = role
+    }
+  })
+
+  // Create group entry
+  const newGroup = {
+    id: groupId, name: groupName, type: groupCreatorType, members: memberRefs,
+    ...(hasCompoundMembers ? { memberRoles } : {}),
+    category: groupCategory, backgroundTiles: groupBgTiles,
+    canPlaceOnWalls: groupWalls, canPlaceOnSurfaces: groupOnTop,
+    ...(groupCreatorType === 'rotation' && rotationScheme !== '4-way' ? { rotationScheme } : {})
+  }
+  data.groups.push(newGroup)
+
+  // Select first member asset
+  const firstIdx = units[0].indices[0]
+  selectAsset(firstIdx)
+  updateFilter()
+  renderList()
+  renderTileset()
+  scheduleSave()
+  statusMsg.textContent = '\u2713 ' + (isEditing ? 'Updated' : 'Created') + ' ' + groupCreatorType + ' group: ' + groupName + ' (' + groupId + ')'
+  editingGroupId = null
+}
+
+// Rename assets within a sub-group based on their position in a compound hierarchy
+function renameSubGroupAssets(subGroup, parentId, parentRoleSuffix, parentType, groupName, groupCategory, groupBgTiles, groupWalls, groupOnTop) {
+  for (let i = 0; i < subGroup.members.length; i++) {
+    const mid = subGroup.members[i]
+    if (mid.startsWith('@')) {
+      // Nested sub-group: recurse
+      const nestedGroup = data.groups.find(g => g.id === mid.slice(1))
+      if (nestedGroup) {
+        // Build suffix for this level
+        let subRole = ''
+        if (subGroup.memberRoles && subGroup.memberRoles[mid]) {
+          subRole = subGroup.memberRoles[mid].toUpperCase()
+        }
+        const combinedSuffix = parentRoleSuffix ? parentRoleSuffix + '_' + subRole : subRole
+        renameSubGroupAssets(nestedGroup, parentId, combinedSuffix, parentType, groupName, groupCategory, groupBgTiles, groupWalls, groupOnTop)
+      }
+    } else {
+      const asset = data.assets.find(a => a.id === mid)
+      if (!asset) continue
+
+      // Apply group-level properties
+      asset.label = groupName
+      asset.category = groupCategory
+      asset.isDesk = groupCategory === 'desks'
+      asset.backgroundTiles = groupBgTiles
+      asset.canPlaceOnWalls = groupWalls
+      asset.canPlaceOnSurfaces = groupOnTop
+
+      // Build the full ID based on hierarchy
+      let suffix = parentRoleSuffix
+
+      // Add sub-group role (state or animation frame)
+      if (subGroup.type === 'state') {
+        const role = (subGroup.memberRoles && subGroup.memberRoles[mid]) || asset.state || (i === 0 ? 'off' : 'on')
+        suffix = suffix ? suffix + '_' + role.toUpperCase() : role.toUpperCase()
+      } else if (subGroup.type === 'animation') {
+        suffix = suffix ? suffix + '_' + (i + 1) : String(i + 1)
+      } else if (subGroup.type === 'rotation') {
+        const role = (subGroup.memberRoles && subGroup.memberRoles[mid]) || asset.orientation || 'front'
+        suffix = suffix ? suffix + '_' + role.toUpperCase() : role.toUpperCase()
+      }
+
+      const newId = parentId + (suffix ? '_' + suffix : '')
+      // Update the sub-group's member list to reflect the new ID
+      subGroup.members[i] = newId
+      // Update memberRoles keys if needed
+      if (subGroup.memberRoles && subGroup.memberRoles[mid] && mid !== newId) {
+        subGroup.memberRoles[newId] = subGroup.memberRoles[mid]
+        delete subGroup.memberRoles[mid]
+      }
+      asset.id = newId
+      asset.name = newId
+    }
+  }
+}
+
+document.getElementById('btn-cancel-group').onclick = () => {
+  if (selectedIndices.size > 0) {
+    selectAsset([...selectedIndices][0])
+  }
+}
+
+function showGroupValidation(msg) {
+  const el = document.getElementById('group-validation')
+  el.textContent = msg
+  el.style.display = ''
+  setTimeout(() => { el.style.display = 'none' }, 3000)
+}
+
+// Edit Group button — select all members of the group
+// For compound groups, selects the parent group with sub-group units
+document.getElementById('btn-edit-group').onclick = () => {
+  if (!data) return
+
+  // Find the group to edit: either from selectedGroupId (group view) or from selected asset
+  let group = null
+  if (selectedGroupId && data.groups) {
+    group = data.groups.find(g => g.id === selectedGroupId)
+  }
+  if (!group && selectedIdx >= 0) {
+    const asset = data.assets[selectedIdx]
+    group = findGroupForAsset(asset)
+  }
+  if (!group) return
+
+  // Set up selection to match this group's members for the group creator
+  selectedGroupId = null
+  selectedGroupUnits = new Set()
+  selectedIndices.clear()
+
+  for (const mid of group.members) {
+    if (mid.startsWith('@')) {
+      const subGroupId = mid.slice(1)
+      selectedGroupUnits.add(subGroupId)
+      const leafIds = resolveGroupAssets(mid)
+      for (const lid of leafIds) {
+        const idx = data.assets.findIndex(a => a.id === lid)
+        if (idx >= 0) selectedIndices.add(idx)
+      }
+    } else {
+      const idx = data.assets.findIndex(a => a.id === mid)
+      if (idx >= 0) selectedIndices.add(idx)
+    }
+  }
+
+  selectedIdx = -1
+  lastClickedIdx = [...selectedIndices][0]
+  editingGroupId = group.id
+  updateEditorForSelection()
+  renderList()
+}
+
+// Dissolve Group button — removes the group, leaving assets ungrouped
+document.getElementById('btn-dissolve-group').onclick = () => {
+  if (!data || !data.groups) return
+
+  // Find the group: from group view or from selected asset
+  let group = null
+  if (selectedGroupId) {
+    group = data.groups.find(g => g.id === selectedGroupId)
+  }
+  if (!group && selectedIdx >= 0) {
+    group = findGroupForAsset(data.assets[selectedIdx])
+  }
+  if (!group) return
+
+  if (!confirm('Dissolve group "' + (group.name || group.id) + '"? Assets will be ungrouped.')) return
+
+  pushUndo()
+
+  // Clear per-asset fields for all leaf assets
+  for (const mid of group.members) {
+    if (mid.startsWith('@')) {
+      // Sub-group: leave the sub-group intact, just detach from parent
+      // (the sub-group becomes a standalone group)
+    } else {
+      const asset = data.assets.find(a => a.id === mid)
+      if (asset) {
+        asset.groupId = undefined
+        asset.partOfGroup = false
+        asset.orientation = undefined
+        asset.state = undefined
+        asset.animationFrame = undefined
+      }
+    }
+  }
+
+  // Remove sub-group references from parent if this group is a sub-group
+  const parent = findParentGroup(group.id)
+  if (parent) {
+    parent.members = parent.members.filter(m => m !== '@' + group.id)
+    if (parent.memberRoles) delete parent.memberRoles['@' + group.id]
+    if (parent.members.length < 2) {
+      // Dissolve parent too
+      for (const mid of parent.members) {
+        if (mid.startsWith('@')) continue
+        const m = data.assets.find(a => a.id === mid)
+        if (m) { m.groupId = undefined; m.partOfGroup = false; m.orientation = undefined; m.state = undefined; m.animationFrame = undefined }
+      }
+      data.groups = data.groups.filter(g => g.id !== parent.id)
+    }
+  }
+
+  // Remove the group itself
+  data.groups = data.groups.filter(g => g.id !== group.id)
+
+  // Reset selection
+  selectedGroupId = null
+  selectedGroupUnits.clear()
+  if (selectedIdx < 0 && selectedIndices.size > 0) {
+    selectedIdx = [...selectedIndices][0]
+    selectedIndices.clear()
+    selectedIndices.add(selectedIdx)
+  }
+
+  if (selectedIdx >= 0) loadForm(selectedIdx)
+  updateEditorForSelection()
+  updateFilter()
+  renderList()
+  renderTileset()
+  scheduleSave()
+  statusMsg.textContent = '\u2713 Dissolved group: ' + (group.name || group.id)
+}
+
+// Remove from Group button
+document.getElementById('btn-remove-from-group').onclick = () => {
+  if (selectedIdx < 0 || !data) return
+  pushUndo()
+  removeAssetFromGroup(data.assets[selectedIdx])
+  loadForm(selectedIdx)
+  updateEditorForSelection()
+  renderList()
+  renderTileset()
+  scheduleSave()
+  statusMsg.textContent = '\u2713 Removed from group'
+}
+
 // ════════════════════════════════════════════════════════════════════════
 // PIXEL ERASER
 // ════════════════════════════════════════════════════════════════════════
@@ -1047,7 +2828,7 @@ document.getElementById('btn-clear-erased').onclick = () => {
   asset.erasedPixels = []
   renderPreview()
   scheduleSave()
-  statusMsg.textContent = 'Cleared erased pixels for ' + asset.name
+  statusMsg.textContent = 'Cleared erased pixels for ' + asset.label
 }
 
 // Bresenham line: all integer pixels between two points
@@ -1128,17 +2909,35 @@ previewCanvas.onmouseleave = () => {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// ADD ASSET MODE
+// TILESET PANE (always visible)
 // ════════════════════════════════════════════════════════════════════════
 
 const tilesetCanvas = document.getElementById('tileset-canvas')
 const tilesetCtx = tilesetCanvas.getContext('2d')
 const tilesetWrap = document.getElementById('tileset-wrap')
 const selectRect = document.getElementById('select-rect')
+const tilesetEmpty = document.getElementById('tileset-empty')
+const addModeBar = document.getElementById('add-mode-bar')
+
+function updateTilesetVisibility() {
+  const hasTileset = !!tilesetImg
+  tilesetWrap.style.display = hasTileset ? '' : 'none'
+  tilesetEmpty.style.display = hasTileset ? 'none' : ''
+}
 
 document.getElementById('btn-add-asset').onclick = () => {
   if (!tilesetImg) { alert('Load a tileset PNG first'); return }
-  if (!data) { alert('Load a JSON file first'); return }
+  // Auto-initialize empty project if needed
+  if (!data) {
+    loadJsonData({
+      version: 1,
+      timestamp: new Date().toISOString(),
+      sourceFile: '',
+      tileset: '',
+      backgroundColor: null,
+      assets: []
+    })
+  }
   redrawMode = false
   toggleAddMode(!addMode)
 }
@@ -1154,7 +2953,7 @@ document.getElementById('btn-redraw').onclick = () => {
 
 document.getElementById('tileset-zoom').onchange = (e) => {
   tilesetZoom = +e.target.value
-  if (addMode) renderTileset()
+  renderTileset()
 }
 
 function toggleAddMode(on) {
@@ -1167,15 +2966,14 @@ function toggleAddMode(on) {
   if (!on) redrawMode = false
 
   document.getElementById('btn-add-asset').classList.toggle('active', on && !redrawMode)
-  document.getElementById('preview-container').style.display = on ? 'none' : ''
-  const headerText = on ? (redrawMode ? 'Redraw: ' + (data.assets[selectedIdx]?.name || 'Asset') : 'Add Asset') : 'Preview'
-  document.getElementById('preview-header').querySelector('span').textContent = headerText
-  // Update instruction text
-  const tvBarSpan = document.querySelector('#tileset-view .tv-bar span')
-  if (tvBarSpan) tvBarSpan.textContent = on && redrawMode ? 'Drag to redefine the asset region' : 'Drag to select a region on the tileset'
-  document.getElementById('tileset-view').classList.toggle('active', on)
+  tilesetWrap.style.cursor = on ? 'crosshair' : 'default'
 
-  if (on) renderTileset()
+  // Show/hide the add mode instruction bar
+  addModeBar.style.display = on ? '' : 'none'
+  document.getElementById('add-mode-label').textContent = on && redrawMode
+    ? 'Drag to redefine the asset region' : 'Drag to select a region on the tileset'
+
+  renderTileset()
 }
 
 function renderTileset() {
@@ -1193,14 +2991,42 @@ function renderTileset() {
       const y = asset.paddedY * tilesetZoom
       const w = asset.paddedWidth * tilesetZoom
       const h = asset.paddedHeight * tilesetZoom
-      // Highlight the asset being redrawn
+
       if (redrawMode && i === selectedIdx) {
+        // Redraw target: dashed red
         tilesetCtx.strokeStyle = 'rgba(231, 76, 60, 0.8)'
         tilesetCtx.lineWidth = 2
         tilesetCtx.setLineDash([4, 4])
         tilesetCtx.strokeRect(x + 0.5, y + 0.5, w, h)
         tilesetCtx.setLineDash([])
+      } else if (i === selectedIdx) {
+        // Selected asset: bright green highlight
+        tilesetCtx.fillStyle = 'rgba(46, 204, 113, 0.12)'
+        tilesetCtx.fillRect(x, y, w, h)
+        tilesetCtx.strokeStyle = 'rgba(46, 204, 113, 0.9)'
+        tilesetCtx.lineWidth = 2
+        tilesetCtx.strokeRect(x + 0.5, y + 0.5, w, h)
+        // Label
+        tilesetCtx.font = `${Math.max(9, tilesetZoom * 4)}px sans-serif`
+        tilesetCtx.fillStyle = 'rgba(46, 204, 113, 0.95)'
+        tilesetCtx.textAlign = 'left'
+        tilesetCtx.textBaseline = 'bottom'
+        tilesetCtx.fillText(asset.id, x + 2, y - 2)
+      } else if (i === tilesetHoverIdx) {
+        // Hovered asset: yellow highlight
+        tilesetCtx.fillStyle = 'rgba(241, 196, 15, 0.1)'
+        tilesetCtx.fillRect(x, y, w, h)
+        tilesetCtx.strokeStyle = 'rgba(241, 196, 15, 0.8)'
+        tilesetCtx.lineWidth = 2
+        tilesetCtx.strokeRect(x + 0.5, y + 0.5, w, h)
+        // Label
+        tilesetCtx.font = `${Math.max(9, tilesetZoom * 4)}px sans-serif`
+        tilesetCtx.fillStyle = 'rgba(241, 196, 15, 0.9)'
+        tilesetCtx.textAlign = 'left'
+        tilesetCtx.textBaseline = 'bottom'
+        tilesetCtx.fillText(asset.id, x + 2, y - 2)
       } else {
+        // Other assets: subtle blue
         tilesetCtx.strokeStyle = 'rgba(52, 152, 219, 0.5)'
         tilesetCtx.lineWidth = 1
         tilesetCtx.strokeRect(x + 0.5, y + 0.5, w, h)
@@ -1209,17 +3035,67 @@ function renderTileset() {
   }
 }
 
-// Tileset mouse handlers for rectangle selection
+// Tileset mouse handlers — click to select existing asset OR drag to create/redraw
+let clickStartPos = null  // track initial mousedown position for click vs drag detection
+let tilesetHoverIdx = -1  // index of asset hovered on tileset
+
+// Find the asset at a given tileset pixel coordinate (smallest bbox wins)
+function assetAtTilesetPos(px, py) {
+  if (!data) return -1
+  let bestIdx = -1
+  let bestArea = Infinity
+  data.assets.forEach((asset, i) => {
+    if (asset.discard) return
+    if (px >= asset.paddedX && px < asset.paddedX + asset.paddedWidth &&
+        py >= asset.paddedY && py < asset.paddedY + asset.paddedHeight) {
+      const area = asset.paddedWidth * asset.paddedHeight
+      if (area < bestArea) {
+        bestArea = area
+        bestIdx = i
+      }
+    }
+  })
+  return bestIdx
+}
+
+tilesetCanvas.onmousemove = (e) => {
+  if (addMode && isDragging) return  // handled by tilesetWrap.onmousemove
+  if (addMode) return
+  const rect = tilesetCanvas.getBoundingClientRect()
+  const px = (e.clientX - rect.left) / tilesetZoom
+  const py = (e.clientY - rect.top) / tilesetZoom
+  const idx = assetAtTilesetPos(px, py)
+  if (idx !== tilesetHoverIdx) {
+    tilesetHoverIdx = idx
+    tilesetCanvas.style.cursor = idx >= 0 ? 'pointer' : 'default'
+    tilesetCanvas.title = idx >= 0 ? data.assets[idx].label + ' (' + data.assets[idx].id + ')' : ''
+    renderTileset()
+  }
+}
+
+tilesetCanvas.onmouseleave = () => {
+  if (tilesetHoverIdx >= 0) {
+    tilesetHoverIdx = -1
+    tilesetCanvas.title = ''
+    renderTileset()
+  }
+}
+
 tilesetWrap.onmousedown = (e) => {
   if (e.target !== tilesetCanvas) return
   const rect = tilesetCanvas.getBoundingClientRect()
   const px = (e.clientX - rect.left) / tilesetZoom
   const py = (e.clientY - rect.top) / tilesetZoom
-  dragStart = snapCoord(px, py)
-  dragEnd = { ...dragStart }
-  isDragging = true
-  updateSelectRect()
-  selectRect.style.display = 'block'
+
+  clickStartPos = { x: e.clientX, y: e.clientY }
+
+  if (addMode) {
+    dragStart = snapCoord(px, py)
+    dragEnd = { ...dragStart }
+    isDragging = true
+    updateSelectRect()
+    selectRect.style.display = 'block'
+  }
   e.preventDefault()
 }
 
@@ -1233,31 +3109,52 @@ tilesetWrap.onmousemove = (e) => {
 }
 
 tilesetWrap.onmouseup = (e) => {
-  if (!isDragging) return
-  isDragging = false
+  const startPos = clickStartPos
+  clickStartPos = null
 
-  const rect = tilesetCanvas.getBoundingClientRect()
-  const px = (e.clientX - rect.left) / tilesetZoom
-  const py = (e.clientY - rect.top) / tilesetZoom
-  dragEnd = snapCoord(px, py)
+  if (isDragging) {
+    isDragging = false
 
-  // Compute selected region
-  const x1 = Math.min(dragStart.x, dragEnd.x)
-  const y1 = Math.min(dragStart.y, dragEnd.y)
-  const x2 = Math.max(dragStart.x, dragEnd.x)
-  const y2 = Math.max(dragStart.y, dragEnd.y)
-  const w = x2 - x1
-  const h = y2 - y1
+    const rect = tilesetCanvas.getBoundingClientRect()
+    const px = (e.clientX - rect.left) / tilesetZoom
+    const py = (e.clientY - rect.top) / tilesetZoom
+    dragEnd = snapCoord(px, py)
 
-  if (w < 1 || h < 1) {
-    selectRect.style.display = 'none'
-    return
+    // Compute selected region
+    const x1 = Math.min(dragStart.x, dragEnd.x)
+    const y1 = Math.min(dragStart.y, dragEnd.y)
+    const x2 = Math.max(dragStart.x, dragEnd.x)
+    const y2 = Math.max(dragStart.y, dragEnd.y)
+    const w = x2 - x1
+    const h = y2 - y1
+
+    if (w < 1 || h < 1) {
+      selectRect.style.display = 'none'
+      // Tiny drag in add mode = treat as click-to-select
+      if (addMode) return
+    } else {
+      if (redrawMode) {
+        redrawAsset(x1, y1, w, h)
+      } else {
+        createNewAsset(x1, y1, w, h)
+      }
+      return
+    }
   }
 
-  if (redrawMode) {
-    redrawAsset(x1, y1, w, h)
-  } else {
-    createNewAsset(x1, y1, w, h)
+  // Click-to-select: find the asset whose bounding box contains the click point
+  if (!addMode && startPos && data && e.target === tilesetCanvas) {
+    const dx = Math.abs(e.clientX - startPos.x)
+    const dy = Math.abs(e.clientY - startPos.y)
+    if (dx < 5 && dy < 5) {
+      const rect = tilesetCanvas.getBoundingClientRect()
+      const px = (e.clientX - rect.left) / tilesetZoom
+      const py = (e.clientY - rect.top) / tilesetZoom
+      const bestIdx = assetAtTilesetPos(px, py)
+      if (bestIdx >= 0) {
+        selectAsset(bestIdx)
+      }
+    }
   }
 }
 
@@ -1282,64 +3179,76 @@ function updateSelectRect() {
 }
 
 function createNewAsset(x, y, w, h) {
-  // Generate a unique ID
-  const existingIds = new Set(data.assets.map(a => a.id))
-  let idx = data.assets.length
-  let newId
-  do {
-    newId = 'ASSET_NEW_' + idx
-    idx++
-  } while (existingIds.has(newId))
+  // Snap W/H to multiples of 16
+  w = Math.max(16, Math.round(w / 16) * 16)
+  h = Math.max(16, Math.round(h / 16) * 16)
 
-  const fpW = Math.max(1, Math.round(w / 16))
-  const fpH = Math.max(1, Math.round(h / 16))
+  const label = 'New Asset'
+  const baseId = labelToId(label)
 
   const newAsset = {
-    id: newId,
+    id: baseId,
     paddedX: x,
     paddedY: y,
     paddedWidth: w,
     paddedHeight: h,
-    name: newId,
-    label: 'New Asset',
+    name: baseId,
+    label: label,
     category: 'misc',
-    footprintW: fpW,
-    footprintH: fpH,
+    footprintW: w / 16,
+    footprintH: h / 16,
+    backgroundTiles: 0,
     isDesk: false,
     canPlaceOnWalls: false,
+    canPlaceOnSurfaces: false,
     discard: false
   }
 
   pushUndo()
   data.assets.push(newAsset)
+  deduplicateIds()
   const newIdx = data.assets.length - 1
 
-  // Exit add mode, select the new asset
-  toggleAddMode(false)
+  // Stay in add mode — just reset drag state so user can draw another
+  dragStart = null
+  dragEnd = null
+  selectRect.style.display = 'none'
+
   selectedIdx = newIdx
+  selectedIndices.clear()
+  selectedIndices.add(newIdx)
+  lastClickedIdx = newIdx
   updateFilter()
   loadForm(newIdx)
+  updateEditorForSelection()
   renderPreview()
+  renderTileset()
   updateCounts()
   scheduleSave()
-  statusMsg.textContent = '\u2713 Created ' + newId + ' (' + w + '\u00d7' + h + 'px)'
+  statusMsg.textContent = '\u2713 Created ' + data.assets[newIdx].id + ' (' + w + '\u00d7' + h + 'px)'
 }
 
 function redrawAsset(x, y, w, h) {
   if (selectedIdx < 0 || !data) return
+  // Snap W/H to multiples of 16
+  w = Math.max(16, Math.round(w / 16) * 16)
+  h = Math.max(16, Math.round(h / 16) * 16)
   pushUndo()
   const a = data.assets[selectedIdx]
   a.paddedX = x
   a.paddedY = y
   a.paddedWidth = w
   a.paddedHeight = h
+  a.footprintW = w / 16
+  a.footprintH = h / 16
 
   toggleAddMode(false)
   loadForm(selectedIdx)
   renderList()
   renderPreview()
+  renderTileset()
   scheduleSave()
-  statusMsg.textContent = '\u2713 Redrawn ' + a.name + ' (' + w + '\u00d7' + h + 'px)'
+  statusMsg.textContent = '\u2713 Redrawn ' + a.label + ' (' + w + '\u00d7' + h + 'px)'
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1350,6 +3259,7 @@ let resizing = null
 
 document.getElementById('handle-left').onmousedown = (e) => { resizing = 'left'; e.preventDefault() }
 document.getElementById('handle-right').onmousedown = (e) => { resizing = 'right'; e.preventDefault() }
+document.getElementById('handle-center').onmousedown = (e) => { resizing = 'center'; e.preventDefault() }
 
 document.onmousemove = (e) => {
   if (resizing) {
@@ -1363,6 +3273,15 @@ document.onmousemove = (e) => {
       const editorW = mainRect.width - x
       const w = Math.max(250, Math.min(editorW, mainRect.width - 400))
       document.getElementById('editor-panel').style.width = w + 'px'
+    } else if (resizing === 'center') {
+      // Resize tileset vs preview pane within center-panel
+      const centerPanel = document.getElementById('center-panel')
+      const centerRect = centerPanel.getBoundingClientRect()
+      const relX = e.clientX - centerRect.left
+      const tilesetW = Math.max(100, Math.min(relX, centerRect.width - 100))
+      document.getElementById('tileset-pane').style.flex = 'none'
+      document.getElementById('tileset-pane').style.width = tilesetW + 'px'
+      document.getElementById('preview-pane').style.flex = '1'
     }
   }
 }
@@ -1407,8 +3326,11 @@ document.onkeydown = (e) => {
         updateFilter()
       } else {
         selectedIdx = -1
+        selectedIndices.clear()
+        updateEditorForSelection()
         renderList()
         renderPreview()
+        renderTileset()
       }
     }
     return
@@ -1430,6 +3352,315 @@ document.onkeydown = (e) => {
     }
   }
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// EXPORT ASSETS
+// ════════════════════════════════════════════════════════════════════════
+
+function showExportModal() {
+  if (!data || !tilesetImg) {
+    statusMsg.textContent = 'Load a tileset PNG before exporting'
+    return
+  }
+  const items = collectExportItems()
+  const groups = items.filter(i => i.leafAssets.length > 1)
+  const ungrouped = items.filter(i => i.leafAssets.length === 1)
+  const totalPngs = items.reduce((sum, i) => sum + i.leafAssets.length, 0)
+
+  document.getElementById('export-summary').innerHTML =
+    '<b>' + items.length + '</b> folders total: ' +
+    '<b>' + groups.length + '</b> groups, ' +
+    '<b>' + ungrouped.length + '</b> ungrouped assets, ' +
+    '<b>' + totalPngs + '</b> PNGs'
+
+  document.getElementById('export-progress').style.display = 'none'
+  document.getElementById('export-result').style.display = 'none'
+  document.getElementById('export-start-btn').disabled = false
+
+  const modal = document.getElementById('export-modal')
+  modal.style.display = 'flex'
+}
+
+function hideExportModal() {
+  document.getElementById('export-modal').style.display = 'none'
+}
+
+document.getElementById('btn-export').onclick = showExportModal
+document.getElementById('export-modal-close').onclick = hideExportModal
+document.getElementById('export-cancel-btn').onclick = hideExportModal
+document.getElementById('export-modal').onclick = (e) => {
+  if (e.target === document.getElementById('export-modal')) hideExportModal()
+}
+
+// Collect all export units: { folderId, manifest, leafAssets, category }
+function collectExportItems() {
+  if (!data) return []
+  const items = []
+  const groupedAssetIds = new Set()
+
+  // Process top-level groups
+  const topGroups = getTopLevelGroups()
+  for (const group of topGroups) {
+    const leafIds = []
+    for (const mid of group.members) {
+      leafIds.push(...resolveGroupAssets(mid))
+    }
+    const leafAssets = leafIds.map(id => data.assets.find(a => a.id === id)).filter(Boolean)
+    if (leafAssets.length === 0) continue
+
+    for (const id of leafIds) groupedAssetIds.add(id)
+
+    const manifest = buildManifest(group, leafAssets)
+    items.push({
+      folderId: group.id,
+      manifest,
+      leafAssets,
+      category: group.category || leafAssets[0].category || 'misc'
+    })
+  }
+
+  // Ungrouped, non-discarded assets
+  for (const asset of data.assets) {
+    if (asset.discard || groupedAssetIds.has(asset.id)) continue
+    if (asset.groupId && !groupedAssetIds.has(asset.id)) {
+      // Part of a sub-group already handled
+      const directGroup = data.groups ? data.groups.find(g => g.members.includes(asset.id)) : null
+      if (directGroup && isSubGroup(directGroup.id)) continue
+    }
+    // Skip if already in a group we processed
+    if (asset.partOfGroup) continue
+
+    const manifest = buildManifestUngrouped(asset)
+    items.push({
+      folderId: asset.name || asset.id,
+      manifest,
+      leafAssets: [asset],
+      category: asset.category || 'misc'
+    })
+  }
+
+  return items
+}
+
+function buildManifest(group, leafAssets) {
+  const category = group.category || leafAssets[0].category || 'misc'
+  const scheme = group.rotationScheme || '4-way'
+
+  const manifest = {
+    id: group.id,
+    name: group.name || group.id,
+    category,
+    type: 'group',
+    groupType: group.type,
+    ...(group.type === 'rotation' ? { rotationScheme: scheme } : {}),
+    canPlaceOnWalls: !!group.canPlaceOnWalls,
+    canPlaceOnSurfaces: !!group.canPlaceOnSurfaces,
+    backgroundTiles: group.backgroundTiles || 0,
+    members: buildMembersList(group, group.type, scheme),
+  }
+
+  return manifest
+}
+
+// Recursively build the members array for a group
+// Each entry is either { type: "asset", ... } or { type: "group", ... }
+function buildMembersList(group, parentType, rootScheme) {
+  const members = []
+  for (let i = 0; i < group.members.length; i++) {
+    const mid = group.members[i]
+    if (mid.startsWith('@')) {
+      const subGroupId = mid.slice(1)
+      const subGroup = data.groups.find(g => g.id === subGroupId)
+      if (!subGroup) continue
+
+      const parentRole = group.memberRoles ? group.memberRoles[mid] : undefined
+      const subEntry = { type: 'group', groupType: subGroup.type }
+      // Assign the role from the parent group
+      if (parentType === 'rotation' && parentRole) subEntry.orientation = resolveOrientation(parentRole, rootScheme)
+      if (parentType === 'state' && parentRole) subEntry.state = parentRole
+      if (parentType === 'animation') subEntry.frame = i
+      // Recurse into sub-group
+      subEntry.members = buildMembersList(subGroup, subGroup.type, rootScheme)
+      members.push(subEntry)
+    } else {
+      const asset = data.assets.find(a => a.id === mid)
+      if (!asset) continue
+      const role = group.memberRoles ? group.memberRoles[mid] : undefined
+      const entry = buildAssetMember(asset)
+      applyRoleToEntry(entry, parentType, role, asset, rootScheme, i)
+      members.push(entry)
+    }
+  }
+  return members
+}
+
+// Apply role fields to an asset entry based on group type
+function applyRoleToEntry(entry, groupType, role, asset, scheme, index) {
+  if (groupType === 'rotation') {
+    const orientation = role || asset.orientation || 'front'
+    entry.orientation = resolveOrientation(orientation, scheme)
+    if (scheme === '3-way-mirror' && (orientation === 'right' || orientation === 'side')) {
+      entry.mirrorSide = true
+    }
+  }
+  if (groupType === 'state') entry.state = role || asset.state || 'off'
+  if (groupType === 'animation') entry.frame = index
+}
+
+// Resolve orientation label: 2-way and 3-way-mirror use "side" instead of "right"
+function resolveOrientation(orientation, scheme) {
+  if ((scheme === '2-way' || scheme === '3-way-mirror') && orientation === 'right') return 'side'
+  return orientation
+}
+
+function buildManifestUngrouped(asset) {
+  return {
+    id: asset.name || asset.id,
+    name: asset.label || asset.name || asset.id,
+    category: asset.category || 'misc',
+    type: 'asset',
+    canPlaceOnWalls: !!asset.canPlaceOnWalls,
+    canPlaceOnSurfaces: !!asset.canPlaceOnSurfaces,
+    backgroundTiles: asset.backgroundTiles || 0,
+    width: asset.paddedWidth,
+    height: asset.paddedHeight,
+    footprintW: asset.footprintW || Math.ceil(asset.paddedWidth / 16),
+    footprintH: asset.footprintH || 1,
+  }
+}
+
+function buildAssetMember(asset) {
+  return {
+    type: 'asset',
+    id: asset.name || asset.id,
+    file: (asset.name || asset.id) + '.png',
+    width: asset.paddedWidth,
+    height: asset.paddedHeight,
+    footprintW: asset.footprintW || Math.ceil(asset.paddedWidth / 16),
+    footprintH: asset.footprintH || 1,
+  }
+}
+
+// Extract a single asset as a PNG Blob from the tileset canvas
+function extractAssetPngBlob(asset) {
+  return new Promise((resolve) => {
+    const w = asset.paddedWidth
+    const h = asset.paddedHeight
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+
+    // Draw the tileset region
+    const srcX = Math.max(0, asset.paddedX)
+    const srcY = Math.max(0, asset.paddedY)
+    const offX = Math.max(0, -asset.paddedX)
+    const offY = Math.max(0, -asset.paddedY)
+    const srcW = Math.min(w - offX, tilesetImg.width - srcX)
+    const srcH = Math.min(h - offY, tilesetImg.height - srcY)
+
+    if (srcW > 0 && srcH > 0) {
+      ctx.drawImage(tilesetImg, srcX, srcY, srcW, srcH, offX, offY, srcW, srcH)
+    }
+
+    // Apply erased pixels
+    if (asset.erasedPixels && asset.erasedPixels.length > 0) {
+      const imgData = ctx.getImageData(0, 0, w, h)
+      for (const p of asset.erasedPixels) {
+        if (p.x >= 0 && p.x < w && p.y >= 0 && p.y < h) {
+          const idx = (p.y * w + p.x) * 4
+          imgData.data[idx] = 0
+          imgData.data[idx + 1] = 0
+          imgData.data[idx + 2] = 0
+          imgData.data[idx + 3] = 0
+        }
+      }
+      ctx.putImageData(imgData, 0, 0)
+    }
+
+    canvas.toBlob(resolve, 'image/png')
+  })
+}
+
+async function exportAssets() {
+  if (!window.showDirectoryPicker) {
+    document.getElementById('export-result').style.display = 'block'
+    document.getElementById('export-result').style.background = '#4a1a1a'
+    document.getElementById('export-result').style.border = '1px solid #6b2020'
+    document.getElementById('export-result').textContent = 'Export requires a Chromium browser (Chrome/Edge) with File System Access API support.'
+    return
+  }
+
+  let rootDir
+  try {
+    rootDir = await window.showDirectoryPicker({ mode: 'readwrite' })
+  } catch (err) {
+    if (err.name === 'AbortError') return
+    throw err
+  }
+
+  const useCategoryFolders = document.querySelector('input[name="export-org"]:checked').value === 'category'
+  const items = collectExportItems()
+  const totalPngs = items.reduce((sum, i) => sum + i.leafAssets.length, 0)
+  let exportedPngs = 0
+
+  document.getElementById('export-progress').style.display = 'block'
+  document.getElementById('export-result').style.display = 'none'
+  document.getElementById('export-start-btn').disabled = true
+
+  const furnitureDir = await rootDir.getDirectoryHandle('furniture', { create: true })
+
+  try {
+    for (const item of items) {
+      let parentDir = furnitureDir
+      if (useCategoryFolders) {
+        parentDir = await furnitureDir.getDirectoryHandle(item.category, { create: true })
+      }
+      const groupDir = await parentDir.getDirectoryHandle(item.folderId, { create: true })
+
+      // Write manifest.json
+      const mHandle = await groupDir.getFileHandle('manifest.json', { create: true })
+      const mWritable = await mHandle.createWritable()
+      await mWritable.write(JSON.stringify(item.manifest, null, 2))
+      await mWritable.close()
+
+      // Write PNGs
+      for (const asset of item.leafAssets) {
+        const blob = await extractAssetPngBlob(asset)
+        const filename = (asset.name || asset.id) + '.png'
+        const pHandle = await groupDir.getFileHandle(filename, { create: true })
+        const pWritable = await pHandle.createWritable()
+        await pWritable.write(blob)
+        await pWritable.close()
+
+        exportedPngs++
+        const pct = Math.round((exportedPngs / totalPngs) * 100)
+        document.getElementById('export-progress-bar').style.width = pct + '%'
+        document.getElementById('export-progress-text').textContent =
+          'Exporting... ' + exportedPngs + '/' + totalPngs + ' PNGs (' + pct + '%)'
+      }
+    }
+
+    document.getElementById('export-progress-text').textContent =
+      'Done! ' + exportedPngs + ' PNGs in ' + items.length + ' folders'
+    document.getElementById('export-result').style.display = 'block'
+    document.getElementById('export-result').style.background = '#1a4a2a'
+    document.getElementById('export-result').style.border = '1px solid #2a8a3a'
+    document.getElementById('export-result').innerHTML =
+      'Exported <b>' + exportedPngs + '</b> PNGs across <b>' + items.length + '</b> folders to <code>furniture/</code>'
+    statusMsg.textContent = 'Export complete: ' + exportedPngs + ' PNGs in ' + items.length + ' folders'
+  } catch (err) {
+    document.getElementById('export-result').style.display = 'block'
+    document.getElementById('export-result').style.background = '#4a1a1a'
+    document.getElementById('export-result').style.border = '1px solid #6b2020'
+    document.getElementById('export-result').textContent = 'Export failed: ' + (err.message || err)
+    statusMsg.textContent = 'Export failed: ' + (err.message || err)
+  }
+
+  document.getElementById('export-start-btn').disabled = false
+}
+
+document.getElementById('export-start-btn').onclick = exportAssets
 </script>
 </body>
 </html>

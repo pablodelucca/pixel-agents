@@ -1,29 +1,31 @@
-import { useState, useCallback, useRef } from 'react'
-import { OfficeState } from './office/engine/officeState.js'
-import { OfficeCanvas } from './office/components/OfficeCanvas.js'
-import { ToolOverlay } from './office/components/ToolOverlay.js'
-import { EditorToolbar } from './office/editor/EditorToolbar.js'
-import { EditorState } from './office/editor/editorState.js'
-import { EditTool } from './office/types.js'
-import { isRotatable } from './office/layout/furnitureCatalog.js'
-import { vscode } from './vscodeApi.js'
-import { useExtensionMessages } from './hooks/useExtensionMessages.js'
-import { PULSE_ANIMATION_DURATION_SEC } from './constants.js'
-import { useEditorActions } from './hooks/useEditorActions.js'
-import { useEditorKeyboard } from './hooks/useEditorKeyboard.js'
-import { ZoomControls } from './components/ZoomControls.js'
-import { BottomToolbar } from './components/BottomToolbar.js'
-import { DebugView } from './components/DebugView.js'
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { BottomToolbar } from './components/BottomToolbar.js';
+import { DebugView } from './components/DebugView.js';
+import { ZoomControls } from './components/ZoomControls.js';
+import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
+import { useEditorActions } from './hooks/useEditorActions.js';
+import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
+import { useExtensionMessages } from './hooks/useExtensionMessages.js';
+import { OfficeCanvas } from './office/components/OfficeCanvas.js';
+import { ToolOverlay } from './office/components/ToolOverlay.js';
+import { EditorState } from './office/editor/editorState.js';
+import { EditorToolbar } from './office/editor/EditorToolbar.js';
+import { OfficeState } from './office/engine/officeState.js';
+import { isRotatable } from './office/layout/furnitureCatalog.js';
+import { EditTool } from './office/types.js';
+import { isBrowserRuntime } from './runtime.js';
+import { vscode } from './vscodeApi.js';
 
 // Game state lives outside React — updated imperatively by message handlers
-const officeStateRef = { current: null as OfficeState | null }
-const editorState = new EditorState()
+const officeStateRef = { current: null as OfficeState | null };
+const editorState = new EditorState();
 
 function getOfficeState(): OfficeState {
   if (!officeStateRef.current) {
-    officeStateRef.current = new OfficeState()
+    officeStateRef.current = new OfficeState();
   }
-  return officeStateRef.current
+  return officeStateRef.current;
 }
 
 const actionBarBtnStyle: React.CSSProperties = {
@@ -34,19 +36,25 @@ const actionBarBtnStyle: React.CSSProperties = {
   border: '2px solid transparent',
   borderRadius: 0,
   cursor: 'pointer',
-}
+};
 
 const actionBarBtnDisabled: React.CSSProperties = {
   ...actionBarBtnStyle,
   opacity: 'var(--pixel-btn-disabled-opacity)',
   cursor: 'default',
-}
+};
 
-function EditActionBar({ editor, editorState: es }: { editor: ReturnType<typeof useEditorActions>; editorState: EditorState }) {
-  const [showResetConfirm, setShowResetConfirm] = useState(false)
+function EditActionBar({
+  editor,
+  editorState: es,
+}: {
+  editor: ReturnType<typeof useEditorActions>;
+  editorState: EditorState;
+}) {
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  const undoDisabled = es.undoStack.length === 0
-  const redoDisabled = es.redoStack.length === 0
+  const undoDisabled = es.undoStack.length === 0;
+  const redoDisabled = es.redoStack.length === 0;
 
   return (
     <div
@@ -80,11 +88,7 @@ function EditActionBar({ editor, editorState: es }: { editor: ReturnType<typeof 
       >
         Redo
       </button>
-      <button
-        style={actionBarBtnStyle}
-        onClick={editor.handleSave}
-        title="Save layout"
-      >
+      <button style={actionBarBtnStyle} onClick={editor.handleSave} title="Save layout">
         Save
       </button>
       {!showResetConfirm ? (
@@ -100,40 +104,72 @@ function EditActionBar({ editor, editorState: es }: { editor: ReturnType<typeof 
           <span style={{ fontSize: '22px', color: 'var(--pixel-reset-text)' }}>Reset?</span>
           <button
             style={{ ...actionBarBtnStyle, background: 'var(--pixel-danger-bg)', color: '#fff' }}
-            onClick={() => { setShowResetConfirm(false); editor.handleReset() }}
+            onClick={() => {
+              setShowResetConfirm(false);
+              editor.handleReset();
+            }}
           >
             Yes
           </button>
-          <button
-            style={actionBarBtnStyle}
-            onClick={() => setShowResetConfirm(false)}
-          >
+          <button style={actionBarBtnStyle} onClick={() => setShowResetConfirm(false)}>
             No
           </button>
         </div>
       )}
     </div>
-  )
+  );
 }
 
 function App() {
-  const editor = useEditorActions(getOfficeState, editorState)
+  // Browser runtime (dev or static dist): dispatch mock messages after the
+  // useExtensionMessages listener has been registered.
+  useEffect(() => {
+    if (isBrowserRuntime) {
+      void import('./browserMock.js').then(({ dispatchMockMessages }) => dispatchMockMessages());
+    }
+  }, []);
 
-  const isEditDirty = useCallback(() => editor.isEditMode && editor.isDirty, [editor.isEditMode, editor.isDirty])
+  const editor = useEditorActions(getOfficeState, editorState);
 
-  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets, workspaceFolders } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
+  const isEditDirty = useCallback(
+    () => editor.isEditMode && editor.isDirty,
+    [editor.isEditMode, editor.isDirty],
+  );
 
-  const [isDebugMode, setIsDebugMode] = useState(false)
+  const {
+    agents,
+    selectedAgent,
+    agentTools,
+    agentStatuses,
+    subagentTools,
+    subagentCharacters,
+    layoutReady,
+    layoutWasReset,
+    loadedAssets,
+    workspaceFolders,
+    externalAssetDirectories,
+  } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
-  const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
+  // Show migration notice once layout reset is detected
+  const [migrationNoticeDismissed, setMigrationNoticeDismissed] = useState(false);
+  const showMigrationNotice = layoutWasReset && !migrationNoticeDismissed;
+
+  const [isDebugMode, setIsDebugMode] = useState(false);
+  const [alwaysShowOverlay, setAlwaysShowOverlay] = useState(false);
+
+  const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), []);
+  const handleToggleAlwaysShowOverlay = useCallback(
+    () => setAlwaysShowOverlay((prev) => !prev),
+    [],
+  );
 
   const handleSelectAgent = useCallback((id: number) => {
-    vscode.postMessage({ type: 'focusAgent', id })
-  }, [])
+    vscode.postMessage({ type: 'focusAgent', id });
+  }, []);
 
-  const containerRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const [editorTickForKeyboard, setEditorTickForKeyboard] = useState(0)
+  const [editorTickForKeyboard, setEditorTickForKeyboard] = useState(0);
   useEditorKeyboard(
     editor.isEditMode,
     editorState,
@@ -144,53 +180,73 @@ function App() {
     editor.handleRedo,
     useCallback(() => setEditorTickForKeyboard((n) => n + 1), []),
     editor.handleToggleEditMode,
-  )
+  );
 
   const handleCloseAgent = useCallback((id: number) => {
-    vscode.postMessage({ type: 'closeAgent', id })
-  }, [])
+    vscode.postMessage({ type: 'closeAgent', id });
+  }, []);
 
   const handleClick = useCallback((agentId: number) => {
     // If clicked agent is a sub-agent, focus the parent's terminal instead
-    const os = getOfficeState()
-    const meta = os.subagentMeta.get(agentId)
-    const focusId = meta ? meta.parentAgentId : agentId
-    vscode.postMessage({ type: 'focusAgent', id: focusId })
-  }, [])
+    const os = getOfficeState();
+    const meta = os.subagentMeta.get(agentId);
+    const focusId = meta ? meta.parentAgentId : agentId;
+    vscode.postMessage({ type: 'focusAgent', id: focusId });
+  }, []);
 
-  const officeState = getOfficeState()
+  const officeState = getOfficeState();
 
   // Force dependency on editorTickForKeyboard to propagate keyboard-triggered re-renders
-  void editorTickForKeyboard
+  void editorTickForKeyboard;
 
   // Show "Press R to rotate" hint when a rotatable item is selected or being placed
-  const showRotateHint = editor.isEditMode && (() => {
-    if (editorState.selectedFurnitureUid) {
-      const item = officeState.getLayout().furniture.find((f) => f.uid === editorState.selectedFurnitureUid)
-      if (item && isRotatable(item.type)) return true
-    }
-    if (editorState.activeTool === EditTool.FURNITURE_PLACE && isRotatable(editorState.selectedFurnitureType)) {
-      return true
-    }
-    return false
-  })()
+  const showRotateHint =
+    editor.isEditMode &&
+    (() => {
+      if (editorState.selectedFurnitureUid) {
+        const item = officeState
+          .getLayout()
+          .furniture.find((f) => f.uid === editorState.selectedFurnitureUid);
+        if (item && isRotatable(item.type)) return true;
+      }
+      if (
+        editorState.activeTool === EditTool.FURNITURE_PLACE &&
+        isRotatable(editorState.selectedFurnitureType)
+      ) {
+        return true;
+      }
+      return false;
+    })();
 
   if (!layoutReady) {
     return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--vscode-foreground)' }}>
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--vscode-foreground)',
+        }}
+      >
         Loading...
       </div>
-    )
+    );
   }
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
+    <div
+      ref={containerRef}
+      style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
+    >
       <style>{`
         @keyframes pixel-agents-pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
         }
         .pixel-agents-pulse { animation: pixel-agents-pulse ${PULSE_ANIMATION_DURATION_SEC}s ease-in-out infinite; }
+        .pixel-agents-migration-btn:hover { filter: brightness(0.8); }
       `}</style>
 
       <OfficeCanvas
@@ -210,7 +266,7 @@ function App() {
         panRef={editor.panRef}
       />
 
-      <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />
+      {!isDebugMode && <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />}
 
       {/* Vignette overlay */}
       <div
@@ -229,7 +285,10 @@ function App() {
         onToggleEditMode={editor.handleToggleEditMode}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
+        alwaysShowOverlay={alwaysShowOverlay}
+        onToggleAlwaysShowOverlay={handleToggleAlwaysShowOverlay}
         workspaceFolders={workspaceFolders}
+        externalAssetDirectories={externalAssetDirectories}
       />
 
       {editor.isEditMode && editor.isDirty && (
@@ -240,9 +299,9 @@ function App() {
         <div
           style={{
             position: 'absolute',
-            top: 8,
+            top: editor.isDirty ? 52 : 8,
             left: '50%',
-            transform: editor.isDirty ? 'translateX(calc(-50% + 100px))' : 'translateX(-50%)',
+            transform: 'translateX(-50%)',
             zIndex: 49,
             background: 'var(--pixel-hint-bg)',
             color: '#fff',
@@ -255,46 +314,52 @@ function App() {
             whiteSpace: 'nowrap',
           }}
         >
-          Press <b>R</b> to rotate
+          Rotate (R)
         </div>
       )}
 
-      {editor.isEditMode && (() => {
-        // Compute selected furniture color from current layout
-        const selUid = editorState.selectedFurnitureUid
-        const selColor = selUid
-          ? officeState.getLayout().furniture.find((f) => f.uid === selUid)?.color ?? null
-          : null
-        return (
-          <EditorToolbar
-            activeTool={editorState.activeTool}
-            selectedTileType={editorState.selectedTileType}
-            selectedFurnitureType={editorState.selectedFurnitureType}
-            selectedFurnitureUid={selUid}
-            selectedFurnitureColor={selColor}
-            floorColor={editorState.floorColor}
-            wallColor={editorState.wallColor}
-            onToolChange={editor.handleToolChange}
-            onTileTypeChange={editor.handleTileTypeChange}
-            onFloorColorChange={editor.handleFloorColorChange}
-            onWallColorChange={editor.handleWallColorChange}
-            onSelectedFurnitureColorChange={editor.handleSelectedFurnitureColorChange}
-            onFurnitureTypeChange={editor.handleFurnitureTypeChange}
-            loadedAssets={loadedAssets}
-          />
-        )
-      })()}
+      {editor.isEditMode &&
+        (() => {
+          // Compute selected furniture color from current layout
+          const selUid = editorState.selectedFurnitureUid;
+          const selColor = selUid
+            ? (officeState.getLayout().furniture.find((f) => f.uid === selUid)?.color ?? null)
+            : null;
+          return (
+            <EditorToolbar
+              activeTool={editorState.activeTool}
+              selectedTileType={editorState.selectedTileType}
+              selectedFurnitureType={editorState.selectedFurnitureType}
+              selectedFurnitureUid={selUid}
+              selectedFurnitureColor={selColor}
+              floorColor={editorState.floorColor}
+              wallColor={editorState.wallColor}
+              selectedWallSet={editorState.selectedWallSet}
+              onToolChange={editor.handleToolChange}
+              onTileTypeChange={editor.handleTileTypeChange}
+              onFloorColorChange={editor.handleFloorColorChange}
+              onWallColorChange={editor.handleWallColorChange}
+              onWallSetChange={editor.handleWallSetChange}
+              onSelectedFurnitureColorChange={editor.handleSelectedFurnitureColorChange}
+              onFurnitureTypeChange={editor.handleFurnitureTypeChange}
+              loadedAssets={loadedAssets}
+            />
+          );
+        })()}
 
-      <ToolOverlay
-        officeState={officeState}
-        agents={agents}
-        agentTools={agentTools}
-        subagentCharacters={subagentCharacters}
-        containerRef={containerRef}
-        zoom={editor.zoom}
-        panRef={editor.panRef}
-        onCloseAgent={handleCloseAgent}
-      />
+      {!isDebugMode && (
+        <ToolOverlay
+          officeState={officeState}
+          agents={agents}
+          agentTools={agentTools}
+          subagentCharacters={subagentCharacters}
+          containerRef={containerRef}
+          zoom={editor.zoom}
+          panRef={editor.panRef}
+          onCloseAgent={handleCloseAgent}
+          alwaysShowOverlay={alwaysShowOverlay}
+        />
+      )}
 
       {isDebugMode && (
         <DebugView
@@ -306,8 +371,71 @@ function App() {
           onSelectAgent={handleSelectAgent}
         />
       )}
+
+      {showMigrationNotice && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+          }}
+          onClick={() => setMigrationNoticeDismissed(true)}
+        >
+          <div
+            style={{
+              background: 'var(--pixel-bg)',
+              border: '2px solid var(--pixel-border)',
+              borderRadius: 0,
+              padding: '24px 32px',
+              maxWidth: 620,
+              boxShadow: 'var(--pixel-shadow)',
+              textAlign: 'center',
+              lineHeight: 1.3,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: '40px', marginBottom: 12, color: 'var(--pixel-accent)' }}>
+              We owe you an apology!
+            </div>
+            <p style={{ fontSize: '26px', color: 'var(--pixel-text)', margin: '0 0 12px 0' }}>
+              We've just migrated to fully open-source assets, all built from scratch with love.
+              Unfortunately, this means your previous layout had to be reset.
+            </p>
+            <p style={{ fontSize: '26px', color: 'var(--pixel-text)', margin: '0 0 12px 0' }}>
+              We're really sorry about that.
+            </p>
+            <p style={{ fontSize: '26px', color: 'var(--pixel-text)', margin: '0 0 12px 0' }}>
+              The good news? This was a one-time thing, and it paves the way for some genuinely
+              exciting updates ahead.
+            </p>
+            <p style={{ fontSize: '26px', color: 'var(--pixel-text-dim)', margin: '0 0 20px 0' }}>
+              Stay tuned, and thanks for using Pixel Agents!
+            </p>
+            <button
+              className="pixel-agents-migration-btn"
+              style={{
+                padding: '6px 24px 8px',
+                fontSize: '30px',
+                background: 'var(--pixel-accent)',
+                color: '#fff',
+                border: '2px solid var(--pixel-accent)',
+                borderRadius: 0,
+                cursor: 'pointer',
+                boxShadow: 'var(--pixel-shadow)',
+              }}
+              onClick={() => setMigrationNoticeDismissed(true)}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

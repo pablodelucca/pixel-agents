@@ -1,0 +1,33 @@
+{
+  "id": "SMALL_TABLE",
+  "name": "Small Table",
+  "category": "desks",
+  "type": "group",
+  "groupType": "rotation",
+  "rotationScheme": "2-way",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "members": [
+    {
+      "type": "asset",
+      "id": "SMALL_TABLE_FRONT",
+      "file": "SMALL_TABLE_FRONT.png",
+      "width": 32,
+      "height": 32,
+      "footprintW": 2,
+      "footprintH": 2,
+      "orientation": "front"
+    },
+    {
+      "type": "asset",
+      "id": "SMALL_TABLE_SIDE",
+      "file": "SMALL_TABLE_SIDE.png",
+      "width": 16,
+      "height": 48,
+      "footprintW": 1,
+      "footprintH": 3,
+      "orientation": "side"
+    }
+  ]
+}

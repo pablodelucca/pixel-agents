@@ -1,9 +1,37 @@
+# Compiled output
 out
 dist
 node_modules
-.vscode-test/
-*.vsix
-.claude/
+*.tsbuildinfo
+
+# Logs
 /logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode-test/
+/.idea
+
+# E2E test artifacts
+test-results/
+playwright-report/
+
+# Build artifacts
+*.vsix
+*.map
+
+# Environment files
+.env*
+!.env.example
+
+# Project-specific
+.claude/
 /sprites-export
-.env
+
+# Local notes (not for commit)
+/notes/

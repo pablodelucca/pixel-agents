@@ -2,7 +2,7 @@
   "name": "pixel-agents",
   "displayName": "Pixel Agents",
   "description": "Pixel art office where your Claude Code agents come to life as animated characters",
-  "version": "1.0.2",
+  "version": "1.1.1",
   "publisher": "pablodelucca",
   "repository": {
     "type": "git",
@@ -11,7 +11,7 @@
   "icon": "icon.png",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.107.0"
+    "vscode": "^1.105.0"
   },
   "categories": [
     "Other"
@@ -58,20 +58,41 @@
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "package": "npm run check-types && npm run lint && node esbuild.js --production && npm run build:webview",
     "check-types": "tsc --noEmit",
+    "prepare": "husky",
     "lint": "eslint src",
-    "import-tileset": "tsx scripts/import-tileset-cli.ts"
+    "lint:fix": "eslint src --fix",
+    "lint:webview": "cd webview-ui && npm run lint",
+    "lint:webview:fix": "cd webview-ui && eslint . --fix",
+    "import-tileset": "tsx scripts/import-tileset-cli.ts",
+    "format": "prettier --write \"src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
+    "e2e": "playwright test --config e2e/playwright.config.ts",
+    "e2e:debug": "playwright test --config e2e/playwright.config.ts --debug"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.74.0",
-    "@types/node": "22.x",
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@playwright/test": "^1.58.2",
+    "@types/node": "25.x",
     "@types/pngjs": "^6.0.5",
-    "@types/vscode": "^1.107.0",
+    "@types/vscode": "^1.105.0",
+    "@vscode/test-electron": "^2.5.2",
     "esbuild": "^0.27.2",
-    "eslint": "^9.39.2",
+    "eslint": "^10.0.3",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.3.2",
     "npm-run-all": "^4.1.5",
     "pngjs": "^7.0.0",
+    "prettier": "^3.8.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.54.0"
+  },
+  "lint-staged": {
+    "src/**/*.ts": "eslint --fix",
+    "webview-ui/src/**/*.{ts,tsx}": "eslint --fix",
+    "*.{ts,tsx,js,mjs,css,json,md}": "prettier --write",
+    "webview-ui/**/*.{ts,tsx,js,css,json}": "prettier --write"
   }
 }

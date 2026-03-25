@@ -1,0 +1,44 @@
+{
+  "id": "WOODEN_CHAIR",
+  "name": "Wooden Chair",
+  "category": "chairs",
+  "type": "group",
+  "groupType": "rotation",
+  "rotationScheme": "3-way-mirror",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "members": [
+    {
+      "type": "asset",
+      "id": "WOODEN_CHAIR_FRONT",
+      "file": "WOODEN_CHAIR_FRONT.png",
+      "width": 16,
+      "height": 32,
+      "footprintW": 1,
+      "footprintH": 2,
+      "orientation": "front"
+    },
+    {
+      "type": "asset",
+      "id": "WOODEN_CHAIR_BACK",
+      "file": "WOODEN_CHAIR_BACK.png",
+      "width": 16,
+      "height": 32,
+      "footprintW": 1,
+      "footprintH": 2,
+      "orientation": "back"
+    },
+    {
+      "type": "asset",
+      "id": "WOODEN_CHAIR_SIDE",
+      "file": "WOODEN_CHAIR_SIDE.png",
+      "width": 16,
+      "height": 32,
+      "footprintW": 1,
+      "footprintH": 2,
+      "orientation": "side",
+      "mirrorSide": true
+    }
+  ]
+}

@@ -4,6 +4,10 @@
     "target": "ES2023",
     "lib": ["ES2023"],
     "module": "ESNext",
+    "baseUrl": ".",
+    "paths": {
+      "pngjs": ["./node_modules/@types/pngjs/index.d.ts"]
+    },
     "types": ["node"],
     "skipLibCheck": true,
 
@@ -22,5 +26,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "../shared/assets/**/*.ts", "test/**/*.ts"]
 }

@@ -1,0 +1,13 @@
+{
+  "id": "TABLE_FRONT",
+  "name": "Table",
+  "category": "desks",
+  "type": "asset",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "width": 48,
+  "height": 64,
+  "footprintW": 3,
+  "footprintH": 4
+}

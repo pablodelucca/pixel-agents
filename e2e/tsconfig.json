@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "esModuleInterop": true,
+    "sourceMap": true,
+    "outDir": "../dist/e2e",
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": ["./**/*.ts"],
+  "exclude": ["../node_modules", "../dist"]
+}

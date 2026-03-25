@@ -22,9 +22,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-
-# Privately licensed files
-*/assets/*
-!*/assets/characters/
-!*/assets/default-layout.json
-!*/assets/walls.png
