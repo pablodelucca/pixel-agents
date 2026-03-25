@@ -223,11 +223,6 @@ export function removeAgent(
     clearInterval(pt);
   }
   pollingTimers.delete(agentId);
-  try {
-    fs.unwatchFile(agent.jsonlFile);
-  } catch {
-    /* ignore */
-  }
 
   // Cancel timers
   cancelWaitingTimer(agentId, waitingTimers);

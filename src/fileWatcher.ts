@@ -17,44 +17,20 @@ export function startFileWatching(
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
 ): void {
-  // Primary: fs.watch (unreliable on macOS — may miss events)
-  try {
-    const watcher = fs.watch(filePath, () => {
-      readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
-    });
-    fileWatchers.set(agentId, watcher);
-  } catch (e) {
-    console.log(`[Pixel Agents] fs.watch failed for agent ${agentId}: ${e}`);
-  }
-
-  // Secondary: fs.watchFile (stat-based polling, reliable on macOS)
-  try {
-    fs.watchFile(filePath, { interval: FILE_WATCHER_POLL_INTERVAL_MS }, () => {
-      readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
-    });
-  } catch (e) {
-    console.log(`[Pixel Agents] fs.watchFile failed for agent ${agentId}: ${e}`);
-  }
-
-  // Tertiary: manual poll as last resort
+  // Single polling approach: reliable on all platforms (macOS, Linux, WSL2, Windows).
+  // Previously used triple-redundant fs.watch + fs.watchFile + setInterval, but
+  // fs.watch is unreliable on macOS/WSL2 and the redundancy created 3 timers per
+  // agent doing synchronous I/O. The manual poll at 500ms is fast enough for a
+  // pixel art visualization and works everywhere.
   const interval = setInterval(() => {
     if (!agents.has(agentId)) {
       clearInterval(interval);
-      try {
-        fs.unwatchFile(filePath);
-      } catch {
-        /* ignore */
-      }
       return;
     }
     readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
   }, FILE_WATCHER_POLL_INTERVAL_MS);
   pollingTimers.set(agentId, interval);
 }
-
-/** Track last read time per agent to debounce triple-redundant watcher callbacks */
-const lastReadTime = new Map<number, number>();
-const READ_DEBOUNCE_MS = 100;
 
 export function readNewLines(
   agentId: number,
@@ -65,13 +41,6 @@ export function readNewLines(
 ): void {
   const agent = agents.get(agentId);
   if (!agent) return;
-
-  // Debounce: skip if we read within the last 100ms (prevents triple-read from redundant watchers)
-  const now = Date.now();
-  const lastRead = lastReadTime.get(agentId) ?? 0;
-  if (now - lastRead < READ_DEBOUNCE_MS) return;
-  lastReadTime.set(agentId, now);
-
   try {
     const stat = fs.statSync(agent.jsonlFile);
     if (stat.size <= agent.fileOffset) return;
@@ -245,11 +214,6 @@ function scanForNewJsonlFiles(
         clearInterval(pt);
       }
       pollingTimers.delete(id);
-      try {
-        fs.unwatchFile(agent.jsonlFile);
-      } catch {
-        /* ignore */
-      }
       cancelWaitingTimer(id, waitingTimers);
       cancelPermissionTimer(id, permissionTimers);
       agents.delete(id);
@@ -339,11 +303,6 @@ export function reassignAgentToFile(
     clearInterval(pt);
   }
   pollingTimers.delete(agentId);
-  try {
-    fs.unwatchFile(agent.jsonlFile);
-  } catch {
-    /* ignore */
-  }
 
   // Clear activity
   cancelWaitingTimer(agentId, waitingTimers);
