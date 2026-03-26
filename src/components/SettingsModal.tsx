@@ -35,12 +35,12 @@ export function SettingsModal({
   onToggleDebugMode: _onToggleDebugMode,
 }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const { signOut } = useAuth();
+  const { logout } = useAuth();
 
   if (!isOpen) return null;
 
   const handleLogout = async () => {
-    await signOut();
+    await logout();
     onClose();
   };
 

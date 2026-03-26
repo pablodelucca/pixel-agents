@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+
 import type { Payment } from '../types/database.js';
-import { supabase } from '../lib/supabase.js';
 
 export interface UsePaymentsReturn {
   payments: Payment[];
@@ -10,39 +10,17 @@ export interface UsePaymentsReturn {
   getPendingPayments: () => Payment[];
 }
 
+// NOTE: This hook is currently disabled.
+// TODO: Implement with your backend API or keep Supabase for database operations
 export function usePayments(): UsePaymentsReturn {
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [payments] = useState<Payment[]>([]);
+  const [loading] = useState(false);
+  const [error] = useState<string | null>('Payments feature not configured');
 
   const fetchPayments = useCallback(async () => {
-    if (!supabase) {
-      setError('Supabase is not configured');
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    const { data, error: fetchError } = await supabase
-      .from('payments')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (fetchError) {
-      setError(fetchError.message);
-      setLoading(false);
-      return;
-    }
-
-    setPayments(data as Payment[]);
-    setLoading(false);
+    // TODO: Implement API call to your backend
+    console.log('Payments hook: Implement API call to your backend');
   }, []);
-
-  useEffect(() => {
-    fetchPayments();
-  }, [fetchPayments]);
 
   const getPendingPayments = useCallback(
     () => payments.filter((p) => p.status === 'pending'),

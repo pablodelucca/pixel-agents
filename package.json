@@ -18,7 +18,7 @@
     "server"
   ],
   "dependencies": {
-    "@supabase/supabase-js": "^2.99.2",
+    "@privy-io/react-auth": "^3.18.0",
     "lucide-react": "^0.577.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

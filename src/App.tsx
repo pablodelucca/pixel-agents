@@ -11,7 +11,6 @@ import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
 import { useExtensionMessages } from './hooks/useExtensionMessages.js';
 import { useServerState } from './hooks/useServerState.js';
-import { supabase } from './lib/supabase.js';
 import { OfficeCanvas } from './office/components/OfficeCanvas.js';
 import { ToolOverlay } from './office/components/ToolOverlay.js';
 import { EditorState } from './office/editor/editorState.js';
@@ -125,10 +124,10 @@ function EditActionBar({
 }
 
 function App() {
-  // Auth state - require authentication if Supabase is configured
-  const { user, loading: authLoading } = useAuth();
+  // Auth state - require authentication if Privy is configured
+  const { authenticated, loading: authLoading, ready } = useAuth();
   const { activeServer } = useServerState();
-  const requireAuth = supabase !== null;
+  const requireAuth = import.meta.env.VITE_PRIVY_APP_ID ? true : false;
 
   const editor = useEditorActions(getOfficeState, editorState);
 
@@ -237,7 +236,7 @@ function App() {
     })();
 
   // Show auth card if authentication is required and user is not logged in
-  const showAuthCard = requireAuth && !authLoading && !user;
+  const showAuthCard = requireAuth && !authLoading && ready && !authenticated;
 
   if (!layoutReady) {
     return (

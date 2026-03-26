@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+
+import { useAuth } from './useAuth.js';
 import type { Server } from '../types/database.js';
-import { supabase } from '../lib/supabase.js';
 
 export interface UseServersReturn {
   servers: Server[];
@@ -10,60 +11,19 @@ export interface UseServersReturn {
   getServerCount: () => number;
 }
 
+// NOTE: This hook now uses Privy auth. Database operations need to be implemented with your backend API.
 export function useServers(): UseServersReturn {
-  const [servers, setServers] = useState<Server[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { authenticated, ready } = useAuth();
+  const [servers] = useState<Server[]>([]);
+  const [loading] = useState(false);
+  const [error] = useState<string | null>(
+    ready && authenticated ? 'Servers feature not configured' : null
+  );
 
   const fetchServers = useCallback(async () => {
-    if (!supabase) {
-      setError('Supabase is not configured');
-      setLoading(false);
-      return;
-    }
-
-    // Check if user is logged in
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setServers([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    const { data, error: fetchError } = await supabase
-      .from('servers')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (fetchError) {
-      setError(fetchError.message);
-      setLoading(false);
-      return;
-    }
-
-    setServers(data as Server[]);
-    setLoading(false);
+    // TODO: Implement API call to your backend using Privy auth token
+    console.log('Servers hook: Implement API call to your backend');
   }, []);
-
-  useEffect(() => {
-    fetchServers();
-
-    // Listen for auth state changes to clear data on logout
-    if (supabase) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === 'SIGNED_OUT') {
-          setServers([]);
-        } else if (event === 'SIGNED_IN') {
-          fetchServers();
-        }
-      });
-
-      return () => subscription.unsubscribe();
-    }
-  }, [fetchServers]);
 
   const getServerCount = useCallback(() => servers.length, [servers]);
 
