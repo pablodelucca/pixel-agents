@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 
+import { BalanceBar } from './components/BalanceBar.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChatSidebar } from './components/ChatSidebar.js';
 import { DebugView } from './components/DebugView.js';
-import { WalletBalance } from './components/WalletBalance.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
 import { useAuth } from './hooks/useAuth.js';
@@ -290,8 +290,8 @@ function App() {
         .pixel-agents-migration-btn:hover { filter: brightness(0.8); }
       `}</style>
 
-      {/* Wallet Balance */}
-      <WalletBalance />
+      {/* Balance Bar - USDC & Rupiah */}
+      <BalanceBar rupiahBalance={0} />
 
       {/* Chat Sidebar */}
       {chatCharacter && (
