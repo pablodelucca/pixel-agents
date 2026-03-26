@@ -2,7 +2,19 @@
 
 Office simulation game with real-time collaboration features.
 
-## 🏗️ Project Structure
+## 🏗️ Architecture
+
+```
+┌─────────────┐         ┌─────────────┐         ┌─────────────┐
+│   Frontend  │ ──────▶ │   Backend   │ ──────▶ │ PocketBase  │
+│  (React)    │  HTTP   │  (Express)  │  HTTP   │  (Database) │
+│  :5173      │         │  :3000      │         │  :8080      │
+└─────────────┘         └─────────────┘         └─────────────┘
+```
+
+**Important:** Frontend hanya berkomunikasi dengan Backend API. Backend yang mengakses PocketBase. Ini untuk keamanan dan control yang lebih baik.
+
+## 📁 Project Structure
 
 ```
 clawmpany/
@@ -26,6 +38,25 @@ clawmpany/
 
 ## 🚀 Quick Start
 
+### Development (Docker) - Recommended
+
+1. **Setup Environment**
+   ```bash
+   cp .env.example .env
+   cp app/.env.example app/.env
+   # Edit with your values
+   ```
+
+2. **Run All Services**
+   ```bash
+   npm run dev:docker
+   ```
+
+3. **Access Services**
+   - Frontend: http://localhost:5173
+   - Backend API: http://localhost:3000
+   - PocketBase Admin: http://localhost:8090/_/
+
 ### Development (Local without Docker)
 
 1. **Install Dependencies**
@@ -35,85 +66,41 @@ clawmpany/
 
 2. **Setup Environment Variables**
    ```bash
-   # Copy env files
    cp .env.example .env
    cp app/.env.example app/.env
    cp server/.env.example server/.env
-   
-   # Edit with your values
-   nano .env
-   nano app/.env
-   nano server/.env
    ```
 
 3. **Run PocketBase** (Manual)
    ```bash
    # Download from https://pocketbase.io/docs/
    ./pocketbase serve --http=0.0.0.0:8090
-   
-   # Open http://localhost:8090/_/ to setup admin
    ```
 
 4. **Run Development Servers**
    ```bash
-   # Run all services
    npm run dev
-   
-   # Or run individually
-   npm run dev:app      # Frontend only
-   npm run dev:server   # Backend only
-   ```
-
-5. **Open Browser**
-   - Frontend: http://localhost:5173
-   - Backend: http://localhost:3000
-   - PocketBase: http://localhost:8090
-   - PocketBase Admin: http://localhost:8090/_/
-
-### Development (Docker)
-
-1. **Setup Environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your values
-   ```
-
-2. **Run All Services**
-   ```bash
-   npm run dev:docker
-   ```
-
-3. **Run Only PocketBase**
-   ```bash
-   npm run dev:pb
    ```
 
 ### Production (Docker)
 
-1. **Build & Start**
-   ```bash
-   npm run build:docker
-   npm run start:docker
-   ```
+```bash
+npm run build:docker
+npm run start:docker
+```
 
 ## 🔧 Available Scripts
 
 ### Root Level
-- `npm run dev` - Start all services in development mode
-- `npm run dev:app` - Start frontend only
-- `npm run dev:server` - Start backend only
+- `npm run dev` - Start frontend & backend locally
 - `npm run dev:docker` - Start with Docker Compose
-- `npm run dev:pb` - Start only PocketBase with Docker
 - `npm run build` - Build all services
-- `npm run build:app` - Build frontend only
-- `npm run build:server` - Build backend only
 - `npm run build:docker` - Build Docker images
 - `npm run start:docker` - Start production Docker containers
 
 ### App (Frontend)
 - `npm run dev` - Start Vite dev server
 - `npm run build` - Build for production
-- `npm run preview` - Preview production build
 
 ### Server (Backend)
 - `npm run dev` - Start with tsx watch
@@ -127,7 +114,6 @@ clawmpany/
 - Vite
 - TypeScript
 - Privy (Authentication)
-- PocketBase SDK
 - Lucide React (Icons)
 
 ### Backend (server/)
@@ -143,23 +129,17 @@ clawmpany/
 
 ## 🔐 Environment Variables
 
-### Root (.env)
-```env
-VITE_PRIVY_APP_ID=your_privy_app_id
-```
-
 ### App (app/.env)
 ```env
 VITE_API_URL=http://localhost:5173
 VITE_PRIVY_APP_ID=your_privy_app_id
-VITE_POCKETBASE_URL=http://localhost:8090
 ```
 
 ### Server (server/.env)
 ```env
 PORT=3000
-POCKETBASE_URL=http://localhost:8090
-# ... other variables
+POCKETBASE_URL=http://pocketbase:8080  # Docker internal network
+# or http://localhost:8090 for local development
 ```
 
 ## 📊 PocketBase Collections
@@ -174,9 +154,13 @@ Recommended collections:
 
 ## 🐳 Docker Services
 
-- **app** - Frontend on port 5173
-- **server** - Backend API on port 3000
-- **pocketbase** - Database on port 8090
+| Service | Port | Description |
+|---------|------|-------------|
+| **app** | 5173 | Frontend (React) |
+| **server** | 3000 | Backend API (Express) |
+| **pocketbase** | 8090 | Database (Admin UI at /_/) |
+
+**Note:** PocketBase port only exposed for admin access during development. For production, consider removing port exposure.
 
 ## 📝 License
 

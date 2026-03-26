@@ -23,6 +23,8 @@ services:
     build:
       context: ./pocketbase
       dockerfile: Dockerfile
+    # NOTE: Only expose port for admin access during development
+    # For production, remove ports and use internal Docker network only
     ports:
       - "8090:8080"
     volumes:
