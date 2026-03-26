@@ -1,52 +1,28 @@
-# Development stage
-FROM node:20-alpine AS development
+# Clawmpany - Server (Backend)
+FROM node:22-alpine AS builder
+
+# Install build dependencies for native modules
+RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
+RUN npm install
 
-# Install dependencies
-RUN npm ci
-
-# Copy source code
 COPY . .
-
-# Expose port
-EXPOSE 3000
-
-# Start dev server
-CMD ["npm", "run", "dev"]
-
-# Build stage for production
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
-COPY . .
-
-# Build the application
 RUN npm run build
 
-# Production stage
-FROM node:20-alpine AS production
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
-# Copy built files
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
+ENV NODE_ENV=production
+ENV PORT=3000
 
-# Expose port
+COPY package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+
 EXPOSE 3000
 
-# Start the server
-CMD ["node", "dist/index.js"]
+CMD ["npm", "start"]

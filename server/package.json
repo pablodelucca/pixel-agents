@@ -1,6 +1,6 @@
 {
   "name": "clawmpany-server",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",

@@ -1,24 +1,12 @@
 services:
-  # Frontend - React + Vite App
   app:
     build:
       context: ./app
       dockerfile: Dockerfile
     ports:
       - "5173:5173"
-    environment:
-      - VITE_API_URL=http://localhost:5173
-      - VITE_PRIVY_APP_ID=${VITE_PRIVY_APP_ID}
-      - VITE_POCKETBASE_URL=http://pocketbase:8080
-    volumes:
-      - ./app/src:/app/src
-      - ./app/public:/app/public
-    depends_on:
-      - server
-      - pocketbase
     restart: unless-stopped
 
-  # Backend - Express API Server
   server:
     build:
       context: ./server
@@ -29,11 +17,8 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - POCKETBASE_URL=http://pocketbase:8080
-    depends_on:
-      - pocketbase
     restart: unless-stopped
 
-  # Database - PocketBase
   pocketbase:
     build:
       context: ./pocketbase
