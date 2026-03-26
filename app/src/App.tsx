@@ -4,6 +4,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChatSidebar } from './components/ChatSidebar.js';
 import { DebugView } from './components/DebugView.js';
+import { WalletBalance } from './components/WalletBalance.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
 import { useAuth } from './hooks/useAuth.js';
@@ -281,9 +282,16 @@ function App() {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
         }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
         .pixel-agents-pulse { animation: pixel-agents-pulse ${PULSE_ANIMATION_DURATION_SEC}s ease-in-out infinite; }
         .pixel-agents-migration-btn:hover { filter: brightness(0.8); }
       `}</style>
+
+      {/* Wallet Balance */}
+      <WalletBalance />
 
       {/* Chat Sidebar */}
       {chatCharacter && (
