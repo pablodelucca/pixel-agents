@@ -8,10 +8,14 @@ import {
   INACTIVE_SEAT_TIMER_MIN_SEC,
   INACTIVE_SEAT_TIMER_RANGE_SEC,
   PALETTE_COUNT,
+  PLAYER_DEFAULT_DISPLAY_NAME,
+  PLAYER_PROXIMITY_THRESHOLD_TILES,
+  PLAYER_WALK_SPEED_PX_PER_SEC,
   WAITING_BUBBLE_DURATION_SEC,
+  WALK_FRAME_DURATION_SEC,
 } from '../../constants.js';
-import type { Seat, TileType as TileTypeVal } from '../types.js';
-import { CharacterState, MATRIX_EFFECT_DURATION, TILE_SIZE } from '../types.js';
+import type { Player, ProximityEvent, Seat, TileType as TileTypeVal } from '../types.js';
+import { CharacterState, Direction, MATRIX_EFFECT_DURATION, TILE_SIZE } from '../types.js';
 import { createCharacter, updateCharacter } from './characters.js';
 import { matrixEffectSeeds } from './matrixEffect.js';
 
@@ -568,6 +572,9 @@ export class CharacterManager {
     for (const id of toDelete) {
       this.characters.delete(id);
     }
+
+    // Update player movement and proximity
+    this.updatePlayer(dt);
   }
 
   getCharacters(): Character[] {
@@ -638,6 +645,15 @@ export class CharacterManager {
         ch.path = [];
         ch.moveProgress = 0;
       }
+      // Also shift player
+      if (this.player) {
+        this.player.tileCol += shift.col;
+        this.player.tileRow += shift.row;
+        this.player.x += shift.col * TILE_SIZE;
+        this.player.y += shift.row * TILE_SIZE;
+        this.player.path = [];
+        this.player.moveProgress = 0;
+      }
     }
 
     // Reassign characters to new seats
@@ -691,6 +707,304 @@ export class CharacterManager {
           this.relocateCharacterToWalkable(ch);
         }
       }
+      // Also relocate player if outside bounds
+      if (this.player) {
+        if (
+          this.player.tileCol < 0 ||
+          this.player.tileCol >= layoutCols ||
+          this.player.tileRow < 0 ||
+          this.player.tileRow >= layoutRows
+        ) {
+          this.relocatePlayerToWalkable();
+        }
+      }
     }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // PLAYER MANAGEMENT
+  // ════════════════════════════════════════════════════════════════
+
+  private player: Player | null = null;
+  private onProximityChange: ((event: ProximityEvent | null) => void) | null = null;
+
+  /** Set callback for proximity changes */
+  setProximityCallback(callback: (event: ProximityEvent | null) => void): void {
+    this.onProximityChange = callback;
+  }
+
+  /** Initialize player at a walkable tile */
+  initPlayer(displayName?: string): void {
+    const walkableTiles = this.getWalkableTiles();
+    const spawn =
+      walkableTiles.length > 0
+        ? walkableTiles[Math.floor(Math.random() * walkableTiles.length)]
+        : { col: 1, row: 1 };
+
+    this.player = {
+      state: CharacterState.IDLE,
+      dir: 0, // DOWN
+      x: spawn.col * TILE_SIZE + TILE_SIZE / 2,
+      y: spawn.row * TILE_SIZE + TILE_SIZE / 2,
+      tileCol: spawn.col,
+      tileRow: spawn.row,
+      path: [],
+      moveProgress: 0,
+      frame: 0,
+      frameTimer: 0,
+      displayName: displayName ?? PLAYER_DEFAULT_DISPLAY_NAME,
+      nearbyAgentId: null,
+      proximityThreshold: PLAYER_PROXIMITY_THRESHOLD_TILES,
+    };
+  }
+
+  /** Get player state */
+  getPlayer(): Player | null {
+    return this.player;
+  }
+
+  /** Check if player exists */
+  hasPlayer(): boolean {
+    return this.player !== null;
+  }
+
+  /** Move player to a tile (click-to-move) */
+  movePlayerToTile(col: number, row: number): boolean {
+    if (!this.player) return false;
+
+    const tileMap = this.getTileMap();
+    const blockedTiles = this.getBlockedTiles();
+
+    if (!this.isWalkableFn(col, row, tileMap, blockedTiles)) {
+      return false;
+    }
+
+    const path = this.findPathFn(
+      this.player.tileCol,
+      this.player.tileRow,
+      col,
+      row,
+      tileMap,
+      blockedTiles,
+    );
+
+    if (path.length === 0) return false;
+
+    this.player.path = path;
+    this.player.moveProgress = 0;
+    this.player.state = CharacterState.WALK;
+    this.player.frame = 0;
+    this.player.frameTimer = 0;
+    return true;
+  }
+
+  /** Move player towards an agent (stop adjacent to them) */
+  movePlayerToAgent(agentId: number): boolean {
+    if (!this.player) return false;
+
+    const agent = this.characters.get(agentId);
+    if (!agent) return false;
+
+    // Find the closest walkable tile adjacent to the agent
+    const tileMap = this.getTileMap();
+    const blockedTiles = this.getBlockedTiles();
+
+    const adjacentOffsets = [
+      { dc: 0, dr: -1 }, // up
+      { dc: 0, dr: 1 }, // down
+      { dc: -1, dr: 0 }, // left
+      { dc: 1, dr: 0 }, // right
+    ];
+
+    let bestPath: Array<{ col: number; row: number }> = [];
+    let bestDist = Infinity;
+
+    for (const { dc, dr } of adjacentOffsets) {
+      const targetCol = agent.tileCol + dc;
+      const targetRow = agent.tileRow + dr;
+
+      if (!this.isWalkableFn(targetCol, targetRow, tileMap, blockedTiles)) continue;
+
+      const path = this.findPathFn(
+        this.player.tileCol,
+        this.player.tileRow,
+        targetCol,
+        targetRow,
+        tileMap,
+        blockedTiles,
+      );
+
+      if (path.length > 0 && path.length < bestDist) {
+        bestPath = path;
+        bestDist = path.length;
+      }
+    }
+
+    if (bestPath.length === 0) return false;
+
+    this.player.path = bestPath;
+    this.player.moveProgress = 0;
+    this.player.state = CharacterState.WALK;
+    this.player.frame = 0;
+    this.player.frameTimer = 0;
+    return true;
+  }
+
+  /** Relocate player to a random walkable tile */
+  relocatePlayerToWalkable(): void {
+    if (!this.player) return;
+    const walkableTiles = this.getWalkableTiles();
+    if (walkableTiles.length === 0) return;
+    const spawn = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+    this.player.tileCol = spawn.col;
+    this.player.tileRow = spawn.row;
+    this.player.x = spawn.col * TILE_SIZE + TILE_SIZE / 2;
+    this.player.y = spawn.row * TILE_SIZE + TILE_SIZE / 2;
+    this.player.path = [];
+    this.player.moveProgress = 0;
+  }
+
+  /** Update player movement and proximity detection */
+  private updatePlayer(dt: number): void {
+    if (!this.player) return;
+
+    // Animation frame update
+    this.player.frameTimer += dt;
+
+    if (this.player.state === CharacterState.WALK) {
+      // Walk animation
+      if (this.player.frameTimer >= WALK_FRAME_DURATION_SEC) {
+        this.player.frameTimer -= WALK_FRAME_DURATION_SEC;
+        this.player.frame = (this.player.frame + 1) % 4;
+      }
+
+      // No path - stop walking
+      if (this.player.path.length === 0) {
+        this.player.state = CharacterState.IDLE;
+        this.player.frame = 0;
+        this.player.frameTimer = 0;
+        return;
+      }
+
+      // Move toward next tile
+      const nextTile = this.player.path[0];
+      this.player.dir = this.directionBetween(
+        this.player.tileCol,
+        this.player.tileRow,
+        nextTile.col,
+        nextTile.row,
+      );
+
+      this.player.moveProgress += (PLAYER_WALK_SPEED_PX_PER_SEC / TILE_SIZE) * dt;
+
+      const fromCenter = this.tileCenter(this.player.tileCol, this.player.tileRow);
+      const toCenter = this.tileCenter(nextTile.col, nextTile.row);
+      const t = Math.min(this.player.moveProgress, 1);
+      this.player.x = fromCenter.x + (toCenter.x - fromCenter.x) * t;
+      this.player.y = fromCenter.y + (toCenter.y - fromCenter.y) * t;
+
+      if (this.player.moveProgress >= 1) {
+        this.player.tileCol = nextTile.col;
+        this.player.tileRow = nextTile.row;
+        this.player.x = toCenter.x;
+        this.player.y = toCenter.y;
+        this.player.path.shift();
+        this.player.moveProgress = 0;
+
+        // Path complete
+        if (this.player.path.length === 0) {
+          this.player.state = CharacterState.IDLE;
+          this.player.frame = 0;
+          this.player.frameTimer = 0;
+        }
+      }
+    }
+
+    // Proximity detection
+    this.updateProximity();
+  }
+
+  /** Calculate distance between player and agent in tiles */
+  private getDistanceToAgent(agent: Character): number {
+    if (!this.player) return Infinity;
+    const dx = this.player.tileCol - agent.tileCol;
+    const dy = this.player.tileRow - agent.tileRow;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  /** Update proximity state and fire callback */
+  private updateProximity(): void {
+    if (!this.player || !this.onProximityChange) return;
+
+    let closestAgent: Character | null = null;
+    let closestDistance = Infinity;
+
+    for (const agent of this.characters.values()) {
+      if (agent.matrixEffect === 'despawn') continue;
+      const dist = this.getDistanceToAgent(agent);
+      if (dist < this.player.proximityThreshold && dist < closestDistance) {
+        closestDistance = dist;
+        closestAgent = agent;
+      }
+    }
+
+    const newNearbyId = closestAgent ? closestAgent.id : null;
+
+    // Only fire callback if proximity changed
+    if (newNearbyId !== this.player.nearbyAgentId) {
+      this.player.nearbyAgentId = newNearbyId;
+
+      if (closestAgent) {
+        this.onProximityChange({
+          agentId: closestAgent.id,
+          distance: closestDistance,
+          agentCharacter: closestAgent,
+        });
+      } else {
+        this.onProximityChange(null);
+      }
+    }
+  }
+
+  /** Helper: get tile center */
+  private tileCenter(col: number, row: number): { x: number; y: number } {
+    return {
+      x: col * TILE_SIZE + TILE_SIZE / 2,
+      y: row * TILE_SIZE + TILE_SIZE / 2,
+    };
+  }
+
+  /** Helper: direction between tiles */
+  private directionBetween(
+    fromCol: number,
+    fromRow: number,
+    toCol: number,
+    toRow: number,
+  ): Direction {
+    const dc = toCol - fromCol;
+    const dr = toRow - fromRow;
+    if (dc > 0) return Direction.RIGHT;
+    if (dc < 0) return Direction.LEFT;
+    if (dr > 0) return Direction.DOWN;
+    return Direction.UP;
+  }
+
+  /** Get all nearby agents within proximity threshold */
+  getNearbyAgents(): ProximityEvent[] {
+    if (!this.player) return [];
+
+    const nearby: ProximityEvent[] = [];
+    for (const agent of this.characters.values()) {
+      if (agent.matrixEffect === 'despawn') continue;
+      const dist = this.getDistanceToAgent(agent);
+      if (dist < this.player.proximityThreshold) {
+        nearby.push({
+          agentId: agent.id,
+          distance: dist,
+          agentCharacter: agent,
+        });
+      }
+    }
+    return nearby.sort((a, b) => a.distance - b.distance);
   }
 }

@@ -195,3 +195,37 @@ export interface Character {
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
 }
+
+/** Player character - represents the user in the office */
+export interface Player {
+  state: CharacterState;
+  dir: Direction;
+  /** Pixel position */
+  x: number;
+  y: number;
+  /** Current tile column */
+  tileCol: number;
+  /** Current tile row */
+  tileRow: number;
+  /** Remaining path steps (tile coords) */
+  path: Array<{ col: number; row: number }>;
+  /** 0-1 lerp between current tile and next tile */
+  moveProgress: number;
+  /** Animation frame index */
+  frame: number;
+  /** Time accumulator for animation */
+  frameTimer: number;
+  /** Display name */
+  displayName: string;
+  /** Nearby agent ID when in proximity, null otherwise */
+  nearbyAgentId: number | null;
+  /** Distance threshold for proximity interaction (in tiles) */
+  proximityThreshold: number;
+}
+
+/** Proximity event when player approaches an agent */
+export interface ProximityEvent {
+  agentId: number;
+  distance: number;
+  agentCharacter: Character;
+}

@@ -42,6 +42,7 @@ import type {
   Character,
   FloorColor,
   FurnitureInstance,
+  Player,
   Seat,
   SpriteData,
   TileType as TileTypeVal,
@@ -50,6 +51,34 @@ import { CharacterState, TILE_SIZE, TileType } from '../types.js';
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles.js';
 import { getCharacterSprite } from './characters.js';
 import { renderMatrixEffect } from './matrixEffect.js';
+
+// ── Player Sprite Helpers ────────────────────────────────────────
+
+/** Get sprite for player based on state and direction */
+function getPlayerSprite(
+  player: Player,
+  sprites: ReturnType<typeof getCharacterSprites>,
+): SpriteData {
+  switch (player.state) {
+    case CharacterState.WALK:
+      return sprites.walk[player.dir][player.frame % 4];
+    case CharacterState.IDLE:
+    default:
+      // Use walking frame 1 as idle pose
+      return sprites.walk[player.dir][1];
+  }
+}
+
+/** Create a cyan/teal outline sprite for player */
+function getPlayerOutlineSprite(sprite: SpriteData): SpriteData {
+  const outlineColor = '#00CED1'; // Cyan/teal color for player outline
+  return sprite.map((row) =>
+    row.map((pixel) => {
+      if (pixel === '' || pixel === 'transparent') return '';
+      return outlineColor;
+    }),
+  );
+}
 
 // ── Render functions ────────────────────────────────────────────
 
@@ -113,6 +142,7 @@ export function renderScene(
   zoom: number,
   selectedAgentId: number | null,
   hoveredAgentId: number | null,
+  player?: Player | null,
 ): void {
   const drawables: ZDrawable[] = [];
 
@@ -197,6 +227,43 @@ export function renderScene(
       zY: charZY,
       draw: (c) => {
         c.drawImage(cached, drawX, drawY);
+      },
+    });
+  }
+
+  // Player character (uses palette 0 with distinct hue shift for green tint)
+  if (player) {
+    // Use a special hue shift for player (green-ish: ~120°)
+    // Use hue shift 0 for red skin color
+    const playerSprites = getCharacterSprites(0, 0);
+    const playerSpriteData = getPlayerSprite(player, playerSprites);
+    const playerCached = getCachedSprite(playerSpriteData, zoom);
+    const playerDrawX = Math.round(offsetX + player.x * zoom - playerCached.width / 2);
+    const playerDrawY = Math.round(offsetY + player.y * zoom - playerCached.height);
+    const playerZY = player.y + TILE_SIZE / 2 + CHARACTER_Z_SORT_OFFSET;
+
+    // Add golden/amber outline to distinguish player from agents
+    const playerOutlineData = getPlayerOutlineSprite(playerSpriteData);
+    const playerOutlineCached = getCachedSprite(playerOutlineData, zoom);
+    const outlineDrawX = playerDrawX - zoom;
+    const outlineDrawY = playerDrawY - zoom;
+
+    // Draw outline first (sorted before player)
+    drawables.push({
+      zY: playerZY - OUTLINE_Z_SORT_OFFSET,
+      draw: (c) => {
+        c.save();
+        c.globalAlpha = 1.0;
+        c.drawImage(playerOutlineCached, outlineDrawX, outlineDrawY);
+        c.restore();
+      },
+    });
+
+    // Draw player
+    drawables.push({
+      zY: playerZY,
+      draw: (c) => {
+        c.drawImage(playerCached, playerDrawX, playerDrawY);
       },
     });
   }
@@ -558,6 +625,7 @@ export interface SelectionRenderState {
   hoveredTile: { col: number; row: number } | null;
   seats: Map<string, Seat>;
   characters: Map<number, Character>;
+  player?: Player | null;
 }
 
 export function renderFrame(
@@ -613,7 +681,8 @@ export function renderFrame(
   // Draw walls + furniture + characters (z-sorted)
   const selectedId = selection?.selectedAgentId ?? null;
   const hoveredId = selection?.hoveredAgentId ?? null;
-  renderScene(ctx, allFurniture, characters, offsetX, offsetY, zoom, selectedId, hoveredId);
+  const player = selection?.player ?? null;
+  renderScene(ctx, allFurniture, characters, offsetX, offsetY, zoom, selectedId, hoveredId, player);
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom);

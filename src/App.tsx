@@ -18,6 +18,7 @@ import { EditorState } from './office/editor/editorState.js';
 import { EditorToolbar } from './office/editor/EditorToolbar.js';
 import { OfficeState } from './office/engine/officeState.js';
 import { isRotatable } from './office/layout/furnitureCatalog.js';
+import type { ProximityEvent } from './office/types.js';
 import { EditTool } from './office/types.js';
 
 // Game state lives outside React — updated imperatively by message handlers
@@ -136,6 +137,9 @@ function App() {
     [editor.isEditMode, editor.isDirty],
   );
 
+  // Player proximity state
+  const [playerNearbyAgent, setPlayerNearbyAgent] = useState<ProximityEvent | null>(null);
+
   const {
     agents,
     selectedAgent,
@@ -164,6 +168,16 @@ function App() {
     officeState.selectedAgentId = null;
     officeState.cameraFollowId = null;
   }, [officeState]);
+
+  // Handle player proximity to agents
+  const handlePlayerProximity = useCallback((event: ProximityEvent | null) => {
+    setPlayerNearbyAgent(event);
+    // Optionally auto-open chat when player approaches an agent
+    // Uncomment below to enable auto-chat:
+    // if (event && event.distance < 1.5) {
+    //   setChatCharacterId(event.agentId);
+    // }
+  }, []);
 
   // Show migration notice once layout reset is detected
   const [migrationNoticeDismissed, setMigrationNoticeDismissed] = useState(false);
@@ -270,6 +284,7 @@ function App() {
         officeState={officeState}
         onClick={handleClick}
         onCharacterSelect={handleCharacterSelect}
+        onPlayerProximity={handlePlayerProximity}
         isEditMode={editor.isEditMode}
         editorState={editorState}
         onEditorTileAction={editor.handleEditorTileAction}
@@ -331,6 +346,50 @@ function App() {
           }}
         >
           Rotate (R)
+        </div>
+      )}
+
+      {/* Player proximity indicator */}
+      {playerNearbyAgent && !isDebugMode && !editor.isEditMode && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 60,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 49,
+            background: 'rgba(0, 0, 0, 0.8)',
+            color: '#fff',
+            fontSize: '20px',
+            padding: '8px 16px',
+            borderRadius: 4,
+            border: '2px solid var(--pixel-accent)',
+            boxShadow: 'var(--pixel-shadow)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <span style={{ fontSize: 24 }}>
+            {playerNearbyAgent.agentCharacter.displayName?.match(/^(\p{Emoji})/u)?.[1] || '🤖'}
+          </span>
+          <span>
+            Near {playerNearbyAgent.agentCharacter.displayName?.replace(/^(\p{Emoji}\s*)/u, '') || `Agent ${playerNearbyAgent.agentId}`}
+          </span>
+          <button
+            onClick={() => setChatCharacterId(playerNearbyAgent.agentId)}
+            style={{
+              padding: '4px 12px',
+              fontSize: '18px',
+              background: 'var(--pixel-accent)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 4,
+              cursor: 'pointer',
+            }}
+          >
+            Chat
+          </button>
         </div>
       )}
 

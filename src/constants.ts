@@ -114,3 +114,8 @@ export const CHARACTER_HIT_HALF_WIDTH = 8;
 export const CHARACTER_HIT_HEIGHT = 24;
 export const TOOL_OVERLAY_VERTICAL_OFFSET = 32;
 export const PULSE_ANIMATION_DURATION_SEC = 1.5;
+
+// ── Player Settings ───────────────────────────────────────────
+export const PLAYER_PROXIMITY_THRESHOLD_TILES = 2;
+export const PLAYER_DEFAULT_DISPLAY_NAME = 'You';
+export const PLAYER_WALK_SPEED_PX_PER_SEC = 60; // Slightly faster than agents

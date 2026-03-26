@@ -19,6 +19,7 @@ import type {
   RotateButtonBounds,
   SelectionRenderState,
 } from '../engine/renderer.js';
+import type { ProximityEvent } from '../types.js';
 import { renderFrame } from '../engine/renderer.js';
 import { getCatalogEntry, isRotatable } from '../layout/furnitureCatalog.js';
 import { EditTool, TILE_SIZE } from '../types.js';
@@ -27,6 +28,7 @@ interface OfficeCanvasProps {
   officeState: OfficeState;
   onClick: (agentId: number) => void;
   onCharacterSelect: (agentId: number | null) => void;
+  onPlayerProximity?: (event: ProximityEvent | null) => void;
   isEditMode: boolean;
   editorState: EditorState;
   onEditorTileAction: (col: number, row: number) => void;
@@ -45,6 +47,7 @@ export function OfficeCanvas({
   officeState,
   onClick,
   onCharacterSelect,
+  onPlayerProximity,
   isEditMode,
   editorState,
   onEditorTileAction,
@@ -105,6 +108,19 @@ export function OfficeCanvas({
     canvas.style.height = `${rect.height}px`;
     // No ctx.scale(dpr) — we render directly in device pixels
   }, []);
+
+  // Initialize player and setup proximity callback
+  useEffect(() => {
+    // Initialize player if not exists
+    if (!officeState.hasPlayer()) {
+      officeState.initPlayer();
+    }
+
+    // Setup proximity callback
+    if (onPlayerProximity) {
+      officeState.setProximityCallback(onPlayerProximity);
+    }
+  }, [officeState, onPlayerProximity]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -251,6 +267,7 @@ export function OfficeCanvas({
           hoveredTile: officeState.hoveredTile,
           seats: officeState.seats,
           characters: officeState.characters,
+          player: officeState.getPlayer(),
         };
 
         const { offsetX, offsetY } = renderFrame(
@@ -677,6 +694,12 @@ export function OfficeCanvas({
       if (hitId !== null) {
         // Dismiss any active bubble on click
         officeState.dismissBubble(hitId);
+
+        // Move player towards the clicked agent
+        if (officeState.hasPlayer()) {
+          officeState.movePlayerToAgent(hitId);
+        }
+
         // Toggle selection: click same agent deselects, different agent selects
         if (officeState.selectedAgentId === hitId) {
           officeState.selectedAgentId = null;
@@ -733,6 +756,12 @@ export function OfficeCanvas({
         officeState.selectedAgentId = null;
         officeState.cameraFollowId = null;
         onCharacterSelect(null);
+      } else {
+        // No agent selected — move player to clicked tile
+        const tile = screenToTile(e.clientX, e.clientY);
+        if (tile && officeState.hasPlayer()) {
+          officeState.movePlayerToTile(tile.col, tile.row);
+        }
       }
     },
     [officeState, onClick, onCharacterSelect, screenToWorld, screenToTile, isEditMode],

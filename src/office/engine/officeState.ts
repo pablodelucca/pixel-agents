@@ -16,7 +16,9 @@ import type {
   Character,
   FurnitureInstance,
   OfficeLayout,
+  Player,
   PlacedFurniture,
+  ProximityEvent,
   Seat,
   TileType as TileTypeVal,
 } from '../types.js';
@@ -258,16 +260,12 @@ export class OfficeState {
       }
     }
 
-    if (autoOnTiles.size === 0) {
-      this.furniture = layoutToFurnitureInstances(this.layout.furniture);
-      return;
-    }
-
-    // Build modified furniture list with auto-state and animation applied
+    // Build modified furniture list with auto-state and electronics animation applied
     const animFrame = Math.floor(this.furnitureAnimTimer / FURNITURE_ANIM_INTERVAL_SEC);
     const modifiedFurniture: PlacedFurniture[] = this.layout.furniture.map((item) => {
       const entry = getCatalogEntry(item.type);
       if (!entry) return item;
+
       // Check if any tile of this furniture overlaps an auto-on tile
       for (let dr = 0; dr < entry.footprintH; dr++) {
         for (let dc = 0; dc < entry.footprintW; dc++) {
@@ -303,5 +301,42 @@ export class OfficeState {
 
     // Delegate character updates to CharacterManager
     this.characterManager.update(dt);
+  }
+
+  // ── Player Management (delegates to CharacterManager) ─────────────────
+
+  /** Initialize player character */
+  initPlayer(displayName?: string): void {
+    this.characterManager.initPlayer(displayName);
+  }
+
+  /** Get player state */
+  getPlayer(): Player | null {
+    return this.characterManager.getPlayer();
+  }
+
+  /** Check if player exists */
+  hasPlayer(): boolean {
+    return this.characterManager.hasPlayer();
+  }
+
+  /** Move player to a tile */
+  movePlayerToTile(col: number, row: number): boolean {
+    return this.characterManager.movePlayerToTile(col, row);
+  }
+
+  /** Move player towards an agent */
+  movePlayerToAgent(agentId: number): boolean {
+    return this.characterManager.movePlayerToAgent(agentId);
+  }
+
+  /** Set callback for proximity changes */
+  setProximityCallback(callback: (event: ProximityEvent | null) => void): void {
+    this.characterManager.setProximityCallback(callback);
+  }
+
+  /** Get all nearby agents */
+  getNearbyAgents(): ProximityEvent[] {
+    return this.characterManager.getNearbyAgents();
   }
 }

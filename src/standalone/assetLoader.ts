@@ -28,6 +28,8 @@ export interface FurnitureAsset {
   rotationScheme?: string;
   animationGroup?: string;
   frame?: number;
+  frameCount?: number;
+  frameRate?: number;
 }
 
 interface ManifestAsset {
@@ -352,6 +354,40 @@ async function loadFurniture(): Promise<LoadedAssets['furniture']> {
           sprites[manifest.id] = imageDataToSpriteData(img);
         } catch (e) {
           console.warn(`[Standalone] Could not load sprite: ${folder}/${manifest.id}.png`);
+        }
+        continue;
+      }
+
+      // Handle animated assets (type: "animation")
+      if (manifest.type === 'animation' && manifest.frames) {
+        // Load all animation frames
+        for (let i = 0; i < manifest.frames.length; i++) {
+          const frame = manifest.frames[i];
+          try {
+            const img = await loadImage(`/assets/furniture/${folder}/${frame.file}`);
+            sprites[frame.id] = imageDataToSpriteData(img);
+
+            // Create catalog entry for each frame
+            const asset: FurnitureAsset = {
+              id: frame.id,
+              name: `${manifest.name || manifest.id} Frame ${i}`,
+              label: `${manifest.name || manifest.id} Frame ${i}`,
+              category: manifest.category,
+              file: `${folder}/${frame.file}`,
+              width: manifest.width,
+              height: manifest.height,
+              footprintW: manifest.footprintW,
+              footprintH: manifest.footprintH,
+              isDesk: manifest.category === 'desks',
+              canPlaceOnWalls: manifest.canPlaceOnWalls ?? false,
+              backgroundTiles: manifest.backgroundTiles,
+              animationGroup: manifest.animationGroup,
+              frame: i,
+            };
+            catalog.push(asset);
+          } catch (e) {
+            console.warn(`[Standalone] Could not load sprite: ${folder}/${frame.file}`);
+          }
         }
         continue;
       }
