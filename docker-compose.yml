@@ -3,6 +3,9 @@ services:
     build:
       context: ./app
       dockerfile: Dockerfile
+      args:
+        - VITE_PRIVY_APP_ID=${VITE_PRIVY_APP_ID}
+        - VITE_API_URL=http://localhost:5173
     ports:
       - "5173:5173"
     restart: unless-stopped
@@ -23,8 +26,6 @@ services:
     build:
       context: ./pocketbase
       dockerfile: Dockerfile
-    # NOTE: Only expose port for admin access during development
-    # For production, remove ports and use internal Docker network only
     ports:
       - "8090:8080"
     volumes:
