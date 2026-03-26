@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 
-import { AuthCard } from './components/AuthCard.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChatSidebar } from './components/ChatSidebar.js';
 import { DebugView } from './components/DebugView.js';
@@ -125,9 +125,28 @@ function EditActionBar({
 
 function App() {
   // Auth state - require authentication if Privy is configured
-  const { authenticated, loading: authLoading, ready } = useAuth();
+  const { ready, authenticated, login } = usePrivy();
+  const { loading: authLoading } = useAuth();
   const { activeServer } = useServerState();
   const requireAuth = import.meta.env.VITE_PRIVY_APP_ID ? true : false;
+
+  // Track if we've already triggered login to prevent multiple calls
+  const loginTriggeredRef = useRef(false);
+
+  // Reset login trigger when user logs out
+  useEffect(() => {
+    if (authenticated) {
+      loginTriggeredRef.current = false;
+    }
+  }, [authenticated]);
+
+  // Auto-trigger Privy login modal ONCE when auth is required but user is not authenticated
+  useEffect(() => {
+    if (requireAuth && ready && !authenticated && !authLoading && !loginTriggeredRef.current) {
+      loginTriggeredRef.current = true;
+      login();
+    }
+  }, [requireAuth, ready, authenticated, authLoading, login]);
 
   const editor = useEditorActions(getOfficeState, editorState);
 
@@ -234,9 +253,6 @@ function App() {
       }
       return false;
     })();
-
-  // Show auth card if authentication is required and user is not logged in
-  const showAuthCard = requireAuth && !authLoading && ready && !authenticated;
 
   if (!layoutReady) {
     return (
@@ -507,9 +523,6 @@ function App() {
           </div>
         </div>
       )}
-
-      {/* Auth Card Overlay */}
-      {showAuthCard && <AuthCard />}
     </div>
   );
 }
