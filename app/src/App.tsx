@@ -5,12 +5,14 @@ import { BalanceBar } from './components/BalanceBar.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChatSidebar } from './components/ChatSidebar.js';
 import { DebugView } from './components/DebugView.js';
+import { ServersModal } from './components/ServersModal.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
 import { useAuth } from './hooks/useAuth.js';
 import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
 import { useExtensionMessages } from './hooks/useExtensionMessages.js';
+import { useOffice } from './hooks/useOffice.js';
 import { useServerState } from './hooks/useServerState.js';
 import { OfficeCanvas } from './office/components/OfficeCanvas.js';
 import { ToolOverlay } from './office/components/ToolOverlay.js';
@@ -129,6 +131,7 @@ function App() {
   const { ready, authenticated, login } = usePrivy();
   const { loading: authLoading } = useAuth();
   const { activeServer } = useServerState();
+  const { hasOffice, loading: officeLoading } = useOffice();
   const requireAuth = import.meta.env.VITE_PRIVY_APP_ID ? true : false;
 
   // Track if we've already triggered login to prevent multiple calls
@@ -202,6 +205,18 @@ function App() {
   const [migrationNoticeDismissed, setMigrationNoticeDismissed] = useState(false);
   const showMigrationNotice = layoutWasReset && !migrationNoticeDismissed;
 
+  // Show purchase modal if user doesn't have an office
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+
+  // Show purchase modal when office check completes and user has no office
+  useEffect(() => {
+    if (!officeLoading && authenticated && !hasOffice) {
+      setShowPurchaseModal(true);
+    } else if (hasOffice) {
+      setShowPurchaseModal(false);
+    }
+  }, [officeLoading, authenticated, hasOffice]);
+
   const [isDebugMode, setIsDebugMode] = useState(false);
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), []);
@@ -255,7 +270,7 @@ function App() {
       return false;
     })();
 
-  if (!layoutReady) {
+  if (!layoutReady || (authenticated && officeLoading)) {
     return (
       <div
         style={{
@@ -531,6 +546,9 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Purchase Server Modal - shown when user has no active office */}
+      <ServersModal isOpen={showPurchaseModal} />
     </div>
   );
 }

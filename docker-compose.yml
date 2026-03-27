@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_PRIVY_APP_ID=${VITE_PRIVY_APP_ID}
-        - VITE_API_URL=http://localhost:5173
+        - VITE_API_URL=http://localhost:3000
     ports:
       - "5173:5173"
     restart: unless-stopped
@@ -20,6 +20,8 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - POCKETBASE_URL=http://pocketbase:8080
+      - POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL:-admin@example.com}
+      - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD:-admin123}
     restart: unless-stopped
 
   pocketbase:
