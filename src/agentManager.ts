@@ -281,11 +281,9 @@ export function restoreAgents(
     const isExternal = p.isExternal ?? false;
 
     if (isExternal) {
-      // External agents (extension panel sessions) — restore if JSONL file was recently active
+      // External agents — restore if JSONL file still exists on disk
       try {
         if (!fs.existsSync(p.jsonlFile)) continue;
-        const stat = fs.statSync(p.jsonlFile);
-        if (Date.now() - stat.mtimeMs > 300_000) continue; // Skip if stale (>5 min)
       } catch {
         continue;
       }
@@ -381,6 +379,35 @@ export function restoreAgents(
     } catch {
       /* ignore errors during restore */
     }
+  }
+
+  // After a short delay, remove restored terminal agents that never received data.
+  // These are dead terminals restored by VS Code (e.g., after /clear or restart)
+  // where Claude is no longer running.
+  const restoredTerminalIds = [...agents.entries()]
+    .filter(([, a]) => !a.isExternal && a.terminalRef)
+    .map(([id]) => id);
+  if (restoredTerminalIds.length > 0) {
+    setTimeout(() => {
+      for (const id of restoredTerminalIds) {
+        const agent = agents.get(id);
+        if (agent && !agent.isExternal && agent.linesProcessed === 0) {
+          console.log(`[Pixel Agents] Removing restored terminal agent ${id}: no data received`);
+          agent.terminalRef?.dispose();
+          removeAgent(
+            id,
+            agents,
+            fileWatchers,
+            pollingTimers,
+            waitingTimers,
+            permissionTimers,
+            jsonlPollTimers,
+            doPersist,
+          );
+          webview?.postMessage({ type: 'agentClosed', id });
+        }
+      }
+    }, 10_000); // 10 seconds grace period
   }
 
   // Advance counters past restored IDs

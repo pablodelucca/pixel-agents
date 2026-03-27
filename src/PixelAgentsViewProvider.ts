@@ -32,6 +32,7 @@ import {
   WORKSPACE_KEY_AGENT_SEATS,
 } from './constants.js';
 import {
+  dismissedJsonlFiles,
   ensureProjectScan,
   startExternalSessionScanning,
   startStaleExternalAgentCheck,
@@ -123,7 +124,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           if (agent.terminalRef) {
             agent.terminalRef.dispose();
           } else {
-            // External agent — just remove from tracking
+            // External agent — remove from tracking and dismiss the file
+            // so the external scanner doesn't re-adopt it
+            dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
             removeAgent(
               message.id,
               this.agents,
@@ -202,33 +205,34 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         );
 
         // Start external session scanning (detects VS Code extension panel sessions)
-          if (!this.externalScanTimer) {
-            this.externalScanTimer = startExternalSessionScanning(
-              projectDir,
-              this.knownJsonlFiles,
-              this.nextAgentId,
-              this.agents,
-              this.fileWatchers,
-              this.pollingTimers,
-              this.waitingTimers,
-              this.permissionTimers,
-              this.jsonlPollTimers,
-              this.webview,
-              this.persistAgents,
-            );
-          }
-          if (!this.staleCheckTimer) {
-            this.staleCheckTimer = startStaleExternalAgentCheck(
-              this.agents,
-              this.fileWatchers,
-              this.pollingTimers,
-              this.waitingTimers,
-              this.permissionTimers,
-              this.jsonlPollTimers,
-              this.webview,
-              this.persistAgents,
-            );
-          }
+        if (!this.externalScanTimer) {
+          this.externalScanTimer = startExternalSessionScanning(
+            projectDir,
+            this.knownJsonlFiles,
+            this.nextAgentId,
+            this.agents,
+            this.fileWatchers,
+            this.pollingTimers,
+            this.waitingTimers,
+            this.permissionTimers,
+            this.jsonlPollTimers,
+            this.webview,
+            this.persistAgents,
+          );
+        }
+        if (!this.staleCheckTimer) {
+          this.staleCheckTimer = startStaleExternalAgentCheck(
+            this.agents,
+            this.knownJsonlFiles,
+            this.fileWatchers,
+            this.pollingTimers,
+            this.waitingTimers,
+            this.permissionTimers,
+            this.jsonlPollTimers,
+            this.webview,
+            this.persistAgents,
+          );
+        }
 
         // Load furniture assets BEFORE sending layout
         (async () => {
@@ -403,7 +407,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       this.activeAgentId.current = null;
       if (!terminal) return;
       for (const [id, agent] of this.agents) {
-        if (agent.terminalRef === terminal) {
+        if (agent.terminalRef && agent.terminalRef === terminal) {
           this.activeAgentId.current = id;
           webviewView.webview.postMessage({ type: 'agentSelected', id });
           break;
@@ -413,10 +417,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
     vscode.window.onDidCloseTerminal((closed) => {
       for (const [id, agent] of this.agents) {
-        if (agent.terminalRef === closed) {
+        if (agent.terminalRef && agent.terminalRef === closed) {
           if (this.activeAgentId.current === id) {
             this.activeAgentId.current = null;
           }
+          // Dismiss JSONL so external scanner doesn't re-adopt it
+          dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
           removeAgent(
             id,
             this.agents,

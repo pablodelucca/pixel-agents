@@ -5,14 +5,19 @@ export const PROJECT_SCAN_INTERVAL_MS = 1000;
 export const TOOL_DONE_DELAY_MS = 300;
 export const PERMISSION_TIMER_DELAY_MS = 7000;
 export const TEXT_IDLE_DELAY_MS = 5000;
+/** Shorter idle threshold for /clear detection (content check prevents stealing) */
+export const CLEAR_IDLE_THRESHOLD_MS = 2000;
 
 // ── External Session Detection (VS Code extension panel, etc.) ──
-export const EXTERNAL_SCAN_INTERVAL_MS = 5000;
+export const EXTERNAL_SCAN_INTERVAL_MS = 3000;
 /** Only adopt JSONL files modified within this window */
-export const EXTERNAL_ACTIVE_THRESHOLD_MS = 30_000;
+export const EXTERNAL_ACTIVE_THRESHOLD_MS = 120_000; // 2 minutes
 /** Remove external agents after this much inactivity */
 export const EXTERNAL_STALE_TIMEOUT_MS = 300_000; // 5 minutes
 export const EXTERNAL_STALE_CHECK_INTERVAL_MS = 30_000;
+/** Cooldown after user closes an agent via X. Must be > EXTERNAL_ACTIVE_THRESHOLD_MS
+ *  so the file's mtime becomes stale before the dismissal expires. */
+export const DISMISSED_COOLDOWN_MS = 180_000; // 3 minutes
 
 // ── Display Truncation ──────────────────────────────────────
 export const BASH_COMMAND_DISPLAY_MAX_LENGTH = 30;
