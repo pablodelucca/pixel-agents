@@ -13,7 +13,6 @@ import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
 import { useExtensionMessages } from './hooks/useExtensionMessages.js';
 import { useOffice } from './hooks/useOffice.js';
-import { useServerState } from './hooks/useServerState.js';
 import { OfficeCanvas } from './office/components/OfficeCanvas.js';
 import { ToolOverlay } from './office/components/ToolOverlay.js';
 import { EditorState } from './office/editor/editorState.js';
@@ -130,8 +129,7 @@ function App() {
   // Auth state - require authentication if Privy is configured
   const { ready, authenticated, login } = usePrivy();
   const { loading: authLoading } = useAuth();
-  const { activeServer } = useServerState();
-  const { hasOffice, loading: officeLoading, config } = useOffice();
+  const { hasOffice, loading: officeLoading, config, server } = useOffice();
   const requireAuth = import.meta.env.VITE_PRIVY_APP_ID ? true : false;
 
   // Track if we've already triggered login to prevent multiple calls
@@ -314,7 +312,7 @@ function App() {
           character={chatCharacter}
           isOpen={true}
           onClose={handleCloseChat}
-          activeServer={activeServer}
+          server={server}
         />
       )}
 
