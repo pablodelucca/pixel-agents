@@ -131,7 +131,7 @@ function App() {
   const { ready, authenticated, login } = usePrivy();
   const { loading: authLoading } = useAuth();
   const { activeServer } = useServerState();
-  const { hasOffice, loading: officeLoading } = useOffice();
+  const { hasOffice, loading: officeLoading, config } = useOffice();
   const requireAuth = import.meta.env.VITE_PRIVY_APP_ID ? true : false;
 
   // Track if we've already triggered login to prevent multiple calls
@@ -173,7 +173,7 @@ function App() {
     layoutWasReset,
     loadedAssets,
     workspaceFolders,
-  } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
+  } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty, config);
 
   // Chat sidebar state
   const [chatCharacterId, setChatCharacterId] = useState<number | null>(null);

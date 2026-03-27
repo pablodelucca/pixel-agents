@@ -13,9 +13,35 @@ export interface Office {
   updated: string;
 }
 
+export interface Server {
+  id: string;
+  username: string;
+  ip: string;
+  cpu: number;
+  ram: number;
+  storage: number;
+  isPurchased: boolean;
+}
+
+export interface AgentConfig {
+  id: string;
+  name: string;
+  identity?: {
+    name?: string;
+    emoji?: string;
+  };
+}
+
+export interface OpenClawConfig {
+  agents: AgentConfig[];
+  error?: string;
+}
+
 export interface OfficeState {
   hasOffice: boolean;
   office: Office | null;
+  server: Server | null;
+  config: OpenClawConfig | null;
   loading: boolean;
   error: string | null;
   checking: boolean;
@@ -27,6 +53,8 @@ export function useOffice(): OfficeState & {
   const { ready, authenticated, user: privyUser } = usePrivy();
   const [hasOffice, setHasOffice] = useState(false);
   const [office, setOffice] = useState<Office | null>(null);
+  const [server, setServer] = useState<Server | null>(null);
+  const [config, setConfig] = useState<OpenClawConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +65,8 @@ export function useOffice(): OfficeState & {
       setLoading(false);
       setHasOffice(false);
       setOffice(null);
+      setServer(null);
+      setConfig(null);
       return;
     }
 
@@ -64,11 +94,15 @@ export function useOffice(): OfficeState & {
 
       setHasOffice(data.hasOffice);
       setOffice(data.office);
+      setServer(data.server);
+      setConfig(data.config);
     } catch (err) {
       console.error('Failed to check office:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
       setHasOffice(false);
       setOffice(null);
+      setServer(null);
+      setConfig(null);
     } finally {
       setLoading(false);
       setChecking(false);
@@ -84,12 +118,16 @@ export function useOffice(): OfficeState & {
       setLoading(false);
       setHasOffice(false);
       setOffice(null);
+      setServer(null);
+      setConfig(null);
     }
   }, [ready, authenticated, privyUser?.id, checkOffice]);
 
   return {
     hasOffice,
     office,
+    server,
+    config,
     loading,
     error,
     checking,

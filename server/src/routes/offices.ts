@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import PocketBase from 'pocketbase';
 
+import { fetchOpenClawConfig } from '../services/ssh.js';
+
 export const officesRoutes = Router();
 
 // PocketBase connection
@@ -71,7 +73,7 @@ function getUserId(req: import('express').Request): string | null {
 /**
  * GET /api/offices
  * Check if user has an active office (purchased server)
- * Returns office data if exists, otherwise returns null
+ * Returns office data and server config if exists, otherwise returns null
  */
 officesRoutes.get('/', async (req, res) => {
   try {
@@ -85,22 +87,17 @@ officesRoutes.get('/', async (req, res) => {
         error: 'Unauthorized - User ID required',
         hasOffice: false,
         office: null,
+        server: null,
+        config: null,
       });
     }
 
     const pb = await getPbAdminClient();
 
-    // Find office by user_id (simple filter first)
-    // Check if expired_at is empty/null or in the future
-    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
-
     try {
-      // First try: just filter by user_id
+      // Find office by user_id
       const office = await pb.collection('office').getFirstListItem(
         `user_id="${userId}"`,
-        {
-          expand: 'server_id',
-        }
       );
 
       console.log('[/api/offices] Found office:', office);
@@ -114,8 +111,59 @@ officesRoutes.get('/', async (req, res) => {
             success: true,
             hasOffice: false,
             office: null,
+            server: null,
+            config: null,
             reason: 'expired',
           });
+        }
+      }
+
+      // If server_id exists, fetch server data and config
+      let server = null;
+      let config = null;
+
+      if (office.server_id) {
+        try {
+          // Fetch server from PocketBase
+          const serverData = await pb.collection('server').getOne(office.server_id);
+          console.log('[/api/offices] Found server:', serverData.id);
+
+          // Prepare server info (without password)
+          server = {
+            id: serverData.id,
+            username: serverData.username || 'root',
+            ip: serverData.ip,
+            cpu: serverData.cpu,
+            ram: serverData.ram,
+            storage: serverData.storage,
+            isPurchased: serverData.is_purchased,
+          };
+
+          // Fetch OpenClaw config via SSH
+          if (serverData.ip && serverData.password) {
+            try {
+              console.log('[/api/offices] Fetching OpenClaw config via SSH...');
+              const openClawConfig = await fetchOpenClawConfig(
+                serverData.ip,
+                serverData.password,
+                serverData.username || 'root',
+              );
+              config = openClawConfig;
+              console.log('[/api/offices] OpenClaw config fetched, agents:', config.agents?.length || 0);
+            } catch (sshError) {
+              console.error('[/api/offices] SSH error:', sshError);
+              // Don't fail the whole request, just return empty config
+              config = { agents: [], error: 'Failed to connect to server' };
+            }
+          } else {
+            console.log('[/api/offices] Server missing IP or password');
+            config = { agents: [], error: 'Server not configured' };
+          }
+        } catch (serverError: any) {
+          console.error('[/api/offices] Error fetching server:', serverError);
+          // Server not found, but office exists
+          server = null;
+          config = { agents: [], error: 'Server not found' };
         }
       }
 
@@ -130,6 +178,8 @@ officesRoutes.get('/', async (req, res) => {
           created: office.created,
           updated: office.updated,
         },
+        server,
+        config,
       });
     } catch (pbError: any) {
       // Record not found - user has no office
@@ -139,6 +189,8 @@ officesRoutes.get('/', async (req, res) => {
           success: true,
           hasOffice: false,
           office: null,
+          server: null,
+          config: null,
         });
       }
       throw pbError;
@@ -150,6 +202,8 @@ officesRoutes.get('/', async (req, res) => {
       error: error instanceof Error ? error.message : 'Unknown error',
       hasOffice: false,
       office: null,
+      server: null,
+      config: null,
     });
   }
 });
