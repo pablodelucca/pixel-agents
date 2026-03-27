@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
 
 import type { Character } from '../office/types.js';
-import type { Server } from '../types/database.js';
 
 // API base URL - backend server
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -14,11 +13,14 @@ interface ChatMessage {
   timestamp: string;
 }
 
-interface ChatSidebarProps {
-  character: Character;
-  isOpen: boolean;
-  onClose: () => void;
-  activeServer: Server | null;
+interface OfficeServer {
+  id: string;
+  username: string;
+  ip: string;
+  cpu: number;
+  ram: number;
+  storage: number;
+  isPurchased: boolean;
 }
 
 // Pixel-style avatar component
@@ -58,7 +60,7 @@ function CharacterAvatar({ character }: { character: Character }) {
   );
 }
 
-export function ChatSidebar({ character, isOpen, onClose, activeServer }: ChatSidebarProps) {
+export function ChatSidebar({ character, isOpen, onClose, server }: { character: Character; isOpen: boolean; onClose: () => void; server: OfficeServer | null }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -73,7 +75,7 @@ export function ChatSidebar({ character, isOpen, onClose, activeServer }: ChatSi
   const status = character.isActive ? 'Working...' : 'Idle';
 
   // Can chat if we have server and agentId
-  const canChat = activeServer && character.agentId;
+  const canChat = server && character.agentId;
 
   // Fetch chat history when sidebar opens
   useEffect(() => {
@@ -84,7 +86,7 @@ export function ChatSidebar({ character, isOpen, onClose, activeServer }: ChatSi
       try {
         // First, get list of sessions
         const sessionsRes = await fetch(
-          `${API_BASE_URL}/api/servers/${activeServer.id}/sessions?agentId=${character.agentId}`
+          `${API_BASE_URL}/api/servers/${server.id}/sessions?agentId=${character.agentId}`
         );
         const sessionsData = await sessionsRes.json();
 
@@ -98,7 +100,7 @@ export function ChatSidebar({ character, isOpen, onClose, activeServer }: ChatSi
 
           // Fetch messages for this session
           const historyRes = await fetch(
-            `${API_BASE_URL}/api/servers/${activeServer.id}/sessions/${mainSession.sessionId}?agentId=${character.agentId}`
+            `${API_BASE_URL}/api/servers/${server.id}/sessions/${mainSession.sessionId}?agentId=${character.agentId}`
           );
           const historyData = await historyRes.json();
 
@@ -114,7 +116,7 @@ export function ChatSidebar({ character, isOpen, onClose, activeServer }: ChatSi
     };
 
     fetchHistory();
-  }, [isOpen, canChat, activeServer, character.agentId]);
+  }, [isOpen, canChat, server, character.agentId]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -153,7 +155,7 @@ export function ChatSidebar({ character, isOpen, onClose, activeServer }: ChatSi
     try {
       // Send message to backend
       const res = await fetch(
-        `${API_BASE_URL}/api/servers/${activeServer.id}/sessions/${sessionId}/messages`,
+        `${API_BASE_URL}/api/servers/${server.id}/sessions/${sessionId}/messages`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -190,7 +192,7 @@ export function ChatSidebar({ character, isOpen, onClose, activeServer }: ChatSi
     } finally {
       setIsLoading(false);
     }
-  }, [inputValue, isLoading, canChat, activeServer, character.agentId, sessionId]);
+  }, [inputValue, isLoading, canChat, server, character.agentId, sessionId]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

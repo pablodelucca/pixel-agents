@@ -1,15 +1,8 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly SUPABASE_URL: string;
-  readonly SUPABASE_ANON_KEY: string;
-  readonly SUPABASE_SERVICE_ROLE_KEY?: string;
-  readonly TENCENT_SECRET_ID?: string;
-  readonly TENCENT_SECRET_KEY?: string;
-  readonly TRIPAY_API_KEY?: string;
-  readonly TRIPAY_PRIVATE_KEY?: string;
-  readonly TRIPAY_MERCHANT_CODE?: string;
-  readonly TRIPAY_API_URL?: string;
+  readonly VITE_API_URL?: string;
+  readonly VITE_PRIVY_APP_ID?: string;
 }
 
 interface ImportMeta {

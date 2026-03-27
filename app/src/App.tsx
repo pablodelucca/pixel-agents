@@ -1,16 +1,18 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 
-import { AuthCard } from './components/AuthCard.js';
+import { BalanceBar } from './components/BalanceBar.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChatSidebar } from './components/ChatSidebar.js';
 import { DebugView } from './components/DebugView.js';
+import { ServersModal } from './components/ServersModal.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
 import { useAuth } from './hooks/useAuth.js';
 import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
 import { useExtensionMessages } from './hooks/useExtensionMessages.js';
-import { useServerState } from './hooks/useServerState.js';
+import { useOffice } from './hooks/useOffice.js';
 import { OfficeCanvas } from './office/components/OfficeCanvas.js';
 import { ToolOverlay } from './office/components/ToolOverlay.js';
 import { EditorState } from './office/editor/editorState.js';
@@ -125,9 +127,28 @@ function EditActionBar({
 
 function App() {
   // Auth state - require authentication if Privy is configured
-  const { authenticated, loading: authLoading, ready } = useAuth();
-  const { activeServer } = useServerState();
+  const { ready, authenticated, login } = usePrivy();
+  const { loading: authLoading } = useAuth();
+  const { hasOffice, loading: officeLoading, config, server, checkOffice } = useOffice();
   const requireAuth = import.meta.env.VITE_PRIVY_APP_ID ? true : false;
+
+  // Track if we've already triggered login to prevent multiple calls
+  const loginTriggeredRef = useRef(false);
+
+  // Reset login trigger when user logs out
+  useEffect(() => {
+    if (authenticated) {
+      loginTriggeredRef.current = false;
+    }
+  }, [authenticated]);
+
+  // Auto-trigger Privy login modal ONCE when auth is required but user is not authenticated
+  useEffect(() => {
+    if (requireAuth && ready && !authenticated && !authLoading && !loginTriggeredRef.current) {
+      loginTriggeredRef.current = true;
+      login();
+    }
+  }, [requireAuth, ready, authenticated, authLoading, login]);
 
   const editor = useEditorActions(getOfficeState, editorState);
 
@@ -150,7 +171,7 @@ function App() {
     layoutWasReset,
     loadedAssets,
     workspaceFolders,
-  } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
+  } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty, config);
 
   // Chat sidebar state
   const [chatCharacterId, setChatCharacterId] = useState<number | null>(null);
@@ -181,6 +202,18 @@ function App() {
   // Show migration notice once layout reset is detected
   const [migrationNoticeDismissed, setMigrationNoticeDismissed] = useState(false);
   const showMigrationNotice = layoutWasReset && !migrationNoticeDismissed;
+
+  // Show purchase modal if user doesn't have an office
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+
+  // Show purchase modal when office check completes and user has no office
+  useEffect(() => {
+    if (!officeLoading && authenticated && !hasOffice) {
+      setShowPurchaseModal(true);
+    } else if (hasOffice) {
+      setShowPurchaseModal(false);
+    }
+  }, [officeLoading, authenticated, hasOffice]);
 
   const [isDebugMode, setIsDebugMode] = useState(false);
 
@@ -235,10 +268,7 @@ function App() {
       return false;
     })();
 
-  // Show auth card if authentication is required and user is not logged in
-  const showAuthCard = requireAuth && !authLoading && ready && !authenticated;
-
-  if (!layoutReady) {
+  if (!layoutReady || (authenticated && officeLoading)) {
     return (
       <div
         style={{
@@ -265,9 +295,16 @@ function App() {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
         }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
         .pixel-agents-pulse { animation: pixel-agents-pulse ${PULSE_ANIMATION_DURATION_SEC}s ease-in-out infinite; }
         .pixel-agents-migration-btn:hover { filter: brightness(0.8); }
       `}</style>
+
+      {/* Balance Bar - USDC & Rupiah */}
+      <BalanceBar rupiahBalance={0} />
 
       {/* Chat Sidebar */}
       {chatCharacter && (
@@ -275,7 +312,7 @@ function App() {
           character={chatCharacter}
           isOpen={true}
           onClose={handleCloseChat}
-          activeServer={activeServer}
+          server={server}
         />
       )}
 
@@ -508,8 +545,18 @@ function App() {
         </div>
       )}
 
-      {/* Auth Card Overlay */}
-      {showAuthCard && <AuthCard />}
+      {/* Purchase Server Modal - shown when user has no active office */}
+      <ServersModal 
+        isOpen={showPurchaseModal} 
+        onClose={() => {
+          setShowPurchaseModal(false);
+        }}
+        onPurchaseSuccess={() => {
+          // Refresh office state after successful purchase
+          checkOffice();
+          setShowPurchaseModal(false);
+        }}
+      />
     </div>
   );
 }

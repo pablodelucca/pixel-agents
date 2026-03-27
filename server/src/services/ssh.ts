@@ -106,7 +106,18 @@ export async function fetchOpenClawConfig(
     const config = OpenClawConfigSchema.parse(rawConfig);
 
     // Extract agents list
-    const agents = config.agents?.list ?? [];
+    let agents = config.agents?.list ?? [];
+
+    // If no agents in list, create a default "main" agent
+    // This handles the case where only agents.defaults exists
+    if (agents.length === 0) {
+      console.log('[SSH] No agents.list found, creating default main agent');
+      agents = [{
+        id: 'main',
+        name: 'Main Agent',
+        default: true,
+      }];
+    }
 
     // Map to simplified agent info
     return {

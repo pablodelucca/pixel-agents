@@ -3,6 +3,9 @@ services:
     build:
       context: ./app
       dockerfile: Dockerfile
+      args:
+        - VITE_PRIVY_APP_ID=${VITE_PRIVY_APP_ID}
+        - VITE_API_URL=http://localhost:3000
     ports:
       - "5173:5173"
     restart: unless-stopped
@@ -17,14 +20,15 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - POCKETBASE_URL=http://pocketbase:8080
+      - POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL:-admin@example.com}
+      - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD:-admin123}
+      - PAYMENT_RECIPIENT_ADDRESS=${PAYMENT_RECIPIENT_ADDRESS}
     restart: unless-stopped
 
   pocketbase:
     build:
       context: ./pocketbase
       dockerfile: Dockerfile
-    # NOTE: Only expose port for admin access during development
-    # For production, remove ports and use internal Docker network only
     ports:
       - "8090:8080"
     volumes:

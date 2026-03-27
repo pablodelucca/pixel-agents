@@ -17,7 +17,8 @@ dist-ssr
 !.env.example
 
 # PocketBase data (contains database and uploaded files)
-pocketbase/pb_data
+pocketbase/pb_data/*
+pocketbase/pb_migrations/*
 
 # Editor directories and files
 .idea

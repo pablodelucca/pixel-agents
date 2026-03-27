@@ -46,6 +46,20 @@ export interface WorkspaceFolder {
   path: string;
 }
 
+export interface AgentConfig {
+  id: string;
+  name: string;
+  identity?: {
+    name?: string;
+    emoji?: string;
+  };
+}
+
+export interface OpenClawConfig {
+  agents: AgentConfig[];
+  error?: string;
+}
+
 export interface ExtensionMessageState {
   agents: number[];
   selectedAgent: number | null;
@@ -63,6 +77,7 @@ export function useExtensionMessages(
   getOfficeState: () => OfficeState,
   onLayoutLoaded?: (layout: OfficeLayout) => void,
   _isEditDirty?: () => boolean,
+  openClawConfig?: OpenClawConfig | null,
 ): ExtensionMessageState {
   const [agents, setAgents] = useState<number[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null);
@@ -153,6 +168,55 @@ export function useExtensionMessages(
 
     loadStandaloneAssets();
   }, [getOfficeState, onLayoutLoaded]);
+
+  // ── Spawn agents from OpenClaw config when available ────────────────────────────────────────
+  const configAgentsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!layoutReady || !openClawConfig?.agents?.length) return;
+
+    const os = getOfficeState();
+    const existingAgents = new Set(agents);
+
+    for (const agent of openClawConfig.agents) {
+      // Skip if already spawned
+      if (configAgentsRef.current.has(agent.id)) continue;
+
+      // Generate a stable numeric ID from agent id string
+      const numericId = agent.id === 'main' ? 1 : Math.abs(hashCode(agent.id));
+
+      // Skip if already exists
+      if (existingAgents.has(numericId)) continue;
+
+      // Build display name with emoji
+      const emoji = agent.identity?.emoji || '🤖';
+      const name = agent.name || agent.identity?.name || agent.id;
+      const displayName = `${emoji} ${name}`;
+
+      console.log(`[Clawmpany] Spawning agent from config: ${displayName}`);
+
+      // Add agent to office
+      os.addAgent(numericId, undefined, undefined, undefined, false, displayName, agent.id);
+
+      // Track spawned agents
+      configAgentsRef.current.add(agent.id);
+      existingAgents.add(numericId);
+    }
+
+    // Update state with new agents
+    setAgents(Array.from(existingAgents));
+  }, [layoutReady, openClawConfig, getOfficeState, agents]);
+
+  // Simple hash function for string to number
+  function hashCode(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return hash;
+  }
 
   // ── Message handler (for future real-time updates) ────────────────────────────────────────
   const handleOpenClawMessage = (msg: Record<string, unknown>, os: OfficeState) => {

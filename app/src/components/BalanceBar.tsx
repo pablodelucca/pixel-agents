@@ -1,0 +1,1041 @@
+import { useEffect, useState } from 'react';
+import { usePrivy, useWallets, useCreateWallet } from '@privy-io/react-auth';
+import { QRCodeSVG } from 'qrcode.react';
+
+import { getCharacterSprites } from '../office/sprites/spriteData.js';
+import { Direction } from '../office/types.js';
+
+// Function to get player sprite as data URL (head only - top 2/3)
+function getPlayerSpriteDataUrl(): string | null {
+  try {
+    // Player uses palette 0, hue shift 0 (red skin color)
+    const sprites = getCharacterSprites(0, 0);
+    // Use walk down frame 1 (idle pose facing camera)
+    const sprite = sprites.walk[Direction.DOWN][1];
+    
+    // Sprite is 16x32, we want top 2/3 for head/torso = ~21 rows
+    const spriteRows = sprite.length;    // 32
+    const spriteCols = sprite[0].length; // 16
+    const headRows = Math.floor(spriteRows * 2 / 3); // ~21 (top 2/3)
+    
+    const zoom = 3;
+    const outlineSize = 2;
+    
+    // Create canvas for head only
+    const canvas = document.createElement('canvas');
+    canvas.width = spriteCols * zoom;
+    canvas.height = headRows * zoom;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    
+    ctx.imageSmoothingEnabled = false;
+    
+    // Render only top 2/3 of sprite
+    for (let r = 0; r < headRows; r++) {
+      for (let c = 0; c < spriteCols; c++) {
+        const color = sprite[r][c];
+        if (color === '' || color === 'transparent') continue;
+        ctx.fillStyle = color;
+        ctx.fillRect(c * zoom, r * zoom, zoom, zoom);
+      }
+    }
+    
+    // Create a new canvas with the outline
+    const outlinedCanvas = document.createElement('canvas');
+    outlinedCanvas.width = canvas.width + outlineSize * 2;
+    outlinedCanvas.height = canvas.height + outlineSize * 2;
+    const outCtx = outlinedCanvas.getContext('2d');
+    if (!outCtx) return null;
+    
+    outCtx.imageSmoothingEnabled = false;
+    
+    // Draw cyan/teal outline
+    outCtx.fillStyle = '#00CED1';
+    outCtx.fillRect(0, outlineSize, outlineSize, canvas.height); // left
+    outCtx.fillRect(outlinedCanvas.width - outlineSize, outlineSize, outlineSize, canvas.height); // right
+    outCtx.fillRect(outlineSize, 0, canvas.width, outlineSize); // top
+    outCtx.fillRect(outlineSize, outlinedCanvas.height - outlineSize, canvas.width, outlineSize); // bottom
+    
+    // Draw the head sprite
+    outCtx.drawImage(canvas, outlineSize, outlineSize);
+    
+    return outlinedCanvas.toDataURL('image/png');
+  } catch (error) {
+    console.warn('Failed to render player sprite:', error);
+    return null;
+  }
+}
+
+// Base chain
+const BASE_CHAIN_ID = '0x2105'; // Base mainnet (8453 in decimal)
+const USDC_CONTRACT = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+
+// ERC-20 balanceOf function signature
+const BALANCE_OF_SIGNATURE = '0x70a08231';
+
+interface BalanceBarProps {
+  rupiahBalance?: number;
+}
+
+export function BalanceBar({ rupiahBalance = 0 }: BalanceBarProps) {
+  const { authenticated, user: privyUser, logout } = usePrivy();
+  const { wallets } = useWallets();
+  const { createWallet } = useCreateWallet();
+  const [usdcBalance, setUsdcBalance] = useState<string>('0');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUsdcDialogOpen, setIsUsdcDialogOpen] = useState(false);
+  const [isRupiahDialogOpen, setIsRupiahDialogOpen] = useState(false);
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState(false);
+  const [creatingWallet, setCreatingWallet] = useState(false);
+  const [playerAvatarUrl, setPlayerAvatarUrl] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const fetchUsdcBalance = async (walletAddress: string, provider: any): Promise<string> => {
+    try {
+      const paddedAddress = walletAddress.slice(2).padStart(64, '0');
+      const data = `${BALANCE_OF_SIGNATURE}${paddedAddress}`;
+
+      const result = await provider.request({
+        method: 'eth_call',
+        params: [{ to: USDC_CONTRACT, data: data }, 'latest'],
+      });
+
+      const balanceInMicroUsdc = parseInt(result, 16);
+      const balance = balanceInMicroUsdc / 1e6;
+
+      return balance.toFixed(4);
+    } catch (error) {
+      console.error('Failed to fetch USDC balance:', error);
+      return '0';
+    }
+  };
+
+  const fetchBalance = async () => {
+    if (!wallets.length || !authenticated) return;
+
+    setIsLoading(true);
+
+    const evmWallet = wallets.find((w) => w.chainId?.startsWith('eip155'));
+    if (!evmWallet) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const provider = await evmWallet.getEthereumProvider();
+
+      try {
+        const currentChainId = await provider.request({ method: 'eth_chainId' });
+        if (currentChainId !== BASE_CHAIN_ID) {
+          await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: BASE_CHAIN_ID }],
+          });
+        }
+      } catch (switchError) {
+        console.warn('Chain switch warning:', switchError);
+      }
+
+      const balance = await fetchUsdcBalance(evmWallet.address, provider);
+      setUsdcBalance(balance);
+    } catch (error) {
+      console.error('Failed to fetch balance:', error);
+    }
+
+    setIsLoading(false);
+  };
+
+  const handleCreateWallet = async () => {
+    try {
+      setCreatingWallet(true);
+      await createWallet();
+      console.log('Wallet created successfully');
+    } catch (error) {
+      console.error('Failed to create wallet:', error);
+    } finally {
+      setCreatingWallet(false);
+    }
+  };
+
+  const copyAddress = async () => {
+    const evmWallet = wallets.find((w) => w.chainId?.startsWith('eip155'));
+    if (!evmWallet) return;
+
+    try {
+      await navigator.clipboard.writeText(evmWallet.address);
+      setCopiedAddress(true);
+      setTimeout(() => setCopiedAddress(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy address:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (authenticated && wallets.length > 0) {
+      fetchBalance();
+    }
+  }, [authenticated, wallets]);
+
+  // Generate player avatar from sprite
+  useEffect(() => {
+    if (authenticated) {
+      // Small delay to ensure sprites are loaded
+      const timer = setTimeout(() => {
+        const url = getPlayerSpriteDataUrl();
+        if (url) {
+          setPlayerAvatarUrl(url);
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [authenticated]);
+
+  const evmWallet = wallets.find((w) => w.chainId?.startsWith('eip155'));
+
+  const formatRupiah = (num: number): string => {
+    return num.toLocaleString('id-ID');
+  };
+
+  if (!authenticated) {
+    return null;
+  }
+
+  // Get user info from Privy
+  const userEmail = privyUser?.email?.address;
+  const userName = privyUser?.google?.name || privyUser?.email?.address?.split('@')[0] || 'Player';
+
+  return (
+    <>
+      {/* Balance Bar - Profile + Two boxes in one row */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 8,
+          left: 8,
+          zIndex: 'var(--pixel-controls-z)',
+          display: 'flex',
+          gap: 8,
+        }}
+      >
+        {/* User Profile Box */}
+        <div
+          onClick={() => setIsProfileDialogOpen(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            background: 'var(--pixel-bg)',
+            border: '2px solid var(--pixel-border)',
+            borderRadius: 0,
+            padding: '8px 12px',
+            boxShadow: 'var(--pixel-shadow)',
+            cursor: 'pointer',
+          }}
+        >
+          {/* Avatar - Player sprite or fallback */}
+          {playerAvatarUrl ? (
+            <img
+              src={playerAvatarUrl}
+              alt={userName}
+              style={{
+                width: 40,
+                height: 40,
+                objectFit: 'contain',
+                imageRendering: 'pixelated',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 4,
+                background: 'linear-gradient(135deg, #00CED1 0%, #008B8B 50%, #006666 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                color: '#fff',
+                border: '2px solid #00CED1',
+                boxShadow: '0 0 8px rgba(0, 206, 209, 0.5)',
+              }}
+            >
+              {userName.charAt(0).toUpperCase()}
+            </div>
+          )}
+
+          {/* Name & Email Container */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 150, maxWidth: 240 }}>
+            <span
+              style={{
+                fontSize: '22px',
+                fontWeight: 'bold',
+                color: 'var(--pixel-text)',
+                fontFamily: 'monospace',
+                lineHeight: 1.2,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {userName}
+            </span>
+            <span
+              style={{
+                fontSize: '14px',
+                color: 'var(--pixel-text-dim)',
+                lineHeight: 1.2,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {userEmail || 'No email'}
+            </span>
+          </div>
+        </div>
+
+        {/* USDC Box */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            background: 'var(--pixel-bg)',
+            border: '2px solid var(--pixel-border)',
+            borderRadius: 0,
+            padding: '8px 12px',
+            boxShadow: 'var(--pixel-shadow)',
+          }}
+        >
+          {/* USDC Coin Icon */}
+          <div
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #2dd4bf 0%, #14b8a6 50%, #0d9488 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: '#fff',
+              boxShadow: '0 0 8px rgba(45, 212, 191, 0.5)',
+              border: '2px solid #5eead4',
+              flexShrink: 0,
+            }}
+          >
+            $
+          </div>
+
+          {/* USDC Balance Container */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 80 }}>
+            <span
+              style={{
+                fontSize: '14px',
+                color: 'var(--pixel-text-dim)',
+                fontWeight: 'normal',
+                lineHeight: 1,
+              }}
+            >
+              USDC
+            </span>
+            <span
+              style={{
+                fontSize: '22px',
+                fontWeight: 'bold',
+                color: 'var(--pixel-text)',
+                fontFamily: 'monospace',
+                lineHeight: 1.2,
+              }}
+            >
+              {isLoading ? '...' : usdcBalance}
+            </span>
+          </div>
+
+          {/* USDC Add Button */}
+          <button
+            onClick={() => setIsUsdcDialogOpen(true)}
+            title="Add USDC"
+            style={{
+              padding: 4,
+              background: 'var(--pixel-btn-bg)',
+              border: '2px solid var(--pixel-border)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ color: 'var(--pixel-text)' }}
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Rupiah Box */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            background: 'var(--pixel-bg)',
+            border: '2px solid var(--pixel-border)',
+            borderRadius: 0,
+            padding: '8px 12px',
+            boxShadow: 'var(--pixel-shadow)',
+          }}
+        >
+          {/* Rupiah Coin Icon */}
+          <div
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              color: '#fff',
+              boxShadow: '0 0 8px rgba(249, 115, 22, 0.5)',
+              border: '2px solid #fb923c',
+              flexShrink: 0,
+            }}
+          >
+            Rp
+          </div>
+
+          {/* Rupiah Balance Container */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 80 }}>
+            <span
+              style={{
+                fontSize: '14px',
+                color: 'var(--pixel-text-dim)',
+                fontWeight: 'normal',
+                lineHeight: 1,
+              }}
+            >
+              RUPIAH
+            </span>
+            <span
+              style={{
+                fontSize: '22px',
+                fontWeight: 'bold',
+                color: 'var(--pixel-text)',
+                fontFamily: 'monospace',
+                lineHeight: 1.2,
+              }}
+            >
+              {formatRupiah(rupiahBalance)}
+            </span>
+          </div>
+
+          {/* Rupiah Add Button */}
+          <button
+            onClick={() => setIsRupiahDialogOpen(true)}
+            title="Top Up Rupiah"
+            style={{
+              padding: 4,
+              background: 'var(--pixel-btn-bg)',
+              border: '2px solid var(--pixel-border)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ color: 'var(--pixel-text)' }}
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* USDC Dialog */}
+      {isUsdcDialogOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.7)',
+            }}
+            onClick={() => setIsUsdcDialogOpen(false)}
+          />
+
+          <div
+            style={{
+              position: 'relative',
+              background: 'var(--pixel-bg)',
+              border: '4px solid var(--pixel-border)',
+              borderRadius: 0,
+              padding: '24px 32px',
+              width: '340px',
+              maxWidth: '90vw',
+              boxShadow: '8px 8px 0 rgba(0, 0, 0, 0.5)',
+              zIndex: 1001,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: '32px' }}>💰</span>
+              <h2
+                style={{
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  color: 'var(--pixel-accent)',
+                  marginTop: 8,
+                  textTransform: 'uppercase',
+                  letterSpacing: '2px',
+                }}
+              >
+                Add USDC
+              </h2>
+              <p style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', marginTop: 4 }}>
+                Send USDC to your wallet on Base
+              </p>
+            </div>
+
+            {evmWallet ? (
+              <>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    marginBottom: 16,
+                    padding: 16,
+                    background: '#fff',
+                  }}
+                >
+                  <QRCodeSVG value={evmWallet.address} size={180} level="M" />
+                </div>
+
+                <div
+                  style={{
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    border: '2px solid var(--pixel-border)',
+                    padding: '8px 12px',
+                    marginBottom: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <code
+                    style={{
+                      fontSize: '14px',
+                      color: 'var(--pixel-text)',
+                      wordBreak: 'break-all',
+                      flex: 1,
+                    }}
+                  >
+                    {evmWallet.address}
+                  </code>
+                  <button
+                    onClick={copyAddress}
+                    title="Copy address"
+                    style={{
+                      padding: 6,
+                      background: copiedAddress
+                        ? 'rgba(34, 197, 94, 0.2)'
+                        : 'var(--pixel-btn-bg)',
+                      border: '2px solid var(--pixel-border)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {copiedAddress ? (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#22c55e"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="20,6 9,17 4,12" />
+                      </svg>
+                    ) : (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{ color: 'var(--pixel-text)' }}
+                      >
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                    )}
+                  </button>
+                  <button
+                    onClick={() =>
+                      window.open(
+                        `https://basescan.org/address/${evmWallet.address}`,
+                        '_blank',
+                      )
+                    }
+                    title="View on Basescan"
+                    style={{
+                      padding: 6,
+                      background: 'var(--pixel-btn-bg)',
+                      border: '2px solid var(--pixel-border)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ color: 'var(--pixel-text)' }}
+                    >
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                      <polyline points="15,3 21,3 21,9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p
+                  style={{
+                    fontSize: '18px',
+                    color: 'var(--pixel-text)',
+                    textAlign: 'center',
+                    marginBottom: 16,
+                  }}
+                >
+                  You don't have a wallet yet. Create one to receive USDC.
+                </p>
+                <button
+                  onClick={handleCreateWallet}
+                  disabled={creatingWallet}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    background: 'var(--pixel-accent)',
+                    color: '#fff',
+                    border: '2px solid transparent',
+                    cursor: creatingWallet ? 'default' : 'pointer',
+                    opacity: creatingWallet ? 0.7 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                >
+                  {creatingWallet ? 'Creating...' : 'Create Wallet'}
+                </button>
+              </>
+            )}
+
+            <button
+              onClick={() => setIsUsdcDialogOpen(false)}
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                fontSize: '18px',
+                background: 'transparent',
+                color: 'var(--pixel-text-dim)',
+                border: '2px solid var(--pixel-border)',
+                cursor: 'pointer',
+                marginTop: 8,
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Rupiah Dialog */}
+      {isRupiahDialogOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.7)',
+            }}
+            onClick={() => setIsRupiahDialogOpen(false)}
+          />
+
+          <div
+            style={{
+              position: 'relative',
+              background: 'var(--pixel-bg)',
+              border: '4px solid var(--pixel-border)',
+              borderRadius: 0,
+              padding: '24px 32px',
+              width: '340px',
+              maxWidth: '90vw',
+              boxShadow: '8px 8px 0 rgba(0, 0, 0, 0.5)',
+              zIndex: 1001,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: '32px' }}>💵</span>
+              <h2
+                style={{
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  color: 'var(--pixel-accent)',
+                  marginTop: 8,
+                  textTransform: 'uppercase',
+                  letterSpacing: '2px',
+                }}
+              >
+                Top Up Rupiah
+              </h2>
+              <p style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', marginTop: 4 }}>
+                Top up IDR will be available soon
+              </p>
+            </div>
+
+            <div
+              style={{
+                background: 'rgba(0, 0, 0, 0.3)',
+                border: '2px solid var(--pixel-border)',
+                padding: '24px 16px',
+                marginBottom: 16,
+                textAlign: 'center',
+              }}
+            >
+              <p style={{ fontSize: '18px', color: 'var(--pixel-text-dim)' }}>
+                Top up IDR will be available soon.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsRupiahDialogOpen(false)}
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                fontSize: '18px',
+                background: 'transparent',
+                color: 'var(--pixel-text-dim)',
+                border: '2px solid var(--pixel-border)',
+                cursor: 'pointer',
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Dialog */}
+      {isProfileDialogOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.7)',
+            }}
+            onClick={() => setIsProfileDialogOpen(false)}
+          />
+
+          <div
+            style={{
+              position: 'relative',
+              background: 'var(--pixel-bg)',
+              border: '4px solid var(--pixel-border)',
+              borderRadius: 0,
+              padding: '24px 32px',
+              width: '380px',
+              maxWidth: '90vw',
+              boxShadow: '8px 8px 0 rgba(0, 0, 0, 0.5)',
+              zIndex: 1001,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              {/* Large Avatar */}
+              {playerAvatarUrl ? (
+                <img
+                  src={playerAvatarUrl}
+                  alt={userName}
+                  style={{
+                    width: 80,
+                    height: 80,
+                    objectFit: 'contain',
+                    imageRendering: 'pixelated',
+                    margin: '0 auto 16px',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: 8,
+                    background: 'linear-gradient(135deg, #00CED1 0%, #008B8B 50%, #006666 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '36px',
+                    fontWeight: 'bold',
+                    color: '#fff',
+                    border: '4px solid #00CED1',
+                    boxShadow: '0 0 16px rgba(0, 206, 209, 0.5)',
+                    margin: '0 auto 16px',
+                  }}
+                >
+                  {userName.charAt(0).toUpperCase()}
+                </div>
+              )}
+
+              <h2
+                style={{
+                  fontSize: '28px',
+                  fontWeight: 'bold',
+                  color: 'var(--pixel-text)',
+                  marginBottom: 4,
+                }}
+              >
+                {userName}
+              </h2>
+              <p
+                style={{
+                  fontSize: '16px',
+                  color: 'var(--pixel-text-dim)',
+                }}
+              >
+                {userEmail || 'No email'}
+              </p>
+            </div>
+
+            {/* Wallet Address */}
+            {evmWallet && (
+              <div
+                style={{
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '2px solid var(--pixel-border)',
+                  padding: '12px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <code
+                  style={{
+                    fontSize: '14px',
+                    color: 'var(--pixel-text)',
+                    wordBreak: 'break-all',
+                    flex: 1,
+                  }}
+                >
+                  {evmWallet.address.slice(0, 10)}...{evmWallet.address.slice(-8)}
+                </code>
+                <button
+                  onClick={copyAddress}
+                  title="Copy address"
+                  style={{
+                    padding: 6,
+                    background: copiedAddress ? 'rgba(34, 197, 94, 0.2)' : 'var(--pixel-btn-bg)',
+                    border: '2px solid var(--pixel-border)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  {copiedAddress ? (
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#22c55e"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20,6 9,17 4,12" />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ color: 'var(--pixel-text)' }}
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  onClick={() =>
+                    window.open(
+                      `https://basescan.org/address/${evmWallet.address}`,
+                      '_blank',
+                    )
+                  }
+                  title="View on Basescan"
+                  style={{
+                    padding: 6,
+                    background: 'var(--pixel-btn-bg)',
+                    border: '2px solid var(--pixel-border)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ color: 'var(--pixel-text)' }}
+                  >
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15,3 21,3 21,9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </button>
+              </div>
+            )}
+
+            {/* Logout Button */}
+            <button
+              onClick={async () => {
+                setIsLoggingOut(true);
+                try {
+                  await logout();
+                  setIsProfileDialogOpen(false);
+                } catch (error) {
+                  console.error('Failed to logout:', error);
+                } finally {
+                  setIsLoggingOut(false);
+                }
+              }}
+              disabled={isLoggingOut}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                background: '#dc2626',
+                color: '#fff',
+                border: '2px solid #b91c1c',
+                cursor: isLoggingOut ? 'default' : 'pointer',
+                opacity: isLoggingOut ? 0.7 : 1,
+                marginBottom: 8,
+              }}
+            >
+              {isLoggingOut ? 'Logging out...' : 'Logout'}
+            </button>
+
+            <button
+              onClick={() => setIsProfileDialogOpen(false)}
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                fontSize: '18px',
+                background: 'transparent',
+                color: 'var(--pixel-text-dim)',
+                border: '2px solid var(--pixel-border)',
+                cursor: 'pointer',
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

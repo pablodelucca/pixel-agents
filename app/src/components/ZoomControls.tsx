@@ -96,12 +96,12 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
         </div>
       )}
 
-      {/* Vertically stacked round buttons — top-left */}
+      {/* Vertically stacked round buttons — bottom-right */}
       <div
         style={{
           position: 'absolute',
-          top: 8,
-          left: 8,
+          bottom: 10,
+          right: 10,
           zIndex: 'var(--pixel-controls-z)',
           display: 'flex',
           flexDirection: 'column',

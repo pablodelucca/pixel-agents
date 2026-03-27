@@ -5,16 +5,24 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 
+import { officesRoutes } from './routes/offices.js';
+import { paymentRoutes } from './routes/payment.js';
 import { serverRoutes } from './routes/servers.js';
 import { sessionsRoutes } from './routes/sessions.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://localhost:8090';
 
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+  ],
   credentials: true,
 }));
 app.use(express.json());
@@ -25,6 +33,8 @@ app.get('/health', (_req, res) => {
 });
 
 // API routes
+app.use('/api/offices', officesRoutes);
+app.use('/api/payment', paymentRoutes);
 app.use('/api/servers', serverRoutes);
 app.use('/api/servers/:serverId/sessions', sessionsRoutes);
 
@@ -41,5 +51,9 @@ app.use((_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 Clawmpany server running on http://localhost:${PORT}`);
-  console.log(`📡 API endpoint: http://localhost:${PORT}/api/servers`);
+  console.log(`📡 API endpoints:`);
+  console.log(`   - http://localhost:${PORT}/api/offices`);
+  console.log(`   - http://localhost:${PORT}/api/payment/config`);
+  console.log(`   - http://localhost:${PORT}/api/servers`);
+  console.log(`📦 PocketBase: ${POCKETBASE_URL}`);
 });

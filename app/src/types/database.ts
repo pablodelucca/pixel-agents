@@ -1,4 +1,4 @@
-// Database types generated from supabase-schema.sql
+// Database types for Clawmpany
 
 export type ServerStatus = 'pending' | 'creating' | 'online' | 'offline' | 'error';
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'expired';

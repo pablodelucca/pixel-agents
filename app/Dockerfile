@@ -6,10 +6,27 @@ RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
+# Build-time arguments for environment variables
+ARG VITE_PRIVY_APP_ID
+ARG VITE_API_URL=http://localhost:5173
+
+# Create .env file for Vite to read during build
+RUN echo "VITE_PRIVY_APP_ID=$VITE_PRIVY_APP_ID" > .env && \
+    echo "VITE_API_URL=$VITE_API_URL" >> .env
+
+# Debug: Show .env file
+RUN cat .env
+
+# Copy package files
 COPY package*.json ./
+
+# Install dependencies
 RUN npm install
 
+# Copy source code
 COPY . .
+
+# Build the application
 RUN npm run build
 
 FROM nginx:alpine AS runner

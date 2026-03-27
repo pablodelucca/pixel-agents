@@ -11,7 +11,7 @@ export interface UsePaymentsReturn {
 }
 
 // NOTE: This hook is currently disabled.
-// TODO: Implement with your backend API or keep Supabase for database operations
+// TODO: Implement with your backend API
 export function usePayments(): UsePaymentsReturn {
   const [payments] = useState<Payment[]>([]);
   const [loading] = useState(false);
