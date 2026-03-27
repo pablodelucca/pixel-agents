@@ -89,14 +89,14 @@ serverRoutes.get('/', async (req, res) => {
   }
 });
 
-// Reservation timeout in milliseconds (60 seconds)
-const RESERVATION_TIMEOUT_MS = 60 * 1000;
+// Reservation timeout in milliseconds (5 minutes - matches frontend countdown)
+const RESERVATION_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
  * Get available servers including expired reservations
  * Returns servers that are either:
  * 1. status="available", OR
- * 2. status="reserved" AND updated > 60 seconds ago (using auto-updated field)
+ * 2. status="reserved" AND updated > 5 minutes ago (expired reservation)
  */
 async function getAvailableServer(
   pb: PocketBase,
@@ -217,7 +217,7 @@ serverRoutes.post('/reserve', async (req, res) => {
     const spec = packageSpecs[packageType] || packageSpecs.business;
 
     // Find an available office matching the package spec
-    // Includes servers with expired reservations (>60 seconds old)
+    // Includes servers with expired reservations (>5 minutes old)
     const server = await getAvailableServer(pb, spec);
 
     if (!server) {
@@ -231,12 +231,9 @@ serverRoutes.post('/reserve', async (req, res) => {
 
     console.log(`[/api/servers/reserve] Found office ${server.id}, reserving...`);
 
-    // Update office status to reserved
+    // Update office status to reserved (only status field - updated will auto-change)
     const updatedServer = await pb.collection('server').update(server.id, {
       status: 'reserved',
-      reserved_by: userId,
-      reserved_at: new Date().toISOString(),
-      package_type: packageType || 'business',
     });
 
     console.log(`[/api/servers/reserve] Office ${server.id} reserved for user ${userId}`);
@@ -245,8 +242,8 @@ serverRoutes.post('/reserve', async (req, res) => {
       success: true,
       data: {
         serverId: updatedServer.id,
-        reservedAt: updatedServer.reserved_at,
-        packageType: updatedServer.package_type,
+        reservedAt: updatedServer.updated, // Use updated field as reserved time
+        packageType: packageType || 'business',
       },
     });
   } catch (error) {
@@ -286,7 +283,7 @@ serverRoutes.post('/confirm-purchase', async (req, res) => {
 
     const pb = await getPbAdminClient();
 
-    // Verify office is reserved by this user
+    // Verify office exists and is reserved
     const server = await pb.collection('server').getOne(serverId).catch(() => null);
 
     if (!server) {
@@ -304,11 +301,15 @@ serverRoutes.post('/confirm-purchase', async (req, res) => {
       });
     }
 
-    if (server.reserved_by !== userId) {
-      return res.status(403).json({
+    // Check if reservation is still valid (within 5 minutes)
+    const timeoutDate = new Date(Date.now() - RESERVATION_TIMEOUT_MS);
+    const updatedAt = new Date(server.updated);
+    
+    if (updatedAt <= timeoutDate) {
+      return res.status(400).json({
         success: false,
-        error: 'Office is reserved by someone else',
-        code: 'NOT_YOUR_RESERVATION',
+        error: 'Reservation has expired. Please try again.',
+        code: 'RESERVATION_EXPIRED',
       });
     }
 
@@ -319,34 +320,43 @@ serverRoutes.post('/confirm-purchase', async (req, res) => {
     // Update server status to occupied
     await pb.collection('server').update(serverId, {
       status: 'occupied',
-      occupied_by: userId,
-      occupied_at: new Date().toISOString(),
-      expired_at: expiredAt.toISOString(),
-      payment_method: paymentMethod,
-      transaction_hash: txHash || null,
     });
 
     console.log(`[/api/servers/confirm-purchase] Office ${serverId} marked as occupied`);
 
     // Create office rental record
-    const office = await pb.collection('office').create({
-      user_id: userId,
-      server_id: serverId,
-      expired_at: expiredAt.toISOString(),
-      package_type: packageType || server.package_type || 'business',
-    });
+    try {
+      const office = await pb.collection('office').create({
+        user_id: userId,
+        server_id: serverId,
+        expired_at: expiredAt.toISOString(),
+      });
 
-    console.log(`[/api/servers/confirm-purchase] Rental record ${office.id} created for user ${userId}`);
+      console.log(`[/api/servers/confirm-purchase] Rental record ${office.id} created for user ${userId}`);
 
-    res.json({
-      success: true,
-      data: {
-        serverId,
-        officeId: office.id,
-        expiredAt: expiredAt.toISOString(),
-        message: 'Office rental confirmed successfully',
-      },
-    });
+      res.json({
+        success: true,
+        data: {
+          serverId,
+          officeId: office.id,
+          expiredAt: expiredAt.toISOString(),
+          message: 'Office rental confirmed successfully',
+        },
+      });
+    } catch (createError) {
+      console.error('[/api/servers/confirm-purchase] Failed to create office record:', createError);
+      // Still return success since server is occupied, but note the office record issue
+      res.json({
+        success: true,
+        data: {
+          serverId,
+          officeId: null,
+          expiredAt: expiredAt.toISOString(),
+          message: 'Office rental confirmed, but failed to create office record',
+          warning: createError instanceof Error ? createError.message : 'Unknown error',
+        },
+      });
+    }
   } catch (error) {
     console.error('Error confirming purchase:', error);
     res.status(500).json({
@@ -393,9 +403,8 @@ serverRoutes.post('/cancel-reservation', async (req, res) => {
       });
     }
 
-    // Only allow cancellation if status is reserved (not already occupied, available, etc.)
+    // Only allow cancellation if status is reserved
     if (server.status !== 'reserved') {
-      // Already not reserved - return success anyway
       console.log(`[/api/servers/cancel-reservation] Office ${serverId} is not in reserved state (current: ${server.status})`);
       return res.json({
         success: true,
@@ -403,21 +412,9 @@ serverRoutes.post('/cancel-reservation', async (req, res) => {
       });
     }
 
-    // Verify the user is the one who reserved it
-    if (server.reserved_by && server.reserved_by !== userId) {
-      return res.status(403).json({
-        success: false,
-        error: 'Office is reserved by someone else',
-        code: 'NOT_YOUR_RESERVATION',
-      });
-    }
-
     // Update office status back to available
     await pb.collection('server').update(serverId, {
       status: 'available',
-      reserved_by: null,
-      reserved_at: null,
-      package_type: null,
     });
 
     console.log(`[/api/servers/cancel-reservation] Office ${serverId} is now available`);

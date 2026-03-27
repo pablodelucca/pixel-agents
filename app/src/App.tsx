@@ -548,9 +548,13 @@ function App() {
       {/* Purchase Server Modal - shown when user has no active office */}
       <ServersModal 
         isOpen={showPurchaseModal} 
+        onClose={() => {
+          setShowPurchaseModal(false);
+        }}
         onPurchaseSuccess={() => {
           // Refresh office state after successful purchase
           checkOffice();
+          setShowPurchaseModal(false);
         }}
       />
     </div>

@@ -65,6 +65,13 @@ const USDC_CONTRACT = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 // API base URL
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+// Helper to format countdown as MM:SS
+function formatCountdown(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 type PaymentStep = 'select' | 'checking' | 'reserving' | 'paying' | 'confirming' | 'success' | 'error';
 
 interface ReservedOffice {
@@ -86,7 +93,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
   const [usdcBalance, setUsdcBalance] = useState<number>(0);
   const [isCheckingBalance, setIsCheckingBalance] = useState(false);
   const [reservedOffice, setReservedOffice] = useState<ReservedOffice | null>(null);
-  const [countdown, setCountdown] = useState<number>(60); // 60 seconds countdown
+  const [countdown, setCountdown] = useState<number>(300); // 5 minutes countdown (increased from 60s)
   
   // Payment config from backend (secure)
   const [paymentConfig, setPaymentConfig] = useState<{
@@ -223,7 +230,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
   // Reset countdown when starting new reservation
   useEffect(() => {
     if (paymentStep === 'checking') {
-      setCountdown(60);
+      setCountdown(300); // 5 minutes
     }
   }, [paymentStep]);
 
@@ -372,7 +379,11 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
               params: [{ chainId: paymentConfig.chainId }],
             });
           }
-        } catch (switchError) {
+        } catch (switchError: any) {
+          // User rejected chain switch
+          if (switchError?.code === 4001) {
+            throw new Error('Please switch to Base network to continue');
+          }
           console.warn('Chain switch warning:', switchError);
         }
 
@@ -386,6 +397,9 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
         // ERC-20 transfer function signature
         const transferData = `0xa9059cbb${recipientPadded}${amountPadded}`;
 
+        // Set to confirming BEFORE sending transaction to stop countdown
+        setPaymentStep('confirming');
+
         // Request transaction
         const hash = await provider.request({
           method: 'eth_sendTransaction',
@@ -397,7 +411,6 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
         });
 
         console.log('Transaction sent:', hash);
-        setPaymentStep('confirming');
 
         // Confirm purchase with backend
         const confirmResponse = await fetch(`${API_BASE_URL}/api/servers/confirm-purchase`, {
@@ -863,18 +876,18 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     style={{
                       marginTop: 12,
                       padding: '8px 12px',
-                      background: countdown <= 10 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)',
-                      border: `1px solid ${countdown <= 10 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`,
+                      background: countdown <= 60 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)',
+                      border: `1px solid ${countdown <= 60 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`,
                       borderRadius: 4,
                       display: 'inline-block',
                     }}
                   >
                     <span style={{ 
                       fontSize: '14px', 
-                      color: countdown <= 10 ? '#ef4444' : '#22c55e',
+                      color: countdown <= 60 ? '#ef4444' : '#22c55e',
                       fontWeight: 'bold',
                     }}>
-                      ⏱️ Reservation expires in {countdown}s
+                      ⏱️ Reservation expires in {formatCountdown(countdown)}
                     </span>
                   </div>
                 </div>
@@ -1037,18 +1050,18 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     style={{
                       marginTop: 12,
                       padding: '6px 10px',
-                      background: countdown <= 10 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(251, 191, 36, 0.1)',
-                      border: `1px solid ${countdown <= 10 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(251, 191, 36, 0.3)'}`,
+                      background: countdown <= 60 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(251, 191, 36, 0.1)',
+                      border: `1px solid ${countdown <= 60 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(251, 191, 36, 0.3)'}`,
                       borderRadius: 4,
                       display: 'inline-block',
                     }}
                   >
                     <span style={{ 
                       fontSize: '12px', 
-                      color: countdown <= 10 ? '#ef4444' : '#fbbf24',
+                      color: countdown <= 60 ? '#ef4444' : '#fbbf24',
                       fontWeight: 'bold',
                     }}>
-                      ⏱️ {countdown}s remaining
+                      ⏱️ {formatCountdown(countdown)} remaining
                     </span>
                   </div>
                 </div>
