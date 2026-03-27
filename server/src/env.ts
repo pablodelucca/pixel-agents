@@ -22,12 +22,3 @@ for (const envPath of envPaths) {
     break;
   }
 }
-
-// Verify critical env vars are loaded
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.warn('⚠️ Supabase credentials not found. Database operations will not work.');
-}
-
-if (!process.env.RSA_PRIVATE_KEY || !process.env.RSA_PUBLIC_KEY) {
-  console.warn('⚠️ RSA keys not found in environment. Password encryption/decryption will not work.');
-}

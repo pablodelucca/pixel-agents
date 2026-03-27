@@ -1,29 +1,5 @@
 import { z } from 'zod';
 
-// Server schema from database
-export const ServerSchema = z.object({
-  id: z.string().uuid(),
-  user_id: z.string().uuid(),
-  instance_id: z.string().nullable(),
-  name: z.string(),
-  status: z.string().default('pending'),
-  public_ip: z.string().nullable(),
-  region: z.string().default('ap-singapore'),
-  bundle_id: z.string().nullable(),
-  ram: z.string().nullable(),
-  cpu: z.string().nullable(),
-  disk: z.string().nullable(),
-  bandwidth: z.string().nullable(),
-  password_encrypted: z.string().nullable(),
-  password_key_version: z.number().default(1),
-  ssh_user: z.string().nullable().optional(),
-  ssh_port: z.number().nullable().optional(),
-  created_at: z.string(),
-  updated_at: z.string(),
-});
-
-export type Server = z.infer<typeof ServerSchema>;
-
 // OpenClaw config types
 export const AgentIdentitySchema = z.object({
   name: z.string().optional(),

@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "@privy-io/node": "^0.11.0",
-    "@supabase/supabase-js": "^2.99.2",
     "@x402/core": "^2.8.0",
     "@x402/evm": "^2.8.0",
     "@x402/fetch": "^2.8.0",

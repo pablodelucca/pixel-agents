@@ -2,7 +2,6 @@ import { Router } from 'express';
 import PocketBase from 'pocketbase';
 
 import { fetchOpenClawConfig, checkServerConnection } from '../services/ssh.js';
-import { decryptPassword, encryptPassword } from '../utils/crypto.js';
 
 export const serverRoutes = Router();
 
@@ -534,7 +533,7 @@ serverRoutes.get('/:id/test', async (req, res) => {
 
 /**
  * PUT /api/servers/:id/password
- * Update server password (will be encrypted)
+ * Update server password
  * DEV ONLY - Remove in production!
  */
 serverRoutes.put('/:id/password', async (req, res) => {
@@ -552,12 +551,9 @@ serverRoutes.put('/:id/password', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Server not found' });
     }
 
-    // Encrypt password
-    const encryptedPassword = encryptPassword(password);
-
-    // Update server with encrypted password
+    // Update server password
     await pb.collection('server').update(server.id, {
-      password: encryptedPassword,
+      password: password,
     });
 
     res.json({
