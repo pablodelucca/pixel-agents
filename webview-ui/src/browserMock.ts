@@ -264,7 +264,12 @@ export function dispatchMockMessages(): void {
   dispatch({ type: 'wallTilesLoaded', sets: wallSets });
   dispatch({ type: 'furnitureAssetsLoaded', catalog: furnitureCatalog, sprites: furnitureSprites });
   dispatch({ type: 'layoutLoaded', layout });
-  dispatch({ type: 'settingsLoaded', soundEnabled: false });
+  dispatch({
+    type: 'settingsLoaded',
+    soundEnabled: false,
+    extensionVersion: '1.2.0',
+    lastSeenVersion: '1.1',
+  });
 
   console.log('[BrowserMock] Messages dispatched');
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { playDoneSound, setSoundEnabled } from '../notificationSound.js';
+import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
@@ -58,6 +58,8 @@ export interface ExtensionMessageState {
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> };
   workspaceFolders: WorkspaceFolder[];
   externalAssetDirectories: string[];
+  lastSeenVersion: string;
+  extensionVersion: string;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -89,6 +91,8 @@ export function useExtensionMessages(
   >();
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([]);
   const [externalAssetDirectories, setExternalAssetDirectories] = useState<string[]>([]);
+  const [lastSeenVersion, setLastSeenVersion] = useState('');
+  const [extensionVersion, setExtensionVersion] = useState('');
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -200,15 +204,25 @@ export function useExtensionMessages(
         const id = msg.id as number;
         const toolId = msg.toolId as string;
         const status = msg.status as string;
+        const permissionActive = msg.permissionActive as boolean | undefined;
         setAgentTools((prev) => {
           const list = prev[id] || [];
           if (list.some((t) => t.toolId === toolId)) return prev;
-          return { ...prev, [id]: [...list, { toolId, status, done: false }] };
+          return {
+            ...prev,
+            [id]: [
+              ...list,
+              { toolId, status, done: false, permissionWait: permissionActive || false },
+            ],
+          };
         });
         const toolName = extractToolName(status);
         os.setAgentTool(id, toolName);
         os.setAgentActive(id, true);
-        os.clearPermissionBubble(id);
+        // Don't clear the permission bubble if the hook already confirmed permission is needed
+        if (!permissionActive) {
+          os.clearPermissionBubble(id);
+        }
         // Create sub-agent character for Task tool subtasks
         if (status.startsWith('Subtask:')) {
           const label = status.slice('Subtask:'.length).trim();
@@ -279,6 +293,7 @@ export function useExtensionMessages(
           };
         });
         os.showPermissionBubble(id);
+        playPermissionSound();
       } else if (msg.type === 'subagentToolPermission') {
         const id = msg.id as number;
         const parentToolId = msg.parentToolId as string;
@@ -389,6 +404,12 @@ export function useExtensionMessages(
         if (Array.isArray(msg.externalAssetDirectories)) {
           setExternalAssetDirectories(msg.externalAssetDirectories as string[]);
         }
+        if (typeof msg.lastSeenVersion === 'string') {
+          setLastSeenVersion(msg.lastSeenVersion as string);
+        }
+        if (typeof msg.extensionVersion === 'string') {
+          setExtensionVersion(msg.extensionVersion as string);
+        }
       } else if (msg.type === 'externalAssetDirectoriesUpdated') {
         if (Array.isArray(msg.dirs)) {
           setExternalAssetDirectories(msg.dirs as string[]);
@@ -423,5 +444,7 @@ export function useExtensionMessages(
     loadedAssets,
     workspaceFolders,
     externalAssetDirectories,
+    lastSeenVersion,
+    extensionVersion,
   };
 }

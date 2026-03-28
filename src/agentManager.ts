@@ -102,6 +102,7 @@ export async function launchNewTerminal(
   const folderName = isMultiRoot && cwd ? path.basename(cwd) : undefined;
   const agent: AgentState = {
     id,
+    sessionId,
     terminalRef: terminal,
     projectDir,
     jsonlFile: expectedFile,
@@ -120,6 +121,7 @@ export async function launchNewTerminal(
     linesProcessed: 0,
     seenUnknownRecordTypes: new Set(),
     folderName,
+    hookDelivered: false,
   };
 
   agents.set(id, agent);
@@ -241,6 +243,7 @@ export function persistAgents(
   for (const agent of agents.values()) {
     persisted.push({
       id: agent.id,
+      sessionId: agent.sessionId,
       terminalName: agent.terminalRef.name,
       jsonlFile: agent.jsonlFile,
       projectDir: agent.projectDir,
@@ -280,6 +283,7 @@ export function restoreAgents(
 
     const agent: AgentState = {
       id: p.id,
+      sessionId: p.sessionId || path.basename(p.jsonlFile, '.jsonl'),
       terminalRef: terminal,
       projectDir: p.projectDir,
       jsonlFile: p.jsonlFile,
@@ -298,6 +302,7 @@ export function restoreAgents(
       linesProcessed: 0,
       seenUnknownRecordTypes: new Set(),
       folderName: p.folderName,
+      hookDelivered: false,
     };
 
     agents.set(p.id, agent);
