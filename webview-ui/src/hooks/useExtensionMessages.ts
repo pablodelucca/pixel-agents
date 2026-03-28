@@ -58,6 +58,8 @@ export interface ExtensionMessageState {
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> };
   workspaceFolders: WorkspaceFolder[];
   externalAssetDirectories: string[];
+  lastSeenVersion: string;
+  extensionVersion: string;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -89,6 +91,8 @@ export function useExtensionMessages(
   >();
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([]);
   const [externalAssetDirectories, setExternalAssetDirectories] = useState<string[]>([]);
+  const [lastSeenVersion, setLastSeenVersion] = useState('');
+  const [extensionVersion, setExtensionVersion] = useState('');
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -389,6 +393,12 @@ export function useExtensionMessages(
         if (Array.isArray(msg.externalAssetDirectories)) {
           setExternalAssetDirectories(msg.externalAssetDirectories as string[]);
         }
+        if (typeof msg.lastSeenVersion === 'string') {
+          setLastSeenVersion(msg.lastSeenVersion as string);
+        }
+        if (typeof msg.extensionVersion === 'string') {
+          setExtensionVersion(msg.extensionVersion as string);
+        }
       } else if (msg.type === 'externalAssetDirectoriesUpdated') {
         if (Array.isArray(msg.dirs)) {
           setExternalAssetDirectories(msg.dirs as string[]);
@@ -423,5 +433,7 @@ export function useExtensionMessages(
     loadedAssets,
     workspaceFolders,
     externalAssetDirectories,
+    lastSeenVersion,
+    extensionVersion,
   };
 }

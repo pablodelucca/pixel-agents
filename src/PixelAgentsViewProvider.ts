@@ -27,6 +27,7 @@ import {
 } from './assetLoader.js';
 import { readConfig, writeConfig } from './configPersistence.js';
 import {
+  GLOBAL_KEY_LAST_SEEN_VERSION,
   GLOBAL_KEY_SOUND_ENABLED,
   LAYOUT_REVISION_KEY,
   WORKSPACE_KEY_AGENT_SEATS,
@@ -120,6 +121,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         writeLayoutToFile(message.layout as Record<string, unknown>);
       } else if (message.type === 'setSoundEnabled') {
         this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
+      } else if (message.type === 'setLastSeenVersion') {
+        this.context.globalState.update(GLOBAL_KEY_LAST_SEEN_VERSION, message.version as string);
       } else if (message.type === 'webviewReady') {
         restoreAgents(
           this.context,
@@ -139,10 +142,18 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         );
         // Send persisted settings to webview
         const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
+        const lastSeenVersion = this.context.globalState.get<string>(
+          GLOBAL_KEY_LAST_SEEN_VERSION,
+          '',
+        );
+        const extensionVersion =
+          (this.context.extension.packageJSON as { version?: string }).version ?? '';
         const config = readConfig();
         this.webview?.postMessage({
           type: 'settingsLoaded',
           soundEnabled,
+          lastSeenVersion,
+          extensionVersion,
           externalAssetDirectories: config.externalAssetDirectories,
         });
 

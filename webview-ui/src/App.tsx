@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { toMajorMinor } from './changelogData.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
+import { ChangelogModal } from './components/ChangelogModal.js';
 import { DebugView } from './components/DebugView.js';
+import { VersionIndicator } from './components/VersionIndicator.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
 import { useEditorActions } from './hooks/useEditorActions.js';
@@ -148,14 +151,28 @@ function App() {
     loadedAssets,
     workspaceFolders,
     externalAssetDirectories,
+    lastSeenVersion,
+    extensionVersion,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
   const [migrationNoticeDismissed, setMigrationNoticeDismissed] = useState(false);
   const showMigrationNotice = layoutWasReset && !migrationNoticeDismissed;
 
+  const [isChangelogOpen, setIsChangelogOpen] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [alwaysShowOverlay, setAlwaysShowOverlay] = useState(false);
+
+  const currentMajorMinor = toMajorMinor(extensionVersion);
+
+  const handleWhatsNewDismiss = useCallback(() => {
+    vscode.postMessage({ type: 'setLastSeenVersion', version: currentMajorMinor });
+  }, [currentMajorMinor]);
+
+  const handleOpenChangelog = useCallback(() => {
+    setIsChangelogOpen(true);
+    vscode.postMessage({ type: 'setLastSeenVersion', version: currentMajorMinor });
+  }, [currentMajorMinor]);
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), []);
   const handleToggleAlwaysShowOverlay = useCallback(
@@ -289,6 +306,19 @@ function App() {
         onToggleAlwaysShowOverlay={handleToggleAlwaysShowOverlay}
         workspaceFolders={workspaceFolders}
         externalAssetDirectories={externalAssetDirectories}
+      />
+
+      <VersionIndicator
+        currentVersion={extensionVersion}
+        lastSeenVersion={lastSeenVersion}
+        onDismiss={handleWhatsNewDismiss}
+        onOpenChangelog={handleOpenChangelog}
+      />
+
+      <ChangelogModal
+        isOpen={isChangelogOpen}
+        onClose={() => setIsChangelogOpen(false)}
+        currentVersion={extensionVersion}
       />
 
       {editor.isEditMode && editor.isDirty && (

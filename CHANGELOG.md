@@ -1,5 +1,41 @@
 # Changelog
 
+## v1.2.0
+
+### Features
+
+- **External asset packs** ([#169](https://github.com/pablodelucca/pixel-agents/pull/169)) — Load furniture assets from user-defined directories outside the extension, enabling third-party asset packs alongside built-in furniture. Add/remove directories via Settings modal with live palette refresh.
+- **Bypass permissions mode** ([#170](https://github.com/pablodelucca/pixel-agents/pull/170)) — Right-click the "+ Agent" button to launch with `--dangerously-skip-permissions`, skipping all tool-call approval prompts.
+- **Improved seating, sub-agent spawning, and background agents** ([#180](https://github.com/pablodelucca/pixel-agents/pull/180)) — Agents prefer seats facing electronics (PCs, monitors). Sub-agents spawn on the closest walkable tile to their parent instead of claiming seats. Background agents stay alive until their queue-operation completes.
+- **Agent connection diagnostics and JSONL parser resilience** ([#183](https://github.com/pablodelucca/pixel-agents/pull/183)) — Debug View shows agent connection state with diagnostic info. JSONL parser handles malformed/partial records gracefully. Simplified file watching to single poll for reliability.
+- **Browser preview mode** ([#143](https://github.com/pablodelucca/pixel-agents/pull/143)) — Preview the Pixel Agents webview in a browser for development and review.
+- **Always show overlay setting** — Option to keep agent overlay labels visible at all times, with reduced opacity for non-focused agents.
+
+### Fixes
+
+- **Agents not appearing on Linux Mint and macOS without a folder open** ([#70](https://github.com/pablodelucca/pixel-agents/pull/70)) — Falls back to `os.homedir()` when no workspace folder is open, matching Claude Code's own behavior.
+
+### Testing
+
+- **Playwright e2e tests** ([#161](https://github.com/pablodelucca/pixel-agents/pull/161)) — End-to-end test infrastructure using Playwright's Electron API with a mock Claude CLI, validating agent spawn flow in a real VS Code instance.
+
+### Maintenance
+
+- Add feature request template and update community docs ([#164](https://github.com/pablodelucca/pixel-agents/pull/164))
+- Bump Vite 8.0, ESLint 10, and various dependency updates
+- CI improvements: skip PR title check for Dependabot, restrict badge updates to main repo ([#181](https://github.com/pablodelucca/pixel-agents/pull/181))
+
+### Contributors
+
+Thank you to the contributors who made this release possible:
+
+- [@marctebo](https://github.com/marctebo) — External asset packs support
+- [@dankadr](https://github.com/dankadr) — Bypass permissions mode
+- [@d4rkd0s](https://github.com/d4rkd0s) — Linux/macOS fix for no-folder workspaces
+- [@daniel-dallimore](https://github.com/daniel-dallimore) — Always show overlay setting
+- [@NNTin](https://github.com/NNTin) — Playwright e2e tests, browser preview mode
+- [@florintimbuc](https://github.com/florintimbuc) — Agent diagnostics, JSONL resilience, CI improvements, code review
+
 ## v1.1.1
 
 ### Fixes
