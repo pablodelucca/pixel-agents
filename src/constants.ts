@@ -21,6 +21,14 @@ export const LAYOUT_REVISION_KEY = 'layoutRevision';
 export const GLOBAL_KEY_SOUND_ENABLED = 'pixel-agents.soundEnabled';
 export const GLOBAL_KEY_LAST_SEEN_VERSION = 'pixel-agents.lastSeenVersion';
 
+// ── Claude Code Hooks ────────────────────────────────────────
+export const HOOK_PORT_DIR = '.pixel-agents';
+export const HOOK_PORT_FILE_PREFIX = 'hook-port-';
+export const HOOK_SCRIPT_DIR = '.pixel-agents/hooks';
+export const HOOK_SCRIPT_NAME = 'pixel-agents-hook.js';
+export const HOOK_SERVER_PATH = '/pixel-agents-hook';
+export const HOOK_EVENT_BUFFER_MS = 5000;
+
 // ── VS Code Identifiers ─────────────────────────────────────
 export const VIEW_ID = 'pixel-agents.panelView';
 export const COMMAND_SHOW_PANEL = 'pixel-agents.showPanel';

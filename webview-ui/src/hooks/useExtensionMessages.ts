@@ -204,15 +204,25 @@ export function useExtensionMessages(
         const id = msg.id as number;
         const toolId = msg.toolId as string;
         const status = msg.status as string;
+        const permissionActive = msg.permissionActive as boolean | undefined;
         setAgentTools((prev) => {
           const list = prev[id] || [];
           if (list.some((t) => t.toolId === toolId)) return prev;
-          return { ...prev, [id]: [...list, { toolId, status, done: false }] };
+          return {
+            ...prev,
+            [id]: [
+              ...list,
+              { toolId, status, done: false, permissionWait: permissionActive || false },
+            ],
+          };
         });
         const toolName = extractToolName(status);
         os.setAgentTool(id, toolName);
         os.setAgentActive(id, true);
-        os.clearPermissionBubble(id);
+        // Don't clear the permission bubble if the hook already confirmed permission is needed
+        if (!permissionActive) {
+          os.clearPermissionBubble(id);
+        }
         // Create sub-agent character for Task tool subtasks
         if (status.startsWith('Subtask:')) {
           const label = status.slice('Subtask:'.length).trim();

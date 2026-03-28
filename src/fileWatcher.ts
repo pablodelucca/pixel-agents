@@ -61,10 +61,13 @@ export function readNewLines(
 
     const hasLines = lines.some((l) => l.trim());
     if (hasLines) {
-      // New data arriving — cancel timers (data flowing means agent is still active)
+      // New data arriving — cancel timers (data flowing means agent is still active).
+      // When hooks are active, don't clear permission state here — the hook gave us a
+      // definitive signal that permission is needed. Only a new user prompt or tool_result
+      // (processed in transcriptParser) should clear it.
       cancelWaitingTimer(agentId, waitingTimers);
       cancelPermissionTimer(agentId, permissionTimers);
-      if (agent.permissionSent) {
+      if (agent.permissionSent && !agent.hookDelivered) {
         agent.permissionSent = false;
         webview?.postMessage({ type: 'agentToolPermissionClear', id: agentId });
       }
@@ -92,6 +95,7 @@ export function ensureProjectScan(
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  onAgentCreated?: (agent: AgentState) => void,
 ): void {
   if (projectScanTimerRef.current) return;
   // Seed with all existing JSONL files so we only react to truly new ones
@@ -120,6 +124,7 @@ export function ensureProjectScan(
       permissionTimers,
       webview,
       persistAgents,
+      onAgentCreated,
     );
   }, PROJECT_SCAN_INTERVAL_MS);
 }
@@ -136,6 +141,7 @@ function scanForNewJsonlFiles(
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  onAgentCreated?: (agent: AgentState) => void,
 ): void {
   let files: string[];
   try {
@@ -191,6 +197,7 @@ function scanForNewJsonlFiles(
               permissionTimers,
               webview,
               persistAgents,
+              onAgentCreated,
             );
           }
         } else {
@@ -236,10 +243,13 @@ function adoptTerminalForFile(
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  onAgentCreated?: (agent: AgentState) => void,
 ): void {
   const id = nextAgentIdRef.current++;
+  const sessionId = path.basename(jsonlFile, '.jsonl');
   const agent: AgentState = {
     id,
+    sessionId,
     terminalRef: terminal,
     projectDir,
     jsonlFile,
@@ -257,11 +267,13 @@ function adoptTerminalForFile(
     lastDataAt: 0,
     linesProcessed: 0,
     seenUnknownRecordTypes: new Set(),
+    hookDelivered: false,
   };
 
   agents.set(id, agent);
   activeAgentIdRef.current = id;
   persistAgents();
+  onAgentCreated?.(agent);
 
   console.log(
     `[Pixel Agents] Agent ${id}: adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`,
@@ -309,7 +321,9 @@ export function reassignAgentToFile(
   cancelPermissionTimer(agentId, permissionTimers);
   clearAgentActivity(agent, agentId, permissionTimers, webview);
 
-  // Swap to new file
+  // Swap to new file (update sessionId for hook registration).
+  // Keep hookDelivered — if hooks worked before /clear, they'll work after.
+  agent.sessionId = path.basename(newFilePath, '.jsonl');
   agent.jsonlFile = newFilePath;
   agent.fileOffset = 0;
   agent.lineBuffer = '';

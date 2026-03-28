@@ -2,6 +2,7 @@ import type * as vscode from 'vscode';
 
 export interface AgentState {
   id: number;
+  sessionId: string;
   terminalRef: vscode.Terminal;
   projectDir: string;
   jsonlFile: string;
@@ -24,10 +25,13 @@ export interface AgentState {
   linesProcessed: number;
   /** Set of record.type values we've already warned about (prevents log spam) */
   seenUnknownRecordTypes: Set<string>;
+  /** Whether a hook event has been delivered for this agent (suppresses heuristic timers) */
+  hookDelivered: boolean;
 }
 
 export interface PersistedAgent {
   id: number;
+  sessionId?: string;
   terminalName: string;
   jsonlFile: string;
   projectDir: string;
