@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { playDoneSound, setSoundEnabled } from '../notificationSound.js';
+import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
@@ -298,6 +298,7 @@ export function useExtensionMessages(
           };
         });
         os.showPermissionBubble(id);
+        playPermissionSound();
       } else if (msg.type === 'subagentToolPermission') {
         const id = msg.id as number;
         const parentToolId = msg.parentToolId as string;
