@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
+import { MessageCircle, Settings, X } from 'lucide-react';
 
 import { AgentDetailSidebar } from './components/AgentDetailSidebar.js';
 import { BalanceBar } from './components/BalanceBar.js';
@@ -462,7 +463,7 @@ function App() {
             }}
             title="Chat"
           >
-            💬
+            <MessageCircle size={18} />
           </button>
           {/* Settings/Details button - opens left sidebar, closes chat */}
           <button
@@ -487,7 +488,7 @@ function App() {
             }}
             title="Agent Details"
           >
-            ⚙️
+            <Settings size={18} />
           </button>
           {chatCharacter && !showChatSidebar && !showDetailSidebar && (
             <button
@@ -500,9 +501,11 @@ function App() {
                 border: '2px solid rgba(255,255,255,0.2)',
                 borderRadius: 4,
                 cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
               }}
             >
-              ✕
+              <X size={18} />
             </button>
           )}
         </div>
