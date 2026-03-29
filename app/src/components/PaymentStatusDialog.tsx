@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
-import { useCredits } from '../hooks/useCredits.js';
+import { dispatchCreditsUpdated } from '../hooks/useCredits.js';
 
 interface PaymentStatusDialogProps {
   onClose: () => void;
@@ -16,13 +16,15 @@ interface PaymentStatus {
 
 export function PaymentStatusDialog({ onClose }: PaymentStatusDialogProps) {
   const { user: privyUser } = usePrivy();
-  const { fetchCredits } = useCredits();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
 
   useEffect(() => {
     const checkPaymentStatus = async () => {
+      const startTime = Date.now();
+      const MIN_LOADING_TIME = 2000; // 2 seconds minimum loading
+
       try {
         // Get URL params - Tripay uses these param names
         const urlParams = new URLSearchParams(window.location.search);
@@ -40,6 +42,11 @@ export function PaymentStatusDialog({ onClose }: PaymentStatusDialogProps) {
 
         const userId = privyUser?.id;
         if (!userId) {
+          // Wait for minimum loading time before showing error
+          const elapsed = Date.now() - startTime;
+          if (elapsed < MIN_LOADING_TIME) {
+            await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsed));
+          }
           setError('Please login first');
           setLoading(false);
           return;
@@ -59,22 +66,35 @@ export function PaymentStatusDialog({ onClose }: PaymentStatusDialogProps) {
 
         const data = await response.json();
 
+        // Clear URL params after checking
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        // If payment was successful, dispatch event to refresh credits everywhere
+        if (data.success && data.data?.status === 'PAID') {
+          console.log('[PaymentStatus] Payment successful, dispatching credits update...');
+          dispatchCreditsUpdated();
+        }
+
+        // Wait for minimum loading time before showing result
+        const elapsed = Date.now() - startTime;
+        if (elapsed < MIN_LOADING_TIME) {
+          await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsed));
+        }
+
         if (!data.success) {
           setError(data.error || 'Failed to check payment status');
         } else {
           setPaymentStatus(data.data);
         }
-
-        // Clear URL params after checking
-        window.history.replaceState({}, document.title, window.location.pathname);
-
-        // If payment was successful, refresh credits
-        if (data.data?.status === 'PAID') {
-          console.log('[PaymentStatus] Payment successful, refreshing credits...');
-          await fetchCredits();
-        }
       } catch (err) {
         console.error('[PaymentStatus] Error:', err);
+        
+        // Wait for minimum loading time before showing error
+        const elapsed = Date.now() - startTime;
+        if (elapsed < MIN_LOADING_TIME) {
+          await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsed));
+        }
+        
         setError('Failed to check payment status');
       } finally {
         setLoading(false);
@@ -82,7 +102,7 @@ export function PaymentStatusDialog({ onClose }: PaymentStatusDialogProps) {
     };
 
     checkPaymentStatus();
-  }, [privyUser?.id, onClose, fetchCredits]);
+  }, [privyUser?.id, onClose]);
 
   if (loading) {
     return (

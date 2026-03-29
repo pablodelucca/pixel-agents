@@ -4,6 +4,15 @@ import { usePrivy } from '@privy-io/react-auth';
 // API base URL - backend server
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+// Global event for credits refresh
+export const CREDITS_UPDATED_EVENT = 'clawmpany:credits-updated';
+
+// Dispatch credits update event
+export function dispatchCreditsUpdated() {
+  console.log('[useCredits] Dispatching credits updated event');
+  window.dispatchEvent(new CustomEvent(CREDITS_UPDATED_EVENT));
+}
+
 export interface CreditsState {
   balance: number;
   loading: boolean;
@@ -151,6 +160,21 @@ export function useCredits(): CreditsState & {
       setBalance(0);
     }
   }, [ready, authenticated, privyUser?.id, fetchCredits]);
+
+  // Listen for credits updated event (e.g., from payment dialog)
+  useEffect(() => {
+    const handleCreditsUpdated = () => {
+      console.log('[useCredits] Credits updated event received, refreshing...');
+      if (authenticated && privyUser?.id) {
+        fetchCredits();
+      }
+    };
+
+    window.addEventListener(CREDITS_UPDATED_EVENT, handleCreditsUpdated);
+    return () => {
+      window.removeEventListener(CREDITS_UPDATED_EVENT, handleCreditsUpdated);
+    };
+  }, [authenticated, privyUser?.id, fetchCredits]);
 
   return {
     balance,
