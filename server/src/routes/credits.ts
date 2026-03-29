@@ -269,6 +269,12 @@ creditsRoutes.post('/add', async (req, res) => {
       });
     }
 
+    // Ensure credit exists after creation
+    if (!credit) {
+      res.status(500).json({ error: 'Failed to create credit record' });
+      return;
+    }
+
     // Calculate new balance
     const currentBalance = credit.balance || 0;
     const newBalance = currentBalance + amount;

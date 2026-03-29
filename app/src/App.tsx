@@ -196,14 +196,6 @@ function App() {
     setShowDetailSidebar(false);
   }, []);
 
-  const handleCloseAll = useCallback(() => {
-    setShowChatSidebar(false);
-    setShowDetailSidebar(false);
-    setChatCharacterId(null);
-    officeState.selectedAgentId = null;
-    officeState.cameraFollowId = null;
-  }, [officeState]);
-
   // Handle player proximity to agents
   const handlePlayerProximity = useCallback((event: ProximityEvent | null) => {
     setPlayerNearbyAgent(event);
