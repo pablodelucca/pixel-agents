@@ -67,7 +67,7 @@ function getUserId(req: import('express').Request): string | null {
 /**
  * GET /api/credits
  * Get or create credit balance for user
- * - If credit record exists, return it
+ * - If credit record exists, return balance
  * - If not, create a new record with balance 0 and return it
  */
 creditsRoutes.get('/', async (req, res) => {
@@ -80,7 +80,6 @@ creditsRoutes.get('/', async (req, res) => {
       return res.status(401).json({
         success: false,
         error: 'Unauthorized - User ID required',
-        credits: null,
       });
     }
 
@@ -96,13 +95,7 @@ creditsRoutes.get('/', async (req, res) => {
 
       res.json({
         success: true,
-        credits: {
-          id: credit.id,
-          userId: credit.user_id,
-          balance: credit.balance || 0,
-          created: credit.created,
-          updated: credit.updated,
-        },
+        balance: credit.balance || 0,
       });
     } catch (pbError: any) {
       // Record not found - create new one
@@ -118,14 +111,7 @@ creditsRoutes.get('/', async (req, res) => {
 
         res.json({
           success: true,
-          credits: {
-            id: newCredit.id,
-            userId: newCredit.user_id,
-            balance: newCredit.balance || 0,
-            created: newCredit.created,
-            updated: newCredit.updated,
-          },
-          isNew: true,
+          balance: newCredit.balance || 0,
         });
       } else {
         throw pbError;
@@ -136,7 +122,6 @@ creditsRoutes.get('/', async (req, res) => {
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
-      credits: null,
     });
   }
 });
@@ -168,11 +153,7 @@ creditsRoutes.post('/', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'Credit record already exists for this user',
-        credits: {
-          id: existingCredit.id,
-          userId: existingCredit.user_id,
-          balance: existingCredit.balance || 0,
-        },
+        balance: existingCredit.balance || 0,
       });
     }
 
@@ -184,13 +165,7 @@ creditsRoutes.post('/', async (req, res) => {
 
     res.json({
       success: true,
-      credits: {
-        id: credit.id,
-        userId: credit.user_id,
-        balance: credit.balance || 0,
-        created: credit.created,
-        updated: credit.updated,
-      },
+      balance: credit.balance || 0,
     });
   } catch (error) {
     console.error('Error creating credits:', error);
@@ -239,19 +214,13 @@ creditsRoutes.put('/', async (req, res) => {
     }
 
     // Update balance
-    const updatedCredit = await pb.collection('credit').update(credit.id, {
+    await pb.collection('credit').update(credit.id, {
       balance: balance,
     });
 
     res.json({
       success: true,
-      credits: {
-        id: updatedCredit.id,
-        userId: updatedCredit.user_id,
-        balance: updatedCredit.balance || 0,
-        created: updatedCredit.created,
-        updated: updatedCredit.updated,
-      },
+      balance: balance,
     });
   } catch (error) {
     console.error('Error updating credits:', error);
@@ -305,21 +274,13 @@ creditsRoutes.post('/add', async (req, res) => {
     const newBalance = currentBalance + amount;
 
     // Update balance
-    const updatedCredit = await pb.collection('credit').update(credit.id, {
+    await pb.collection('credit').update(credit.id, {
       balance: newBalance,
     });
 
     res.json({
       success: true,
-      credits: {
-        id: updatedCredit.id,
-        userId: updatedCredit.user_id,
-        balance: updatedCredit.balance || 0,
-        previousBalance: currentBalance,
-        amountAdded: amount,
-        created: updatedCredit.created,
-        updated: updatedCredit.updated,
-      },
+      balance: newBalance,
     });
   } catch (error) {
     console.error('Error adding credits:', error);

@@ -4,16 +4,7 @@ import { usePrivy } from '@privy-io/react-auth';
 // API base URL - backend server
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-export interface Credits {
-  id: string;
-  userId: string;
-  balance: number;
-  created: string;
-  updated: string;
-}
-
 export interface CreditsState {
-  credits: Credits | null;
   balance: number;
   loading: boolean;
   error: string | null;
@@ -25,7 +16,7 @@ export function useCredits(): CreditsState & {
   setBalance: (balance: number) => Promise<boolean>;
 } {
   const { ready, authenticated, user: privyUser } = usePrivy();
-  const [credits, setCredits] = useState<Credits | null>(null);
+  const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +24,7 @@ export function useCredits(): CreditsState & {
     // Only fetch if authenticated and we have a user ID
     if (!authenticated || !privyUser?.id) {
       setLoading(false);
-      setCredits(null);
+      setBalance(0);
       return;
     }
 
@@ -59,10 +50,10 @@ export function useCredits(): CreditsState & {
       const data = await response.json();
       console.log('[useCredits] Response:', data);
 
-      if (data.success && data.credits) {
-        setCredits(data.credits);
+      if (data.success) {
+        setBalance(data.balance || 0);
       } else {
-        setCredits(null);
+        setBalance(0);
         if (data.error) {
           setError(data.error);
         }
@@ -70,7 +61,7 @@ export function useCredits(): CreditsState & {
     } catch (err) {
       console.error('Failed to fetch credits:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
-      setCredits(null);
+      setBalance(0);
     } finally {
       setLoading(false);
     }
@@ -101,8 +92,8 @@ export function useCredits(): CreditsState & {
       const data = await response.json();
       console.log('[useCredits] Add credits response:', data);
 
-      if (data.success && data.credits) {
-        setCredits(data.credits);
+      if (data.success) {
+        setBalance(data.balance || 0);
         return true;
       }
       return false;
@@ -113,7 +104,7 @@ export function useCredits(): CreditsState & {
     }
   }, [authenticated, privyUser?.id]);
 
-  const setBalance = useCallback(async (balance: number): Promise<boolean> => {
+  const setBalanceApi = useCallback(async (newBalance: number): Promise<boolean> => {
     if (!authenticated || !privyUser?.id) {
       return false;
     }
@@ -128,7 +119,7 @@ export function useCredits(): CreditsState & {
           'x-user-id': privyUser.id,
         },
         credentials: 'include',
-        body: JSON.stringify({ balance }),
+        body: JSON.stringify({ balance: newBalance }),
       });
 
       if (!response.ok) {
@@ -138,8 +129,8 @@ export function useCredits(): CreditsState & {
       const data = await response.json();
       console.log('[useCredits] Set balance response:', data);
 
-      if (data.success && data.credits) {
-        setCredits(data.credits);
+      if (data.success) {
+        setBalance(data.balance || 0);
         return true;
       }
       return false;
@@ -157,17 +148,16 @@ export function useCredits(): CreditsState & {
     } else if (ready && !authenticated) {
       // Reset state when logged out
       setLoading(false);
-      setCredits(null);
+      setBalance(0);
     }
   }, [ready, authenticated, privyUser?.id, fetchCredits]);
 
   return {
-    credits,
-    balance: credits?.balance || 0,
+    balance,
     loading,
     error,
     fetchCredits,
     addCredits,
-    setBalance,
+    setBalance: setBalanceApi,
   };
 }
