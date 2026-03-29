@@ -634,6 +634,70 @@ function parseOpenClawResponse(
 }
 
 /**
+ * Fetch agent workspace files from ~/.openclaw/workspace/
+ * Returns the 7 markdown files that define the agent's personality and memory
+ */
+export async function fetchAgentWorkspace(
+  host: string,
+  password: string,
+  agentId: string = 'main',
+  username: string = DEFAULT_SSH_USER,
+  port: number = DEFAULT_SSH_PORT,
+): Promise<{
+  success: boolean;
+  files?: Record<string, string>;
+  error?: string;
+}> {
+  const workspacePath = `${OPENCLAW_BASE_PATH}/workspace`;
+  
+  // The 7 files that define an agent
+  const filesToFetch = [
+    'AGENTS.md',
+    'HEARTBEAT.md',
+    'IDENTITY.md',
+    'MEMORY.md',
+    'SOUL.md',
+    'TOOLS.md',
+    'USER.md',
+  ];
+
+  let conn: Client | null = null;
+
+  try {
+    // Connect once for all files
+    conn = await connectSSH({ host, port, username, password });
+    
+    const files: Record<string, string> = {};
+
+    for (const filename of filesToFetch) {
+      const filePath = `${workspacePath}/${filename}`;
+      try {
+        const content = await executeCommand(conn, `cat ${filePath} 2>/dev/null || echo ""`);
+        files[filename] = content.trim();
+      } catch {
+        // File doesn't exist or can't be read - use empty string
+        files[filename] = '';
+      }
+    }
+
+    return {
+      success: true,
+      files,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  } finally {
+    // Always close the connection
+    if (conn) {
+      conn.end();
+    }
+  }
+}
+
+/**
  * Create a new session for an agent
  * Sends an initial message to create the session, then returns the session info
  */

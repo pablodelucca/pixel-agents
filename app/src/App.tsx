@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 
+import { AgentDetailSidebar } from './components/AgentDetailSidebar.js';
 import { BalanceBar } from './components/BalanceBar.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChatSidebar } from './components/ChatSidebar.js';
@@ -175,16 +176,29 @@ function App() {
 
   // Chat sidebar state
   const [chatCharacterId, setChatCharacterId] = useState<number | null>(null);
+  const [showChatSidebar, setShowChatSidebar] = useState(false);
+  const [showDetailSidebar, setShowDetailSidebar] = useState(false);
   const officeState = getOfficeState();
   const chatCharacter = chatCharacterId !== null ? officeState.getCharacter(chatCharacterId) : null;
 
   const handleCharacterSelect = useCallback((agentId: number | null) => {
     setChatCharacterId(agentId);
+    setShowChatSidebar(false);
+    setShowDetailSidebar(false);
   }, []);
 
   const handleCloseChat = useCallback(() => {
+    setShowChatSidebar(false);
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setShowDetailSidebar(false);
+  }, []);
+
+  const handleCloseAll = useCallback(() => {
+    setShowChatSidebar(false);
+    setShowDetailSidebar(false);
     setChatCharacterId(null);
-    // Also deselect in office state
     officeState.selectedAgentId = null;
     officeState.cameraFollowId = null;
   }, [officeState]);
@@ -306,8 +320,18 @@ function App() {
       {/* Balance Bar - USDC & Rupiah */}
       <BalanceBar rupiahBalance={0} />
 
-      {/* Chat Sidebar */}
-      {chatCharacter && (
+      {/* Agent Detail Sidebar - Left */}
+      {chatCharacter && showDetailSidebar && server && (
+        <AgentDetailSidebar
+          character={chatCharacter}
+          isOpen={true}
+          onClose={handleCloseDetail}
+          server={server}
+        />
+      )}
+
+      {/* Chat Sidebar - Right */}
+      {chatCharacter && showChatSidebar && server && (
         <ChatSidebar
           character={chatCharacter}
           isOpen={true}
@@ -385,8 +409,8 @@ function App() {
         </div>
       )}
 
-      {/* Player proximity indicator */}
-      {playerNearbyAgent && !isDebugMode && !editor.isEditMode && (
+      {/* Player proximity indicator OR selected agent indicator */}
+      {((playerNearbyAgent && !isDebugMode && !editor.isEditMode) || (chatCharacter && !showChatSidebar && !showDetailSidebar)) && (
         <div
           style={{
             position: 'absolute',
@@ -407,25 +431,80 @@ function App() {
           }}
         >
           <span style={{ fontSize: 24 }}>
-            {playerNearbyAgent.agentCharacter.displayName?.match(/^(\p{Emoji})/u)?.[1] || '🤖'}
+            {(chatCharacter || playerNearbyAgent?.agentCharacter)?.displayName?.match(/^(\p{Emoji})/u)?.[1] || '🤖'}
           </span>
           <span>
-            Near {playerNearbyAgent.agentCharacter.displayName?.replace(/^(\p{Emoji}\s*)/u, '') || `Agent ${playerNearbyAgent.agentId}`}
+            {chatCharacter 
+              ? chatCharacter.displayName?.replace(/^(\p{Emoji}\s*)/u, '') || `Agent ${chatCharacterId}`
+              : `Near ${playerNearbyAgent?.agentCharacter?.displayName?.replace(/^(\p{Emoji}\s*)/u, '') || `Agent ${playerNearbyAgent?.agentId}`}`
+            }
           </span>
+          {/* Chat button - opens right sidebar, closes detail */}
           <button
-            onClick={() => setChatCharacterId(playerNearbyAgent.agentId)}
+            onClick={() => {
+              if (playerNearbyAgent && !chatCharacter) {
+                setChatCharacterId(playerNearbyAgent.agentId);
+              }
+              setShowChatSidebar(true);
+              setShowDetailSidebar(false);
+            }}
             style={{
-              padding: '4px 12px',
+              padding: '6px 12px',
               fontSize: '18px',
-              background: 'var(--pixel-accent)',
+              background: showChatSidebar ? 'var(--pixel-accent)' : 'rgba(255,255,255,0.1)',
               color: '#fff',
-              border: 'none',
+              border: showChatSidebar ? 'none' : '2px solid rgba(255,255,255,0.3)',
               borderRadius: 4,
               cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
             }}
+            title="Chat"
           >
-            Chat
+            💬
           </button>
+          {/* Settings/Details button - opens left sidebar, closes chat */}
+          <button
+            onClick={() => {
+              if (playerNearbyAgent && !chatCharacter) {
+                setChatCharacterId(playerNearbyAgent.agentId);
+              }
+              setShowDetailSidebar(true);
+              setShowChatSidebar(false);
+            }}
+            style={{
+              padding: '6px 12px',
+              fontSize: '18px',
+              background: showDetailSidebar ? 'var(--pixel-accent)' : 'rgba(255,255,255,0.1)',
+              color: '#fff',
+              border: showDetailSidebar ? 'none' : '2px solid rgba(255,255,255,0.3)',
+              borderRadius: 4,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+            title="Agent Details"
+          >
+            ⚙️
+          </button>
+          {chatCharacter && !showChatSidebar && !showDetailSidebar && (
+            <button
+              onClick={handleCloseAll}
+              style={{
+                padding: '6px 10px',
+                fontSize: '18px',
+                background: 'transparent',
+                color: 'rgba(255,255,255,0.6)',
+                border: '2px solid rgba(255,255,255,0.2)',
+                borderRadius: 4,
+                cursor: 'pointer',
+              }}
+            >
+              ✕
+            </button>
+          )}
         </div>
       )}
 
