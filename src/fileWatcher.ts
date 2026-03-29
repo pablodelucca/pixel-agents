@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
@@ -10,6 +11,8 @@ import {
   EXTERNAL_SCAN_INTERVAL_MS,
   EXTERNAL_STALE_CHECK_INTERVAL_MS,
   FILE_WATCHER_POLL_INTERVAL_MS,
+  GLOBAL_SCAN_ACTIVE_MAX_AGE_MS,
+  GLOBAL_SCAN_ACTIVE_MIN_SIZE,
   PROJECT_SCAN_INTERVAL_MS,
 } from './constants.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
@@ -189,6 +192,11 @@ export function readNewLines(
 
 // Track all project directories to scan (supports multi-root workspaces)
 const trackedProjectDirs = new Set<string>();
+
+/** Check if a project dir is tracked by the workspace scanner. */
+export function isTrackedProjectDir(dir: string): boolean {
+  return trackedProjectDirs.has(dir);
+}
 
 /**
  * Seed a project directory's known files and register it for periodic scanning.
@@ -456,15 +464,24 @@ function adoptExternalSession(
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  folderName?: string,
 ): void {
   const id = nextAgentIdRef.current++;
+  // Skip to end of file -- only show live activity going forward, not replay history
+  let fileOffset = 0;
+  try {
+    const stat = fs.statSync(jsonlFile);
+    fileOffset = stat.size;
+  } catch {
+    /* start from beginning if stat fails */
+  }
   const agent: AgentState = {
     id,
     terminalRef: undefined,
     isExternal: true,
     projectDir,
     jsonlFile,
-    fileOffset: 0,
+    fileOffset,
     lineBuffer: '',
     activeToolIds: new Set(),
     activeToolStatuses: new Map(),
@@ -478,13 +495,16 @@ function adoptExternalSession(
     lastDataAt: Date.now(),
     linesProcessed: 0,
     seenUnknownRecordTypes: new Set(),
+    folderName,
   };
 
   agents.set(id, agent);
   persistAgents();
 
-  console.log(`[Pixel Agents] Agent ${id}: detected external session ${path.basename(jsonlFile)}`);
-  webview?.postMessage({ type: 'agentCreated', id, isExternal: true });
+  console.log(
+    `[Pixel Agents] Agent ${id}: detected external session ${path.basename(jsonlFile)}${folderName ? ` (${folderName})` : ''}`,
+  );
+  webview?.postMessage({ type: 'agentCreated', id, isExternal: true, folderName });
 
   startFileWatching(
     id,
@@ -515,76 +535,81 @@ export function startExternalSessionScanning(
   jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  watchAllSessionsRef?: { current: boolean },
 ): ReturnType<typeof setInterval> {
   return setInterval(() => {
-    let files: string[];
-    try {
-      files = fs
-        .readdirSync(projectDir)
-        .filter((f) => f.endsWith('.jsonl'))
-        .map((f) => path.join(projectDir, f));
-    } catch {
-      return;
+    // Scan all tracked project dirs (multi-root workspace support)
+    for (const dir of trackedProjectDirs) {
+      scanExternalDir(
+        dir,
+        knownJsonlFiles,
+        nextAgentIdRef,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+        persistAgents,
+      );
     }
+    // If "Watch All Sessions" is ON, also scan all global project dirs
+    if (watchAllSessionsRef?.current) {
+      scanGlobalProjectDirs(
+        knownJsonlFiles,
+        nextAgentIdRef,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+        persistAgents,
+      );
+    }
+  }, EXTERNAL_SCAN_INTERVAL_MS);
+}
 
-    const now = Date.now();
+/** Scan a single project dir for external sessions. */
+function scanExternalDir(
+  projectDir: string,
+  knownJsonlFiles: Set<string>,
+  nextAgentIdRef: { current: number },
+  agents: Map<number, AgentState>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+): void {
+  let files: string[];
+  try {
+    files = fs
+      .readdirSync(projectDir)
+      .filter((f) => f.endsWith('.jsonl'))
+      .map((f) => path.join(projectDir, f));
+  } catch {
+    return;
+  }
 
-    for (const file of files) {
-      // --resume detection: seeded files whose mtime changed have new data.
-      // Adopt directly, bypassing content check (old /clear files have
-      // /clear content but should still be adoptable when resumed).
-      // File stays in knownJsonlFiles (safe from per-agent /clear stealing).
-      const seededMtime = seededMtimes.get(file);
-      if (seededMtime !== undefined) {
-        try {
-          const stat = fs.statSync(file);
-          if (stat.mtimeMs <= seededMtime) continue; // No new writes, skip
-        } catch {
-          continue;
-        }
-        // mtime changed → --resume. Check not tracked, not dismissed.
-        if (clearDismissedFiles.has(file)) continue;
-        const normalizedFile = path.resolve(file);
-        let tracked = false;
-        for (const agent of agents.values()) {
-          if (path.resolve(agent.jsonlFile) === normalizedFile) {
-            tracked = true;
-            break;
-          }
-        }
-        if (tracked) continue;
-        seededMtimes.delete(file);
-        console.log(`[Pixel Agents] Resumed session detected: ${path.basename(file)}`);
-        adoptExternalSession(
-          file,
-          projectDir,
-          nextAgentIdRef,
-          agents,
-          fileWatchers,
-          pollingTimers,
-          waitingTimers,
-          permissionTimers,
-          webview,
-          persistAgents,
-        );
+  const now = Date.now();
+
+  for (const file of files) {
+    // --resume detection: seeded files whose mtime changed have new data.
+    // Adopt directly, bypassing content check (old /clear files have
+    // /clear content but should still be adoptable when resumed).
+    // File stays in knownJsonlFiles (safe from per-agent /clear stealing).
+    const seededMtime = seededMtimes.get(file);
+    if (seededMtime !== undefined) {
+      try {
+        const stat = fs.statSync(file);
+        if (stat.mtimeMs <= seededMtime) continue; // No new writes, skip
+      } catch {
         continue;
       }
-
-      // Skip files already known (seeded or adopted). seededMtimes handles --resume above.
-      if (knownJsonlFiles.has(file)) continue;
-
-      // Skip files permanently dismissed by /clear (never re-adopted)
+      // mtime changed → --resume. Check not tracked, not dismissed.
       if (clearDismissedFiles.has(file)) continue;
-
-      // Skip files recently dismissed by the user (closed via X).
-      // Dismissal expires after DISMISSED_COOLDOWN_MS so resumed sessions can be re-adopted.
-      const dismissedAt = dismissedJsonlFiles.get(file);
-      if (dismissedAt && now - dismissedAt < DISMISSED_COOLDOWN_MS) continue;
-      if (dismissedAt) dismissedJsonlFiles.delete(file); // Expired, clean up
-
-      // Check if already tracked by an agent (normalize paths for comparison).
-      // This prevents the external scanner from adopting /clear files (already
-      // reassigned to a terminal agent) while allowing untracked files through.
       const normalizedFile = path.resolve(file);
       let tracked = false;
       for (const agent of agents.values()) {
@@ -594,36 +619,8 @@ export function startExternalSessionScanning(
         }
       }
       if (tracked) continue;
-
-      // Only adopt recently-active files (modified within threshold).
-      try {
-        const stat = fs.statSync(file);
-        if (now - stat.mtimeMs > EXTERNAL_ACTIVE_THRESHOLD_MS) continue;
-      } catch {
-        continue;
-      }
-
-      // Content check with two-tick delay for /clear files:
-      // First tick: skip /clear files (give per-agent 3s to claim for internal /clear).
-      // Second tick: per-agent didn't claim → adopt as new external agent.
-      try {
-        const buf = Buffer.alloc(8192);
-        const fd = fs.openSync(file, 'r');
-        const bytesRead = fs.readSync(fd, buf, 0, 8192, 0);
-        fs.closeSync(fd);
-        if (buf.toString('utf-8', 0, bytesRead).includes('/clear</command-name>')) {
-          if (!pendingClearFiles.has(file)) {
-            pendingClearFiles.set(file, now);
-            continue; // First tick: skip, give per-agent a chance
-          }
-          pendingClearFiles.delete(file);
-          // Second tick: per-agent didn't claim → fall through to adopt
-        }
-      } catch {
-        continue;
-      }
-
-      knownJsonlFiles.add(file);
+      seededMtimes.delete(file);
+      console.log(`[Pixel Agents] Resumed session detected: ${path.basename(file)}`);
       adoptExternalSession(
         file,
         projectDir,
@@ -636,8 +633,156 @@ export function startExternalSessionScanning(
         webview,
         persistAgents,
       );
+      continue;
     }
-  }, EXTERNAL_SCAN_INTERVAL_MS);
+
+    // Skip files already known (seeded or adopted). seededMtimes handles --resume above.
+    if (knownJsonlFiles.has(file)) continue;
+
+    // Skip files permanently dismissed by /clear (never re-adopted)
+    if (clearDismissedFiles.has(file)) continue;
+
+    // Skip files recently dismissed by the user (closed via X).
+    // Dismissal expires after DISMISSED_COOLDOWN_MS so resumed sessions can be re-adopted.
+    const dismissedAt = dismissedJsonlFiles.get(file);
+    if (dismissedAt && now - dismissedAt < DISMISSED_COOLDOWN_MS) continue;
+    if (dismissedAt) dismissedJsonlFiles.delete(file); // Expired, clean up
+
+    // Check if already tracked by an agent (normalize paths for comparison).
+    // This prevents the external scanner from adopting /clear files (already
+    // reassigned to a terminal agent) while allowing untracked files through.
+    const normalizedFile = path.resolve(file);
+    let tracked = false;
+    for (const agent of agents.values()) {
+      if (path.resolve(agent.jsonlFile) === normalizedFile) {
+        tracked = true;
+        break;
+      }
+    }
+    if (tracked) continue;
+
+    // Only adopt recently-active files (modified within threshold).
+    try {
+      const stat = fs.statSync(file);
+      if (now - stat.mtimeMs > EXTERNAL_ACTIVE_THRESHOLD_MS) continue;
+    } catch {
+      continue;
+    }
+
+    // Content check with two-tick delay for /clear files:
+    // First tick: skip /clear files (give per-agent 3s to claim for internal /clear).
+    // Second tick: per-agent didn't claim → adopt as new external agent.
+    try {
+      const buf = Buffer.alloc(8192);
+      const fd = fs.openSync(file, 'r');
+      const bytesRead = fs.readSync(fd, buf, 0, 8192, 0);
+      fs.closeSync(fd);
+      if (buf.toString('utf-8', 0, bytesRead).includes('/clear</command-name>')) {
+        if (!pendingClearFiles.has(file)) {
+          pendingClearFiles.set(file, now);
+          continue; // First tick: skip, give per-agent a chance
+        }
+        pendingClearFiles.delete(file);
+        // Second tick: per-agent didn't claim → fall through to adopt
+      }
+    } catch {
+      continue;
+    }
+
+    knownJsonlFiles.add(file);
+    adoptExternalSession(
+      file,
+      projectDir,
+      nextAgentIdRef,
+      agents,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
+      webview,
+      persistAgents,
+    );
+  }
+}
+
+/** Derive a readable folder name from the Claude project dir hash. */
+function folderNameFromProjectDir(dirName: string): string {
+  const parts = dirName.replace(/^-+/, '').split('-');
+  return parts[parts.length - 1] || dirName;
+}
+
+/** Scan ALL ~/.claude/projects/ directories for active sessions (global discovery). */
+function scanGlobalProjectDirs(
+  knownJsonlFiles: Set<string>,
+  nextAgentIdRef: { current: number },
+  agents: Map<number, AgentState>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+): void {
+  const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
+  let dirs: fs.Dirent[];
+  try {
+    dirs = fs.readdirSync(projectsRoot, { withFileTypes: true }).filter((d) => d.isDirectory());
+  } catch {
+    return;
+  }
+
+  const now = Date.now();
+  for (const dir of dirs) {
+    const dirPath = path.join(projectsRoot, dir.name);
+    // Skip directories already tracked by workspace scanning
+    if (trackedProjectDirs.has(dirPath)) continue;
+
+    let files: string[];
+    try {
+      files = fs
+        .readdirSync(dirPath)
+        .filter((f) => f.endsWith('.jsonl'))
+        .map((f) => path.join(dirPath, f));
+    } catch {
+      continue;
+    }
+
+    for (const file of files) {
+      if (knownJsonlFiles.has(file)) continue;
+      let tracked = false;
+      for (const agent of agents.values()) {
+        if (agent.jsonlFile === file) {
+          tracked = true;
+          break;
+        }
+      }
+      if (tracked) continue;
+      // Activity filter: >3KB AND modified within 10 minutes
+      try {
+        const stat = fs.statSync(file);
+        if (stat.size < GLOBAL_SCAN_ACTIVE_MIN_SIZE) continue;
+        if (now - stat.mtimeMs > GLOBAL_SCAN_ACTIVE_MAX_AGE_MS) continue;
+      } catch {
+        continue;
+      }
+
+      const folderName = folderNameFromProjectDir(dir.name);
+      knownJsonlFiles.add(file);
+      adoptExternalSession(
+        file,
+        dirPath,
+        nextAgentIdRef,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+        persistAgents,
+        folderName,
+      );
+    }
+  }
 }
 
 /**

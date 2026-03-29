@@ -60,6 +60,9 @@ export interface ExtensionMessageState {
   externalAssetDirectories: string[];
   lastSeenVersion: string;
   extensionVersion: string;
+  watchAllSessions: boolean;
+  setWatchAllSessions: (v: boolean) => void;
+  alwaysShowLabels: boolean;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -93,6 +96,8 @@ export function useExtensionMessages(
   const [externalAssetDirectories, setExternalAssetDirectories] = useState<string[]>([]);
   const [lastSeenVersion, setLastSeenVersion] = useState('');
   const [extensionVersion, setExtensionVersion] = useState('');
+  const [watchAllSessions, setWatchAllSessions] = useState(false);
+  const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -390,6 +395,12 @@ export function useExtensionMessages(
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean;
         setSoundEnabled(soundOn);
+        if (typeof msg.watchAllSessions === 'boolean') {
+          setWatchAllSessions(msg.watchAllSessions as boolean);
+        }
+        if (typeof msg.alwaysShowLabels === 'boolean') {
+          setAlwaysShowLabels(msg.alwaysShowLabels as boolean);
+        }
         if (Array.isArray(msg.externalAssetDirectories)) {
           setExternalAssetDirectories(msg.externalAssetDirectories as string[]);
         }
@@ -435,5 +446,8 @@ export function useExtensionMessages(
     externalAssetDirectories,
     lastSeenVersion,
     extensionVersion,
+    watchAllSessions,
+    setWatchAllSessions,
+    alwaysShowLabels,
   };
 }

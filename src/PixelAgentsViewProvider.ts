@@ -27,14 +27,17 @@ import {
 } from './assetLoader.js';
 import { readConfig, writeConfig } from './configPersistence.js';
 import {
+  GLOBAL_KEY_ALWAYS_SHOW_LABELS,
   GLOBAL_KEY_LAST_SEEN_VERSION,
   GLOBAL_KEY_SOUND_ENABLED,
+  GLOBAL_KEY_WATCH_ALL_SESSIONS,
   LAYOUT_REVISION_KEY,
   WORKSPACE_KEY_AGENT_SEATS,
 } from './constants.js';
 import {
   dismissedJsonlFiles,
   ensureProjectScan,
+  isTrackedProjectDir,
   startExternalSessionScanning,
   startStaleExternalAgentCheck,
 } from './fileWatcher.js';
@@ -63,6 +66,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   // External session detection (VS Code extension panel, etc.)
   externalScanTimer: ReturnType<typeof setInterval> | null = null;
   staleCheckTimer: ReturnType<typeof setInterval> | null = null;
+
+  // Global session scanning (opt-in "Watch All Sessions" toggle)
+  watchAllSessions = { current: false };
+  globalDismissedFiles = new Set<string>();
 
   // Bundled default layout (loaded from assets/default-layout.json)
   defaultLayout: Record<string, unknown> | null = null;
@@ -152,6 +159,51 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
       } else if (message.type === 'setLastSeenVersion') {
         this.context.globalState.update(GLOBAL_KEY_LAST_SEEN_VERSION, message.version as string);
+      } else if (message.type === 'setAlwaysShowLabels') {
+        this.context.globalState.update(GLOBAL_KEY_ALWAYS_SHOW_LABELS, message.enabled);
+      } else if (message.type === 'setWatchAllSessions') {
+        const enabled = message.enabled as boolean;
+        this.context.globalState.update(GLOBAL_KEY_WATCH_ALL_SESSIONS, enabled);
+        this.watchAllSessions.current = enabled;
+        if (enabled) {
+          // Clear only toggle-specific dismissals so global agents can be re-adopted
+          for (const file of this.globalDismissedFiles) {
+            dismissedJsonlFiles.delete(file);
+          }
+          this.globalDismissedFiles.clear();
+        } else {
+          // Remove all external agents not from the current workspace folders
+          const workspaceDirs = new Set<string>();
+          for (const folder of vscode.workspace.workspaceFolders ?? []) {
+            const dir = getProjectDirPath(folder.uri.fsPath);
+            if (dir) workspaceDirs.add(dir);
+          }
+          const toRemove: number[] = [];
+          for (const [id, agent] of this.agents) {
+            if (agent.isExternal && !workspaceDirs.has(agent.projectDir)) {
+              toRemove.push(id);
+            }
+          }
+          for (const id of toRemove) {
+            const agent = this.agents.get(id);
+            if (agent) {
+              dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+              this.globalDismissedFiles.add(agent.jsonlFile);
+              this.knownJsonlFiles.delete(agent.jsonlFile);
+            }
+            removeAgent(
+              id,
+              this.agents,
+              this.fileWatchers,
+              this.pollingTimers,
+              this.waitingTimers,
+              this.permissionTimers,
+              this.jsonlPollTimers,
+              this.persistAgents,
+            );
+            this.webview?.postMessage({ type: 'agentClosed', id });
+          }
+        }
       } else if (message.type === 'webviewReady') {
         restoreAgents(
           this.context,
@@ -177,12 +229,23 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         );
         const extensionVersion =
           (this.context.extension.packageJSON as { version?: string }).version ?? '';
+        const watchAllSessions = this.context.globalState.get<boolean>(
+          GLOBAL_KEY_WATCH_ALL_SESSIONS,
+          false,
+        );
+        const alwaysShowLabels = this.context.globalState.get<boolean>(
+          GLOBAL_KEY_ALWAYS_SHOW_LABELS,
+          false,
+        );
+        this.watchAllSessions.current = watchAllSessions;
         const config = readConfig();
         this.webview?.postMessage({
           type: 'settingsLoaded',
           soundEnabled,
           lastSeenVersion,
           extensionVersion,
+          watchAllSessions,
+          alwaysShowLabels,
           externalAssetDirectories: config.externalAssetDirectories,
         });
 
@@ -229,6 +292,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             this.jsonlPollTimers,
             this.webview,
             this.persistAgents,
+            this.watchAllSessions,
           );
 
           // In multi-root workspaces, also scan project dirs for all other folders

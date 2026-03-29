@@ -14,6 +14,8 @@ interface BottomToolbarProps {
   onToggleAlwaysShowOverlay: () => void;
   workspaceFolders: WorkspaceFolder[];
   externalAssetDirectories: string[];
+  watchAllSessions: boolean;
+  onToggleWatchAllSessions: () => void;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -57,6 +59,8 @@ export function BottomToolbar({
   onToggleAlwaysShowOverlay,
   workspaceFolders,
   externalAssetDirectories,
+  watchAllSessions,
+  onToggleWatchAllSessions,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -277,6 +281,8 @@ export function BottomToolbar({
           alwaysShowOverlay={alwaysShowOverlay}
           onToggleAlwaysShowOverlay={onToggleAlwaysShowOverlay}
           externalAssetDirectories={externalAssetDirectories}
+          watchAllSessions={watchAllSessions}
+          onToggleWatchAllSessions={onToggleWatchAllSessions}
         />
       </div>
     </div>

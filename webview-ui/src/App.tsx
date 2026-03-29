@@ -153,6 +153,9 @@ function App() {
     externalAssetDirectories,
     lastSeenVersion,
     extensionVersion,
+    watchAllSessions,
+    setWatchAllSessions,
+    alwaysShowLabels,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -174,11 +177,19 @@ function App() {
     vscode.postMessage({ type: 'setLastSeenVersion', version: currentMajorMinor });
   }, [currentMajorMinor]);
 
+  // Sync alwaysShowOverlay from persisted settings
+  useEffect(() => {
+    setAlwaysShowOverlay(alwaysShowLabels);
+  }, [alwaysShowLabels]);
+
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), []);
-  const handleToggleAlwaysShowOverlay = useCallback(
-    () => setAlwaysShowOverlay((prev) => !prev),
-    [],
-  );
+  const handleToggleAlwaysShowOverlay = useCallback(() => {
+    setAlwaysShowOverlay((prev) => {
+      const newVal = !prev;
+      vscode.postMessage({ type: 'setAlwaysShowLabels', enabled: newVal });
+      return newVal;
+    });
+  }, []);
 
   const handleSelectAgent = useCallback((id: number) => {
     vscode.postMessage({ type: 'focusAgent', id });
@@ -306,6 +317,12 @@ function App() {
         onToggleAlwaysShowOverlay={handleToggleAlwaysShowOverlay}
         workspaceFolders={workspaceFolders}
         externalAssetDirectories={externalAssetDirectories}
+        watchAllSessions={watchAllSessions}
+        onToggleWatchAllSessions={() => {
+          const newVal = !watchAllSessions;
+          setWatchAllSessions(newVal);
+          vscode.postMessage({ type: 'setWatchAllSessions', enabled: newVal });
+        }}
       />
 
       <VersionIndicator

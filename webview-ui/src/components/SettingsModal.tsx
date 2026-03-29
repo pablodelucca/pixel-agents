@@ -11,6 +11,8 @@ interface SettingsModalProps {
   alwaysShowOverlay: boolean;
   onToggleAlwaysShowOverlay: () => void;
   externalAssetDirectories: string[];
+  watchAllSessions: boolean;
+  onToggleWatchAllSessions: () => void;
 }
 
 const menuItemBase: React.CSSProperties = {
@@ -36,6 +38,8 @@ export function SettingsModal({
   alwaysShowOverlay,
   onToggleAlwaysShowOverlay,
   externalAssetDirectories,
+  watchAllSessions,
+  onToggleWatchAllSessions,
 }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
@@ -237,6 +241,35 @@ export function SettingsModal({
             }}
           >
             {soundLocal ? 'X' : ''}
+          </span>
+        </button>
+        <button
+          onClick={onToggleWatchAllSessions}
+          onMouseEnter={() => setHovered('watchAll')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...menuItemBase,
+            background: hovered === 'watchAll' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          }}
+        >
+          <span>Watch All Sessions</span>
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              border: '2px solid rgba(255, 255, 255, 0.5)',
+              borderRadius: 0,
+              background: watchAllSessions ? 'rgba(90, 140, 255, 0.8)' : 'transparent',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              lineHeight: 1,
+              color: '#fff',
+            }}
+          >
+            {watchAllSessions ? 'X' : ''}
           </span>
         </button>
         <button
