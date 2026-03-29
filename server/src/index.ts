@@ -5,6 +5,7 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 
+import { creditsRoutes } from './routes/credits.js';
 import { officesRoutes } from './routes/offices.js';
 import { paymentRoutes } from './routes/payment.js';
 import { serverRoutes } from './routes/servers.js';
@@ -34,6 +35,7 @@ app.get('/health', (_req, res) => {
 });
 
 // API routes
+app.use('/api/credits', creditsRoutes);
 app.use('/api/offices', officesRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/servers', serverRoutes);

@@ -318,8 +318,8 @@ function App() {
         .pixel-agents-migration-btn:hover { filter: brightness(0.8); }
       `}</style>
 
-      {/* Balance Bar - USDC & Rupiah */}
-      <BalanceBar rupiahBalance={0} />
+      {/* Balance Bar - USDC & Rupiah (fetched automatically via hooks) */}
+      <BalanceBar />
 
       {/* Agent Detail Sidebar - Left */}
       {chatCharacter && showDetailSidebar && server && (

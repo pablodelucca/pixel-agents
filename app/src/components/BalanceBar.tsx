@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { usePrivy, useWallets, useCreateWallet } from '@privy-io/react-auth';
 import { QRCodeSVG } from 'qrcode.react';
 
+import { useCredits } from '../hooks/useCredits.js';
 import { getCharacterSprites } from '../office/sprites/spriteData.js';
 import { Direction } from '../office/types.js';
 
@@ -74,14 +75,16 @@ const USDC_CONTRACT = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const BALANCE_OF_SIGNATURE = '0x70a08231';
 
 interface BalanceBarProps {
+  /** @deprecated Balance is now fetched automatically via useCredits hook */
   rupiahBalance?: number;
 }
 
-export function BalanceBar({ rupiahBalance = 0 }: BalanceBarProps) {
+export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProps) {
   const { authenticated, user: privyUser, logout } = usePrivy();
   const { wallets } = useWallets();
   const { createWallet } = useCreateWallet();
-  const [usdcBalance, setUsdcBalance] = useState<string>('0');
+  const { balance: rupiahBalance, loading: creditsLoading, fetchCredits } = useCredits();
+  const [usdcBalance, setUsdcBalance] = useState<string>('0,0000');
   const [isLoading, setIsLoading] = useState(false);
   const [isUsdcDialogOpen, setIsUsdcDialogOpen] = useState(false);
   const [isRupiahDialogOpen, setIsRupiahDialogOpen] = useState(false);
@@ -104,10 +107,14 @@ export function BalanceBar({ rupiahBalance = 0 }: BalanceBarProps) {
       const balanceInMicroUsdc = parseInt(result, 16);
       const balance = balanceInMicroUsdc / 1e6;
 
-      return balance.toFixed(4);
+      // Format with Indonesian locale (comma for decimals, e.g., 1,2345)
+      return balance.toLocaleString('id-ID', {
+        minimumFractionDigits: 4,
+        maximumFractionDigits: 4,
+      });
     } catch (error) {
       console.error('Failed to fetch USDC balance:', error);
-      return '0';
+      return '0,0000';
     }
   };
 
@@ -174,8 +181,10 @@ export function BalanceBar({ rupiahBalance = 0 }: BalanceBarProps) {
   useEffect(() => {
     if (authenticated && wallets.length > 0) {
       fetchBalance();
+      // Also fetch credits on initial load
+      fetchCredits();
     }
-  }, [authenticated, wallets]);
+  }, [authenticated, wallets, fetchCredits]);
 
   // Generate player avatar from sprite
   useEffect(() => {
@@ -443,7 +452,7 @@ export function BalanceBar({ rupiahBalance = 0 }: BalanceBarProps) {
                 lineHeight: 1.2,
               }}
             >
-              {formatRupiah(rupiahBalance)}
+              {creditsLoading ? '...' : formatRupiah(rupiahBalance)}
             </span>
           </div>
 
