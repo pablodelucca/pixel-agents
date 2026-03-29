@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import PocketBase from 'pocketbase';
 
-import { createNewSession, fetchAgentWorkspace, fetchSessionHistory, listSessions, sendMessageToAgent } from '../services/ssh.js';
+import { createNewSession, fetchAgentWorkspace, fetchSessionHistory, listSessions, saveAgentWorkspaceFile, sendMessageToAgent } from '../services/ssh.js';
 
 // mergeParams: true to access :serverId from parent router
 export const sessionsRoutes = Router({ mergeParams: true });
@@ -213,6 +213,68 @@ sessionsRoutes.get('/workspace', async (req, res) => {
     res.json({ success: true, data: result.files });
   } catch (error) {
     console.error('Error fetching workspace:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * PUT /api/servers/:id/sessions/workspace
+ * Save a single workspace file for an agent
+ * Body: { filename: string, content: string, agentId?: string }
+ */
+sessionsRoutes.put('/workspace', async (req, res) => {
+  try {
+    const { id: serverId } = req.params as SessionParams;
+    const { filename, content, agentId = 'main' } = req.body;
+
+    // Validate required fields
+    if (!filename || typeof filename !== 'string') {
+      return res.status(400).json({ success: false, error: 'Filename is required' });
+    }
+
+    if (typeof content !== 'string') {
+      return res.status(400).json({ success: false, error: 'Content must be a string' });
+    }
+
+    const pb = await getPbAdminClient();
+    const server = await pb.collection('server').getOne(serverId).catch(() => null);
+
+    if (!server) {
+      return res.status(404).json({ success: false, error: 'Server not found' });
+    }
+
+    if (!server.ip) {
+      return res.status(400).json({ success: false, error: 'Server has no IP configured' });
+    }
+
+    if (!server.password) {
+      return res.status(400).json({ success: false, error: 'Server has no password configured' });
+    }
+
+    const sshUser = server.username ?? 'root';
+    const sshPort = 22;
+
+    // Save the workspace file
+    const result = await saveAgentWorkspaceFile(
+      server.ip,
+      server.password,
+      filename,
+      content,
+      agentId,
+      sshUser,
+      sshPort,
+    );
+
+    if (!result.success) {
+      return res.status(500).json({ success: false, error: result.error });
+    }
+
+    res.json({ success: true, message: `${filename} saved successfully` });
+  } catch (error) {
+    console.error('Error saving workspace file:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

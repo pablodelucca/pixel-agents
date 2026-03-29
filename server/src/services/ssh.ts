@@ -698,6 +698,74 @@ export async function fetchAgentWorkspace(
 }
 
 /**
+ * Save a single workspace file for an agent
+ * Writes to ~/.openclaw/workspace/<filename> on the remote server
+ */
+export async function saveAgentWorkspaceFile(
+  host: string,
+  password: string,
+  filename: string,
+  content: string,
+  agentId: string = 'main',
+  username: string = DEFAULT_SSH_USER,
+  port: number = DEFAULT_SSH_PORT,
+): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  // Validate filename - only allow the 7 known files
+  const allowedFiles = [
+    'AGENTS.md',
+    'HEARTBEAT.md',
+    'IDENTITY.md',
+    'MEMORY.md',
+    'SOUL.md',
+    'TOOLS.md',
+    'USER.md',
+  ];
+
+  if (!allowedFiles.includes(filename)) {
+    return {
+      success: false,
+      error: `Invalid filename. Allowed: ${allowedFiles.join(', ')}`,
+    };
+  }
+
+  const workspacePath = `${OPENCLAW_BASE_PATH}/workspace`;
+  const filePath = `${workspacePath}/${filename}`;
+
+  let conn: Client | null = null;
+
+  try {
+    conn = await connectSSH({ host, port, username, password });
+
+    // Ensure workspace directory exists
+    await executeCommand(conn, `mkdir -p ${workspacePath}`);
+
+    // Escape content for cat with heredoc (safer than echo for multi-line content)
+    // Using base64 encoding to avoid any shell escaping issues
+    const base64Content = Buffer.from(content).toString('base64');
+    const command = `echo '${base64Content}' | base64 -d > ${filePath}`;
+
+    await executeCommand(conn, command);
+
+    console.log(`[SSH] Saved ${filename} for agent ${agentId} to ${filePath}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error(`[SSH] Failed to save ${filename}:`, error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  } finally {
+    if (conn) {
+      conn.end();
+    }
+  }
+}
+
+/**
  * Create a new session for an agent
  * Sends an initial message to create the session, then returns the session info
  */

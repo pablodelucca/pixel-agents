@@ -126,9 +126,22 @@ export function ChatSidebar({ character, isOpen, onClose, server }: { character:
     fetchHistory();
   }, [isOpen, canChat, server, character.agentId]);
 
-  // Auto-scroll to bottom when messages change
+  // Scroll to bottom instantly on initial load, smooth on new messages
+  const prevMessagesLengthRef = useRef(0);
+  
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesEndRef.current?.parentElement;
+    if (!container) return;
+    
+    // If this is initial load (jump from 0 to many messages), scroll instantly
+    if (prevMessagesLengthRef.current === 0 && messages.length > 0) {
+      container.scrollTop = container.scrollHeight;
+    } else if (prevMessagesLengthRef.current < messages.length) {
+      // New message added - smooth scroll
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    prevMessagesLengthRef.current = messages.length;
   }, [messages]);
 
   // Track loading time

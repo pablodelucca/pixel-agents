@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, Brain, Folder, Heart, Sparkles, User, Wrench } from 'lucide-react';
+import { Activity, Brain, Edit3, Folder, Heart, Save, Sparkles, User, X, Wrench } from 'lucide-react';
 
 import type { Character } from '../office/types.js';
 
@@ -266,6 +266,13 @@ export function AgentDetailSidebar({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Edit mode state
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
   // Extract name from displayName
   const name = character.displayName?.replace(/^(\p{Emoji}\s*)/u, '') || `Agent ${character.id}`;
   const status = character.isActive ? 'Working...' : 'Idle';
@@ -284,6 +291,8 @@ export function AgentDetailSidebar({
     setWorkspaceFiles(null);
     setError(null);
     setActiveTab('IDENTITY.md');
+    setIsEditMode(false); // Reset edit mode on new fetch
+    setEditContent('');
     setIsLoading(true);
 
     const fetchWorkspace = async () => {
@@ -335,6 +344,96 @@ export function AgentDetailSidebar({
       cancelled = true;
     };
   }, [isOpen, server?.id, character.agentId]);
+
+  // Update edit content when active tab or workspace files change
+  useEffect(() => {
+    if (workspaceFiles && activeTab) {
+      setEditContent(workspaceFiles[activeTab] || '');
+    }
+  }, [workspaceFiles, activeTab]);
+
+  // Handle entering edit mode
+  const handleEdit = () => {
+    if (workspaceFiles) {
+      setEditContent(workspaceFiles[activeTab] || '');
+      setIsEditMode(true);
+      setSaveError(null);
+      setSaveSuccess(false);
+    }
+  };
+
+  // Handle canceling edit mode
+  const handleCancelEdit = () => {
+    setIsEditMode(false);
+    setEditContent(workspaceFiles?.[activeTab] || '');
+    setSaveError(null);
+    setSaveSuccess(false);
+  };
+
+  // Handle saving the file
+  const handleSave = async () => {
+    if (!server?.id || !character.agentId) return;
+
+    setIsSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/servers/${server.id}/sessions/workspace`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            filename: activeTab,
+            content: editContent,
+            agentId: character.agentId,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to save file');
+      }
+
+      // Update local state with new content
+      setWorkspaceFiles((prev) =>
+        prev ? { ...prev, [activeTab]: editContent } : null
+      );
+      setIsEditMode(false);
+      setSaveSuccess(true);
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setSaveSuccess(false), 3000);
+
+      console.log('[AgentDetailSidebar] File saved successfully:', activeTab);
+    } catch (err) {
+      console.error('[AgentDetailSidebar] Failed to save file:', err);
+      setSaveError(err instanceof Error ? err.message : 'Failed to save file');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle tab change - exit edit mode if changing tabs
+  const handleTabChange = (tabId: TabId) => {
+    if (isEditMode) {
+      // Ask for confirmation before switching tabs while editing
+      if (editContent !== (workspaceFiles?.[activeTab] || '')) {
+        if (!window.confirm('You have unsaved changes. Discard them?')) {
+          return;
+        }
+      }
+      setIsEditMode(false);
+    }
+    setActiveTab(tabId);
+    setSaveError(null);
+    setSaveSuccess(false);
+  };
 
   if (!isOpen) return null;
 
@@ -448,7 +547,8 @@ export function AgentDetailSidebar({
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
+              disabled={isEditMode && isActive}
               title={tab.label}
               style={{
                 display: 'flex',
@@ -460,11 +560,12 @@ export function AgentDetailSidebar({
                 color: isActive ? '#fff' : 'var(--pixel-text)',
                 border: '2px solid var(--pixel-border)',
                 borderRadius: 4,
-                cursor: 'pointer',
+                cursor: isEditMode && isActive ? 'default' : 'pointer',
                 whiteSpace: 'nowrap',
                 boxShadow: isActive ? '2px 2px 0 rgba(0,0,0,0.3)' : 'none',
                 transform: isActive ? 'translate(-1px, -1px)' : 'none',
                 transition: 'all 0.2s ease',
+                opacity: isEditMode && isActive ? 0.8 : 1,
               }}
             >
               <tab.Icon size={18} />
@@ -474,12 +575,116 @@ export function AgentDetailSidebar({
         })}
       </div>
 
+      {/* Action Bar - Edit/Save buttons */}
+      {workspaceFiles && !isLoading && !error && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            borderBottom: '2px solid var(--pixel-border)',
+            background: 'rgba(0,0,0,0.05)',
+          }}
+        >
+          <div style={{ fontSize: 14, color: 'var(--pixel-text-dim)' }}>
+            {isEditMode ? 'Editing...' : activeTab}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {!isEditMode ? (
+              <button
+                onClick={handleEdit}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 12px',
+                  fontSize: 14,
+                  background: 'var(--pixel-btn-bg)',
+                  color: 'var(--pixel-text)',
+                  border: '2px solid var(--pixel-border)',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                }}
+                title="Edit file"
+              >
+                <Edit3 size={16} />
+                Edit
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 12px',
+                    fontSize: 14,
+                    background: 'var(--pixel-btn-bg)',
+                    color: 'var(--pixel-text)',
+                    border: '2px solid var(--pixel-border)',
+                    borderRadius: 4,
+                    cursor: isSaving ? 'wait' : 'pointer',
+                    opacity: isSaving ? 0.6 : 1,
+                  }}
+                  title="Cancel editing"
+                >
+                  <X size={16} />
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 12px',
+                    fontSize: 14,
+                    background: 'var(--pixel-accent)',
+                    color: '#fff',
+                    border: '2px solid var(--pixel-accent)',
+                    borderRadius: 4,
+                    cursor: isSaving ? 'wait' : 'pointer',
+                    opacity: isSaving ? 0.8 : 1,
+                  }}
+                  title="Save file to server"
+                >
+                  <Save size={16} />
+                  {isSaving ? 'Saving...' : 'Save'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Save Status Messages */}
+      {(saveError || saveSuccess) && (
+        <div
+          style={{
+            padding: '8px 12px',
+            background: saveSuccess ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+            borderBottom: '2px solid var(--pixel-border)',
+            color: saveSuccess ? '#22c55e' : '#ef4444',
+            fontSize: 14,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          {saveSuccess ? '✓ File saved successfully!' : `✕ ${saveError}`}
+        </div>
+      )}
+
       {/* Content */}
       <div
         style={{
           flex: 1,
-          overflow: 'auto',
-          padding: 16,
+          overflow: isEditMode ? 'hidden' : 'auto',
+          padding: isEditMode ? 0 : 16,
         }}
       >
         {!server ? (
@@ -493,6 +698,7 @@ export function AgentDetailSidebar({
               color: 'var(--pixel-text-dim)',
               textAlign: 'center',
               gap: 8,
+              padding: 20,
             }}
           >
             <span style={{ fontSize: 48 }}>🔌</span>
@@ -530,7 +736,37 @@ export function AgentDetailSidebar({
             <div style={{ fontSize: 14, maxWidth: 280 }}>{error}</div>
           </div>
         ) : workspaceFiles ? (
-          <MarkdownContent content={workspaceFiles[activeTab]} />
+          isEditMode ? (
+            // Edit mode - show textarea
+            <textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              disabled={isSaving}
+              style={{
+                width: '100%',
+                height: '100%',
+                padding: 16,
+                fontSize: 16,
+                fontFamily: 'monospace',
+                lineHeight: 1.5,
+                background: 'var(--pixel-bg)',
+                color: 'var(--pixel-text)',
+                border: 'none',
+                outline: 'none',
+                resize: 'none',
+                whiteSpace: 'pre-wrap',
+                wordWrap: 'break-word',
+                overflowX: 'hidden',
+                overflowY: 'auto',
+                boxSizing: 'border-box',
+              }}
+              placeholder={`Enter content for ${activeTab}...`}
+              spellCheck={false}
+            />
+          ) : (
+            // View mode - show markdown
+            <MarkdownContent content={workspaceFiles[activeTab]} />
+          )
         ) : null}
       </div>
     </div>

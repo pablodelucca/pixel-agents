@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { MessageCircle, Settings, X } from 'lucide-react';
+import { MessageCircle, Settings } from 'lucide-react';
 
 import { AgentDetailSidebar } from './components/AgentDetailSidebar.js';
 import { BalanceBar } from './components/BalanceBar.js';
@@ -410,8 +410,8 @@ function App() {
         </div>
       )}
 
-      {/* Player proximity indicator OR selected agent indicator */}
-      {((playerNearbyAgent && !isDebugMode && !editor.isEditMode) || (chatCharacter && !showChatSidebar && !showDetailSidebar)) && (
+      {/* Agent indicator - shown when player is near OR has selected an agent */}
+      {((playerNearbyAgent && !isDebugMode && !editor.isEditMode) || chatCharacter) && !showChatSidebar && !showDetailSidebar && (
         <div
           style={{
             position: 'absolute',
@@ -435,10 +435,7 @@ function App() {
             {(chatCharacter || playerNearbyAgent?.agentCharacter)?.displayName?.match(/^(\p{Emoji})/u)?.[1] || '🤖'}
           </span>
           <span>
-            {chatCharacter 
-              ? chatCharacter.displayName?.replace(/^(\p{Emoji}\s*)/u, '') || `Agent ${chatCharacterId}`
-              : `Near ${playerNearbyAgent?.agentCharacter?.displayName?.replace(/^(\p{Emoji}\s*)/u, '') || `Agent ${playerNearbyAgent?.agentId}`}`
-            }
+            {(chatCharacter || playerNearbyAgent?.agentCharacter)?.displayName?.replace(/^(\p{Emoji}\s*)/u, '') || `Agent ${chatCharacterId || playerNearbyAgent?.agentId}`}
           </span>
           {/* Chat button - opens right sidebar, closes detail */}
           <button
@@ -454,7 +451,7 @@ function App() {
               fontSize: '18px',
               background: showChatSidebar ? 'var(--pixel-accent)' : 'rgba(255,255,255,0.1)',
               color: '#fff',
-              border: showChatSidebar ? 'none' : '2px solid rgba(255,255,255,0.3)',
+              border: showChatSidebar ? '2px solid var(--pixel-accent)' : '2px solid rgba(255,255,255,0.3)',
               borderRadius: 4,
               cursor: 'pointer',
               display: 'flex',
@@ -479,7 +476,7 @@ function App() {
               fontSize: '18px',
               background: showDetailSidebar ? 'var(--pixel-accent)' : 'rgba(255,255,255,0.1)',
               color: '#fff',
-              border: showDetailSidebar ? 'none' : '2px solid rgba(255,255,255,0.3)',
+              border: showDetailSidebar ? '2px solid var(--pixel-accent)' : '2px solid rgba(255,255,255,0.3)',
               borderRadius: 4,
               cursor: 'pointer',
               display: 'flex',
@@ -490,24 +487,6 @@ function App() {
           >
             <Settings size={18} />
           </button>
-          {chatCharacter && !showChatSidebar && !showDetailSidebar && (
-            <button
-              onClick={handleCloseAll}
-              style={{
-                padding: '6px 10px',
-                fontSize: '18px',
-                background: 'transparent',
-                color: 'rgba(255,255,255,0.6)',
-                border: '2px solid rgba(255,255,255,0.2)',
-                borderRadius: 4,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
-              <X size={18} />
-            </button>
-          )}
         </div>
       )}
 
