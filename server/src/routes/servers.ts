@@ -574,5 +574,156 @@ serverRoutes.put('/:id/password', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/servers/purchase-with-rupiah
+ * Purchase server using credits (Rupiah pricing)
+ * Flow:
+ * 1. Check user credits
+ * 2. If insufficient, return error
+ * 3. If sufficient, deduct credits and create transaction (type: CREDIT)
+ * 4. Confirm purchase and create office record
+ */
+serverRoutes.post('/purchase-with-rupiah', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const { serverId, packageType, packageName, priceRupiah } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized - User ID required',
+      });
+    }
+
+    if (!serverId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Server ID is required',
+      });
+    }
+
+    if (!priceRupiah || typeof priceRupiah !== 'number' || priceRupiah <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid price',
+      });
+    }
+
+    console.log(`[/api/servers/purchase-with-rupiah] User ${userId} purchasing ${packageType} server ${serverId} for Rp ${priceRupiah}`);
+
+    const pb = await getPbAdminClient();
+
+    // 1. Verify server exists and is reserved
+    const server = await pb.collection('server').getOne(serverId).catch(() => null);
+
+    if (!server) {
+      return res.status(404).json({
+        success: false,
+        error: 'Server not found',
+      });
+    }
+
+    if (server.status !== 'reserved') {
+      return res.status(400).json({
+        success: false,
+        error: 'Server is not reserved',
+        code: 'NOT_RESERVED',
+      });
+    }
+
+    // Check reservation is still valid (within 5 minutes)
+    const timeoutDate = new Date(Date.now() - RESERVATION_TIMEOUT_MS);
+    const updatedAt = new Date(server.updated);
+    
+    if (updatedAt <= timeoutDate) {
+      return res.status(400).json({
+        success: false,
+        error: 'Reservation has expired. Please try again.',
+        code: 'RESERVATION_EXPIRED',
+      });
+    }
+
+    // 2. Check user credits
+    let credit = await pb.collection('credit').getFirstListItem(
+      `user_id="${userId}"`,
+    ).catch(() => null);
+
+    if (!credit) {
+      return res.status(400).json({
+        success: false,
+        error: 'Insufficient credits. Please top up first.',
+        code: 'INSUFFICIENT_CREDITS',
+        currentBalance: 0,
+        requiredAmount: priceRupiah,
+      });
+    }
+
+    const currentBalance = credit.balance || 0;
+
+    if (currentBalance < priceRupiah) {
+      return res.status(400).json({
+        success: false,
+        error: `Insufficient credits. You have Rp ${currentBalance.toLocaleString('id-ID')}, need Rp ${priceRupiah.toLocaleString('id-ID')}.`,
+        code: 'INSUFFICIENT_CREDITS',
+        currentBalance: currentBalance,
+        requiredAmount: priceRupiah,
+      });
+    }
+
+    // 3. Deduct credits
+    const newBalance = currentBalance - priceRupiah;
+    await pb.collection('credit').update(credit.id, {
+      balance: newBalance,
+    });
+
+    console.log(`[/api/servers/purchase-with-rupiah] Credits deducted: ${currentBalance} -> ${newBalance}`);
+
+    // 4. Create transaction (CREDIT = uang keluar)
+    await pb.collection('transaction').create({
+      user_id: userId,
+      type: 'CREDIT',
+      amount: priceRupiah,
+      desc: `Purchase ${packageName || packageType} Server`,
+      ref: serverId,
+    });
+
+    console.log(`[/api/servers/purchase-with-rupiah] Transaction created for server ${serverId}`);
+
+    // 5. Update server status to occupied
+    await pb.collection('server').update(serverId, {
+      status: 'occupied',
+    });
+
+    // 6. Create office rental record
+    const expiredAt = new Date();
+    expiredAt.setDate(expiredAt.getDate() + 30);
+
+    const office = await pb.collection('office').create({
+      user_id: userId,
+      server_id: serverId,
+      expired_at: expiredAt.toISOString(),
+    });
+
+    console.log(`[/api/servers/purchase-with-rupiah] Office ${office.id} created for user ${userId}`);
+
+    res.json({
+      success: true,
+      data: {
+        serverId,
+        officeId: office.id,
+        expiredAt: expiredAt.toISOString(),
+        newBalance: newBalance,
+        message: 'Server purchased successfully',
+      },
+    });
+  } catch (error) {
+    console.error('Error purchasing server with rupiah:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 // Nested sessions routes under /api/servers/:id/sessions
 serverRoutes.use('/:id/sessions', sessionsRoutes);

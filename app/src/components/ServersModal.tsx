@@ -91,6 +91,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
   const [paymentStep, setPaymentStep] = useState<PaymentStep>('select');
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [usdcBalance, setUsdcBalance] = useState<number>(0);
+  const [creditsBalance, setCreditsBalance] = useState<number>(0);
   const [isCheckingBalance, setIsCheckingBalance] = useState(false);
   const [reservedOffice, setReservedOffice] = useState<ReservedOffice | null>(null);
   const [countdown, setCountdown] = useState<number>(300); // 5 minutes countdown (increased from 60s)
@@ -345,11 +346,37 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
         return;
       }
     } else if (method === 'rupiah') {
-      // Rupiah not available yet - cancel reservation and show error
-      await cancelReservation();
-      setPaymentError('Rupiah payment coming soon! Please use USDC for now.');
-      setPaymentStep('error');
-      return;
+      // Rupiah payment uses credits - check balance
+      setIsCheckingBalance(true);
+      
+      // Fetch credits from backend
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/credits`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': privyUser?.id || '',
+          },
+        });
+
+        const data = await response.json();
+        const currentBalance = data.success ? (data.balance || 0) : 0;
+        setCreditsBalance(currentBalance);
+        setIsCheckingBalance(false);
+
+        if (currentBalance < (selectedPkg?.priceRupiah || 0)) {
+          await cancelReservation();
+          setPaymentError(`Insufficient credits. You have Rp ${currentBalance.toLocaleString('id-ID')}, need Rp ${selectedPkg?.priceRupiah?.toLocaleString('id-ID')}.`);
+          setPaymentStep('error');
+          return;
+        }
+      } catch (err) {
+        setIsCheckingBalance(false);
+        await cancelReservation();
+        setPaymentError('Failed to check credits balance. Please try again.');
+        setPaymentStep('error');
+        return;
+      }
     }
 
     setPaymentStep('paying');
@@ -457,10 +484,48 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
         setPaymentStep('error');
       }
     } else if (paymentMethod === 'rupiah') {
-      // Rupiah not implemented yet - this shouldn't happen but just in case
-      await cancelReservation();
-      setPaymentError('Rupiah payment coming soon! Please use USDC for now.');
-      setPaymentStep('error');
+      // Rupiah payment using credits
+      try {
+        setPaymentStep('confirming');
+        setPaymentError(null);
+
+        // Call purchase-with-rupiah endpoint
+        const response = await fetch(`${API_BASE_URL}/api/servers/purchase-with-rupiah`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': privyUser?.id || '',
+          },
+          body: JSON.stringify({
+            serverId: reservedOffice.serverId,
+            packageType: selectedPackage,
+            packageName: selectedPkg.name,
+            priceRupiah: selectedPkg.priceRupiah,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Failed to purchase server');
+        }
+
+        console.log('Purchase confirmed:', result);
+
+        // Add small delay before showing success for smooth UX
+        setTimeout(() => {
+          setPaymentStep('success');
+        }, 1500);
+      } catch (error: any) {
+        console.error('Payment failed:', error);
+
+        // Cancel reservation (don't await to avoid blocking UI)
+        cancelReservation().catch((err) => console.error('Failed to cancel reservation:', err));
+
+        const errorMessage = error.message || 'Payment was cancelled or failed';
+        setPaymentError(errorMessage);
+        setPaymentStep('error');
+      }
     }
   };
 
@@ -957,7 +1022,6 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                         border: '2px solid #f97316',
                         borderRadius: 4,
                         cursor: 'pointer',
-                        opacity: 0.6,
                       }}
                     >
                       <div
@@ -979,15 +1043,12 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                       </div>
                       <div style={{ flex: 1, textAlign: 'left' }}>
                         <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#f97316' }}>
-                          Pay with Rupiah
+                          Pay with Credits
                         </div>
                         <div style={{ fontSize: '14px', color: 'var(--pixel-text-dim)' }}>
                           Rp {formatRupiah(selectedPkg.priceRupiah)}
                         </div>
                       </div>
-                      <span style={{ fontSize: '12px', color: '#fbbf24', background: 'rgba(251, 191, 36, 0.2)', padding: '4px 8px', borderRadius: 4 }}>
-                        Coming Soon
-                      </span>
                     </button>
                   </div>
                 </div>
@@ -1042,6 +1103,11 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   {paymentMethod === 'usdc' && (
                     <p style={{ fontSize: '14px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
                       Your balance: {isCheckingBalance ? '...' : `${usdcBalance.toFixed(2)} USDC`}
+                    </p>
+                  )}
+                  {paymentMethod === 'rupiah' && (
+                    <p style={{ fontSize: '14px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
+                      Your credits: {isCheckingBalance ? '...' : `Rp ${creditsBalance.toLocaleString('id-ID')}`}
                     </p>
                   )}
                   
