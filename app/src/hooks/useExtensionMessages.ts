@@ -171,12 +171,14 @@ export function useExtensionMessages(
 
   // ── Spawn agents from OpenClaw config when available ────────────────────────────────────────
   const configAgentsRef = useRef<Set<string>>(new Set());
+  const agentsRef = useRef<number[]>([]);
 
   useEffect(() => {
     if (!layoutReady || !openClawConfig?.agents?.length) return;
 
     const os = getOfficeState();
-    const existingAgents = new Set(agents);
+    const existingAgents = new Set(agentsRef.current);
+    let hasNewAgents = false;
 
     for (const agent of openClawConfig.agents) {
       // Skip if already spawned
@@ -201,11 +203,16 @@ export function useExtensionMessages(
       // Track spawned agents
       configAgentsRef.current.add(agent.id);
       existingAgents.add(numericId);
+      hasNewAgents = true;
     }
 
-    // Update state with new agents
-    setAgents(Array.from(existingAgents));
-  }, [layoutReady, openClawConfig, getOfficeState, agents]);
+    // Only update state if there are new agents
+    if (hasNewAgents) {
+      const newAgents = Array.from(existingAgents);
+      agentsRef.current = newAgents;
+      setAgents(newAgents);
+    }
+  }, [layoutReady, openClawConfig, getOfficeState]); // Remove 'agents' from dependencies
 
   // Simple hash function for string to number
   function hashCode(str: string): number {
@@ -226,7 +233,12 @@ export function useExtensionMessages(
         const emoji = (msg.emoji as string) || '🤖';
         const displayName = `${emoji} ${name}`;
         console.log(`[Clawmpany] Agent created: ${displayName}`);
-        setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
+        setAgents((prev) => {
+          if (prev.includes(id)) return prev;
+          const next = [...prev, id];
+          agentsRef.current = next;
+          return next;
+        });
         setSelectedAgent(id);
 
         if (layoutReadyRef.current) {
@@ -236,7 +248,11 @@ export function useExtensionMessages(
         }
       } else if (msg.type === 'agentClosed') {
         const id = msg.id as number;
-        setAgents((prev) => prev.filter((a) => a !== id));
+        setAgents((prev) => {
+          const next = prev.filter((a) => a !== id);
+          agentsRef.current = next;
+          return next;
+        });
         setSelectedAgent((prev) => (prev === id ? null : prev));
         setAgentTools((prev) => {
           const next = { ...prev };

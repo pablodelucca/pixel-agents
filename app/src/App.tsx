@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
+import { MessageCircle, Settings } from 'lucide-react';
 
+import { AgentDetailSidebar } from './components/AgentDetailSidebar.js';
 import { BalanceBar } from './components/BalanceBar.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChatSidebar } from './components/ChatSidebar.js';
 import { DebugView } from './components/DebugView.js';
+import { PaymentStatusDialog } from './components/PaymentStatusDialog.js';
 import { ServersModal } from './components/ServersModal.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
@@ -132,6 +135,21 @@ function App() {
   const { hasOffice, loading: officeLoading, config, server, checkOffice } = useOffice();
   const requireAuth = import.meta.env.VITE_PRIVY_APP_ID ? true : false;
 
+  // Payment status dialog state
+  const [showPaymentStatus, setShowPaymentStatus] = useState(false);
+
+  // Check for payment return on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tripayRef = urlParams.get('tripay_reference');
+    const merchantRef = urlParams.get('tripay_merchant_ref');
+
+    if (tripayRef && merchantRef) {
+      console.log('[App] Detected payment return, showing status dialog');
+      setShowPaymentStatus(true);
+    }
+  }, []);
+
   // Track if we've already triggered login to prevent multiple calls
   const loginTriggeredRef = useRef(false);
 
@@ -175,19 +193,24 @@ function App() {
 
   // Chat sidebar state
   const [chatCharacterId, setChatCharacterId] = useState<number | null>(null);
+  const [showChatSidebar, setShowChatSidebar] = useState(false);
+  const [showDetailSidebar, setShowDetailSidebar] = useState(false);
   const officeState = getOfficeState();
   const chatCharacter = chatCharacterId !== null ? officeState.getCharacter(chatCharacterId) : null;
 
   const handleCharacterSelect = useCallback((agentId: number | null) => {
     setChatCharacterId(agentId);
+    setShowChatSidebar(false);
+    setShowDetailSidebar(false);
   }, []);
 
   const handleCloseChat = useCallback(() => {
-    setChatCharacterId(null);
-    // Also deselect in office state
-    officeState.selectedAgentId = null;
-    officeState.cameraFollowId = null;
-  }, [officeState]);
+    setShowChatSidebar(false);
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setShowDetailSidebar(false);
+  }, []);
 
   // Handle player proximity to agents
   const handlePlayerProximity = useCallback((event: ProximityEvent | null) => {
@@ -303,11 +326,26 @@ function App() {
         .pixel-agents-migration-btn:hover { filter: brightness(0.8); }
       `}</style>
 
-      {/* Balance Bar - USDC & Rupiah */}
-      <BalanceBar rupiahBalance={0} />
+      {/* Balance Bar - USDC & Rupiah (fetched automatically via hooks) */}
+      <BalanceBar />
 
-      {/* Chat Sidebar */}
-      {chatCharacter && (
+      {/* Payment Status Dialog - Shows when returning from Tripay */}
+      {showPaymentStatus && (
+        <PaymentStatusDialog onClose={() => setShowPaymentStatus(false)} />
+      )}
+
+      {/* Agent Detail Sidebar - Left */}
+      {chatCharacter && showDetailSidebar && server && (
+        <AgentDetailSidebar
+          character={chatCharacter}
+          isOpen={true}
+          onClose={handleCloseDetail}
+          server={server}
+        />
+      )}
+
+      {/* Chat Sidebar - Right */}
+      {chatCharacter && showChatSidebar && server && (
         <ChatSidebar
           character={chatCharacter}
           isOpen={true}
@@ -385,8 +423,8 @@ function App() {
         </div>
       )}
 
-      {/* Player proximity indicator */}
-      {playerNearbyAgent && !isDebugMode && !editor.isEditMode && (
+      {/* Agent indicator - shown when player is near OR has selected an agent */}
+      {((playerNearbyAgent && !isDebugMode && !editor.isEditMode) || chatCharacter) && !showChatSidebar && !showDetailSidebar && (
         <div
           style={{
             position: 'absolute',
@@ -407,24 +445,60 @@ function App() {
           }}
         >
           <span style={{ fontSize: 24 }}>
-            {playerNearbyAgent.agentCharacter.displayName?.match(/^(\p{Emoji})/u)?.[1] || '🤖'}
+            {(chatCharacter || playerNearbyAgent?.agentCharacter)?.displayName?.match(/^(\p{Emoji})/u)?.[1] || '🤖'}
           </span>
           <span>
-            Near {playerNearbyAgent.agentCharacter.displayName?.replace(/^(\p{Emoji}\s*)/u, '') || `Agent ${playerNearbyAgent.agentId}`}
+            {(chatCharacter || playerNearbyAgent?.agentCharacter)?.displayName?.replace(/^(\p{Emoji}\s*)/u, '') || `Agent ${chatCharacterId || playerNearbyAgent?.agentId}`}
           </span>
+          {/* Chat button - opens right sidebar, closes detail */}
           <button
-            onClick={() => setChatCharacterId(playerNearbyAgent.agentId)}
+            onClick={() => {
+              if (playerNearbyAgent && !chatCharacter) {
+                setChatCharacterId(playerNearbyAgent.agentId);
+              }
+              setShowChatSidebar(true);
+              setShowDetailSidebar(false);
+            }}
             style={{
-              padding: '4px 12px',
+              padding: '6px 12px',
               fontSize: '18px',
-              background: 'var(--pixel-accent)',
+              background: showChatSidebar ? 'var(--pixel-accent)' : 'rgba(255,255,255,0.1)',
               color: '#fff',
-              border: 'none',
+              border: showChatSidebar ? '2px solid var(--pixel-accent)' : '2px solid rgba(255,255,255,0.3)',
               borderRadius: 4,
               cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
             }}
+            title="Chat"
           >
-            Chat
+            <MessageCircle size={18} />
+          </button>
+          {/* Settings/Details button - opens left sidebar, closes chat */}
+          <button
+            onClick={() => {
+              if (playerNearbyAgent && !chatCharacter) {
+                setChatCharacterId(playerNearbyAgent.agentId);
+              }
+              setShowDetailSidebar(true);
+              setShowChatSidebar(false);
+            }}
+            style={{
+              padding: '6px 12px',
+              fontSize: '18px',
+              background: showDetailSidebar ? 'var(--pixel-accent)' : 'rgba(255,255,255,0.1)',
+              color: '#fff',
+              border: showDetailSidebar ? '2px solid var(--pixel-accent)' : '2px solid rgba(255,255,255,0.3)',
+              borderRadius: 4,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+            title="Agent Details"
+          >
+            <Settings size={18} />
           </button>
         </div>
       )}

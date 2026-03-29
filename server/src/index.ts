@@ -5,10 +5,13 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 
+import { creditsRoutes } from './routes/credits.js';
 import { officesRoutes } from './routes/offices.js';
 import { paymentRoutes } from './routes/payment.js';
+import { paymentHistoryRoutes } from './routes/paymentHistory.js';
 import { serverRoutes } from './routes/servers.js';
-import { sessionsRoutes } from './routes/sessions.js';
+import { transactionHistoryRoutes } from './routes/transactionHistory.js';
+import { tripayCallbackRoutes } from './routes/tripayCallback.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -35,10 +38,13 @@ app.get('/health', (_req, res) => {
 });
 
 // API routes
+app.use('/api/credits', creditsRoutes);
+app.use('/api/history/payment', paymentHistoryRoutes);
+app.use('/api/history/transaction', transactionHistoryRoutes);
 app.use('/api/offices', officesRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/servers', serverRoutes);
-app.use('/api/servers/:serverId/sessions', sessionsRoutes);
+app.use('/api/tripay', tripayCallbackRoutes);
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -54,8 +60,11 @@ app.use((_req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Clawmpany server running on http://localhost:${PORT}`);
   console.log(`📡 API endpoints:`);
+  console.log(`   - http://localhost:${PORT}/api/credits`);
   console.log(`   - http://localhost:${PORT}/api/offices`);
-  console.log(`   - http://localhost:${PORT}/api/payment/config`);
+  console.log(`   - http://localhost:${PORT}/api/payment`);
   console.log(`   - http://localhost:${PORT}/api/servers`);
+  console.log(`   - http://localhost:${PORT}/api/history/payment`);
+  console.log(`   - http://localhost:${PORT}/api/history/transaction`);
   console.log(`📦 PocketBase: ${POCKETBASE_URL}`);
 });

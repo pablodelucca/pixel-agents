@@ -67,6 +67,8 @@ export function ChatSidebar({ character, isOpen, onClose, server }: { character:
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loadingSeconds, setLoadingSeconds] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Extract name from displayName
@@ -83,6 +85,7 @@ export function ChatSidebar({ character, isOpen, onClose, server }: { character:
 
     const fetchHistory = async () => {
       setIsLoadingHistory(true);
+      setError(null);
       try {
         // First, get list of sessions
         const sessionsRes = await fetch(
@@ -107,9 +110,14 @@ export function ChatSidebar({ character, isOpen, onClose, server }: { character:
           if (historyData.success && historyData.data.messages) {
             setMessages(historyData.data.messages);
           }
+        } else {
+          // No session exists yet - session will be created on first message
+          console.log('[ChatSidebar] No existing session, will create on first message');
+          setSessionId(null);
         }
       } catch (error) {
         console.error('[ChatSidebar] Failed to fetch history:', error);
+        setError('Failed to load chat history');
       } finally {
         setIsLoadingHistory(false);
       }
@@ -118,9 +126,22 @@ export function ChatSidebar({ character, isOpen, onClose, server }: { character:
     fetchHistory();
   }, [isOpen, canChat, server, character.agentId]);
 
-  // Auto-scroll to bottom when messages change
+  // Scroll to bottom instantly on initial load, smooth on new messages
+  const prevMessagesLengthRef = useRef(0);
+  
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesEndRef.current?.parentElement;
+    if (!container) return;
+    
+    // If this is initial load (jump from 0 to many messages), scroll instantly
+    if (prevMessagesLengthRef.current === 0 && messages.length > 0) {
+      container.scrollTop = container.scrollHeight;
+    } else if (prevMessagesLengthRef.current < messages.length) {
+      // New message added - smooth scroll
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    prevMessagesLengthRef.current = messages.length;
   }, [messages]);
 
   // Track loading time
@@ -139,7 +160,7 @@ export function ChatSidebar({ character, isOpen, onClose, server }: { character:
   }, [isLoading]);
 
   const handleSendMessage = useCallback(async () => {
-    if (!inputValue.trim() || isLoading || !canChat || !sessionId) return;
+    if (!inputValue.trim() || isLoading || !canChat) return;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -151,11 +172,61 @@ export function ChatSidebar({ character, isOpen, onClose, server }: { character:
     setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
+    setError(null);
 
     try {
-      // Send message to backend
+      let targetSessionId = sessionId;
+
+      // If no session exists, create one first
+      if (!targetSessionId) {
+        setIsCreatingSession(true);
+        console.log('[ChatSidebar] Creating new session...');
+        
+        const createRes = await fetch(
+          `${API_BASE_URL}/api/servers/${server.id}/sessions`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              agentId: character.agentId,
+              initialMessage: userMessage.content,
+            }),
+          }
+        );
+
+        const createData = await createRes.json();
+        setIsCreatingSession(false);
+
+        if (!createData.success) {
+          console.error('[ChatSidebar] Failed to create session:', createData.error);
+          setError(createData.error || 'Failed to create session');
+          setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
+          setIsLoading(false);
+          return;
+        }
+
+        // Session created with initial message - use the response directly
+        targetSessionId = createData.data.sessionId;
+        setSessionId(targetSessionId);
+
+        // Add agent response if available
+        if (createData.data?.response) {
+          const assistantMessage: ChatMessage = {
+            id: `${Date.now()}-response`,
+            role: 'assistant',
+            content: createData.data.response,
+            timestamp: new Date().toISOString(),
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+        }
+
+        setIsLoading(false);
+        return;
+      }
+
+      // Send message to existing session
       const res = await fetch(
-        `${API_BASE_URL}/api/servers/${server.id}/sessions/${sessionId}/messages`,
+        `${API_BASE_URL}/api/servers/${server.id}/sessions/${targetSessionId}/messages`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -170,6 +241,7 @@ export function ChatSidebar({ character, isOpen, onClose, server }: { character:
 
       if (!data.success) {
         console.error('[ChatSidebar] Failed to send:', data.error);
+        setError(data.error || 'Failed to send message');
         // Remove the optimistic message on error
         setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
         return;
@@ -187,6 +259,7 @@ export function ChatSidebar({ character, isOpen, onClose, server }: { character:
       }
     } catch (error) {
       console.error('[ChatSidebar] Failed to send message:', error);
+      setError('Failed to send message. Please try again.');
       // Remove the optimistic message on error
       setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
     } finally {
@@ -386,7 +459,27 @@ export function ChatSidebar({ character, isOpen, onClose, server }: { character:
                 fontSize: 14,
               }}
             >
-              <span className="pixel-agents-pulse">Thinking... ({loadingSeconds}s)</span>
+              <span className="pixel-agents-pulse">
+                {isCreatingSession ? 'Starting session...' : `Thinking... (${loadingSeconds}s)`}
+              </span>
+            </div>
+          </div>
+        )}
+        {error && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
+            <div
+              style={{
+                padding: '8px 12px',
+                borderRadius: 4,
+                background: 'rgba(239, 68, 68, 0.2)',
+                border: '1px solid rgba(239, 68, 68, 0.5)',
+                color: '#fca5a5',
+                fontSize: 12,
+                textAlign: 'center',
+                maxWidth: '90%',
+              }}
+            >
+              {error}
             </div>
           </div>
         )}
