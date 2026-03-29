@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { usePrivy, useWallets, useCreateWallet } from '@privy-io/react-auth';
 import { QRCodeSVG } from 'qrcode.react';
+import { ArrowLeftRight, CreditCard, ExternalLink, Receipt, X } from 'lucide-react';
 
 import { useCredits } from '../hooks/useCredits.js';
+import { usePaymentHistory } from '../hooks/usePaymentHistory.js';
+import { useTransactionHistory } from '../hooks/useTransactionHistory.js';
 import { getCharacterSprites } from '../office/sprites/spriteData.js';
 import { Direction } from '../office/types.js';
 
@@ -84,10 +87,14 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
   const { wallets } = useWallets();
   const { createWallet } = useCreateWallet();
   const { balance: rupiahBalance, loading: creditsLoading, fetchCredits } = useCredits();
+  const { payments, loading: paymentsLoading, fetchPayments } = usePaymentHistory();
+  const { transactions, loading: transactionsLoading, fetchTransactions } = useTransactionHistory();
   const [usdcBalance, setUsdcBalance] = useState<string>('0,0000');
   const [isLoading, setIsLoading] = useState(false);
   const [isUsdcDialogOpen, setIsUsdcDialogOpen] = useState(false);
   const [isRupiahDialogOpen, setIsRupiahDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'topup' | 'payments' | 'transactions'>('topup');
+  const [topUpAmount, setTopUpAmount] = useState<string>('');
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [creatingWallet, setCreatingWallet] = useState(false);
@@ -185,6 +192,20 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
       fetchCredits();
     }
   }, [authenticated, wallets, fetchCredits]);
+
+  // Fetch payments when dialog opens and tab is payments
+  useEffect(() => {
+    if (isRupiahDialogOpen && activeTab === 'payments' && authenticated) {
+      fetchPayments();
+    }
+  }, [isRupiahDialogOpen, activeTab, authenticated, fetchPayments]);
+
+  // Fetch transactions when dialog opens and tab is transactions
+  useEffect(() => {
+    if (isRupiahDialogOpen && activeTab === 'transactions' && authenticated) {
+      fetchTransactions();
+    }
+  }, [isRupiahDialogOpen, activeTab, authenticated, fetchTransactions]);
 
   // Generate player avatar from sprite
   useEffect(() => {
@@ -525,13 +546,14 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <span style={{ fontSize: '32px' }}>💰</span>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+                <CreditCard size={32} style={{ color: 'var(--pixel-accent)' }} />
+              </div>
               <h2
                 style={{
                   fontSize: '24px',
                   fontWeight: 'bold',
                   color: 'var(--pixel-accent)',
-                  marginTop: 8,
                   textTransform: 'uppercase',
                   letterSpacing: '2px',
                 }}
@@ -716,7 +738,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
         </div>
       )}
 
-      {/* Rupiah Dialog */}
+      {/* Credits Dialog - New Layout with Sidebar */}
       {isRupiahDialogOpen && (
         <div
           style={{
@@ -728,6 +750,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
             justifyContent: 'center',
           }}
         >
+          {/* Backdrop */}
           <div
             style={{
               position: 'absolute',
@@ -737,67 +760,587 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
             onClick={() => setIsRupiahDialogOpen(false)}
           />
 
+          {/* Dialog Container */}
           <div
             style={{
               position: 'relative',
               background: 'var(--pixel-bg)',
               border: '4px solid var(--pixel-border)',
               borderRadius: 0,
-              padding: '24px 32px',
-              width: '340px',
-              maxWidth: '90vw',
+              width: '800px',
+              maxWidth: '95vw',
+              height: '560px',
+              maxHeight: '90vh',
               boxShadow: '8px 8px 0 rgba(0, 0, 0, 0.5)',
               zIndex: 1001,
+              display: 'flex',
+              overflow: 'hidden',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <span style={{ fontSize: '32px' }}>💵</span>
-              <h2
-                style={{
-                  fontSize: '24px',
-                  fontWeight: 'bold',
-                  color: 'var(--pixel-accent)',
-                  marginTop: 8,
-                  textTransform: 'uppercase',
-                  letterSpacing: '2px',
-                }}
-              >
-                Top Up Rupiah
-              </h2>
-              <p style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', marginTop: 4 }}>
-                Top up IDR will be available soon
-              </p>
-            </div>
-
+            {/* Sidebar */}
             <div
               style={{
-                background: 'rgba(0, 0, 0, 0.3)',
-                border: '2px solid var(--pixel-border)',
-                padding: '24px 16px',
-                marginBottom: 16,
-                textAlign: 'center',
+                width: '240px',
+                background: 'rgba(0, 0, 0, 0.2)',
+                borderRight: '4px solid var(--pixel-border)',
+                display: 'flex',
+                flexDirection: 'column',
+                padding: '20px 16px',
+                gap: 16,
               }}
             >
-              <p style={{ fontSize: '18px', color: 'var(--pixel-text-dim)' }}>
-                Top up IDR will be available soon.
-              </p>
+              {/* Current Credits Box */}
+              <div
+                style={{
+                  background: 'var(--pixel-bg)',
+                  border: '2px solid var(--pixel-border)',
+                  padding: '16px',
+                  textAlign: 'center',
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: '14px',
+                    color: 'var(--pixel-text-dim)',
+                    marginBottom: 8,
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                  }}
+                >
+                  Current Credits
+                </p>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                >
+                  {/* Rupiah Icon */}
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      color: '#fff',
+                      border: '2px solid #fb923c',
+                      flexShrink: 0,
+                    }}
+                  >
+                    Rp
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '28px',
+                      fontWeight: 'bold',
+                      color: 'var(--pixel-text)',
+                      fontFamily: 'monospace',
+                    }}
+                  >
+                    {creditsLoading ? '...' : formatRupiah(rupiahBalance)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Navigation Buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button
+                  onClick={() => setActiveTab('topup')}
+                  style={{
+                    width: '100%',
+                    padding: '14px 16px',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    background: activeTab === 'topup' ? 'var(--pixel-accent)' : 'var(--pixel-btn-bg)',
+                    color: activeTab === 'topup' ? '#fff' : 'var(--pixel-text)',
+                    border: '2px solid var(--pixel-border)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    textAlign: 'left',
+                  }}
+                >
+                  <CreditCard size={20} />
+                  Top Up Credits
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('payments')}
+                  style={{
+                    width: '100%',
+                    padding: '14px 16px',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    background: activeTab === 'payments' ? 'var(--pixel-accent)' : 'var(--pixel-btn-bg)',
+                    color: activeTab === 'payments' ? '#fff' : 'var(--pixel-text)',
+                    border: '2px solid var(--pixel-border)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    textAlign: 'left',
+                  }}
+                >
+                  <Receipt size={20} />
+                  Payments
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('transactions')}
+                  style={{
+                    width: '100%',
+                    padding: '14px 16px',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    background: activeTab === 'transactions' ? 'var(--pixel-accent)' : 'var(--pixel-btn-bg)',
+                    color: activeTab === 'transactions' ? '#fff' : 'var(--pixel-text)',
+                    border: '2px solid var(--pixel-border)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    textAlign: 'left',
+                  }}
+                >
+                  <ArrowLeftRight size={20} />
+                  Transactions
+                </button>
+              </div>
+
+              {/* Close Button at Bottom */}
+              <div style={{ marginTop: 'auto' }}>
+                <button
+                  onClick={() => setIsRupiahDialogOpen(false)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    fontSize: '16px',
+                    background: 'transparent',
+                    color: 'var(--pixel-text-dim)',
+                    border: '2px solid var(--pixel-border)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <X size={18} />
+                  Close
+                </button>
+              </div>
             </div>
 
-            <button
-              onClick={() => setIsRupiahDialogOpen(false)}
+            {/* Main Content Area */}
+            <div
               style={{
-                width: '100%',
-                padding: '10px 16px',
-                fontSize: '18px',
-                background: 'transparent',
-                color: 'var(--pixel-text-dim)',
-                border: '2px solid var(--pixel-border)',
-                cursor: 'pointer',
+                flex: 1,
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'auto',
               }}
             >
-              Close
-            </button>
+              {/* Top Up Tab */}
+              {activeTab === 'topup' && (
+                <div>
+                  <h2
+                    style={{
+                      fontSize: '28px',
+                      fontWeight: 'bold',
+                      color: 'var(--pixel-accent)',
+                      marginBottom: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                  >
+                    <CreditCard size={28} /> Top Up Credits
+                  </h2>
+                  <p style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', marginBottom: 24 }}>
+                    Add credits to your account using various payment methods.
+                  </p>
+
+                  {/* Amount Input */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        color: 'var(--pixel-text)',
+                        marginBottom: 8,
+                      }}
+                    >
+                      Amount (Rp)
+                    </label>
+                    <input
+                      type="text"
+                      value={topUpAmount}
+                      onChange={(e) => {
+                        // Only allow numbers
+                        const value = e.target.value.replace(/[^0-9]/g, '');
+                        setTopUpAmount(value);
+                      }}
+                      placeholder="Enter amount"
+                      style={{
+                        width: '100%',
+                        padding: '14px 16px',
+                        fontSize: '20px',
+                        fontWeight: 'bold',
+                        fontFamily: 'monospace',
+                        background: 'var(--pixel-bg)',
+                        color: 'var(--pixel-text)',
+                        border: '2px solid var(--pixel-border)',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  {/* Quick Amount Buttons */}
+                  <div style={{ marginBottom: 24, display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => setTopUpAmount('100000')}
+                      style={{
+                        flex: 1,
+                        padding: '12px 16px',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        background: topUpAmount === '100000' ? 'var(--pixel-accent)' : 'var(--pixel-btn-bg)',
+                        color: topUpAmount === '100000' ? '#fff' : 'var(--pixel-text)',
+                        border: '2px solid var(--pixel-border)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      100rb
+                    </button>
+                    <button
+                      onClick={() => setTopUpAmount('200000')}
+                      style={{
+                        flex: 1,
+                        padding: '12px 16px',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        background: topUpAmount === '200000' ? 'var(--pixel-accent)' : 'var(--pixel-btn-bg)',
+                        color: topUpAmount === '200000' ? '#fff' : 'var(--pixel-text)',
+                        border: '2px solid var(--pixel-border)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      200rb
+                    </button>
+                    <button
+                      onClick={() => setTopUpAmount('500000')}
+                      style={{
+                        flex: 1,
+                        padding: '12px 16px',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        background: topUpAmount === '500000' ? 'var(--pixel-accent)' : 'var(--pixel-btn-bg)',
+                        color: topUpAmount === '500000' ? '#fff' : 'var(--pixel-text)',
+                        border: '2px solid var(--pixel-border)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      500rb
+                    </button>
+                  </div>
+
+                  {/* Top Up Button */}
+                  <button
+                    disabled={!topUpAmount || parseInt(topUpAmount) === 0}
+                    style={{
+                      width: '100%',
+                      padding: '16px 24px',
+                      fontSize: '20px',
+                      fontWeight: 'bold',
+                      background: (!topUpAmount || parseInt(topUpAmount) === 0) ? 'var(--pixel-btn-bg)' : 'var(--pixel-accent)',
+                      color: (!topUpAmount || parseInt(topUpAmount) === 0) ? 'var(--pixel-text-dim)' : '#fff',
+                      border: '2px solid var(--pixel-border)',
+                      cursor: (!topUpAmount || parseInt(topUpAmount) === 0) ? 'not-allowed' : 'pointer',
+                      opacity: (!topUpAmount || parseInt(topUpAmount) === 0) ? 0.6 : 1,
+                    }}
+                  >
+                    Top Up
+                  </button>
+                </div>
+              )}
+
+              {/* Payments Tab */}
+              {activeTab === 'payments' && (
+                <div>
+                  <h2
+                    style={{
+                      fontSize: '28px',
+                      fontWeight: 'bold',
+                      color: 'var(--pixel-accent)',
+                      marginBottom: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                  >
+                    <Receipt size={28} /> Payment History
+                  </h2>
+                  <p style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', marginBottom: 24 }}>
+                    View your past transactions and payment history.
+                  </p>
+
+                  {/* Payments Table */}
+                  {paymentsLoading ? (
+                    <div
+                      style={{
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        border: '2px solid var(--pixel-border)',
+                        padding: '48px 24px',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)' }}>
+                        Loading payments...
+                      </p>
+                    </div>
+                  ) : payments.length === 0 ? (
+                    <div
+                      style={{
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        border: '2px solid var(--pixel-border)',
+                        padding: '48px 24px',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)' }}>
+                        No payments found.
+                      </p>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        border: '2px solid var(--pixel-border)',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {/* Table Header */}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                          background: 'rgba(0, 0, 0, 0.4)',
+                          borderBottom: '2px solid var(--pixel-border)',
+                        }}
+                      >
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Date</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Amount</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Status</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Action</div>
+                      </div>
+
+                      {/* Table Rows */}
+                      {payments.map((payment) => (
+                        <div
+                          key={payment.id}
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                            borderBottom: '2px solid var(--pixel-border)',
+                            background: 'var(--pixel-bg)',
+                          }}
+                        >
+                          {/* Date */}
+                          <div style={{ padding: '12px 16px', color: '#fff', fontSize: '14px' }}>
+                            {new Date(payment.created).toLocaleDateString('id-ID', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </div>
+
+                          {/* Amount */}
+                          <div style={{ padding: '12px 16px', color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>
+                            Rp {payment.amount?.toLocaleString('id-ID') || '0'}
+                          </div>
+
+                          {/* Status */}
+                          <div style={{ padding: '12px 16px' }}>
+                            <span
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                background: payment.status === 'PAID' ? 'rgba(34, 197, 94, 0.2)' : payment.status === 'PENDING' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                color: payment.status === 'PAID' ? '#22c55e' : payment.status === 'PENDING' ? '#eab308' : '#ef4444',
+                                border: `1px solid ${payment.status === 'PAID' ? '#22c55e' : payment.status === 'PENDING' ? '#eab308' : '#ef4444'}`,
+                              }}
+                            >
+                              {payment.status || 'UNKNOWN'}
+                            </span>
+                          </div>
+
+                          {/* Action */}
+                          <div style={{ padding: '8px 16px' }}>
+                            {payment.url ? (
+                              <button
+                                onClick={() => window.open(payment.url, '_blank')}
+                                title="Open payment URL"
+                                style={{
+                                  padding: 4,
+                                  background: 'var(--pixel-btn-bg)',
+                                  border: '2px solid var(--pixel-border)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                <ExternalLink size={12} style={{ color: 'var(--pixel-text)' }} />
+                              </button>
+                            ) : (
+                              <span style={{ color: 'var(--pixel-text-dim)', fontSize: '12px' }}>-</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Transactions Tab */}
+              {activeTab === 'transactions' && (
+                <div>
+                  <h2
+                    style={{
+                      fontSize: '28px',
+                      fontWeight: 'bold',
+                      color: 'var(--pixel-accent)',
+                      marginBottom: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                  >
+                    <ArrowLeftRight size={28} /> Transactions
+                  </h2>
+                  <p style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', marginBottom: 24 }}>
+                    View all your transactions and balance changes.
+                  </p>
+
+                  {/* Transactions Table */}
+                  {transactionsLoading ? (
+                    <div
+                      style={{
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        border: '2px solid var(--pixel-border)',
+                        padding: '48px 24px',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)' }}>
+                        Loading transactions...
+                      </p>
+                    </div>
+                  ) : transactions.length === 0 ? (
+                    <div
+                      style={{
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        border: '2px solid var(--pixel-border)',
+                        padding: '48px 24px',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)' }}>
+                        No transactions found.
+                      </p>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        border: '2px solid var(--pixel-border)',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {/* Table Header */}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                          background: 'rgba(0, 0, 0, 0.4)',
+                          borderBottom: '2px solid var(--pixel-border)',
+                        }}
+                      >
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Date</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Type</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Description</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Amount</div>
+                      </div>
+
+                      {/* Table Rows */}
+                      {transactions.map((transaction) => {
+                        const isDebit = transaction.type === 'DEBIT';
+                        const typeColor = isDebit ? '#22c55e' : '#ef4444'; // green for DEBIT, red for CREDIT
+                        
+                        return (
+                          <div
+                            key={transaction.id}
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                              borderBottom: '2px solid var(--pixel-border)',
+                              background: 'var(--pixel-bg)',
+                            }}
+                          >
+                            {/* Date */}
+                            <div style={{ padding: '12px 16px', color: '#fff', fontSize: '14px' }}>
+                              {new Date(transaction.created).toLocaleDateString('id-ID', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </div>
+
+                            {/* Type */}
+                            <div style={{ padding: '12px 16px' }}>
+                              <span
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: '12px',
+                                  fontWeight: 'bold',
+                                  background: isDebit ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                  color: typeColor,
+                                  border: `1px solid ${typeColor}`,
+                                }}
+                              >
+                                {transaction.type || 'UNKNOWN'}
+                              </span>
+                            </div>
+
+                            {/* Description */}
+                            <div style={{ padding: '12px 16px', color: '#fff', fontSize: '14px' }}>
+                              {transaction.desc || '-'}
+                            </div>
+
+                            {/* Amount */}
+                            <div style={{ padding: '12px 16px', fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>
+                              {isDebit ? '+' : '-'} Rp {transaction.amount?.toLocaleString('id-ID') || '0'}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
