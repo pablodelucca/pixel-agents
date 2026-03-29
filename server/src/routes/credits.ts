@@ -434,10 +434,12 @@ creditsRoutes.post('/topup', async (req, res) => {
       user_id: userId,
       amount: amount,
       status: paymentStatus,
-      ref: merchantRef,
-      tripay_ref: tripayRef,
       url: checkoutUrl,
-      metadata: tripayResponse.data,
+      metadata: {
+        ...tripayResponse.data,
+        merchant_ref: merchantRef,
+        tripay_ref: tripayRef,
+      },
     });
 
     console.log('[/api/credits/topup] Payment record created:', payment.id);
@@ -496,12 +498,14 @@ creditsRoutes.get('/topup/status', async (req, res) => {
 
     const pb = await getPbAdminClient();
 
-    // Find payment record
+    // Find payment record by tripay_ref in URL
+    // URL format: https://tripay.co.id/checkout/{tripay_ref}
     const payment = await pb.collection('payment').getFirstListItem(
-      `ref="${merchantRef}"`,
+      `url ~ "${tripayRef}"`,
     ).catch(() => null);
 
     if (!payment) {
+      console.log('[/api/credits/topup/status] Payment not found for tripay_ref:', tripayRef);
       return res.status(404).json({
         success: false,
         error: 'Payment not found',

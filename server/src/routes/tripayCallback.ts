@@ -84,13 +84,18 @@ tripayCallbackRoutes.post('/callback', async (req: Request, res: Response) => {
 
     const pb = await getPbAdminClient();
 
-    // Find payment record by merchant_ref
+    // Find payment record by merchant_ref in metadata
     const payment = await pb.collection('payment').getFirstListItem(
-      `ref="${merchant_ref}"`,
+      `metadata.merchant_ref = "${merchant_ref}"`,
     ).catch(() => null);
 
-    if (!payment) {
-      console.error('[/api/tripay/callback] Payment not found for ref:', merchant_ref);
+    // Fallback: try to find by data.merchant_ref in metadata (old structure)
+    const paymentFinal = payment || await pb.collection('payment').getFirstListItem(
+      `metadata.data.merchant_ref = "${merchant_ref}"`,
+    ).catch(() => null);
+
+    if (!paymentFinal) {
+      console.error('[/api/tripay/callback] Payment not found for merchant_ref:', merchant_ref);
       return res.status(404).json({
         success: false,
         message: 'Payment not found',
@@ -98,21 +103,21 @@ tripayCallbackRoutes.post('/callback', async (req: Request, res: Response) => {
     }
 
     // Update payment status
-    await pb.collection('payment').update(payment.id, {
+    await pb.collection('payment').update(paymentFinal.id, {
       status: status,
       metadata: {
-        ...payment.metadata,
+        ...paymentFinal.metadata,
         callback: req.body,
         callback_at: new Date().toISOString(),
       },
     });
 
-    console.log('[/api/tripay/callback] Payment updated:', payment.id, '->', status);
+    console.log('[/api/tripay/callback] Payment updated:', paymentFinal.id, '->', status);
 
     // If payment is PAID, add credits to user
     if (status === 'PAID') {
-      const userId = payment.user_id;
-      const amount = payment.amount;
+      const userId = paymentFinal.user_id;
+      const amount = paymentFinal.amount;
 
       console.log('[/api/tripay/callback] Adding credits to user:', { userId, amount });
 
