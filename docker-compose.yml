@@ -21,10 +21,18 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - FRONTEND_URL=${FRONTEND_URL:-https://clawmpany.id}
+      # PocketBase
       - POCKETBASE_URL=http://pocketbase:8080
       - POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL:-admin@example.com}
       - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD:-admin123}
+      # Payment - USDC
       - PAYMENT_RECIPIENT_ADDRESS=${PAYMENT_RECIPIENT_ADDRESS}
+      # Payment - Tripay
+      - TRIPAY_API_KEY=${TRIPAY_API_KEY}
+      - TRIPAY_PRIVATE_KEY=${TRIPAY_PRIVATE_KEY}
+      - TRIPAY_MERCHANT_CODE=${TRIPAY_MERCHANT_CODE}
+      - TRIPAY_API_URL=${TRIPAY_API_URL:-https://tripay.co.id/api/transaction/create}
     restart: unless-stopped
 
   pocketbase:

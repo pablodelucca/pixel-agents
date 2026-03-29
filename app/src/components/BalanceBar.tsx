@@ -95,6 +95,8 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
   const [isRupiahDialogOpen, setIsRupiahDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'topup' | 'payments' | 'transactions'>('topup');
   const [topUpAmount, setTopUpAmount] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<string>('BRIVA'); // Default: BRI Virtual Account
+  const [topUpLoading, setTopUpLoading] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [creatingWallet, setCreatingWallet] = useState(false);
@@ -185,6 +187,59 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
     }
   };
 
+  const handleTopUp = async () => {
+    if (!topUpAmount || parseInt(topUpAmount) === 0) return;
+
+    setTopUpLoading(true);
+
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const userId = privyUser?.id;
+
+      if (!userId) {
+        alert('Please login first');
+        return;
+      }
+
+      const response = await fetch(`${apiUrl}/api/credits/topup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+        },
+        body: JSON.stringify({
+          amount: parseInt(topUpAmount),
+          method: paymentMethod,
+          customerName: privyUser?.google?.name || privyUser?.email?.address?.split('@')[0] || 'Customer',
+          customerEmail: privyUser?.email?.address || 'customer@example.com',
+          customerPhone: '08123456789', // Default phone, could be added to user profile
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.data?.checkoutUrl) {
+        // Open Tripay checkout URL in new tab
+        window.open(data.data.checkoutUrl, '_blank');
+
+        // Refresh payment history
+        if (activeTab === 'payments') {
+          fetchPayments();
+        }
+
+        // Close dialog or reset form
+        setTopUpAmount('');
+      } else {
+        alert(data.error || 'Failed to create payment transaction');
+      }
+    } catch (error) {
+      console.error('Top up error:', error);
+      alert('Failed to process top up. Please try again.');
+    } finally {
+      setTopUpLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (authenticated && wallets.length > 0) {
       fetchBalance();
@@ -193,14 +248,18 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
     }
   }, [authenticated, wallets, fetchCredits]);
 
-  // Fetch payments when dialog opens and tab is payments
+  // When dialog opens, check all UNPAID payments and refresh credits
   useEffect(() => {
-    if (isRupiahDialogOpen && activeTab === 'payments' && authenticated) {
-      fetchPayments();
+    if (isRupiahDialogOpen && authenticated) {
+      // Fetch payments (will auto-check UNPAID status to Tripay and update if PAID)
+      fetchPayments().then(() => {
+        // Refresh credits in case any payment was updated to PAID
+        fetchCredits();
+      });
     }
-  }, [isRupiahDialogOpen, activeTab, authenticated, fetchPayments]);
+  }, [isRupiahDialogOpen, authenticated, fetchPayments, fetchCredits]);
 
-  // Fetch transactions when dialog opens and tab is transactions
+  // Fetch transactions when tab is transactions
   useEffect(() => {
     if (isRupiahDialogOpen && activeTab === 'transactions' && authenticated) {
       fetchTransactions();
@@ -1056,22 +1115,66 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                     </button>
                   </div>
 
+                  {/* Payment Method Selection */}
+                  <div style={{ marginBottom: 24 }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        color: 'var(--pixel-text)',
+                        marginBottom: 8,
+                      }}
+                    >
+                      Payment Method
+                    </label>
+                    <select
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '14px 16px',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        background: 'var(--pixel-bg)',
+                        color: 'var(--pixel-text)',
+                        border: '2px solid var(--pixel-border)',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <option value="BRIVA">BRI Virtual Account</option>
+                      <option value="BCAVA">BCA Virtual Account</option>
+                      <option value="BNIVA">BNI Virtual Account</option>
+                      <option value="MANDIRIVA">Mandiri Virtual Account</option>
+                      <option value="QRIS">QRIS (All E-Wallet)</option>
+                      <option value="OVO">OVO</option>
+                      <option value="DANA">DANA</option>
+                      <option value="LINKAJA">LinkAja</option>
+                      <option value="SHOPEEPAY">ShopeePay</option>
+                      <option value="ALFAMART">Alfamart</option>
+                      <option value="INDOMARET">Indomaret</option>
+                    </select>
+                  </div>
+
                   {/* Top Up Button */}
                   <button
-                    disabled={!topUpAmount || parseInt(topUpAmount) === 0}
+                    onClick={handleTopUp}
+                    disabled={!topUpAmount || parseInt(topUpAmount) === 0 || topUpLoading}
                     style={{
                       width: '100%',
                       padding: '16px 24px',
                       fontSize: '20px',
                       fontWeight: 'bold',
-                      background: (!topUpAmount || parseInt(topUpAmount) === 0) ? 'var(--pixel-btn-bg)' : 'var(--pixel-accent)',
-                      color: (!topUpAmount || parseInt(topUpAmount) === 0) ? 'var(--pixel-text-dim)' : '#fff',
+                      background: (!topUpAmount || parseInt(topUpAmount) === 0 || topUpLoading) ? 'var(--pixel-btn-bg)' : 'var(--pixel-accent)',
+                      color: (!topUpAmount || parseInt(topUpAmount) === 0 || topUpLoading) ? 'var(--pixel-text-dim)' : '#fff',
                       border: '2px solid var(--pixel-border)',
-                      cursor: (!topUpAmount || parseInt(topUpAmount) === 0) ? 'not-allowed' : 'pointer',
-                      opacity: (!topUpAmount || parseInt(topUpAmount) === 0) ? 0.6 : 1,
+                      cursor: (!topUpAmount || parseInt(topUpAmount) === 0 || topUpLoading) ? 'not-allowed' : 'pointer',
+                      opacity: (!topUpAmount || parseInt(topUpAmount) === 0 || topUpLoading) ? 0.6 : 1,
                     }}
                   >
-                    Top Up
+                    {topUpLoading ? 'Processing...' : 'Top Up'}
                   </button>
                 </div>
               )}

@@ -7,6 +7,7 @@ import { BalanceBar } from './components/BalanceBar.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChatSidebar } from './components/ChatSidebar.js';
 import { DebugView } from './components/DebugView.js';
+import { PaymentStatusDialog } from './components/PaymentStatusDialog.js';
 import { ServersModal } from './components/ServersModal.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
@@ -133,6 +134,21 @@ function App() {
   const { loading: authLoading } = useAuth();
   const { hasOffice, loading: officeLoading, config, server, checkOffice } = useOffice();
   const requireAuth = import.meta.env.VITE_PRIVY_APP_ID ? true : false;
+
+  // Payment status dialog state
+  const [showPaymentStatus, setShowPaymentStatus] = useState(false);
+
+  // Check for payment return on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tripayRef = urlParams.get('tripay_reference');
+    const merchantRef = urlParams.get('tripay_merchant_ref');
+
+    if (tripayRef && merchantRef) {
+      console.log('[App] Detected payment return, showing status dialog');
+      setShowPaymentStatus(true);
+    }
+  }, []);
 
   // Track if we've already triggered login to prevent multiple calls
   const loginTriggeredRef = useRef(false);
@@ -312,6 +328,11 @@ function App() {
 
       {/* Balance Bar - USDC & Rupiah (fetched automatically via hooks) */}
       <BalanceBar />
+
+      {/* Payment Status Dialog - Shows when returning from Tripay */}
+      {showPaymentStatus && (
+        <PaymentStatusDialog onClose={() => setShowPaymentStatus(false)} />
+      )}
 
       {/* Agent Detail Sidebar - Left */}
       {chatCharacter && showDetailSidebar && server && (
