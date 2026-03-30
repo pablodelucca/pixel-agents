@@ -209,7 +209,7 @@ jobs:
 
       - name: Restore VS Code Cache
         id: cache_vscode_restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .vscode-test
           key: vscode-test-${{ runner.os }}-${{ hashFiles('e2e/global-setup.ts') }}-v2
@@ -218,7 +218,7 @@ jobs:
 
       - name: Restore Playwright Cache
         id: cache_playwright_restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .playwright-browsers
           key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-v1
@@ -252,14 +252,14 @@ jobs:
 
       - name: Save VS Code Cache
         if: always() && steps.cache_vscode_restore.outputs.cache-hit != 'true' && steps.e2e_test.outcome == 'success' && hashFiles('.vscode-test/vscode-executable.txt') != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: .vscode-test
           key: ${{ steps.cache_vscode_restore.outputs.cache-primary-key }}
 
       - name: Save Playwright Cache
         if: always() && steps.cache_playwright_restore.outputs.cache-hit != 'true' && steps.install_playwright_deps.outcome == 'success' && hashFiles('.playwright-browsers/**') != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: .playwright-browsers
           key: ${{ steps.cache_playwright_restore.outputs.cache-primary-key }}
