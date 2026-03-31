@@ -6,7 +6,6 @@ import { SettingsModal } from './SettingsModal.js';
 
 interface BottomToolbarProps {
   isEditMode: boolean;
-  onOpenClaude: () => void;
   onToggleEditMode: () => void;
   isDebugMode: boolean;
   onToggleDebugMode: () => void;
@@ -17,6 +16,8 @@ interface BottomToolbarProps {
   watchAllSessions: boolean;
   onToggleWatchAllSessions: () => void;
 }
+
+type AgentType = 'claude-code' | 'copilot-cli';
 
 const panelStyle: React.CSSProperties = {
   position: 'absolute',
@@ -51,7 +52,6 @@ const btnActive: React.CSSProperties = {
 
 export function BottomToolbar({
   isEditMode,
-  onOpenClaude,
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
@@ -64,74 +64,71 @@ export function BottomToolbar({
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAgentMenuOpen, setIsAgentMenuOpen] = useState(false);
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
-  const [isBypassMenuOpen, setIsBypassMenuOpen] = useState(false);
   const [hoveredFolder, setHoveredFolder] = useState<number | null>(null);
-  const [hoveredBypass, setHoveredBypass] = useState<number | null>(null);
-  const folderPickerRef = useRef<HTMLDivElement>(null);
+  const [hoveredAgentOption, setHoveredAgentOption] = useState<number | null>(null);
+  const agentMenuRef = useRef<HTMLDivElement>(null);
+  const pendingAgentTypeRef = useRef<AgentType>('claude-code');
   const pendingBypassRef = useRef(false);
 
-  // Close folder picker / bypass menu on outside click
+  // Close menus on outside click
   useEffect(() => {
-    if (!isFolderPickerOpen && !isBypassMenuOpen) return;
+    if (!isAgentMenuOpen && !isFolderPickerOpen) return;
     const handleClick = (e: MouseEvent) => {
-      if (folderPickerRef.current && !folderPickerRef.current.contains(e.target as Node)) {
+      if (agentMenuRef.current && !agentMenuRef.current.contains(e.target as Node)) {
+        setIsAgentMenuOpen(false);
         setIsFolderPickerOpen(false);
-        setIsBypassMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [isFolderPickerOpen, isBypassMenuOpen]);
+  }, [isAgentMenuOpen, isFolderPickerOpen]);
 
   const hasMultipleFolders = workspaceFolders.length > 1;
 
-  const handleAgentClick = () => {
-    setIsBypassMenuOpen(false);
-    pendingBypassRef.current = false;
-    if (hasMultipleFolders) {
-      setIsFolderPickerOpen((v) => !v);
-    } else {
-      onOpenClaude();
-    }
+  const launchAgent = (agentType: AgentType, bypassPermissions: boolean, folderPath?: string) => {
+    vscode.postMessage({
+      type: 'openClaude',
+      agentType,
+      bypassPermissions,
+      folderPath,
+    });
   };
 
-  const handleAgentRightClick = (e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleAgentClick = () => {
+    setIsAgentMenuOpen((v) => !v);
     setIsFolderPickerOpen(false);
-    setIsBypassMenuOpen((v) => !v);
+  };
+
+  const handleAgentTypeSelect = (agentType: AgentType, bypassPermissions: boolean) => {
+    setIsAgentMenuOpen(false);
+    if (hasMultipleFolders) {
+      pendingAgentTypeRef.current = agentType;
+      pendingBypassRef.current = bypassPermissions;
+      setIsFolderPickerOpen(true);
+    } else {
+      launchAgent(agentType, bypassPermissions);
+    }
   };
 
   const handleFolderSelect = (folder: WorkspaceFolder) => {
     setIsFolderPickerOpen(false);
-    const bypassPermissions = pendingBypassRef.current;
-    pendingBypassRef.current = false;
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path, bypassPermissions });
-  };
-
-  const handleBypassSelect = (bypassPermissions: boolean) => {
-    setIsBypassMenuOpen(false);
-    if (hasMultipleFolders) {
-      pendingBypassRef.current = bypassPermissions;
-      setIsFolderPickerOpen(true);
-    } else {
-      vscode.postMessage({ type: 'openClaude', bypassPermissions });
-    }
+    launchAgent(pendingAgentTypeRef.current, pendingBypassRef.current, folder.path);
   };
 
   return (
     <div style={panelStyle}>
-      <div ref={folderPickerRef} style={{ position: 'relative' }}>
+      <div ref={agentMenuRef} style={{ position: 'relative' }}>
         <button
           onClick={handleAgentClick}
-          onContextMenu={handleAgentRightClick}
           onMouseEnter={() => setHovered('agent')}
           onMouseLeave={() => setHovered(null)}
           style={{
             ...btnBase,
             padding: '5px 12px',
             background:
-              hovered === 'agent' || isFolderPickerOpen || isBypassMenuOpen
+              hovered === 'agent' || isAgentMenuOpen || isFolderPickerOpen
                 ? 'var(--pixel-agent-hover-bg)'
                 : 'var(--pixel-agent-bg)',
             border: '2px solid var(--pixel-agent-border)',
@@ -140,7 +137,7 @@ export function BottomToolbar({
         >
           + Agent
         </button>
-        {isBypassMenuOpen && (
+        {isAgentMenuOpen && (
           <div
             style={{
               position: 'absolute',
@@ -152,14 +149,14 @@ export function BottomToolbar({
               borderRadius: 0,
               padding: 4,
               boxShadow: 'var(--pixel-shadow)',
-              minWidth: 180,
+              minWidth: 200,
               zIndex: 'var(--pixel-controls-z)',
             }}
           >
             <button
-              onClick={() => handleBypassSelect(false)}
-              onMouseEnter={() => setHoveredBypass(0)}
-              onMouseLeave={() => setHoveredBypass(null)}
+              onClick={() => handleAgentTypeSelect('claude-code', false)}
+              onMouseEnter={() => setHoveredAgentOption(0)}
+              onMouseLeave={() => setHoveredAgentOption(null)}
               style={{
                 display: 'block',
                 width: '100%',
@@ -167,19 +164,19 @@ export function BottomToolbar({
                 padding: '6px 10px',
                 fontSize: '24px',
                 color: 'var(--pixel-text)',
-                background: hoveredBypass === 0 ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                background: hoveredAgentOption === 0 ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
                 border: 'none',
                 borderRadius: 0,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
               }}
             >
-              Normal
+              Claude Code
             </button>
-            <div style={{ height: 1, margin: '4px 0', background: 'var(--pixel-border)' }} />
             <button
-              onClick={() => handleBypassSelect(true)}
-              onMouseEnter={() => setHoveredBypass(1)}
-              onMouseLeave={() => setHoveredBypass(null)}
+              onClick={() => handleAgentTypeSelect('claude-code', true)}
+              onMouseEnter={() => setHoveredAgentOption(1)}
+              onMouseLeave={() => setHoveredAgentOption(null)}
               style={{
                 display: 'block',
                 width: '100%',
@@ -187,14 +184,35 @@ export function BottomToolbar({
                 padding: '6px 10px',
                 fontSize: '24px',
                 color: 'var(--pixel-warning-text)',
-                background: hoveredBypass === 1 ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                background: hoveredAgentOption === 1 ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
                 border: 'none',
                 borderRadius: 0,
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
               }}
             >
-              <span style={{ fontSize: '16px' }}>⚡</span> Bypass Permissions
+              <span style={{ fontSize: '16px' }}>⚡</span> Claude Code (Bypass)
+            </button>
+            <div style={{ height: 1, margin: '4px 0', background: 'var(--pixel-border)' }} />
+            <button
+              onClick={() => handleAgentTypeSelect('copilot-cli', false)}
+              onMouseEnter={() => setHoveredAgentOption(2)}
+              onMouseLeave={() => setHoveredAgentOption(null)}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '6px 10px',
+                fontSize: '24px',
+                color: 'var(--pixel-text)',
+                background: hoveredAgentOption === 2 ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                border: 'none',
+                borderRadius: 0,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Copilot CLI
             </button>
           </div>
         )}

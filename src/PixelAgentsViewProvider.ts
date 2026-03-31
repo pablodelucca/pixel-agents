@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+import { CopilotAdapter } from './adapters/copilot.js';
 import {
   getProjectDirPath,
   launchNewTerminal,
@@ -67,6 +68,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   externalScanTimer: ReturnType<typeof setInterval> | null = null;
   staleCheckTimer: ReturnType<typeof setInterval> | null = null;
 
+  // GitHub Copilot adapter disposable
+  private copilotAdapterDisposable: vscode.Disposable | null = null;
+
   // Global session scanning (opt-in "Watch All Sessions" toggle)
   watchAllSessions = { current: false };
   globalDismissedFiles = new Set<string>();
@@ -117,6 +121,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.persistAgents,
           message.folderPath as string | undefined,
           message.bypassPermissions as boolean | undefined,
+          message.agentType as 'claude-code' | 'copilot-cli' | undefined,
         );
       } else if (message.type === 'focusAgent') {
         const agent = this.agents.get(message.id);
@@ -221,6 +226,16 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.webview,
           this.persistAgents,
         );
+
+        // Start GitHub Copilot adapter (no-op when Copilot Chat is not installed)
+        if (!this.copilotAdapterDisposable) {
+          this.copilotAdapterDisposable = new CopilotAdapter().start({
+            agents: this.agents,
+            nextAgentIdRef: this.nextAgentId,
+            webview: this.webview,
+            persistAgents: this.persistAgents,
+          });
+        }
         // Send persisted settings to webview
         const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
         const lastSeenVersion = this.context.globalState.get<string>(
@@ -637,6 +652,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       clearInterval(this.staleCheckTimer);
       this.staleCheckTimer = null;
     }
+    this.copilotAdapterDisposable?.dispose();
+    this.copilotAdapterDisposable = null;
   }
 }
 

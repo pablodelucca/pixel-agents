@@ -51,3 +51,16 @@ export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';
 export const WORKSPACE_KEY_AGENT_SEATS = 'pixel-agents.agentSeats';
 export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
 export const TERMINAL_NAME_PREFIX = 'Claude Code';
+export const COPILOT_CLI_TERMINAL_NAME_PREFIX = 'Copilot CLI';
+
+// ── GitHub Copilot Integration ──────────────────────────────
+/** Extension ID for GitHub Copilot Chat (used to detect if Copilot is installed) */
+export const COPILOT_EXTENSION_ID = 'GitHub.copilot-chat';
+/** Terminal name prefix used by Copilot agent mode when running commands */
+export const COPILOT_AGENT_TERMINAL_PREFIX = 'GitHub Copilot';
+/** Window (ms) within which consecutive document edits are grouped as a single Copilot activity burst */
+export const COPILOT_EDIT_BURST_WINDOW_MS = 500;
+/** After this idle period with no Copilot edits, transition agent to waiting state */
+export const COPILOT_ACTIVE_TIMEOUT_MS = 5000;
+/** VS Code workspace state key used to persist the Copilot agent ID across reloads */
+export const WORKSPACE_KEY_COPILOT_AGENT = 'pixel-agents.copilotAgent';
