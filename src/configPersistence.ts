@@ -6,10 +6,12 @@ import { CONFIG_FILE_NAME, LAYOUT_FILE_DIR } from './constants.js';
 
 export interface PixelAgentsConfig {
   externalAssetDirectories: string[];
+  agent_type: 'cloud' | 'copilot';
 }
 
 const DEFAULT_CONFIG: PixelAgentsConfig = {
   externalAssetDirectories: [],
+  agent_type: 'cloud',
 };
 
 function getConfigFilePath(): string {
@@ -26,6 +28,10 @@ export function readConfig(): PixelAgentsConfig {
       externalAssetDirectories: Array.isArray(parsed.externalAssetDirectories)
         ? parsed.externalAssetDirectories.filter((d): d is string => typeof d === 'string')
         : [],
+      agent_type:
+        parsed.agent_type === 'cloud' || parsed.agent_type === 'copilot'
+          ? parsed.agent_type
+          : DEFAULT_CONFIG.agent_type,
     };
   } catch (err) {
     console.error('[Pixel Agents] Failed to read config file:', err);

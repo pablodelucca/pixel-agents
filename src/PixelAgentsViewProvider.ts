@@ -3,15 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import {
-  getProjectDirPath,
-  launchNewTerminal,
-  persistAgents,
-  removeAgent,
-  restoreAgents,
-  sendExistingAgents,
-  sendLayout,
-} from './agentManager.js';
+import { agentManager } from './agentManager.js';
 import type { LoadedAssets } from './assetLoader.js';
 import {
   loadCharacterSprites,
@@ -91,7 +83,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   }
 
   private persistAgents = (): void => {
-    persistAgents(this.agents, this.context);
+    agentManager.agent.persistAgents(this.agents, this.context);
   };
 
   resolveWebviewView(webviewView: vscode.WebviewView) {
@@ -101,7 +93,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
       if (message.type === 'openClaude') {
-        await launchNewTerminal(
+        await agentManager.agent.launchNewTerminal(
           this.nextAgentId,
           this.nextTerminalIndex,
           this.agents,
@@ -135,7 +127,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             // External agent — remove from tracking and dismiss the file
             // so the external scanner doesn't re-adopt it
             dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
-            removeAgent(
+            agentManager.agent.removeAgent(
               message.id,
               this.agents,
               this.fileWatchers,
@@ -175,7 +167,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           // Remove all external agents not from the current workspace folders
           const workspaceDirs = new Set<string>();
           for (const folder of vscode.workspace.workspaceFolders ?? []) {
-            const dir = getProjectDirPath(folder.uri.fsPath);
+            const dir = agentManager.agent.getProjectDirPath(folder.uri.fsPath);
             if (dir) workspaceDirs.add(dir);
           }
           const toRemove: number[] = [];
@@ -191,7 +183,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
               this.globalDismissedFiles.add(agent.jsonlFile);
               this.knownJsonlFiles.delete(agent.jsonlFile);
             }
-            removeAgent(
+            agentManager.agent.removeAgent(
               id,
               this.agents,
               this.fileWatchers,
@@ -205,7 +197,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           }
         }
       } else if (message.type === 'webviewReady') {
-        restoreAgents(
+        agentManager.agent.restoreAgents(
           this.context,
           this.nextAgentId,
           this.nextTerminalIndex,
@@ -259,7 +251,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
 
         // Ensure project scan runs even with no restored agents (to adopt external terminals)
-        const projectDir = getProjectDirPath();
+        const projectDir = agentManager.agent.getProjectDirPath();
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         console.log('[Extension] workspaceRoot:', workspaceRoot);
         console.log('[Extension] projectDir:', projectDir);
@@ -299,7 +291,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           // so agents running in any workspace folder are discovered
           if (wsFolders && wsFolders.length > 1) {
             for (const folder of wsFolders) {
-              const folderProjectDir = getProjectDirPath(folder.uri.fsPath);
+              const folderProjectDir = agentManager.agent.getProjectDirPath(folder.uri.fsPath);
               if (folderProjectDir && folderProjectDir !== projectDir) {
                 console.log(
                   `[Pixel Agents] Registering additional project dir: ${folderProjectDir}`,
@@ -358,7 +350,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             if (!assetsRoot) {
               console.log('[Extension] ⚠️  No assets directory found');
               if (this.webview) {
-                sendLayout(this.context, this.webview, this.defaultLayout);
+                agentManager.agent.sendLayout(this.context, this.webview, this.defaultLayout);
                 this.startLayoutWatcher();
               }
               return;
@@ -402,11 +394,11 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           // Always send saved layout (or null for default)
           if (this.webview) {
             console.log('[Extension] Sending saved layout');
-            sendLayout(this.context, this.webview, this.defaultLayout);
+            agentManager.agent.sendLayout(this.context, this.webview, this.defaultLayout);
             this.startLayoutWatcher();
           }
         })();
-        sendExistingAgents(this.agents, this.context, this.webview);
+        agentManager.agent.sendExistingAgents(this.agents, this.context, this.webview);
       } else if (message.type === 'requestDiagnostics') {
         // Send connection diagnostics for all agents to the Debug View
         const diagnostics: Array<Record<string, unknown>> = [];
@@ -434,7 +426,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
         this.webview?.postMessage({ type: 'agentDiagnostics', agents: diagnostics });
       } else if (message.type === 'openSessionsFolder') {
-        const projectDir = getProjectDirPath();
+        const projectDir = agentManager.agent.getProjectDirPath();
         if (projectDir && fs.existsSync(projectDir)) {
           vscode.env.openExternal(vscode.Uri.file(projectDir));
         }
@@ -525,7 +517,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           }
           // Dismiss JSONL so external scanner doesn't re-adopt it
           dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
-          removeAgent(
+          agentManager.agent.removeAgent(
             id,
             this.agents,
             this.fileWatchers,
@@ -614,7 +606,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     this.layoutWatcher?.dispose();
     this.layoutWatcher = null;
     for (const id of [...this.agents.keys()]) {
-      removeAgent(
+      agentManager.agent.removeAgent(
         id,
         this.agents,
         this.fileWatchers,

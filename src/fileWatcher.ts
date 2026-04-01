@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { removeAgent } from './agentManager.js';
+import { agentManager } from './agentManager.js';
 import {
   CLEAR_IDLE_THRESHOLD_MS,
   DISMISSED_COOLDOWN_MS,
@@ -815,6 +815,7 @@ export function startStaleExternalAgentCheck(
         // File still exists — keep the agent alive regardless of mtime
       } catch {
         // File deleted — remove agent
+        console.log(`[Pixel Agents] File deleted: ${agent.jsonlFile}`);
         toRemove.push(id);
       }
     }
@@ -826,7 +827,7 @@ export function startStaleExternalAgentCheck(
         knownJsonlFiles.delete(agent.jsonlFile);
       }
       console.log(`[Pixel Agents] Removing stale external agent ${id}`);
-      removeAgent(
+      agentManager.agent.removeAgent(
         id,
         agents,
         fileWatchers,
