@@ -57,7 +57,7 @@ export function createCharacter(
   const center = tileCenter(col, row);
   return {
     id,
-    state: CharacterState.TYPE,
+    state: CharacterState.IDLE,
     dir: seat ? seat.facingDir : Direction.DOWN,
     x: center.x,
     y: center.y,
@@ -68,16 +68,17 @@ export function createCharacter(
     currentTool: null,
     palette,
     hueShift,
-    frame: 0,
+    frame: 1, // Standing pose (walk2 frame)
     frameTimer: 0,
-    wanderTimer: 0,
+    wanderTimer: 0, // Start immediately - don't wait
     wanderCount: 0,
     wanderLimit: randomInt(WANDER_MOVES_BEFORE_REST_MIN, WANDER_MOVES_BEFORE_REST_MAX),
-    isActive: true,
+    isActive: false,
     seatId,
     bubbleType: null,
     bubbleTimer: 0,
     seatTimer: 0,
+    leisureSeat: null,
     isSubagent: false,
     parentAgentId: null,
     matrixEffect: null,
@@ -93,6 +94,7 @@ export function updateCharacter(
   seats: Map<string, Seat>,
   tileMap: TileTypeVal[][],
   blockedTiles: Set<string>,
+  leisureSeats: Seat[] = [],
 ): void {
   ch.frameTimer += dt;
 
@@ -102,15 +104,16 @@ export function updateCharacter(
         ch.frameTimer -= TYPE_FRAME_DURATION_SEC;
         ch.frame = (ch.frame + 1) % 2;
       }
-      // If no longer active, stand up and start wandering (after seatTimer expires)
+      // If no longer active, stay seated until seatTimer expires
       if (!ch.isActive) {
         if (ch.seatTimer > 0) {
           ch.seatTimer -= dt;
-          break;
+          break; // Stay seated
         }
-        ch.seatTimer = 0; // clear sentinel
+        // seatTimer expired - stand up and wander
+        ch.seatTimer = 0;
         ch.state = CharacterState.IDLE;
-        ch.frame = 0;
+        ch.frame = 1; // Standing pose
         ch.frameTimer = 0;
         ch.wanderTimer = randomRange(WANDER_PAUSE_MIN_SEC, WANDER_PAUSE_MAX_SEC);
         ch.wanderCount = 0;
@@ -120,10 +123,10 @@ export function updateCharacter(
     }
 
     case CharacterState.IDLE: {
-      // No idle animation — static pose
-      ch.frame = 0;
+      // Standing pose - use walk2 frame (frame 1)
+      ch.frame = 1;
       if (ch.seatTimer < 0) ch.seatTimer = 0; // clear turn-end sentinel
-      // If became active, pathfind to seat
+      // If became active, pathfind to work seat
       if (ch.isActive) {
         if (!ch.seatId) {
           // No seat assigned — type in place
@@ -158,32 +161,63 @@ export function updateCharacter(
         }
         break;
       }
-      // Countdown wander timer
+
+      // Idle character behavior: wander around and visit leisure spots
       ch.wanderTimer -= dt;
       if (ch.wanderTimer <= 0) {
-        // Check if we've wandered enough — return to seat for a rest
-        if (ch.wanderCount >= ch.wanderLimit && ch.seatId) {
-          const seat = seats.get(ch.seatId);
-          if (seat) {
-            const path = findPath(
+        // Decide what to do next
+        const rand = Math.random();
+
+        if (rand < 0.4 && leisureSeats.length > 0) {
+          // 40% chance: go to a leisure seat (sofa/bench)
+          const leisureSeat = leisureSeats[Math.floor(Math.random() * leisureSeats.length)];
+          // Temporarily unblock the leisure seat for pathfinding
+          const seatKey = `${leisureSeat.seatCol},${leisureSeat.seatRow}`;
+          const wasBlocked = blockedTiles.has(seatKey);
+          if (wasBlocked) blockedTiles.delete(seatKey);
+
+          const path = findPath(
+            ch.tileCol,
+            ch.tileRow,
+            leisureSeat.seatCol,
+            leisureSeat.seatRow,
+            tileMap,
+            blockedTiles,
+          );
+
+          if (wasBlocked) blockedTiles.add(seatKey); // Restore blocked state
+
+          if (path.length > 0) {
+            ch.path = path;
+            ch.moveProgress = 0;
+            ch.state = CharacterState.WALK;
+            ch.frame = 0;
+            ch.frameTimer = 0;
+            ch.wanderCount++;
+            // Remember this leisure seat for sitting when we arrive
+            ch.leisureSeat = leisureSeat;
+          } else if (walkableTiles.length > 0) {
+            // Fallback: wander to a random walkable tile
+            const target = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+            const wanderPath = findPath(
               ch.tileCol,
               ch.tileRow,
-              seat.seatCol,
-              seat.seatRow,
+              target.col,
+              target.row,
               tileMap,
               blockedTiles,
             );
-            if (path.length > 0) {
-              ch.path = path;
+            if (wanderPath.length > 0) {
+              ch.path = wanderPath;
               ch.moveProgress = 0;
               ch.state = CharacterState.WALK;
               ch.frame = 0;
               ch.frameTimer = 0;
-              break;
+              ch.wanderCount++;
             }
           }
-        }
-        if (walkableTiles.length > 0) {
+        } else if (walkableTiles.length > 0) {
+          // Otherwise: wander to a random walkable tile
           const target = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
           const path = findPath(
             ch.tileCol,
@@ -224,24 +258,61 @@ export function updateCharacter(
           if (!ch.seatId) {
             // No seat — type in place
             ch.state = CharacterState.TYPE;
+            ch.frame = 0;
+            ch.frameTimer = 0;
           } else {
             const seat = seats.get(ch.seatId);
             if (seat && ch.tileCol === seat.seatCol && ch.tileRow === seat.seatRow) {
+              // Arrived at work seat — sit and type
               ch.state = CharacterState.TYPE;
               ch.dir = seat.facingDir;
+              ch.frame = 0;
+              ch.frameTimer = 0;
             } else {
-              ch.state = CharacterState.IDLE;
+              // Not at seat yet — need to find path to seat
+              const pathToSeat = findPath(
+                ch.tileCol,
+                ch.tileRow,
+                seat!.seatCol,
+                seat!.seatRow,
+                tileMap,
+                blockedTiles,
+              );
+              if (pathToSeat.length > 0) {
+                ch.path = pathToSeat;
+                ch.moveProgress = 0;
+              } else {
+                // Can't find path — type in place
+                ch.state = CharacterState.TYPE;
+                ch.frame = 0;
+                ch.frameTimer = 0;
+              }
             }
           }
         } else {
-          // Check if arrived at assigned seat — sit down for a rest before wandering again
+          // Idle character arrived at destination
+          // Check if arrived at a leisure seat (sofa/bench)
+          if (ch.leisureSeat) {
+            if (ch.tileCol === ch.leisureSeat.seatCol && ch.tileRow === ch.leisureSeat.seatRow) {
+              // Sit on leisure seat and relax
+              ch.state = CharacterState.TYPE;
+              ch.dir = ch.leisureSeat.facingDir;
+              ch.leisureSeat = null;
+              ch.wanderCount = 0;
+              ch.wanderLimit = randomInt(WANDER_MOVES_BEFORE_REST_MIN, WANDER_MOVES_BEFORE_REST_MAX);
+              ch.seatTimer = randomRange(SEAT_REST_MIN_SEC, SEAT_REST_MAX_SEC); // Set seatTimer for sitting duration
+              ch.frame = 0; // Start typing animation
+              ch.frameTimer = 0;
+              break;
+            }
+            ch.leisureSeat = null; // Clear if we didn't arrive there
+          }
+          // Check if arrived at assigned work seat
           if (ch.seatId) {
             const seat = seats.get(ch.seatId);
             if (seat && ch.tileCol === seat.seatCol && ch.tileRow === seat.seatRow) {
               ch.state = CharacterState.TYPE;
               ch.dir = seat.facingDir;
-              // seatTimer < 0 is a sentinel from setAgentActive(false) meaning
-              // "turn just ended" — skip the long rest so idle transition is immediate
               if (ch.seatTimer < 0) {
                 ch.seatTimer = 0;
               } else {
@@ -260,7 +331,7 @@ export function updateCharacter(
           ch.state = CharacterState.IDLE;
           ch.wanderTimer = randomRange(WANDER_PAUSE_MIN_SEC, WANDER_PAUSE_MAX_SEC);
         }
-        ch.frame = 0;
+        ch.frame = 1; // Standing pose
         ch.frameTimer = 0;
         break;
       }

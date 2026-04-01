@@ -42,6 +42,8 @@ export class OfficeState {
   furniture: FurnitureInstance[];
   walkableTiles: Array<{ col: number; row: number }>;
   characters: Map<number, Character> = new Map();
+  /** Leisure seats (sofas, benches) for idle characters */
+  leisureSeats: Seat[] = [];
   /** Accumulated time for furniture animation frame cycling */
   furnitureAnimTimer = 0;
   selectedAgentId: number | null = null;
@@ -72,6 +74,9 @@ export class OfficeState {
     this.blockedTiles = getBlockedTiles(layout.furniture);
     this.rebuildFurnitureInstances();
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles);
+
+    // Extract leisure seats (sofas, benches) for idle characters
+    this.leisureSeats = this.extractLeisureSeats(layout.furniture);
 
     // Shift character positions when grid expands left/up
     if (shift && (shift.col !== 0 || shift.row !== 0)) {
@@ -169,9 +174,72 @@ export class OfficeState {
   private withOwnSeatUnblocked<T>(ch: Character, fn: () => T): T {
     const key = this.ownSeatKey(ch);
     if (key) this.blockedTiles.delete(key);
+    // Also unblock leisure seats so idle characters can walk to them
+    const leisureKeys: string[] = [];
+    for (const seat of this.leisureSeats) {
+      const seatKey = `${seat.seatCol},${seat.seatRow}`;
+      if (this.blockedTiles.has(seatKey)) {
+        leisureKeys.push(seatKey);
+        this.blockedTiles.delete(seatKey);
+      }
+    }
     const result = fn();
     if (key) this.blockedTiles.add(key);
+    for (const k of leisureKeys) {
+      this.blockedTiles.add(k);
+    }
     return result;
+  }
+
+  /** Extract leisure seats (sofas, benches) for idle characters to relax */
+  private extractLeisureSeats(furniture: PlacedFurniture[]): Seat[] {
+    const leisureSeats: Seat[] = [];
+
+    for (const item of furniture) {
+      const entry = getCatalogEntry(item.type);
+      if (!entry) continue;
+
+      // Check if this is a leisure furniture type (sofa or bench)
+      const type = item.type.toUpperCase();
+      const isLeisure = type.startsWith('SOFA') || type.includes('BENCH');
+      if (!isLeisure) continue;
+
+      // Create seats for this furniture
+      const seats = this.createSeatsForFurniture(item, entry);
+      leisureSeats.push(...seats);
+    }
+
+    return leisureSeats;
+  }
+
+  /** Create seats for a furniture item */
+  private createSeatsForFurniture(item: PlacedFurniture, entry: ReturnType<typeof getCatalogEntry>): Seat[] {
+    if (!entry) return [];
+
+    const seats: Seat[] = [];
+    const orientation = entry.orientation;
+
+    // Determine facing direction based on orientation
+    let facingDir: Direction = Direction.DOWN; // default
+    if (orientation === 'front') facingDir = Direction.DOWN;
+    else if (orientation === 'back') facingDir = Direction.UP;
+    else if (orientation === 'side') facingDir = Direction.RIGHT;
+
+    // Create a seat for each footprint tile
+    for (let dr = 0; dr < entry.footprintH; dr++) {
+      for (let dc = 0; dc < entry.footprintW; dc++) {
+        const seat: Seat = {
+          uid: item.uid,
+          seatCol: item.col + dc,
+          seatRow: item.row + dr,
+          facingDir,
+          assigned: false,
+        };
+        seats.push(seat);
+      }
+    }
+
+    return seats;
   }
 
   private findFreeSeat(): string | null {
@@ -561,7 +629,10 @@ export class OfficeState {
     const ch = this.characters.get(id);
     if (ch) {
       ch.isActive = active;
-      if (!active) {
+      if (active) {
+        // Clear leisure seat destination - go to work seat instead
+        ch.leisureSeat = null;
+      } else {
         // Sentinel -1: signals turn just ended, skip next seat rest timer.
         // Prevents the WALK handler from setting a 2-4 min rest on arrival.
         ch.seatTimer = -1;
@@ -714,7 +785,7 @@ export class OfficeState {
 
       // Temporarily unblock own seat so character can pathfind to it
       this.withOwnSeatUnblocked(ch, () =>
-        updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles),
+        updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles, this.leisureSeats),
       );
 
       // Tick bubble timer for waiting bubbles

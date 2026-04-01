@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  pixel-agents:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount Claude projects directory (read-only)
+      - ~/.claude/projects:/root/.claude/projects:ro
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    restart: unless-stopped
+
+  # Optional: Nginx reverse proxy for HTTPS
+  # nginx:
+  #   image: nginx:alpine
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - pixel-agents
