@@ -1,15 +1,36 @@
 import type * as vscode from 'vscode';
 
 import { HOOK_EVENT_BUFFER_MS } from './constants.js';
-import type { HookEvent } from './hookServer.js';
-import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
-import type { AgentState } from './types.js';
+import { cancelPermissionTimer, cancelWaitingTimer } from '../../src/timerManager.js';
+import type { AgentState } from '../../src/types.js';
 
+/** Normalized hook event received from any provider's hook script via the HTTP server. */
+export interface HookEvent {
+  /** Hook event name (e.g., 'Stop', 'PermissionRequest', 'Notification') */
+  hook_event_name: string;
+  /** Claude Code session ID, maps to JSONL filename */
+  session_id: string;
+  /** Additional provider-specific fields (notification_type, tool_name, etc.) */
+  [key: string]: unknown;
+}
+
+/** An event waiting to be dispatched once its agent registers. */
 interface BufferedEvent {
+  providerId: string;
   event: HookEvent;
   timestamp: number;
 }
 
+/**
+ * Routes hook events from the HTTP server to the correct agent.
+ *
+ * Maps `session_id` from hook events to internal agent IDs. Events that arrive
+ * before their agent is registered are buffered for up to HOOK_EVENT_BUFFER_MS
+ * and flushed when the agent registers.
+ *
+ * When an event is successfully delivered, sets `agent.hookDelivered = true` which
+ * suppresses heuristic timers (permission 7s, text-idle 5s) for that agent.
+ */
 export class HookEventHandler {
   private sessionToAgentId = new Map<string, number>();
   private bufferedEvents: BufferedEvent[] = [];
@@ -22,17 +43,27 @@ export class HookEventHandler {
     private getWebview: () => vscode.Webview | undefined,
   ) {}
 
+  /** Register an agent for hook event routing. Flushes any buffered events for this session. */
   registerAgent(sessionId: string, agentId: number): void {
     this.sessionToAgentId.set(sessionId, agentId);
     // Flush any buffered events for this session
     this.flushBufferedEvents(sessionId);
   }
 
+  /** Remove an agent's session mapping (called on agent removal/terminal close). */
   unregisterAgent(sessionId: string): void {
     this.sessionToAgentId.delete(sessionId);
   }
 
-  handleEvent(event: HookEvent): void {
+  /**
+   * Process an incoming hook event. Looks up the agent by session_id,
+   * falls back to auto-discovery scan, or buffers if agent not yet registered.
+   * @param providerId - Provider that sent the event ('claude', 'codex', etc.)
+   * @param event - The hook event payload from the CLI tool
+   */
+  handleEvent(providerId: string, event: HookEvent): void {
+    // providerId is 'claude', 'codex', etc. for future multi-provider routing
+    void providerId;
     let agentId = this.sessionToAgentId.get(event.session_id);
     if (agentId === undefined) {
       // Try auto-discovery: scan agents map for matching sessionId
@@ -45,8 +76,8 @@ export class HookEventHandler {
       }
     }
     if (agentId === undefined) {
-      // Buffer the event — agent might not be registered yet
-      this.bufferEvent(event);
+      // Buffer the event -- agent might not be registered yet
+      this.bufferEvent(providerId, event);
       return;
     }
 
@@ -68,6 +99,7 @@ export class HookEventHandler {
     }
   }
 
+  /** Handle PermissionRequest: cancel heuristic timer, show permission bubble on agent + sub-agents. */
   private handlePermissionRequest(
     agent: AgentState,
     agentId: number,
@@ -89,6 +121,7 @@ export class HookEventHandler {
     }
   }
 
+  /** Handle Notification: permission_prompt shows bubble, idle_prompt marks agent waiting. */
   private handleNotification(
     event: HookEvent,
     agent: AgentState,
@@ -115,6 +148,7 @@ export class HookEventHandler {
     }
   }
 
+  /** Handle Stop: Claude finished responding, mark agent as waiting. */
   private handleStop(
     agent: AgentState,
     agentId: number,
@@ -123,6 +157,11 @@ export class HookEventHandler {
     this.markAgentWaiting(agent, agentId, webview);
   }
 
+  /**
+   * Transition agent to waiting state. Clears foreground tools (preserves background
+   * agents), cancels timers, and notifies the webview. Same logic as the turn_duration
+   * handler in transcriptParser.ts.
+   */
   private markAgentWaiting(
     agent: AgentState,
     agentId: number,
@@ -177,8 +216,9 @@ export class HookEventHandler {
     });
   }
 
-  private bufferEvent(event: HookEvent): void {
-    this.bufferedEvents.push({ event, timestamp: Date.now() });
+  /** Buffer an event for later delivery when the agent registers. */
+  private bufferEvent(providerId: string, event: HookEvent): void {
+    this.bufferedEvents.push({ providerId, event, timestamp: Date.now() });
     if (!this.bufferTimer) {
       this.bufferTimer = setInterval(() => {
         this.pruneExpiredBufferedEvents();
@@ -186,21 +226,24 @@ export class HookEventHandler {
     }
   }
 
+  /** Deliver all buffered events for a session that just registered. */
   private flushBufferedEvents(sessionId: string): void {
     const toFlush = this.bufferedEvents.filter((b) => b.event.session_id === sessionId);
     this.bufferedEvents = this.bufferedEvents.filter((b) => b.event.session_id !== sessionId);
-    for (const { event } of toFlush) {
-      this.handleEvent(event);
+    for (const { providerId, event } of toFlush) {
+      this.handleEvent(providerId, event);
     }
     this.cleanupBufferTimer();
   }
 
+  /** Remove buffered events older than HOOK_EVENT_BUFFER_MS. */
   private pruneExpiredBufferedEvents(): void {
     const cutoff = Date.now() - HOOK_EVENT_BUFFER_MS;
     this.bufferedEvents = this.bufferedEvents.filter((b) => b.timestamp > cutoff);
     this.cleanupBufferTimer();
   }
 
+  /** Stop the prune interval when no buffered events remain. */
   private cleanupBufferTimer(): void {
     if (this.bufferedEvents.length === 0 && this.bufferTimer) {
       clearInterval(this.bufferTimer);
@@ -208,6 +251,7 @@ export class HookEventHandler {
     }
   }
 
+  /** Clean up timers and maps. Called when the extension disposes. */
   dispose(): void {
     if (this.bufferTimer) {
       clearInterval(this.bufferTimer);

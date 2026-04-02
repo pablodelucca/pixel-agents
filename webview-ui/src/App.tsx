@@ -4,6 +4,8 @@ import { toMajorMinor } from './changelogData.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
 import { DebugView } from './components/DebugView.js';
+import { InfoModal } from './components/InfoModal.js';
+import { Tooltip } from './components/Tooltip.js';
 import { VersionIndicator } from './components/VersionIndicator.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
@@ -156,6 +158,9 @@ function App() {
     watchAllSessions,
     setWatchAllSessions,
     alwaysShowLabels,
+    hooksEnabled,
+    setHooksEnabled,
+    hooksInfoShown: _hooksInfoShown,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -163,6 +168,8 @@ function App() {
   const showMigrationNotice = layoutWasReset && !migrationNoticeDismissed;
 
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
+  const [isHooksInfoOpen, setIsHooksInfoOpen] = useState(false);
+  const [hooksTooltipDismissed, setHooksTooltipDismissed] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [alwaysShowOverlay, setAlwaysShowOverlay] = useState(false);
 
@@ -296,6 +303,83 @@ function App() {
 
       {!isDebugMode && <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />}
 
+      {/* Hooks first-run tooltip -- shows only once per user */}
+      {!_hooksInfoShown && !hooksTooltipDismissed && (
+        <Tooltip
+          title="Instant Detection Active"
+          position="top-right"
+          onDismiss={() => {
+            setHooksTooltipDismissed(true);
+            vscode.postMessage({ type: 'setHooksInfoShown' });
+          }}
+        >
+          <span style={{ fontSize: '20px', color: 'var(--pixel-text)', lineHeight: 1 }}>
+            Your agents now respond in real-time.{' '}
+            <span
+              style={{
+                color: 'var(--pixel-accent)',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+              onClick={() => {
+                setIsHooksInfoOpen(true);
+                setHooksTooltipDismissed(true);
+                vscode.postMessage({ type: 'setHooksInfoShown' });
+              }}
+            >
+              View more
+            </span>
+          </span>
+        </Tooltip>
+      )}
+
+      {/* Hooks info modal */}
+      <InfoModal
+        isOpen={isHooksInfoOpen}
+        onClose={() => setIsHooksInfoOpen(false)}
+        title="Instant Detection is ON"
+      >
+        <div style={{ fontSize: '22px', color: 'var(--pixel-text)', lineHeight: 1.4 }}>
+          <p style={{ margin: '0 0 8px 0' }}>Your Pixel Agents office now reacts in real-time:</p>
+          <ul style={{ margin: '0 0 8px 0', paddingLeft: 20 }}>
+            <li>Permission prompts appear instantly</li>
+            <li>Turn completions detected the moment they happen</li>
+            <li>Sound notifications play immediately</li>
+          </ul>
+          <p style={{ margin: '0 0 12px 0', color: 'var(--pixel-text-dim)' }}>
+            This works through Claude Code Hooks, small event listeners that notify Pixel Agents
+            whenever something happens in your Claude sessions.
+          </p>
+          <div style={{ textAlign: 'center' }}>
+            <button
+              onClick={() => setIsHooksInfoOpen(false)}
+              style={{
+                padding: '4px 20px',
+                fontSize: '24px',
+                background: 'var(--pixel-accent)',
+                color: '#fff',
+                border: '2px solid var(--pixel-accent)',
+                borderRadius: 0,
+                cursor: 'pointer',
+                boxShadow: 'var(--pixel-shadow)',
+              }}
+            >
+              Got it
+            </button>
+          </div>
+          <p
+            style={{
+              margin: '8px 0 0 0',
+              fontSize: '18px',
+              color: 'var(--pixel-text-dim)',
+              textAlign: 'center',
+            }}
+          >
+            To disable, go to Settings {'>'} Instant Detection
+          </p>
+        </div>
+      </InfoModal>
+
       {/* Vignette overlay */}
       <div
         style={{
@@ -322,6 +406,12 @@ function App() {
           const newVal = !watchAllSessions;
           setWatchAllSessions(newVal);
           vscode.postMessage({ type: 'setWatchAllSessions', enabled: newVal });
+        }}
+        hooksEnabled={hooksEnabled}
+        onToggleHooksEnabled={() => {
+          const newVal = !hooksEnabled;
+          setHooksEnabled(newVal);
+          vscode.postMessage({ type: 'setHooksEnabled', enabled: newVal });
         }}
       />
 
