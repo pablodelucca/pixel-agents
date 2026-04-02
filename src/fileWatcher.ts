@@ -409,6 +409,7 @@ function adoptTerminalForFile(
   const id = nextAgentIdRef.current++;
   const agent: AgentState = {
     id,
+    source: 'claude-code',
     terminalRef: terminal,
     isExternal: false,
     projectDir,
@@ -477,6 +478,7 @@ function adoptExternalSession(
   }
   const agent: AgentState = {
     id,
+    source: 'claude-code',
     terminalRef: undefined,
     isExternal: true,
     projectDir,
