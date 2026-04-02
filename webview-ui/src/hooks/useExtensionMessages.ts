@@ -63,6 +63,9 @@ export interface ExtensionMessageState {
   watchAllSessions: boolean;
   setWatchAllSessions: (v: boolean) => void;
   alwaysShowLabels: boolean;
+  hooksEnabled: boolean;
+  setHooksEnabled: (v: boolean) => void;
+  hooksInfoShown: boolean;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -98,6 +101,8 @@ export function useExtensionMessages(
   const [extensionVersion, setExtensionVersion] = useState('');
   const [watchAllSessions, setWatchAllSessions] = useState(false);
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
+  const [hooksEnabled, setHooksEnabled] = useState(false);
+  const [hooksInfoShown, setHooksInfoShown] = useState(true);
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -412,6 +417,12 @@ export function useExtensionMessages(
         if (typeof msg.alwaysShowLabels === 'boolean') {
           setAlwaysShowLabels(msg.alwaysShowLabels as boolean);
         }
+        if (typeof msg.hooksEnabled === 'boolean') {
+          setHooksEnabled(msg.hooksEnabled as boolean);
+        }
+        if (typeof msg.hooksInfoShown === 'boolean') {
+          setHooksInfoShown(msg.hooksInfoShown as boolean);
+        }
         if (Array.isArray(msg.externalAssetDirectories)) {
           setExternalAssetDirectories(msg.externalAssetDirectories as string[]);
         }
@@ -460,5 +471,8 @@ export function useExtensionMessages(
     watchAllSessions,
     setWatchAllSessions,
     alwaysShowLabels,
+    hooksEnabled,
+    setHooksEnabled,
+    hooksInfoShown,
   };
 }

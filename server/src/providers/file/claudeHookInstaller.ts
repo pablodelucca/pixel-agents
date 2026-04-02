@@ -2,16 +2,12 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import {
-  HOOK_PORT_DIR,
-  HOOK_PORT_FILE_PREFIX,
-  HOOK_SCRIPT_DIR,
-  HOOK_SCRIPT_NAME,
-  HOOK_SERVER_PATH,
-} from './constants.js';
+import { CLAUDE_HOOK_SCRIPT_NAME, HOOK_SCRIPTS_DIR } from '../../constants.js';
 
-const HOOK_SCRIPT_MARKER = HOOK_SCRIPT_NAME;
+/** Marker string used to identify Pixel Agents hook entries in Claude's settings. */
+const HOOK_SCRIPT_MARKER = CLAUDE_HOOK_SCRIPT_NAME;
 
+/** A single hook entry in Claude Code's ~/.claude/settings.json hooks config. */
 interface ClaudeHookEntry {
   matcher: string;
   hooks: Array<{
@@ -21,19 +17,23 @@ interface ClaudeHookEntry {
   }>;
 }
 
+/** Partial shape of ~/.claude/settings.json (only the hooks field is relevant). */
 interface ClaudeSettings {
   hooks?: Record<string, ClaudeHookEntry[]>;
   [key: string]: unknown;
 }
 
+/** Returns the absolute path to ~/.claude/settings.json. */
 function getClaudeSettingsPath(): string {
   return path.join(os.homedir(), '.claude', 'settings.json');
 }
 
+/** Returns the destination path for the hook script (~/.pixel-agents/hooks/claude-hook.js). */
 function getHookScriptPath(): string {
-  return path.join(os.homedir(), HOOK_SCRIPT_DIR, HOOK_SCRIPT_NAME);
+  return path.join(os.homedir(), HOOK_SCRIPTS_DIR, CLAUDE_HOOK_SCRIPT_NAME);
 }
 
+/** Read and parse ~/.claude/settings.json. Returns empty object if missing or malformed. */
 function readClaudeSettings(): ClaudeSettings {
   const settingsPath = getClaudeSettingsPath();
   try {
@@ -46,6 +46,7 @@ function readClaudeSettings(): ClaudeSettings {
   return {};
 }
 
+/** Write settings back to ~/.claude/settings.json via atomic tmp + rename. */
 function writeClaudeSettings(settings: ClaudeSettings): void {
   const settingsPath = getClaudeSettingsPath();
   const dir = path.dirname(settingsPath);
@@ -62,15 +63,23 @@ function writeClaudeSettings(settings: ClaudeSettings): void {
   }
 }
 
+/** Legacy script name (before rename to claude-hook.js). */
+const LEGACY_HOOK_MARKER = 'pixel-agents-hook.js';
+
+/** Check if a hook entry belongs to Pixel Agents (current or legacy script name). */
 function isOurHookEntry(entry: ClaudeHookEntry): boolean {
-  return entry.hooks.some((h) => h.command.includes(HOOK_SCRIPT_MARKER));
+  return entry.hooks.some(
+    (h) => h.command.includes(HOOK_SCRIPT_MARKER) || h.command.includes(LEGACY_HOOK_MARKER),
+  );
 }
 
+/** Build the shell command that Claude Code will execute for each hook event. */
 function makeHookCommand(): string {
   const scriptPath = getHookScriptPath();
   return `node "${scriptPath}"`;
 }
 
+/** Create a hook entry object for Claude's settings.json. Matcher is empty (catch-all). */
 function makeHookEntry(): ClaudeHookEntry {
   return {
     matcher: '',
@@ -84,6 +93,7 @@ function makeHookEntry(): ClaudeHookEntry {
   };
 }
 
+/** Check if Pixel Agents hooks are already installed in ~/.claude/settings.json. */
 export function areHooksInstalled(): boolean {
   const settings = readClaudeSettings();
   if (!settings.hooks) return false;
@@ -94,6 +104,11 @@ export function areHooksInstalled(): boolean {
   });
 }
 
+/**
+ * Install Pixel Agents hook entries into ~/.claude/settings.json for
+ * Notification, Stop, and PermissionRequest events. Idempotent: removes
+ * any existing Pixel Agents entries before adding fresh ones.
+ */
 export function installHooks(): void {
   const settings = readClaudeSettings();
   if (!settings.hooks) {
@@ -121,10 +136,9 @@ export function installHooks(): void {
     writeClaudeSettings(settings);
     console.log('[Pixel Agents] Hooks installed in ~/.claude/settings.json');
   }
-
-  installHookScript();
 }
 
+/** Remove all Pixel Agents hook entries from ~/.claude/settings.json. Cleans up empty objects. */
 export function uninstallHooks(): void {
   const settings = readClaudeSettings();
   if (!settings.hooks) return;
@@ -138,12 +152,10 @@ export function uninstallHooks(): void {
       settings.hooks[event] = filtered;
       changed = true;
     }
-    // Clean up empty arrays
     if (settings.hooks[event].length === 0) {
       delete settings.hooks[event];
     }
   }
-  // Clean up empty hooks object
   if (Object.keys(settings.hooks).length === 0) {
     delete settings.hooks;
   }
@@ -154,84 +166,24 @@ export function uninstallHooks(): void {
   }
 }
 
-function installHookScript(): void {
-  const scriptPath = getHookScriptPath();
-  const scriptDir = path.dirname(scriptPath);
+/** Copy the shipped hook script from the extension to ~/.pixel-agents/hooks/ */
+export function copyHookScript(extensionPath: string): void {
+  const src = path.join(extensionPath, 'dist', 'hooks', CLAUDE_HOOK_SCRIPT_NAME);
+  const dst = getHookScriptPath();
+  const dstDir = path.dirname(dst);
 
   try {
-    if (!fs.existsSync(scriptDir)) {
-      fs.mkdirSync(scriptDir, { recursive: true });
+    if (!fs.existsSync(dstDir)) {
+      fs.mkdirSync(dstDir, { recursive: true, mode: 0o700 });
     }
-
-    const portDir = path.join(os.homedir(), HOOK_PORT_DIR);
-    const portPrefix = HOOK_PORT_FILE_PREFIX;
-
-    // Node.js hook script — reads stdin JSON, POSTs to all active Pixel Agents instances
-    const script = `#!/usr/bin/env node
-'use strict';
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-
-const PORT_DIR = ${JSON.stringify(portDir)};
-const PORT_PREFIX = ${JSON.stringify(portPrefix)};
-const SERVER_PATH = ${JSON.stringify(HOOK_SERVER_PATH)};
-
-async function main() {
-  let input = '';
-  for await (const chunk of process.stdin) {
-    input += chunk;
-  }
-
-  let data;
-  try {
-    data = JSON.parse(input);
-  } catch {
-    process.exit(0);
-  }
-
-  // Read all port files
-  let files;
-  try {
-    files = fs.readdirSync(PORT_DIR).filter(f => f.startsWith(PORT_PREFIX));
-  } catch {
-    process.exit(0);
-  }
-
-  const posts = files.map(file => {
-    let port;
-    try {
-      port = parseInt(fs.readFileSync(path.join(PORT_DIR, file), 'utf-8').trim(), 10);
-    } catch {
-      return Promise.resolve();
+    if (!fs.existsSync(src)) {
+      console.warn(`[Pixel Agents] Hook script not found at ${src}`);
+      return;
     }
-    if (!port || isNaN(port)) return Promise.resolve();
-
-    const body = JSON.stringify(data);
-    return new Promise(resolve => {
-      const req = http.request({
-        hostname: '127.0.0.1',
-        port,
-        path: SERVER_PATH,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-        timeout: 2000,
-      }, () => resolve());
-      req.on('error', () => resolve());
-      req.on('timeout', () => { req.destroy(); resolve(); });
-      req.end(body);
-    });
-  });
-
-  await Promise.all(posts);
-}
-
-main().catch(() => {}).finally(() => process.exit(0));
-`;
-
-    fs.writeFileSync(scriptPath, script, { mode: 0o755 });
-    console.log(`[Pixel Agents] Hook script installed at ${scriptPath}`);
+    fs.copyFileSync(src, dst);
+    fs.chmodSync(dst, 0o700);
+    console.log(`[Pixel Agents] Hook script installed at ${dst}`);
   } catch (e) {
-    console.error(`[Pixel Agents] Failed to install hook script: ${e}`);
+    console.error(`[Pixel Agents] Failed to copy hook script: ${e}`);
   }
 }

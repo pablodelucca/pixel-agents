@@ -6,7 +6,7 @@ import {
   TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
   TEXT_IDLE_DELAY_MS,
   TOOL_DONE_DELAY_MS,
-} from './constants.js';
+} from '../server/src/constants.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,

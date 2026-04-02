@@ -13,6 +13,8 @@ interface SettingsModalProps {
   externalAssetDirectories: string[];
   watchAllSessions: boolean;
   onToggleWatchAllSessions: () => void;
+  hooksEnabled: boolean;
+  onToggleHooksEnabled: () => void;
 }
 
 const menuItemBase: React.CSSProperties = {
@@ -40,6 +42,8 @@ export function SettingsModal({
   externalAssetDirectories,
   watchAllSessions,
   onToggleWatchAllSessions,
+  hooksEnabled,
+  onToggleHooksEnabled,
 }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
@@ -74,7 +78,7 @@ export function SettingsModal({
           borderRadius: 0,
           padding: '4px',
           boxShadow: 'var(--pixel-shadow)',
-          minWidth: 200,
+          minWidth: 260,
         }}
       >
         {/* Header with title and X button */}
@@ -270,6 +274,35 @@ export function SettingsModal({
             }}
           >
             {watchAllSessions ? 'X' : ''}
+          </span>
+        </button>
+        <button
+          onClick={onToggleHooksEnabled}
+          onMouseEnter={() => setHovered('hooks')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...menuItemBase,
+            background: hovered === 'hooks' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          }}
+        >
+          <span>Instant Detection (Hooks)</span>
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              border: '2px solid rgba(255, 255, 255, 0.5)',
+              borderRadius: 0,
+              background: hooksEnabled ? 'rgba(90, 140, 255, 0.8)' : 'transparent',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              lineHeight: 1,
+              color: '#fff',
+            }}
+          >
+            {hooksEnabled ? 'X' : ''}
           </span>
         </button>
         <button

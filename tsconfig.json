@@ -11,6 +11,7 @@
 	},
 	"include": [
 		"src",
+		"server/src",
 		"shared"
 	],
 	"exclude": [
