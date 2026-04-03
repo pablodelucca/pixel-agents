@@ -153,8 +153,9 @@ export function watchLayoutFile(
       fsWatcher = fs.watch(filePath, () => {
         checkForChange();
       });
-      fsWatcher.on('error', () => {
-        // fs.watch can be unreliable — polling backup handles it
+      fsWatcher.on('error', (err) => {
+        // fs.watch can be unreliable on macOS (kqueue) and may hit inotify limits on Linux
+        console.log(`[Pixel Agents] Layout fs.watch error: ${err.message}`);
         fsWatcher?.close();
         fsWatcher = null;
       });

@@ -260,6 +260,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         // Ensure project scan runs even with no restored agents (to adopt external terminals)
         const projectDir = agentManager.agent.getProjectDirPath();
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        console.log(`[Pixel Agents] Platform: ${process.platform}, arch: ${process.arch}`);
         console.log('[Extension] workspaceRoot:', workspaceRoot);
         console.log('[Extension] projectDir:', projectDir);
         ensureProjectScan(
@@ -358,6 +359,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
               console.log('[Extension] ⚠️  No assets directory found');
               if (this.webview) {
                 agentManager.agent.sendLayout(this.context, this.webview, this.defaultLayout);
+                // Send agent statuses AFTER layoutLoaded so characters exist when messages arrive
+                agentManager.agent.sendCurrentAgentStatuses(this.agents, this.webview);
                 this.startLayoutWatcher();
               }
               return;
@@ -402,6 +405,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           if (this.webview) {
             console.log('[Extension] Sending saved layout');
             agentManager.agent.sendLayout(this.context, this.webview, this.defaultLayout);
+            // Send agent statuses AFTER layoutLoaded so characters exist when messages arrive
+            agentManager.agent.sendCurrentAgentStatuses(this.agents, this.webview);
             this.startLayoutWatcher();
           }
         })();

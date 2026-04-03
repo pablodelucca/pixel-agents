@@ -217,13 +217,13 @@ export function useExtensionMessages(
           if (list.some((t) => t.toolId === toolId)) return prev;
           return { ...prev, [id]: [...list, { toolId, status, done: false }] };
         });
-        const toolName = extractToolName(status);
+        const toolName = (msg.toolName as string | undefined) ?? extractToolName(status);
         os.setAgentTool(id, toolName);
         os.setAgentActive(id, true);
         os.clearPermissionBubble(id);
-        // Create sub-agent character for Task tool subtasks
-        if (status.startsWith('Subtask:')) {
-          const label = status.slice('Subtask:'.length).trim();
+        // Create sub-agent character for Task/Agent tool subtasks
+        if (toolName === 'Task' || toolName === 'Agent') {
+          const label = status.startsWith('Subtask:') ? status.slice('Subtask:'.length).trim() : '';
           const subId = os.addSubagent(id, toolId);
           setSubagentCharacters((prev) => {
             if (prev.some((s) => s.id === subId)) return prev;

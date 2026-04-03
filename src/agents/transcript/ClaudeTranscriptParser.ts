@@ -107,6 +107,7 @@ export function processTranscriptLineClaude(
               id: agentId,
               toolId: block.id,
               status,
+              toolName,
             });
           }
         }
