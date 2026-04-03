@@ -6,9 +6,9 @@ VS Code extension with embedded React webview: pixel art office where AI agents 
 
 ```
 src/                          — Extension backend (Node.js, VS Code API)
-  constants.ts                — All backend magic numbers/strings (timing, truncation, asset parsing, VS Code IDs)
+  constants.ts                — Extension-only constants (VS Code IDs, key names)
   extension.ts                — Entry: activate(), deactivate()
-  PixelAgentsViewProvider.ts   — WebviewViewProvider, message dispatch, asset loading
+  PixelAgentsViewProvider.ts   — WebviewViewProvider, message dispatch, asset loading, server lifecycle
   assetLoader.ts              — PNG parsing, sprite conversion, catalog building, default layout loading
   agentManager.ts             — Terminal lifecycle: launch, remove, restore, persist
   configPersistence.ts        — User-level config file I/O (~/.pixel-agents/config.json), external asset directories
@@ -17,6 +17,15 @@ src/                          — Extension backend (Node.js, VS Code API)
   transcriptParser.ts         — JSONL parsing: tool_use/tool_result → webview messages
   timerManager.ts             — Waiting/permission timer logic
   types.ts                    — Shared interfaces (AgentState, PersistedAgent)
+
+server/                       — Standalone server (Node.js, no VS Code deps except types)
+  src/
+    server.ts                 — HTTP server: hook endpoint, health check, server.json discovery
+    hookEventHandler.ts       — Routes hook events to agents, buffers pre-registration events
+    constants.ts              — All timing/scanning constants (shared by extension + server)
+    providers/file/
+      claudeHookInstaller.ts  — Install/uninstall hooks in ~/.claude/settings.json
+      hooks/claude-hook.ts    — Hook script: reads stdin, POSTs to server (bundled to CJS by esbuild)
 
 webview-ui/src/               — React + TypeScript (Vite)
   constants.ts                — All webview magic numbers/strings (grid, animation, rendering, camera, zoom, editor, game logic, notification sound)
@@ -29,7 +38,9 @@ webview-ui/src/               — React + TypeScript (Vite)
   components/
     BottomToolbar.tsx          — + Agent, Layout toggle, Settings button
     ZoomControls.tsx           — +/- zoom (top-right)
-    SettingsModal.tsx          — Centered modal: settings, export/import layout, sound toggle, debug toggle
+    SettingsModal.tsx          — Centered modal: settings, export/import layout, sound toggle, hooks toggle, debug toggle
+    InfoModal.tsx              — Reusable pixel-styled modal (used for hooks info, changelog)
+    Tooltip.tsx                — First-run tooltip with dismiss + "View more" link
     DebugView.tsx              — Debug overlay
   office/
     types.ts                  — Interfaces (OfficeLayout, FloorColor, Character, etc.) + re-exports constants from constants.ts
@@ -86,7 +97,9 @@ JSONL transcripts at `~/.claude/projects/<project-hash>/<session-id>.jsonl`. Pro
 
 **JSONL record types**: `assistant` (tool_use blocks or thinking), `user` (tool_result or text prompt), `system` with `subtype: "turn_duration"` (reliable turn-end signal), `progress` with `data.type`: `agent_progress` (sub-agent tool_use/tool_result forwarded to webview, non-exempt tools trigger permission timers), `bash_progress` (long-running Bash output — restarts permission timer to confirm tool is executing), `mcp_progress` (MCP tool status — same timer restart logic). Also observed but not tracked: `file-history-snapshot`, `queue-operation`.
 
-**File watching**: Hybrid `fs.watch` + 2s polling backup. Partial line buffering for mid-write reads. Tool done messages delayed 300ms to prevent flicker.
+**File watching**: Single polling approach (500ms). Partial line buffering for mid-write reads. Tool done messages delayed 300ms to prevent flicker.
+
+**Hook-based detection**: HTTP server (`server/src/server.ts`) receives hook events from Claude Code via `~/.pixel-agents/hooks/claude-hook.js`. Events: `Stop` (turn complete), `PermissionRequest` (waiting for approval), `Notification` (idle prompt, permission prompt). Hook events suppress heuristic timers when `agent.hookDelivered = true`. Server discovery via `~/.pixel-agents/server.json` (port + PID + auth token). Multi-window safe (second instance reuses existing server).
 
 **Extension state per agent**: `id, terminalRef, projectDir, jsonlFile, fileOffset, lineBuffer, activeToolIds, activeToolStatuses, activeSubagentToolNames, isWaiting`.
 
@@ -212,3 +225,6 @@ All magic numbers and strings are centralized — never add inline constants to 
 - `WebviewViewProvider` (not `WebviewPanel`) — lives in panel area alongside terminal
 - Inline esbuild problem matcher (no extra extension needed)
 - Webview is separate Vite project with own `node_modules`/`tsconfig`
+- Hook script (`claude-hook.ts`) bundled to standalone CJS via esbuild (`buildHooks()` in esbuild.js), output: `dist/hooks/claude-hook.js`
+- Constants centralized in `server/src/constants.ts` (shared), `src/constants.ts` imports from there. Extension-only constants stay in `src/constants.ts`
+- Server always starts regardless of hooks toggle (foundation for future WS transport). Only hook installation is gated by the setting
