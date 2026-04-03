@@ -115,19 +115,26 @@ jobs:
         run: npm test
         continue-on-error: true
 
-      # --- Advisory Checks (non-blocking) ---
+      # --- Audit Checks (blocking) ---
 
       - name: Audit Root Dependencies
         id: audit_root
         if: always() && steps.install_root.outcome == 'success'
-        run: npm audit --audit-level=high
+        run: npm audit
         continue-on-error: true
 
       - name: Audit Webview Dependencies
         id: audit_webview
         if: always() && steps.install_webview.outcome == 'success'
         working-directory: webview-ui
-        run: npm audit --audit-level=high
+        run: npm audit
+        continue-on-error: true
+
+      - name: Audit Server Dependencies
+        id: audit_server
+        if: always() && steps.install_server.outcome == 'success'
+        working-directory: server
+        run: npm audit
         continue-on-error: true
 
       # --- Summary ---
@@ -148,6 +155,7 @@ jobs:
           SERVER_TEST: ${{ steps.server_test.outcome }}
           AUDIT_ROOT: ${{ steps.audit_root.outcome }}
           AUDIT_WEBVIEW: ${{ steps.audit_webview.outcome }}
+          AUDIT_SERVER: ${{ steps.audit_server.outcome }}
         run: |
           status() {
             if [ "$1" = "success" ]; then echo "✅ PASS"; else echo "❌ FAIL"; fi
@@ -168,8 +176,9 @@ jobs:
             echo "| **Format check** | $(status "$FORMAT_CHECK") |"
             echo "| **Build** | $(status "$BUILD") |"
             echo "| **Server tests** | $(status "$SERVER_TEST") |"
-            echo "| Audit root _(advisory)_ | $(status "$AUDIT_ROOT") |"
-            echo "| Audit webview _(advisory)_ | $(status "$AUDIT_WEBVIEW") |"
+            echo "| **Audit root** | $(status "$AUDIT_ROOT") |"
+            echo "| **Audit webview** | $(status "$AUDIT_WEBVIEW") |"
+            echo "| **Audit server** | $(status "$AUDIT_SERVER") |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # --- Final Gate ---
@@ -188,11 +197,15 @@ jobs:
           FORMAT_CHECK: ${{ steps.format_check.outcome }}
           BUILD: ${{ steps.build.outcome }}
           SERVER_TEST: ${{ steps.server_test.outcome }}
+          AUDIT_ROOT: ${{ steps.audit_root.outcome }}
+          AUDIT_WEBVIEW: ${{ steps.audit_webview.outcome }}
+          AUDIT_SERVER: ${{ steps.audit_server.outcome }}
         run: |
           failed=0
           for step in CHECKOUT SETUP_NODE INSTALL_ROOT INSTALL_WEBVIEW \
                       TYPE_CHECK ROOT_LINT WEBVIEW_LINT \
-                      WEBVIEW_TEST FORMAT_CHECK BUILD SERVER_TEST; do
+                      WEBVIEW_TEST FORMAT_CHECK BUILD SERVER_TEST \
+                      AUDIT_ROOT AUDIT_WEBVIEW AUDIT_SERVER; do
             eval "val=\$$step"
             if [ "$val" != "success" ]; then
               echo "::error::$step failed"
