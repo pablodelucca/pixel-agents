@@ -17,7 +17,6 @@ async function main(): Promise<void> {
     data = JSON.parse(input);
   } catch {
     process.exit(0);
-    return;
   }
 
   let server: ServerConfig;
@@ -25,7 +24,6 @@ async function main(): Promise<void> {
     server = JSON.parse(fs.readFileSync(SERVER_JSON, 'utf-8'));
   } catch {
     process.exit(0);
-    return;
   }
 
   const body = JSON.stringify(data);
