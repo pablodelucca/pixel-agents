@@ -1,0 +1,11 @@
+{
+  "name": "pixel-agents",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.1"
+  }
+}
