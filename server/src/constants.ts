@@ -41,6 +41,7 @@ export const TASK_DESCRIPTION_DISPLAY_MAX_LENGTH = 40;
 export const SERVER_JSON_DIR = '.pixel-agents';
 export const SERVER_JSON_NAME = 'server.json';
 export const HOOK_SCRIPTS_DIR = '.pixel-agents/hooks';
+/** Output filename after esbuild compiles claude-hook.ts to CJS (source is .ts, output is .js) */
 export const CLAUDE_HOOK_SCRIPT_NAME = 'claude-hook.js';
 export const HOOK_API_PREFIX = '/api/hooks';
 export const HOOK_EVENT_BUFFER_MS = 5_000;

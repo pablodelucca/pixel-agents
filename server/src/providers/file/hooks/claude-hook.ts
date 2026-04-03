@@ -4,11 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { SERVER_JSON_DIR, SERVER_JSON_NAME, HOOK_API_PREFIX } from '../../../constants.js';
-
-interface ServerConfig {
-  port: number;
-  token: string;
-}
+import type { ServerConfig } from '../../../server.js';
 
 const SERVER_JSON = path.join(os.homedir(), SERVER_JSON_DIR, SERVER_JSON_NAME);
 
