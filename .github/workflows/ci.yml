@@ -89,6 +89,12 @@ jobs:
         run: npm run format:check
         continue-on-error: true
 
+      - name: Knip (advisory)
+        id: knip
+        if: always() && steps.install_root.outcome == 'success'
+        run: npm run knip
+        continue-on-error: true
+
       # --- Build (blocking) ---
 
       - name: Build
@@ -156,9 +162,13 @@ jobs:
           AUDIT_ROOT: ${{ steps.audit_root.outcome }}
           AUDIT_WEBVIEW: ${{ steps.audit_webview.outcome }}
           AUDIT_SERVER: ${{ steps.audit_server.outcome }}
+          KNIP: ${{ steps.knip.outcome }}
         run: |
           status() {
             if [ "$1" = "success" ]; then echo "✅ PASS"; else echo "❌ FAIL"; fi
+          }
+          advisory() {
+            if [ "$1" = "success" ]; then echo "✅ PASS"; else echo "⚠️ WARN"; fi
           }
           {
             echo "## CI Results"
@@ -179,6 +189,7 @@ jobs:
             echo "| **Audit root** | $(status "$AUDIT_ROOT") |"
             echo "| **Audit webview** | $(status "$AUDIT_WEBVIEW") |"
             echo "| **Audit server** | $(status "$AUDIT_SERVER") |"
+            echo "| Knip (advisory) | $(advisory "$KNIP") |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # --- Final Gate ---
