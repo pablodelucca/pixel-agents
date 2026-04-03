@@ -10,7 +10,6 @@ import {
   installHooks,
   uninstallHooks,
 } from '../server/src/providers/file/claudeHookInstaller.js';
-import type { ServerConfig } from '../server/src/server.js';
 import { PixelAgentsServer } from '../server/src/server.js';
 import {
   getProjectDirPath,
@@ -39,6 +38,7 @@ import { readConfig, writeConfig } from './configPersistence.js';
 import {
   GLOBAL_KEY_ALWAYS_SHOW_LABELS,
   GLOBAL_KEY_HOOKS_ENABLED,
+  GLOBAL_KEY_HOOKS_INFO_SHOWN,
   GLOBAL_KEY_LAST_SEEN_VERSION,
   GLOBAL_KEY_SOUND_ENABLED,
   GLOBAL_KEY_WATCH_ALL_SESSIONS,
@@ -93,7 +93,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
   // Pixel Agents Server (hook event reception)
   private pixelAgentsServer: PixelAgentsServer | null = null;
-  private serverConfig: ServerConfig | null = null;
+  // ServerConfig is not stored as a field; use this.pixelAgentsServer?.getConfig() if needed.
   private hookEventHandler: HookEventHandler | null = null;
   private hooksReady = false;
 
@@ -129,8 +129,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     this.pixelAgentsServer
       .start()
       .then((config) => {
-        this.serverConfig = config;
-        // Only install hooks if user opted in
+        // Server always starts regardless of hooks-enabled state.
+        // It's the foundation for WebSocket transport and health monitoring.
+        // Only hook installation/script-copy is gated by the toggle.
         const hooksEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_HOOKS_ENABLED, true);
         if (hooksEnabled) {
           installHooks();
@@ -243,7 +244,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           console.log('[Pixel Agents] Hooks disabled by user');
         }
       } else if (message.type === 'setHooksInfoShown') {
-        this.context.globalState.update('pixel-agents.hooksInfoShown', true);
+        this.context.globalState.update(GLOBAL_KEY_HOOKS_INFO_SHOWN, true);
       } else if (message.type === 'setWatchAllSessions') {
         const enabled = message.enabled as boolean;
         this.context.globalState.update(GLOBAL_KEY_WATCH_ALL_SESSIONS, enabled);
@@ -327,7 +328,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         this.watchAllSessions.current = watchAllSessions;
         const hooksEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_HOOKS_ENABLED, true);
         const hooksInfoShown = this.context.globalState.get<boolean>(
-          'pixel-agents.hooksInfoShown',
+          GLOBAL_KEY_HOOKS_INFO_SHOWN,
           false,
         );
         const config = readConfig();
@@ -714,7 +715,6 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   dispose() {
     this.pixelAgentsServer?.stop();
     this.pixelAgentsServer = null;
-    this.serverConfig = null;
     this.hookEventHandler?.dispose();
     this.hookEventHandler = null;
     this.layoutWatcher?.dispose();

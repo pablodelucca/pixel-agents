@@ -160,7 +160,7 @@ function App() {
     alwaysShowLabels,
     hooksEnabled,
     setHooksEnabled,
-    hooksInfoShown: _hooksInfoShown,
+    hooksInfoShown,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -304,7 +304,7 @@ function App() {
       {!isDebugMode && <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />}
 
       {/* Hooks first-run tooltip -- shows only once per user */}
-      {!_hooksInfoShown && !hooksTooltipDismissed && (
+      {!hooksInfoShown && !hooksTooltipDismissed && (
         <Tooltip
           title="Instant Detection Active"
           position="top-right"

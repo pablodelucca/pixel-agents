@@ -79,6 +79,7 @@ export class PixelAgentsServer {
       });
 
       this.server.on('error', reject);
+      this.server.setTimeout(5000);
 
       this.server.listen(0, '127.0.0.1', () => {
         const addr = this.server?.address();
@@ -91,6 +92,11 @@ export class PixelAgentsServer {
           };
           this.ownsServer = true;
           this.writeServerJson(this.config);
+          // Replace startup error handler with runtime error handler
+          this.server!.removeListener('error', reject);
+          this.server!.on('error', (err) => {
+            console.error(`[Pixel Agents] Server error: ${err}`);
+          });
           console.log(`[Pixel Agents] Server listening on 127.0.0.1:${addr.port}`);
           resolve(this.config);
         } else {
@@ -152,40 +158,46 @@ export class PixelAgentsServer {
     res: http.ServerResponse,
     url: string,
   ): void {
-    // Validate auth token
+    // Validate auth token (timing-safe comparison prevents side-channel attacks)
     const authHeader = req.headers['authorization'] ?? '';
     const expectedToken = `Bearer ${this.config?.token ?? ''}`;
-    if (authHeader !== expectedToken) {
+    const authBuf = Buffer.from(authHeader);
+    const expectedBuf = Buffer.from(expectedToken);
+    if (authBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(authBuf, expectedBuf)) {
       res.writeHead(401);
       res.end('unauthorized');
       return;
     }
 
-    // Extract provider ID from URL: /api/hooks/claude -> "claude"
+    // Extract and validate provider ID from URL: /api/hooks/claude -> "claude"
     const providerId = url.slice(HOOK_API_PREFIX.length + 1);
-    if (!providerId) {
+    if (!providerId || !/^[a-z0-9-]+$/.test(providerId)) {
       res.writeHead(400);
-      res.end('missing provider id');
+      res.end('invalid provider id');
       return;
     }
 
-    // Read body with size limit
+    // Read body with size limit and response guard
     let body = '';
     let bodySize = 0;
+    let responded = false;
 
     req.on('data', (chunk: Buffer) => {
       bodySize += chunk.length;
-      if (bodySize > MAX_HOOK_BODY_SIZE) {
+      if (bodySize > MAX_HOOK_BODY_SIZE && !responded) {
+        responded = true;
         res.writeHead(413);
         res.end('payload too large');
         req.destroy();
         return;
       }
-      body += chunk.toString();
+      if (!responded) {
+        body += chunk.toString();
+      }
     });
 
     req.on('end', () => {
-      if (bodySize > MAX_HOOK_BODY_SIZE) return; // Already responded with 413
+      if (responded) return;
       try {
         const event = JSON.parse(body) as Record<string, unknown>;
         if (event.session_id && event.hook_event_name) {

@@ -101,7 +101,7 @@ export function useExtensionMessages(
   const [extensionVersion, setExtensionVersion] = useState('');
   const [watchAllSessions, setWatchAllSessions] = useState(false);
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
-  const [hooksEnabled, setHooksEnabled] = useState(false);
+  const [hooksEnabled, setHooksEnabled] = useState(true);
   const [hooksInfoShown, setHooksInfoShown] = useState(true);
 
   // Track whether initial layout has been loaded (ref to avoid re-render)

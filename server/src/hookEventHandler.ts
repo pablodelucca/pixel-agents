@@ -1,8 +1,10 @@
+// TODO(Standalone version): Replace vscode.Webview with MessageSender interface from core/src/messages.ts
 import type * as vscode from 'vscode';
 
-import { HOOK_EVENT_BUFFER_MS } from './constants.js';
+// TODO(Standalone version): Move timerManager and types to server/src/ to eliminate cross-boundary imports
 import { cancelPermissionTimer, cancelWaitingTimer } from '../../src/timerManager.js';
 import type { AgentState } from '../../src/types.js';
+import { HOOK_EVENT_BUFFER_MS } from './constants.js';
 
 /** Normalized hook event received from any provider's hook script via the HTTP server. */
 export interface HookEvent {
@@ -61,9 +63,7 @@ export class HookEventHandler {
    * @param providerId - Provider that sent the event ('claude', 'codex', etc.)
    * @param event - The hook event payload from the CLI tool
    */
-  handleEvent(providerId: string, event: HookEvent): void {
-    // providerId is 'claude', 'codex', etc. for future multi-provider routing
-    void providerId;
+  handleEvent(_providerId: string, event: HookEvent): void {
     let agentId = this.sessionToAgentId.get(event.session_id);
     if (agentId === undefined) {
       // Try auto-discovery: scan agents map for matching sessionId
@@ -77,7 +77,7 @@ export class HookEventHandler {
     }
     if (agentId === undefined) {
       // Buffer the event -- agent might not be registered yet
-      this.bufferEvent(providerId, event);
+      this.bufferEvent(_providerId, event);
       return;
     }
 
