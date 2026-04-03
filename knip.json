@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/extension.ts",
+    "server/src/server.ts",
+    "e2e/**/*.ts",
+    "server/__tests__/**/*.ts",
+    "webview-ui/src/main.tsx",
+    "webview-ui/vite.config.ts",
+    "webview-ui/eslint.config.js",
+    "webview-ui/test/**/*.ts"
+  ],
+  "project": [
+    "src/**/*.ts",
+    "server/src/**/*.ts",
+    "server/__tests__/**/*.ts",
+    "shared/**/*.ts",
+    "e2e/**/*.ts",
+    "webview-ui/src/**/*.{ts,tsx}"
+  ]
+}
