@@ -4,7 +4,9 @@ import { toMajorMinor } from './changelogData.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
 import { DebugView } from './components/DebugView.js';
-import { Button } from './components/ui/Button.js';
+import { EditActionBar } from './components/EditActionBar.js';
+import { MigrationNotice } from './components/MigrationNotice.js';
+import { SettingsModal } from './components/SettingsModal.js';
 import { VersionIndicator } from './components/VersionIndicator.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
@@ -30,71 +32,6 @@ function getOfficeState(): OfficeState {
     officeStateRef.current = new OfficeState();
   }
   return officeStateRef.current;
-}
-
-function EditActionBar({
-  editor,
-  editorState: es,
-}: {
-  editor: ReturnType<typeof useEditorActions>;
-  editorState: EditorState;
-}) {
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-
-  const undoDisabled = es.undoStack.length === 0;
-  const redoDisabled = es.redoStack.length === 0;
-
-  return (
-    <div className="absolute top-8 left-1/2 -translate-x-1/2 z-50 flex gap-4 items-center pixel-panel p-4">
-      <Button
-        variant={undoDisabled ? 'disabled' : 'default'}
-        size="md"
-        onClick={undoDisabled ? undefined : editor.handleUndo}
-        title="Undo (Ctrl+Z)"
-      >
-        Undo
-      </Button>
-      <Button
-        variant={redoDisabled ? 'disabled' : 'default'}
-        size="md"
-        onClick={redoDisabled ? undefined : editor.handleRedo}
-        title="Redo (Ctrl+Y)"
-      >
-        Redo
-      </Button>
-      <Button variant="default" size="md" onClick={editor.handleSave} title="Save layout">
-        Save
-      </Button>
-      {!showResetConfirm ? (
-        <Button
-          variant="default"
-          size="md"
-          onClick={() => setShowResetConfirm(true)}
-          title="Reset to last saved layout"
-        >
-          Reset
-        </Button>
-      ) : (
-        <div className="flex gap-4 items-center">
-          <span className="text-base text-reset-text">Reset?</span>
-          <Button
-            variant="default"
-            size="md"
-            className="bg-danger text-white"
-            onClick={() => {
-              setShowResetConfirm(false);
-              editor.handleReset();
-            }}
-          >
-            Yes
-          </Button>
-          <Button variant="default" size="md" onClick={() => setShowResetConfirm(false)}>
-            No
-          </Button>
-        </div>
-      )}
-    </div>
-  );
 }
 
 function App() {
@@ -137,6 +74,7 @@ function App() {
   const showMigrationNotice = layoutWasReset && !migrationNoticeDismissed;
 
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [alwaysShowOverlay, setAlwaysShowOverlay] = useState(false);
 
@@ -256,7 +194,7 @@ function App() {
 
       {/* Vignette overlay */}
       <div
-        className="absolute inset-0 pointer-events-none z-[40]"
+        className="absolute inset-0 pointer-events-none"
         style={{ background: 'var(--vignette)' }}
       />
 
@@ -264,18 +202,9 @@ function App() {
         isEditMode={editor.isEditMode}
         onOpenClaude={editor.handleOpenClaude}
         onToggleEditMode={editor.handleToggleEditMode}
-        isDebugMode={isDebugMode}
-        onToggleDebugMode={handleToggleDebugMode}
-        alwaysShowOverlay={alwaysShowOverlay}
-        onToggleAlwaysShowOverlay={handleToggleAlwaysShowOverlay}
+        isSettingsOpen={isSettingsOpen}
+        onToggleSettings={() => setIsSettingsOpen((v) => !v)}
         workspaceFolders={workspaceFolders}
-        externalAssetDirectories={externalAssetDirectories}
-        watchAllSessions={watchAllSessions}
-        onToggleWatchAllSessions={() => {
-          const newVal = !watchAllSessions;
-          setWatchAllSessions(newVal);
-          vscode.postMessage({ type: 'setWatchAllSessions', enabled: newVal });
-        }}
       />
 
       <VersionIndicator
@@ -291,13 +220,29 @@ function App() {
         currentVersion={extensionVersion}
       />
 
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        isDebugMode={isDebugMode}
+        onToggleDebugMode={handleToggleDebugMode}
+        alwaysShowOverlay={alwaysShowOverlay}
+        onToggleAlwaysShowOverlay={handleToggleAlwaysShowOverlay}
+        externalAssetDirectories={externalAssetDirectories}
+        watchAllSessions={watchAllSessions}
+        onToggleWatchAllSessions={() => {
+          const newVal = !watchAllSessions;
+          setWatchAllSessions(newVal);
+          vscode.postMessage({ type: 'setWatchAllSessions', enabled: newVal });
+        }}
+      />
+
       {editor.isEditMode && editor.isDirty && (
         <EditActionBar editor={editor} editorState={editorState} />
       )}
 
       {showRotateHint && (
         <div
-          className="absolute left-1/2 -translate-x-1/2 z-49 bg-accent-bright text-white text-sm py-3 px-8 rounded-none border-2 border-accent shadow-pixel pointer-events-none whitespace-nowrap"
+          className="absolute left-1/2 -translate-x-1/2 z-15 bg-accent-bright text-white text-sm py-3 px-8 rounded-none border-2 border-accent shadow-pixel pointer-events-none whitespace-nowrap"
           style={{ top: editor.isDirty ? 52 : 8 }}
         >
           Rotate (R)
@@ -359,35 +304,7 @@ function App() {
       )}
 
       {showMigrationNotice && (
-        <div
-          className="absolute inset-0 bg-black/70 flex items-center justify-center z-[100]"
-          onClick={() => setMigrationNoticeDismissed(true)}
-        >
-          <div
-            className="pixel-panel py-24 px-32 max-w-[620px] text-center leading-[1.3]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-5xl mb-12 text-accent">We owe you an apology!</div>
-            <p className="text-xl m-0 mb-12">
-              We've just migrated to fully open-source assets, all built from scratch with love.
-              Unfortunately, this means your previous layout had to be reset.
-            </p>
-            <p className="text-xl m-0 mb-12">We're really sorry about that.</p>
-            <p className="text-xl m-0 mb-12">
-              The good news? This was a one-time thing, and it paves the way for some genuinely
-              exciting updates ahead.
-            </p>
-            <p className="text-xl m-0 mb-20">Stay tuned, and thanks for using Pixel Agents!</p>
-            <Button
-              variant="accent"
-              size="xl"
-              className="pixel-agents-migration-btn shadow-pixel"
-              onClick={() => setMigrationNoticeDismissed(true)}
-            >
-              Got it
-            </Button>
-          </div>
-        </div>
+        <MigrationNotice onDismiss={() => setMigrationNoticeDismissed(true)} />
       )}
     </div>
   );

@@ -63,7 +63,7 @@ export function VersionIndicator({
       {showUpdateNotice && (
         <div
           onClick={handleOpenChangelog}
-          className="absolute bottom-42 right-28 z-[45] pixel-panel py-8 px-10 pb-[9px] cursor-pointer flex flex-col gap-8 max-w-[260px]"
+          className="absolute bottom-42 right-28 z-15 pixel-panel py-8 px-10 pb-[9px] cursor-pointer flex flex-col gap-8 max-w-[260px]"
           style={{
             opacity: fading ? 0 : 1,
             transition: `opacity ${WHATS_NEW_FADE_MS / 1000}s ease-out`,
@@ -84,7 +84,7 @@ export function VersionIndicator({
       {!showUpdateNotice && labelHovered && (
         <div
           onClick={handleOpenChangelog}
-          className="absolute bottom-42 right-28 z-[45] pixel-panel py-6 px-12 cursor-pointer text-sm whitespace-nowrap"
+          className="absolute bottom-42 right-28 z-15 pixel-panel py-6 px-12 cursor-pointer text-sm whitespace-nowrap"
         >
           See what's new!
         </div>
@@ -94,7 +94,7 @@ export function VersionIndicator({
         onMouseEnter={() => setLabelHovered(true)}
         onMouseLeave={() => setLabelHovered(false)}
         onClick={handleOpenChangelog}
-        className="absolute bottom-8 right-28 z-[45] text-lg cursor-pointer select-none pr-2 transition-opacity duration-200"
+        className="absolute bottom-8 right-28 z-10 text-lg cursor-pointer select-none pr-2 transition-opacity duration-200"
         style={{ opacity: labelHovered ? 0.8 : 0.4 }}
       >
         v{currentMajorMinor}

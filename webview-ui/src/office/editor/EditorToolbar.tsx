@@ -106,7 +106,7 @@ export function EditorToolbar({
     activeTool === EditTool.FURNITURE_PLACE || activeTool === EditTool.FURNITURE_PICK;
 
   return (
-    <div className="absolute bottom-76 left-10 z-40 pixel-panel p-4 flex flex-col-reverse gap-4 max-w-[calc(100vw-20px)]">
+    <div className="absolute bottom-76 left-10 z-10 pixel-panel p-4 flex flex-col-reverse gap-4 max-w-[calc(100vw-20px)]">
       {/* Tool row — at the bottom */}
       <div className="flex gap-4 flex-wrap">
         <Button

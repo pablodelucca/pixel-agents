@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { WorkspaceFolder } from '../hooks/useExtensionMessages.js';
 import { vscode } from '../vscodeApi.js';
-import { SettingsModal } from './SettingsModal.js';
 import { Button } from './ui/Button.js';
 import { Dropdown, DropdownItem } from './ui/Dropdown.js';
 
@@ -10,30 +9,19 @@ interface BottomToolbarProps {
   isEditMode: boolean;
   onOpenClaude: () => void;
   onToggleEditMode: () => void;
-  isDebugMode: boolean;
-  onToggleDebugMode: () => void;
-  alwaysShowOverlay: boolean;
-  onToggleAlwaysShowOverlay: () => void;
+  isSettingsOpen: boolean;
+  onToggleSettings: () => void;
   workspaceFolders: WorkspaceFolder[];
-  externalAssetDirectories: string[];
-  watchAllSessions: boolean;
-  onToggleWatchAllSessions: () => void;
 }
 
 export function BottomToolbar({
   isEditMode,
   onOpenClaude,
   onToggleEditMode,
-  isDebugMode,
-  onToggleDebugMode,
-  alwaysShowOverlay,
-  onToggleAlwaysShowOverlay,
+  isSettingsOpen,
+  onToggleSettings,
   workspaceFolders,
-  externalAssetDirectories,
-  watchAllSessions,
-  onToggleWatchAllSessions,
 }: BottomToolbarProps) {
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
   const [isBypassMenuOpen, setIsBypassMenuOpen] = useState(false);
   const folderPickerRef = useRef<HTMLDivElement>(null);
@@ -99,7 +87,7 @@ export function BottomToolbar({
   };
 
   return (
-    <div className="absolute bottom-10 left-10 z-50 flex items-center gap-4 pixel-panel p-4">
+    <div className="absolute bottom-10 left-10 z-10 flex items-center gap-4 pixel-panel p-4">
       <div
         ref={folderPickerRef}
         className="relative"
@@ -141,26 +129,13 @@ export function BottomToolbar({
       >
         Layout
       </Button>
-      <div className="relative">
-        <Button
-          variant={isSettingsOpen ? 'active' : 'default'}
-          onClick={() => setIsSettingsOpen((v) => !v)}
-          title="Settings"
-        >
-          Settings
-        </Button>
-        <SettingsModal
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          isDebugMode={isDebugMode}
-          onToggleDebugMode={onToggleDebugMode}
-          alwaysShowOverlay={alwaysShowOverlay}
-          onToggleAlwaysShowOverlay={onToggleAlwaysShowOverlay}
-          externalAssetDirectories={externalAssetDirectories}
-          watchAllSessions={watchAllSessions}
-          onToggleWatchAllSessions={onToggleWatchAllSessions}
-        />
-      </div>
+      <Button
+        variant={isSettingsOpen ? 'active' : 'default'}
+        onClick={onToggleSettings}
+        title="Settings"
+      >
+        Settings
+      </Button>
     </div>
   );
 }

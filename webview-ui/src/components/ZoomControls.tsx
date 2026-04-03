@@ -58,7 +58,7 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
       {/* Zoom level indicator at top-center */}
       {showLevel && (
         <div
-          className="absolute top-10 left-1/2 -translate-x-1/2 z-50 pixel-panel pb-4 px-16 text-lg select-none pointer-events-none"
+          className="absolute top-10 left-1/2 -translate-x-1/2 z-10 pixel-panel pb-4 px-16 text-lg select-none pointer-events-none"
           style={{
             opacity: fadeOut ? 0 : 1,
             transition: `opacity ${ZOOM_LEVEL_FADE_DURATION_SEC}s ease-out`,
@@ -69,7 +69,7 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
       )}
 
       {/* Vertically stacked round buttons — top-left */}
-      <div className="absolute top-8 left-8 z-50 flex flex-col gap-4">
+      <div className="absolute top-8 left-8 z-10 flex flex-col gap-4">
         <Button
           size="icon_lg"
           onClick={() => onZoomChange(zoom + 1)}

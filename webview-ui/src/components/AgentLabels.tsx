@@ -84,7 +84,7 @@ export function AgentLabels({
         return (
           <div
             key={id}
-            className="absolute flex flex-col items-center pointer-events-none z-40 -translate-x-1/2"
+            className="absolute flex flex-col items-center pointer-events-none z-5 -translate-x-1/2"
             style={{ left: screenX, top: screenY - 16 }}
           >
             {dotColor !== 'transparent' && (

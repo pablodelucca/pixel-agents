@@ -11,7 +11,7 @@ export function Dropdown({ isOpen, children, className = '' }: DropdownProps) {
 
   return (
     <div
-      className={`absolute bottom-full left-0 mb-10 bg-bg border-2 border-border rounded-none shadow-pixel p-4 z-50 ${className}`}
+      className={`absolute bottom-full left-0 mb-10 bg-bg border-2 border-border rounded-none shadow-pixel p-4 z-10 ${className}`}
     >
       {children}
     </div>

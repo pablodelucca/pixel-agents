@@ -17,7 +17,7 @@ export function Modal({
   onClose,
   title,
   children,
-  zIndex = 49,
+  zIndex = 50,
   className = '',
 }: ModalProps) {
   if (!isOpen) return null;
