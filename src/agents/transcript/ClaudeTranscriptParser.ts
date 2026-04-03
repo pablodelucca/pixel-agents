@@ -6,15 +6,15 @@ import {
   TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
   TEXT_IDLE_DELAY_MS,
   TOOL_DONE_DELAY_MS,
-} from './constants.js';
+} from '../../constants.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,
   clearAgentActivity,
   startPermissionTimer,
   startWaitingTimer,
-} from './timerManager.js';
-import type { AgentState } from './types.js';
+} from '../../timerManager.js';
+import type { AgentState } from '../../types.js';
 
 export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
 
@@ -57,7 +57,7 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
   }
 }
 
-export function processTranscriptLine(
+export function processTranscriptLineClaude(
   agentId: number,
   line: string,
   agents: Map<number, AgentState>,

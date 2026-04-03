@@ -13,6 +13,8 @@ interface SettingsModalProps {
   externalAssetDirectories: string[];
   watchAllSessions: boolean;
   onToggleWatchAllSessions: () => void;
+  agentType: 'cloud' | 'copilot';
+  onSetAgentType: (type: 'cloud' | 'copilot') => void;
 }
 
 const menuItemBase: React.CSSProperties = {
@@ -40,6 +42,8 @@ export function SettingsModal({
   externalAssetDirectories,
   watchAllSessions,
   onToggleWatchAllSessions,
+  agentType,
+  onSetAgentType,
 }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
@@ -108,6 +112,47 @@ export function SettingsModal({
           </button>
         </div>
         {/* Menu items */}
+        {/* Agent selector */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '6px 10px',
+            gap: 8,
+          }}
+        >
+          <span style={{ fontSize: '24px', color: 'rgba(255, 255, 255, 0.8)' }}>Agent</span>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {(['cloud', 'copilot'] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => onSetAgentType(type)}
+                onMouseEnter={() => setHovered(`agent-${type}`)}
+                onMouseLeave={() => setHovered(null)}
+                style={{
+                  padding: '3px 8px',
+                  fontSize: '20px',
+                  color: agentType === type ? '#fff' : 'rgba(255,255,255,0.5)',
+                  background:
+                    agentType === type
+                      ? 'var(--pixel-accent, rgba(90,140,255,0.8))'
+                      : hovered === `agent-${type}`
+                        ? 'rgba(255,255,255,0.08)'
+                        : 'transparent',
+                  border:
+                    agentType === type
+                      ? '2px solid var(--pixel-accent, rgba(90,140,255,0.8))'
+                      : '2px solid rgba(255,255,255,0.2)',
+                  borderRadius: 0,
+                  cursor: 'pointer',
+                }}
+              >
+                {type === 'cloud' ? 'Claude' : 'Copilot'}
+              </button>
+            ))}
+          </div>
+        </div>
         <button
           onClick={() => {
             vscode.postMessage({ type: 'openSessionsFolder' });

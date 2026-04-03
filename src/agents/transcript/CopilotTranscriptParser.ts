@@ -6,22 +6,28 @@ import {
   TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
   TEXT_IDLE_DELAY_MS,
   TOOL_DONE_DELAY_MS,
-} from './constants.js';
+} from '../../constants.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,
   clearAgentActivity,
   startPermissionTimer,
   startWaitingTimer,
-} from './timerManager.js';
-import type { AgentState } from './types.js';
+} from '../../timerManager.js';
+import type { AgentState } from '../../types.js';
 
-export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
+export const PERMISSION_EXEMPT_TOOLS = new Set([
+  'Task',
+  'Agent',
+  'task',
+  'agent',
+  'AskUserQuestion',
+  'ask_user',
+]);
 
 function normalizeToolName(toolName: unknown): string {
   if (typeof toolName !== 'string') return '';
-  if (toolName === 'web_fetch') return 'WebFetch';
-  return toolName;
+  return toolName as string;
 }
 
 export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
@@ -29,8 +35,11 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
   console.log(`[Pixel Agents] Formatting status for tool ${toolName} with input:`, input);
   switch (toolName) {
     case 'Read':
+    case 'view':
       return `Reading ${base(input.file_path)}`;
     case 'Edit':
+    case 'edit':
+    case 'report_intent':
       return `Editing ${base(input.file_path)}`;
     case 'Write':
       return `Writing ${base(input.file_path)}`;
@@ -39,21 +48,26 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
       return `Running: ${cmd.length > BASH_COMMAND_DISPLAY_MAX_LENGTH ? cmd.slice(0, BASH_COMMAND_DISPLAY_MAX_LENGTH) + '\u2026' : cmd}`;
     }
     case 'Glob':
+    case 'glob':
       return 'Searching files';
     case 'Grep':
+    case 'report_intent':
       return 'Searching code';
     case 'WebFetch':
       return 'Fetching web content';
     case 'WebSearch':
       return 'Searching the web';
     case 'Task':
-    case 'Agent': {
+    case 'Agent':
+    case 'task':
+    case 'agent': {
       const desc = typeof input.description === 'string' ? input.description : '';
       return desc
         ? `Subtask: ${desc.length > TASK_DESCRIPTION_DISPLAY_MAX_LENGTH ? desc.slice(0, TASK_DESCRIPTION_DISPLAY_MAX_LENGTH) + '\u2026' : desc}`
         : 'Running subtask';
     }
     case 'AskUserQuestion':
+    case 'ask_user':
       return 'Waiting for your answer';
     case 'EnterPlanMode':
       return 'Planning';
@@ -91,6 +105,7 @@ export function processTranscriptLineCopilot(
 
     // Copilot events
 
+    // Session start: reset all state and start waiting for user input - First event of a session
     if (record.type === 'session.start') {
       console.log(`[Pixel Agents] Agent ${agentId} session started with record:`, record);
       agent.isWaiting = true;
@@ -101,6 +116,7 @@ export function processTranscriptLineCopilot(
       return;
     }
 
+    // User send Message to agent
     if (record.type === 'user.message') {
       const userContent = (record.data as Record<string, unknown> | undefined)?.content;
       if (typeof userContent !== 'string' && !Array.isArray(userContent)) {
@@ -112,24 +128,94 @@ export function processTranscriptLineCopilot(
       return;
     }
 
+    // Agent turn start - start waiting timer for text-only response (if no tool calls)
     if (record.type === 'assistant.turn_start') {
-      // New assistant turn starts: reset wait state and stale foreground tools.
-      if (!agent.hadToolsInTurn) {
-        startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
-      }
+      startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
       webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+      return;
+    }
+
+    if (record.type === 'tool.execution_start') {
+      const tool = record.data as Record<string, unknown> | undefined;
+      const toolCallId = tool?.toolCallId as string | undefined;
+      const parentToolCallId = tool?.parentToolCallId as string | undefined;
+      const rawName = tool?.toolName ?? tool?.name;
+      const toolName = normalizeToolName(rawName);
+      const toolInputs = (tool?.toolInputs ?? tool?.input ?? tool?.arguments ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const status = formatToolStatus(toolName, toolInputs);
+
+      if (parentToolCallId && toolCallId) {
+        // Sub-agent tool: track and emit subagentToolStart
+        const parentToolName = agent.activeToolNames.get(parentToolCallId);
+        if (
+          parentToolName === 'task' ||
+          parentToolName === 'Task' ||
+          parentToolName === 'agent' ||
+          parentToolName === 'Agent'
+        ) {
+          let subTools = agent.activeSubagentToolIds.get(parentToolCallId);
+          if (!subTools) {
+            subTools = new Set();
+            agent.activeSubagentToolIds.set(parentToolCallId, subTools);
+          }
+          subTools.add(toolCallId);
+
+          let subNames = agent.activeSubagentToolNames.get(parentToolCallId);
+          if (!subNames) {
+            subNames = new Map();
+            agent.activeSubagentToolNames.set(parentToolCallId, subNames);
+          }
+          subNames.set(toolCallId, toolName);
+
+          if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
+            startPermissionTimer(
+              agentId,
+              agents,
+              permissionTimers,
+              PERMISSION_EXEMPT_TOOLS,
+              webview,
+            );
+          }
+
+          webview?.postMessage({
+            type: 'subagentToolStart',
+            id: agentId,
+            parentToolId: parentToolCallId,
+            toolId: toolCallId,
+            status,
+          });
+        }
+      } else {
+        // Main agent tool — already tracked from assistant.message; just restart permission timer
+        if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
+          startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
+        }
+      }
       return;
     }
 
     if (record.type === 'assistant.message') {
       const data = record.data as Record<string, unknown> | undefined;
+      const parentToolCallId = data?.parentToolCallId as string | undefined;
       const toolCalls = data?.toolRequests;
       console.log(
         `[Pixel Agents Dev] Agent ${agentId} assistant message content : ${assistantContent}`,
       );
 
+      // Sub-agent message: tools are handled by tool.execution_start with parentToolCallId.
+      // Skip root-level handling to avoid polluting activeToolIds.
+      if (parentToolCallId) {
+        return;
+      }
+
+      // NOTE: Do NOT clear backgroundAgentToolIds here. For Copilot background agents,
+      // the main agent can send a root-level message (e.g. "I've launched 2 agents")
+      // while sub-agents are still running. Sub-agents are cleaned up by subagent.completed.
+
       if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-        // If there are tool calls, treat as active turn and emit tool starts.
         cancelWaitingTimer(agentId, waitingTimers);
         agent.hadToolsInTurn = true;
         agent.isWaiting = false;
@@ -140,19 +226,21 @@ export function processTranscriptLineCopilot(
           const tool = t as Record<string, unknown>;
           const toolCallId = tool.toolCallId as string | undefined;
           if (!toolCallId) continue;
+          if (agent.activeToolIds.has(toolCallId)) continue;
 
           const rawName = tool.toolName ?? tool.name;
           const toolName = normalizeToolName(rawName);
-          const toolInputs = (tool.toolInputs ?? tool.input ?? {}) as Record<string, unknown>;
+          const toolInputs = (tool.toolInputs ?? tool.input ?? tool.arguments ?? {}) as Record<
+            string,
+            unknown
+          >;
           const status = formatToolStatus(toolName, toolInputs);
 
           agent.activeToolIds.add(toolCallId);
           agent.activeToolNames.set(toolCallId, toolName);
           agent.activeToolStatuses.set(toolCallId, status);
 
-          if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
-            hasNonExemptTool = true;
-          }
+          if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) hasNonExemptTool = true;
 
           webview?.postMessage({
             type: 'agentToolStart',
@@ -166,7 +254,6 @@ export function processTranscriptLineCopilot(
           startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
         }
       } else {
-        // Text-only assistant response for Copilot record format
         if (!agent.hadToolsInTurn) {
           startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
         }
@@ -174,16 +261,90 @@ export function processTranscriptLineCopilot(
       return;
     }
 
+    // Turn end: agent finished its turn — clear tools but preserve background sub-agents
+    if (record.type === 'assistant.turn_end') {
+      const turnEndData = record.data as Record<string, unknown> | undefined;
+      const turnEndParentToolCallId = turnEndData?.parentToolCallId as string | undefined;
+
+      // Sub-agent's own turn ended — the background task is done, remove the character.
+      if (turnEndParentToolCallId && agent.backgroundAgentToolIds.has(turnEndParentToolCallId)) {
+        agent.activeSubagentToolIds.delete(turnEndParentToolCallId);
+        agent.activeSubagentToolNames.delete(turnEndParentToolCallId);
+        agent.activeToolIds.delete(turnEndParentToolCallId);
+        agent.activeToolStatuses.delete(turnEndParentToolCallId);
+        agent.activeToolNames.delete(turnEndParentToolCallId);
+        agent.backgroundAgentToolIds.delete(turnEndParentToolCallId);
+        webview?.postMessage({
+          type: 'subagentClear',
+          id: agentId,
+          parentToolId: turnEndParentToolCallId,
+        });
+        if (agent.backgroundAgentToolIds.size === 0) {
+          agent.isWaiting = true;
+          webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'waiting' });
+          startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
+        }
+        return;
+      }
+
+      // Root turn ended — clearAgentActivity preserves backgroundAgentToolIds and re-emits
+      // them so sub-agent characters survive until the sub-agent finishes.
+      clearAgentActivity(agent, agentId, permissionTimers, webview);
+      agent.hadToolsInTurn = false;
+      if (agent.backgroundAgentToolIds.size === 0) {
+        agent.isWaiting = true;
+        webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'waiting' });
+        startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
+      }
+      return;
+    }
+
     if (record.type === 'tool.execution_complete') {
-      const toolCallId = (record.data as Record<string, unknown> | undefined)?.toolCallId as
-        | string
-        | undefined;
-      if (toolCallId && agent.activeToolIds.has(toolCallId)) {
+      const data = record.data as Record<string, unknown> | undefined;
+      const toolCallId = data?.toolCallId as string | undefined;
+      const parentToolCallId = data?.parentToolCallId as string | undefined;
+
+      if (parentToolCallId && toolCallId) {
+        // Sub-agent tool completion
+        const subTools = agent.activeSubagentToolIds.get(parentToolCallId);
+        if (subTools?.has(toolCallId)) {
+          subTools.delete(toolCallId);
+          const subNames = agent.activeSubagentToolNames.get(parentToolCallId);
+          if (subNames) subNames.delete(toolCallId);
+
+          const doneSubToolId = toolCallId;
+          const doneParentToolId = parentToolCallId;
+          setTimeout(() => {
+            webview?.postMessage({
+              type: 'subagentToolDone',
+              id: agentId,
+              parentToolId: doneParentToolId,
+              toolId: doneSubToolId,
+            });
+          }, TOOL_DONE_DELAY_MS);
+        }
+      } else if (toolCallId && agent.activeToolIds.has(toolCallId)) {
+        // Main agent tool completion
         console.log(`[Pixel Agents] Agent ${agentId} tool done: ${toolCallId}`);
         const completedToolName = agent.activeToolNames.get(toolCallId);
-        if (completedToolName === 'Task' || completedToolName === 'Agent') {
+        const isTaskTool =
+          completedToolName === 'Task' ||
+          completedToolName === 'Agent' ||
+          completedToolName === 'task' ||
+          completedToolName === 'agent';
+
+        // Copilot background tasks: tool.execution_complete fires when the agent IS LAUNCHED,
+        // not when it finishes. Register as background so clearAgentActivity preserves it.
+        if (isTaskTool && isCopilotBackgroundLaunch(data)) {
+          agent.backgroundAgentToolIds.add(toolCallId);
+          // Keep in activeToolIds/Names so parentToolCallId lookups work for sub-tools
+          return;
+        }
+
+        if (isTaskTool) {
           agent.activeSubagentToolIds.delete(toolCallId);
           agent.activeSubagentToolNames.delete(toolCallId);
+          agent.backgroundAgentToolIds.delete(toolCallId);
           webview?.postMessage({
             type: 'subagentClear',
             id: agentId,
@@ -208,6 +369,56 @@ export function processTranscriptLineCopilot(
           agent.hadToolsInTurn = false;
         }
       }
+
+      return;
+    }
+
+    // Copilot sub-agent lifecycle events
+    if (record.type === 'subagent.started') {
+      const subData = record.data as Record<string, unknown> | undefined;
+      const toolCallId = subData?.toolCallId as string | undefined;
+      if (!toolCallId) return;
+      console.log(
+        `[Pixel Agents] Agent ${agentId} subagent started: ${toolCallId} (${subData?.agentDisplayName ?? subData?.agentName ?? 'unknown'})`,
+      );
+      // Sub-agent character already created via agentToolStart in assistant.message handler.
+      // This event confirms the sub-agent is actively running.
+      return;
+    }
+
+    if (record.type === 'subagent.completed') {
+      const subData = record.data as Record<string, unknown> | undefined;
+      const toolCallId = subData?.toolCallId as string | undefined;
+      if (!toolCallId) return;
+      console.log(
+        `[Pixel Agents] Agent ${agentId} subagent completed: ${toolCallId} (${subData?.agentDisplayName ?? subData?.agentName ?? 'unknown'})`,
+      );
+
+      // Clean up all sub-agent tracking for this tool
+      agent.activeSubagentToolIds.delete(toolCallId);
+      agent.activeSubagentToolNames.delete(toolCallId);
+      agent.backgroundAgentToolIds.delete(toolCallId);
+      agent.activeToolIds.delete(toolCallId);
+      agent.activeToolStatuses.delete(toolCallId);
+      agent.activeToolNames.delete(toolCallId);
+
+      // Remove sub-agent character from webview
+      webview?.postMessage({
+        type: 'subagentClear',
+        id: agentId,
+        parentToolId: toolCallId,
+      });
+
+      // Send tool done after delay to prevent flicker
+      const doneToolId = toolCallId;
+      setTimeout(() => {
+        webview?.postMessage({
+          type: 'agentToolDone',
+          id: agentId,
+          toolId: doneToolId,
+        });
+      }, TOOL_DONE_DELAY_MS);
+
       return;
     }
 
@@ -224,7 +435,12 @@ export function processTranscriptLineCopilot(
         'user.message',
         'assistant.turn_start',
         'assistant.message',
+        'assistant.turn_end',
+        'tool.execution_start',
         'tool.execution_complete',
+        'subagent.started',
+        'subagent.completed',
+        'system.notification',
       ]);
       if (!knownSkippableTypes.has(record.type)) {
         agent.seenUnknownRecordTypes.add(record.type);
@@ -364,6 +580,19 @@ function processProgressRecord(
       startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
     }
   }
+}
+
+/**
+ * Detects Copilot background task launches where tool.execution_complete fires
+ * as soon as the agent is spawned, not when it finishes.
+ * Identified by toolTelemetry.properties.execution_mode === 'background'.
+ */
+function isCopilotBackgroundLaunch(data: Record<string, unknown> | undefined): boolean {
+  if (!data) return false;
+  const telemetry = data.toolTelemetry as Record<string, unknown> | undefined;
+  if (!telemetry) return false;
+  const props = telemetry.properties as Record<string, unknown> | undefined;
+  return (props?.execution_mode as string | undefined) === 'background';
 }
 
 /** Check if a tool_result block indicates an async/background agent launch */

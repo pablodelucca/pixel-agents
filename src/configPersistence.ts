@@ -10,15 +10,24 @@ export interface PixelAgentsConfig {
 }
 
 const DEFAULT_CONFIG: PixelAgentsConfig = {
+  // By default, no external asset directories are configured
   externalAssetDirectories: [],
-  // Default to 'copilot' for new users, since it's the more common agent type and has better support for tool usage in the transcript parser
-  agent_type: 'copilot',
+  // Default to 'cloud' agent (Claude) if not specified
+  agent_type: 'cloud',
 };
 
+/**
+ * Get the path to the configuration file. This function constructs the file path based on the user's home directory and the predefined layout file directory and configuration file name.
+ * @returns The full path to the configuration file.
+ */
 function getConfigFilePath(): string {
   return path.join(os.homedir(), LAYOUT_FILE_DIR, CONFIG_FILE_NAME);
 }
 
+/**
+ * Read the configuration from the config file. If the file does not exist or is invalid, it returns a default configuration. The function ensures that the configuration is always in a valid state by providing defaults for missing or malformed properties.
+ * @returns The configuration object containing the external asset directories and the selected agent type.
+ */
 export function readConfig(): PixelAgentsConfig {
   const filePath = getConfigFilePath();
   try {
@@ -40,6 +49,10 @@ export function readConfig(): PixelAgentsConfig {
   }
 }
 
+/**
+ * Write the configuration to the config file. This function ensures that the configuration is saved atomically by writing to a temporary file first and then renaming it to the target file.
+ * @param config The configuration object to be written to the file.
+ */
 export function writeConfig(config: PixelAgentsConfig): void {
   const filePath = getConfigFilePath();
   const dir = path.dirname(filePath);

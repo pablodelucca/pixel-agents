@@ -16,6 +16,8 @@ interface BottomToolbarProps {
   externalAssetDirectories: string[];
   watchAllSessions: boolean;
   onToggleWatchAllSessions: () => void;
+  agentType: 'cloud' | 'copilot';
+  onSetAgentType: (type: 'cloud' | 'copilot') => void;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -61,6 +63,8 @@ export function BottomToolbar({
   externalAssetDirectories,
   watchAllSessions,
   onToggleWatchAllSessions,
+  agentType,
+  onSetAgentType,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -283,6 +287,8 @@ export function BottomToolbar({
           externalAssetDirectories={externalAssetDirectories}
           watchAllSessions={watchAllSessions}
           onToggleWatchAllSessions={onToggleWatchAllSessions}
+          agentType={agentType}
+          onSetAgentType={onSetAgentType}
         />
       </div>
     </div>

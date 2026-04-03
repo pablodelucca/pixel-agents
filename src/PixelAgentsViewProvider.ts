@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { agentManager } from './agentManager.js';
+import { agentManager } from './agents/agentManager.js';
 import type { LoadedAssets } from './assetLoader.js';
 import {
   loadCharacterSprites,
@@ -153,6 +153,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         this.context.globalState.update(GLOBAL_KEY_LAST_SEEN_VERSION, message.version as string);
       } else if (message.type === 'setAlwaysShowLabels') {
         this.context.globalState.update(GLOBAL_KEY_ALWAYS_SHOW_LABELS, message.enabled);
+      } else if (message.type === 'setAgentType') {
+        const agentType = message.agentType as 'cloud' | 'copilot';
+        const cfg = readConfig();
+        cfg.agent_type = agentType;
+        writeConfig(cfg);
+        agentManager.switchAgent(agentType);
       } else if (message.type === 'setWatchAllSessions') {
         const enabled = message.enabled as boolean;
         this.context.globalState.update(GLOBAL_KEY_WATCH_ALL_SESSIONS, enabled);
@@ -239,6 +245,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           watchAllSessions,
           alwaysShowLabels,
           externalAssetDirectories: config.externalAssetDirectories,
+          agentType: config.agent_type,
         });
 
         // Send workspace folders to webview (only when multi-root)

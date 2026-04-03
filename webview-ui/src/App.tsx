@@ -156,6 +156,8 @@ function App() {
     watchAllSessions,
     setWatchAllSessions,
     alwaysShowLabels,
+    agentType,
+    setAgentType,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -322,6 +324,11 @@ function App() {
           const newVal = !watchAllSessions;
           setWatchAllSessions(newVal);
           vscode.postMessage({ type: 'setWatchAllSessions', enabled: newVal });
+        }}
+        agentType={agentType}
+        onSetAgentType={(type) => {
+          setAgentType(type);
+          vscode.postMessage({ type: 'setAgentType', agentType: type });
         }}
       />
 

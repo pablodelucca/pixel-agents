@@ -3,17 +3,17 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { IAgent } from './AgentProvider.type';
+import { IAgent } from '../AgentProvider.type';
 import {
   JSONL_POLL_INTERVAL_MS,
   TERMINAL_NAME_PREFIX,
   WORKSPACE_KEY_AGENT_SEATS,
   WORKSPACE_KEY_AGENTS,
-} from './constants.js';
-import { ensureProjectScan, readNewLines, startFileWatching } from './fileWatcher.js';
-import { migrateAndLoadLayout } from './layoutPersistence.js';
-import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
-import type { AgentState, PersistedAgent } from './types.js';
+} from '../constants.js';
+import { ensureProjectScan, readNewLines, startFileWatching } from '../fileWatcher.js';
+import { migrateAndLoadLayout } from '../layoutPersistence.js';
+import { cancelPermissionTimer, cancelWaitingTimer } from '../timerManager.js';
+import type { AgentState, PersistedAgent } from '../types.js';
 
 export default class ClaudeManager implements IAgent {
   constructor() {}

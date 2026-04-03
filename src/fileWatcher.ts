@@ -3,8 +3,8 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { agentManager } from './agentManager.js';
-import { readConfig } from './configPersistence.js';
+import { agentManager } from './agents/agentManager.js';
+import processTranscriptLine from './agents/transcript/transcriptParser.js';
 import {
   CLEAR_IDLE_THRESHOLD_MS,
   DISMISSED_COOLDOWN_MS,
@@ -17,8 +17,6 @@ import {
   PROJECT_SCAN_INTERVAL_MS,
 } from './constants.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
-import { processTranscriptLine } from './transcriptParser.js';
-import { processTranscriptLineCopilot } from './transcriptParserCopilot.js';
 import type { AgentState } from './types.js';
 
 /** Files explicitly dismissed by the user (closed via X). Temporarily blocked from re-adoption. */
@@ -185,22 +183,7 @@ export function readNewLines(
 
     for (const line of lines) {
       if (!line.trim()) continue;
-      const config = readConfig();
-      console.log('[Pixel Agents] select ia :  ' + config.agent_type);
-      if (config.agent_type == 'copilot') {
-        // Copilot agents use the new transcript parser with tool status support
-        processTranscriptLineCopilot(
-          agentId,
-          line,
-          agents,
-          waitingTimers,
-          permissionTimers,
-          webview,
-        );
-      } else {
-        // Claude Code and other non-Copilot agents use the original transcript parser
-        processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
-      }
+      processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
     }
   } catch (e) {
     console.log(`[Pixel Agents] Read error for agent ${agentId}: ${e}`);

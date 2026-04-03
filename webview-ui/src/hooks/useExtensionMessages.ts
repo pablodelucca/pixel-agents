@@ -63,6 +63,8 @@ export interface ExtensionMessageState {
   watchAllSessions: boolean;
   setWatchAllSessions: (v: boolean) => void;
   alwaysShowLabels: boolean;
+  agentType: 'cloud' | 'copilot';
+  setAgentType: (v: 'cloud' | 'copilot') => void;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -98,6 +100,7 @@ export function useExtensionMessages(
   const [extensionVersion, setExtensionVersion] = useState('');
   const [watchAllSessions, setWatchAllSessions] = useState(false);
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
+  const [agentType, setAgentType] = useState<'cloud' | 'copilot'>('cloud');
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -410,6 +413,9 @@ export function useExtensionMessages(
         if (typeof msg.extensionVersion === 'string') {
           setExtensionVersion(msg.extensionVersion as string);
         }
+        if (msg.agentType === 'cloud' || msg.agentType === 'copilot') {
+          setAgentType(msg.agentType as 'cloud' | 'copilot');
+        }
       } else if (msg.type === 'externalAssetDirectoriesUpdated') {
         if (Array.isArray(msg.dirs)) {
           setExternalAssetDirectories(msg.dirs as string[]);
@@ -449,5 +455,7 @@ export function useExtensionMessages(
     watchAllSessions,
     setWatchAllSessions,
     alwaysShowLabels,
+    agentType,
+    setAgentType,
   };
 }
