@@ -53,8 +53,8 @@
 
   /* Text sizes (pixel-art scale, base = 22px) */
   --text-*: initial;
-  --text-xs: 16px;
-  --text-2xs: 18px;
+  --text-2xs: 16px;
+  --text-xs: 18px;
   --text-sm: 20px;
   --text-base: 22px;
   --text-lg: 26px;
@@ -69,7 +69,6 @@
   --color-bg-dark: var(--color-bg-dark);
   --color-bg-thumb: var(--color-bg-thumb);
   --color-border: var(--color-border);
-  --color-border-light: var(--color-border-light);
   --color-accent: var(--color-accent);
   --color-text: var(--color-text);
   --color-text-muted: var(--color-text-muted);
@@ -77,7 +76,6 @@
   --color-btn-hover: var(--color-btn-hover);
   --color-active-bg: var(--color-active-bg);
   --color-accent-bright: var(--color-accent-bright);
-  --color-close-text: var(--color-close-text);
   --color-reset-text: var(--color-reset-text);
   --color-danger: var(--color-danger);
   --color-warning: var(--color-warning);

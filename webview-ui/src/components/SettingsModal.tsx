@@ -69,7 +69,7 @@ export function SettingsModal({
       {externalAssetDirectories.map((dir) => (
         <div key={dir} className="flex items-center justify-between py-4 px-10 gap-8">
           <span
-            className="text-2xs text-text-muted overflow-hidden text-ellipsis whitespace-nowrap max-w-[180px]"
+            className="text-xs text-text-muted overflow-hidden text-ellipsis whitespace-nowrap max-w-[180px]"
             title={dir}
           >
             {dir.split(/[/\\]/).pop() ?? dir}

@@ -149,7 +149,7 @@ export function DebugView({
         )}
         {/* Connection diagnostics */}
         {diag && (
-          <div className="mt-6 py-4 px-6 text-2xs opacity-70 flex flex-col gap-2 border-t border-white/[0.08]">
+          <div className="mt-6 py-4 px-6 text-xs opacity-70 flex flex-col gap-2 border-t border-white/[0.08]">
             <span>
               <span className={diag.jsonlExists ? 'text-status-success' : 'text-status-error'}>
                 {diag.jsonlExists ? 'JSONL connected' : 'JSONL not found'}
@@ -159,14 +159,14 @@ export function DebugView({
               {' | '}
               Last data: {formatTimeAgo(diag.lastDataAt)}
             </span>
-            <span className="opacity-60 text-xs break-all">{diag.jsonlFile}</span>
+            <span className="opacity-60 text-2xs break-all">{diag.jsonlFile}</span>
             {!diag.projectDirExists && (
-              <span className="text-xs text-status-error">
+              <span className="text-2xs text-status-error">
                 Project dir does not exist: {diag.projectDir}
               </span>
             )}
             {diag.jsonlExists && diag.fileSize > 0 && diag.linesProcessed === 0 && (
-              <span className="text-xs text-status-permission">
+              <span className="text-2xs text-status-permission">
                 File has data ({diag.fileSize} bytes) but 0 lines parsed. Possible format issue.
               </span>
             )}

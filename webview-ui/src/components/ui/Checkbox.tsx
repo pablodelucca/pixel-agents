@@ -13,10 +13,9 @@ export function Checkbox({ checked, onChange, label, className = '' }: CheckboxP
     >
       <span>{label}</span>
       <span
-        className="w-14 h-14 border-2 border-white/50 rounded-none shrink-0 flex items-center justify-center text-[12px] leading-none text-white"
-        style={{ background: checked ? 'rgba(90, 140, 255, 0.8)' : 'transparent' }}
+        className={`w-14 h-14 border-2 border-white/50 rounded-none shrink-0 flex items-center justify-center text-2xs pl-1.5 pb-4 leading-none text-white ${checked ? 'bg-accent' : 'bg-transparent'}`}
       >
-        {checked ? 'X' : ''}
+        {checked ? 'x' : ''}
       </span>
     </button>
   );

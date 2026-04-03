@@ -159,7 +159,7 @@ export function ToolOverlay({
                   {activityText}
                 </span>
                 {ch.folderName && (
-                  <span className="text-xs leading-none overflow-hidden text-ellipsis block">
+                  <span className="text-2xs leading-none overflow-hidden text-ellipsis block">
                     {ch.folderName}
                   </span>
                 )}

@@ -1,4 +1,6 @@
-import type { FloorColor } from '../../office/types.js';
+import type { ColorValue } from './types.js';
+
+export type { ColorValue } from './types.js';
 
 function ColorSlider({
   label,
@@ -15,24 +17,23 @@ function ColorSlider({
 }) {
   return (
     <div className="flex items-center gap-4">
-      <span className="text-sm text-[#999] w-28 text-right shrink-0">{label}</span>
+      <span className="text-sm text-text-muted w-28 text-right shrink-0">{label}</span>
       <input
         type="range"
         min={min}
         max={max}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="flex-1 h-12"
-        style={{ accentColor: 'rgba(90, 140, 255, 0.8)' }}
+        className="flex-1 h-12 accent-accent"
       />
-      <span className="text-sm text-[#999] w-48 text-right shrink-0">{value}</span>
+      <span className="text-sm text-text-muted w-48 text-right shrink-0">{value}</span>
     </div>
   );
 }
 
 interface ColorPickerProps {
-  value: FloorColor;
-  onChange: (color: FloorColor) => void;
+  value: ColorValue;
+  onChange: (color: ColorValue) => void;
   /** Force colorize-style H/S ranges (H: 0–360, S: 0–100) */
   colorize?: boolean;
   /** Show a colorize checkbox that lets the user toggle the mode */
@@ -40,7 +41,7 @@ interface ColorPickerProps {
 }
 
 export function ColorPicker({ value, onChange, colorize, showColorizeToggle }: ColorPickerProps) {
-  const handleChange = (key: keyof FloorColor, v: number) => {
+  const handleChange = (key: keyof ColorValue, v: number) => {
     onChange({ ...value, [key]: v });
   };
 
@@ -77,12 +78,12 @@ export function ColorPicker({ value, onChange, colorize, showColorizeToggle }: C
         onChange={(v) => handleChange('c', v)}
       />
       {showColorizeToggle && (
-        <label className="flex items-center gap-4 text-sm text-[#999] cursor-pointer">
+        <label className="flex items-center gap-4 text-sm text-text-muted cursor-pointer">
           <input
             type="checkbox"
             checked={!!value.colorize}
             onChange={(e) => onChange({ ...value, colorize: e.target.checked || undefined })}
-            style={{ accentColor: 'rgba(90, 140, 255, 0.8)' }}
+            className="accent-accent"
           />
           Colorize
         </label>

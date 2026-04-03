@@ -94,7 +94,7 @@ export function AgentLabels({
               />
             )}
             <span
-              className={`bg-bg/70 py-[1px] px-4 rounded-[2px] whitespace-nowrap  ${isSub ? 'text-xs italic overflow-hidden text-ellipsis max-w-[120px]' : 'text-2xs'}`}
+              className={`bg-bg/70 py-[1px] px-4 rounded-[2px] whitespace-nowrap  ${isSub ? 'text-2xs italic overflow-hidden text-ellipsis max-w-[120px]' : 'text-xs'}`}
             >
               {labelText}
             </span>

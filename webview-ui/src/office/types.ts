@@ -22,19 +22,9 @@ export const TileType = {
 } as const;
 export type TileType = (typeof TileType)[keyof typeof TileType];
 
-/** Per-tile color settings for floor pattern colorization */
-export interface FloorColor {
-  /** Hue: 0-360 in colorize mode, -180 to +180 in adjust mode */
-  h: number;
-  /** Saturation: 0-100 in colorize mode, -100 to +100 in adjust mode */
-  s: number;
-  /** Brightness -100 to 100 */
-  b: number;
-  /** Contrast -100 to 100 */
-  c: number;
-  /** When true, use Photoshop-style Colorize (grayscale → fixed HSL). Default: adjust mode. */
-  colorize?: boolean;
-}
+/** Re-export ColorValue for consumers that import color types from office/types */
+export type { ColorValue } from '../components/ui/types.js';
+import type { ColorValue } from '../components/ui/types.js';
 
 export const CharacterState = {
   IDLE: 'idle',
@@ -122,7 +112,7 @@ export interface PlacedFurniture {
   col: number;
   row: number;
   /** Optional color override for furniture */
-  color?: FloorColor;
+  color?: ColorValue;
 }
 
 export interface OfficeLayout {
@@ -132,7 +122,7 @@ export interface OfficeLayout {
   tiles: TileType[];
   furniture: PlacedFurniture[];
   /** Per-tile color settings, parallel to tiles array. null = wall/no color */
-  tileColors?: Array<FloorColor | null>;
+  tileColors?: Array<ColorValue | null>;
   /** Bumped when the bundled default layout changes; forces a reset on existing installs */
   layoutRevision?: number;
 }

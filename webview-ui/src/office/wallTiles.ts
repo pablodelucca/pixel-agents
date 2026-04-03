@@ -10,13 +10,9 @@
  * Bitmask convention: N=1, E=2, S=4, W=8. Out-of-bounds = NOT wall.
  */
 
+import type { ColorValue } from '../components/ui/types.js';
 import { getColorizedSprite } from './colorize.js';
-import type {
-  FloorColor,
-  FurnitureInstance,
-  SpriteData,
-  TileType as TileTypeVal,
-} from './types.js';
+import type { FurnitureInstance, SpriteData, TileType as TileTypeVal } from './types.js';
 import { TILE_SIZE, TileType } from './types.js';
 
 /** Wall tile sets: each set has 16 sprites indexed by bitmask (0-15) */
@@ -89,7 +85,7 @@ export function getColorizedWallSprite(
   col: number,
   row: number,
   tileMap: TileTypeVal[][],
-  color: FloorColor,
+  color: ColorValue,
   setIndex = 0,
 ): { sprite: SpriteData; offsetY: number } | null {
   if (wallSets.length === 0) return null;
@@ -111,7 +107,7 @@ export function getColorizedWallSprite(
  */
 export function getWallInstances(
   tileMap: TileTypeVal[][],
-  tileColors?: Array<FloorColor | null>,
+  tileColors?: Array<ColorValue | null>,
   cols?: number,
 ): FurnitureInstance[] {
   if (wallSets.length === 0) return [];
@@ -140,10 +136,10 @@ export function getWallInstances(
 }
 
 /**
- * Compute the flat fill hex color for a wall tile with a given FloorColor.
+ * Compute the flat fill hex color for a wall tile with a given ColorValue.
  * Uses same Colorize algorithm as floor tiles: 50% gray → HSL.
  */
-export function wallColorToHex(color: FloorColor): string {
+export function wallColorToHex(color: ColorValue): string {
   const { h, s, b, c } = color;
   // Start with 50% gray (wall base)
   let lightness = 0.5;

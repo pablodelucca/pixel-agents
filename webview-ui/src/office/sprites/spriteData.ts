@@ -1,5 +1,6 @@
+import type { ColorValue } from '../../components/ui/types.js';
 import { adjustSprite } from '../colorize.js';
-import type { Direction, FloorColor, SpriteData } from '../types.js';
+import type { Direction, SpriteData } from '../types.js';
 import { Direction as Dir } from '../types.js';
 import bubblePermissionData from './bubble-permission.json';
 import bubbleWaitingData from './bubble-waiting.json';
@@ -59,7 +60,7 @@ const spriteCache = new Map<string, CharacterSprites>();
 
 /** Apply hue shift to every sprite in a CharacterSprites set */
 function hueShiftSprites(sprites: CharacterSprites, hueShift: number): CharacterSprites {
-  const color: FloorColor = { h: hueShift, s: 0, b: 0, c: 0 };
+  const color: ColorValue = { h: hueShift, s: 0, b: 0, c: 0 };
   const shift = (s: SpriteData) => adjustSprite(s, color);
   const shiftWalk = (
     arr: [SpriteData, SpriteData, SpriteData, SpriteData],

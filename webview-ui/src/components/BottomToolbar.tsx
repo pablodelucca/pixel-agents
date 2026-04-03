@@ -38,6 +38,7 @@ export function BottomToolbar({
   const [isBypassMenuOpen, setIsBypassMenuOpen] = useState(false);
   const folderPickerRef = useRef<HTMLDivElement>(null);
   const pendingBypassRef = useRef(false);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Close folder picker / bypass menu on outside click
   useEffect(() => {
@@ -64,10 +65,20 @@ export function BottomToolbar({
     }
   };
 
-  const handleAgentRightClick = (e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleAgentHover = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
     setIsFolderPickerOpen(false);
-    setIsBypassMenuOpen((v) => !v);
+    setIsBypassMenuOpen(true);
+  };
+
+  const handleAgentLeave = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsBypassMenuOpen(false);
+      hoverTimeoutRef.current = null;
+    }, 150);
   };
 
   const handleFolderSelect = (folder: WorkspaceFolder) => {
@@ -89,11 +100,15 @@ export function BottomToolbar({
 
   return (
     <div className="absolute bottom-10 left-10 z-50 flex items-center gap-4 pixel-panel p-4">
-      <div ref={folderPickerRef} className="relative">
+      <div
+        ref={folderPickerRef}
+        className="relative"
+        onMouseEnter={handleAgentHover}
+        onMouseLeave={handleAgentLeave}
+      >
         <Button
           variant="accent"
           onClick={handleAgentClick}
-          onContextMenu={handleAgentRightClick}
           className={
             isFolderPickerOpen || isBypassMenuOpen
               ? 'bg-accent-bright'
@@ -103,8 +118,8 @@ export function BottomToolbar({
           + Agent
         </Button>
         <Dropdown isOpen={isBypassMenuOpen}>
-          <DropdownItem onClick={() => handleBypassSelect(true)} className="text-warning">
-            <span className="text-[12px]">⚡</span> Bypass Permissions
+          <DropdownItem onClick={() => handleBypassSelect(true)}>
+            Skip permissions mode <span className="text-2xs text-warning">⚠</span>
           </DropdownItem>
         </Dropdown>
         <Dropdown isOpen={isFolderPickerOpen} className="min-w-[160px]">

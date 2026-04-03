@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/Button.js';
 import { ColorPicker } from '../../components/ui/ColorPicker.js';
 import { ItemSelect } from '../../components/ui/ItemSelect.js';
+import type { ColorValue } from '../../components/ui/types.js';
 import { getColorizedSprite } from '../colorize.js';
 import { getColorizedFloorSprite, getFloorPatternCount, hasFloorSprites } from '../floorTiles.js';
 import type { FurnitureCategory, LoadedAssetData } from '../layout/furnitureCatalog.js';
@@ -12,7 +13,7 @@ import {
   getCatalogByCategory,
 } from '../layout/furnitureCatalog.js';
 import { getCachedSprite } from '../sprites/spriteCache.js';
-import type { FloorColor, TileType as TileTypeVal } from '../types.js';
+import type { TileType as TileTypeVal } from '../types.js';
 import { EditTool } from '../types.js';
 import { getWallSetCount, getWallSetPreviewSprite } from '../wallTiles.js';
 
@@ -21,23 +22,23 @@ interface EditorToolbarProps {
   selectedTileType: TileTypeVal;
   selectedFurnitureType: string;
   selectedFurnitureUid: string | null;
-  selectedFurnitureColor: FloorColor | null;
-  floorColor: FloorColor;
-  wallColor: FloorColor;
+  selectedFurnitureColor: ColorValue | null;
+  floorColor: ColorValue;
+  wallColor: ColorValue;
   selectedWallSet: number;
   onToolChange: (tool: EditTool) => void;
   onTileTypeChange: (type: TileTypeVal) => void;
-  onFloorColorChange: (color: FloorColor) => void;
-  onWallColorChange: (color: FloorColor) => void;
+  onFloorColorChange: (color: ColorValue) => void;
+  onWallColorChange: (color: ColorValue) => void;
   onWallSetChange: (setIndex: number) => void;
-  onSelectedFurnitureColorChange: (color: FloorColor | null) => void;
+  onSelectedFurnitureColorChange: (color: ColorValue | null) => void;
   onFurnitureTypeChange: (type: string) => void;
   loadedAssets?: LoadedAssetData;
 }
 
 const THUMB_ZOOM = 2;
 
-const DEFAULT_FURNITURE_COLOR: FloorColor = { h: 0, s: 0, b: 0, c: 0 };
+const DEFAULT_FURNITURE_COLOR: ColorValue = { h: 0, s: 0, b: 0, c: 0 };
 
 export function EditorToolbar({
   activeTool,
