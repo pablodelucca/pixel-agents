@@ -19,7 +19,6 @@ interface SettingsModalProps {
   onToggleWatchAllSessions: () => void;
   hooksEnabled: boolean;
   onToggleHooksEnabled: () => void;
-  onOpenHooksInfo: () => void;
 }
 
 export function SettingsModal({
@@ -34,7 +33,6 @@ export function SettingsModal({
   onToggleWatchAllSessions,
   hooksEnabled,
   onToggleHooksEnabled,
-  onOpenHooksInfo,
 }: SettingsModalProps) {
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
 
@@ -110,7 +108,6 @@ export function SettingsModal({
         checked={hooksEnabled}
         onChange={onToggleHooksEnabled}
       />
-      <MenuItem onClick={onOpenHooksInfo}>What are Hooks?</MenuItem>
       <Checkbox
         label="Always Show Labels"
         checked={alwaysShowOverlay}
