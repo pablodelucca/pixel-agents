@@ -15,6 +15,7 @@ import {
   PROJECT_SCAN_INTERVAL_MS,
 } from '../server/src/constants.js';
 import { removeAgent } from './agentManager.js';
+import { TERMINAL_NAME_PREFIX } from './constants.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import type { AgentState } from './types.js';
@@ -342,9 +343,11 @@ function scanForNewJsonlFiles(
           persistAgents,
         );
       } else {
-        // No active agent -- scan all terminals (not just the focused one)
-        // to find an untracked Claude terminal that may own this JSONL file
+        // Active terminal is owned -- scan for untracked Claude-named terminals.
+        // Only adopt terminals with TERMINAL_NAME_PREFIX to avoid grabbing
+        // pre-existing shells ("zsh", "bash") for /clear files.
         for (const terminal of vscode.window.terminals) {
+          if (!terminal.name.startsWith(TERMINAL_NAME_PREFIX)) continue;
           let owned = false;
           for (const agent of agents.values()) {
             if (agent.terminalRef === terminal) {
