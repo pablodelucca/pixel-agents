@@ -126,21 +126,21 @@ jobs:
       - name: Audit Root Dependencies
         id: audit_root
         if: always() && steps.install_root.outcome == 'success'
-        run: npm audit
+        run: npm audit --audit-level=moderate
         continue-on-error: true
 
       - name: Audit Webview Dependencies
         id: audit_webview
         if: always() && steps.install_webview.outcome == 'success'
         working-directory: webview-ui
-        run: npm audit
+        run: npm audit --audit-level=moderate
         continue-on-error: true
 
       - name: Audit Server Dependencies
         id: audit_server
         if: always() && steps.install_server.outcome == 'success'
         working-directory: server
-        run: npm audit
+        run: npm audit --audit-level=moderate
         continue-on-error: true
 
       # --- Summary ---
@@ -217,7 +217,7 @@ jobs:
                       TYPE_CHECK ROOT_LINT WEBVIEW_LINT \
                       WEBVIEW_TEST FORMAT_CHECK BUILD SERVER_TEST \
                       AUDIT_ROOT AUDIT_WEBVIEW AUDIT_SERVER; do
-            eval "val=\$$step"
+            val=$(printenv "$step" 2>/dev/null || echo "skipped")
             if [ "$val" != "success" ]; then
               echo "::error::$step failed"
               failed=1

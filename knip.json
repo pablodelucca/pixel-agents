@@ -8,7 +8,9 @@
     "webview-ui/src/main.tsx",
     "webview-ui/vite.config.ts",
     "webview-ui/eslint.config.js",
-    "webview-ui/test/**/*.ts"
+    "webview-ui/test/**/*.ts",
+    "esbuild.js",
+    "eslint.config.mjs"
   ],
   "project": [
     "src/**/*.ts",
