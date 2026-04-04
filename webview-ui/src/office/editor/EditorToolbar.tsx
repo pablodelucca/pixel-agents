@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button.js';
 import { ColorPicker } from '../../components/ui/ColorPicker.js';
 import { ItemSelect } from '../../components/ui/ItemSelect.js';
 import type { ColorValue } from '../../components/ui/types.js';
+import { CANVAS_FALLBACK_TILE_COLOR } from '../../constants.js';
 import { getColorizedSprite } from '../colorize.js';
 import { getColorizedFloorSprite, getFloorPatternCount, hasFloorSprites } from '../floorTiles.js';
 import type { FurnitureCategory, LoadedAssetData } from '../layout/furnitureCatalog.js';
@@ -182,7 +183,7 @@ export function EditorToolbar({
                 deps={[patIdx, floorColor]}
                 draw={(ctx, w, h) => {
                   if (!hasFloorSprites()) {
-                    ctx.fillStyle = '#444';
+                    ctx.fillStyle = CANVAS_FALLBACK_TILE_COLOR;
                     ctx.fillRect(0, 0, w, h);
                     return;
                   }
@@ -228,7 +229,7 @@ export function EditorToolbar({
                   draw={(ctx, w, h) => {
                     const sprite = getWallSetPreviewSprite(i);
                     if (!sprite) {
-                      ctx.fillStyle = '#444';
+                      ctx.fillStyle = CANVAS_FALLBACK_TILE_COLOR;
                       ctx.fillRect(0, 0, w, h);
                       return;
                     }

@@ -94,7 +94,7 @@ These conventions are enforced by custom ESLint rules (`eslint-rules/pixel-agent
 | `pixel-shadow`     | Webview only        | Box shadows must use `var(--pixel-shadow)` or `2px 2px 0px` |
 | `pixel-font`       | Webview only        | Font family must reference FS Pixel Sans                    |
 
-These rules are set to `warn` — they won't block your PR but will flag violations for cleanup.
+These rules are set to `error` and will block your PR if violated.
 
 ## Unit & Integration Tests
 

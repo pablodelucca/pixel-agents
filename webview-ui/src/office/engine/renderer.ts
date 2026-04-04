@@ -3,6 +3,7 @@ import {
   BUBBLE_FADE_DURATION_SEC,
   BUBBLE_SITTING_OFFSET_PX,
   BUBBLE_VERTICAL_OFFSET_PX,
+  BUTTON_ICON_COLOR,
   BUTTON_ICON_SIZE_FACTOR,
   BUTTON_LINE_WIDTH_MIN,
   BUTTON_LINE_WIDTH_ZOOM_FACTOR,
@@ -415,7 +416,7 @@ export function renderDeleteButton(
   ctx.fill();
 
   // X mark
-  ctx.strokeStyle = '#fff';
+  ctx.strokeStyle = BUTTON_ICON_COLOR;
   ctx.lineWidth = Math.max(BUTTON_LINE_WIDTH_MIN, zoom * BUTTON_LINE_WIDTH_ZOOM_FACTOR);
   ctx.lineCap = 'round';
   const xSize = radius * BUTTON_ICON_SIZE_FACTOR;
@@ -454,7 +455,7 @@ export function renderRotateButton(
   ctx.fill();
 
   // Circular arrow icon
-  ctx.strokeStyle = '#fff';
+  ctx.strokeStyle = BUTTON_ICON_COLOR;
   ctx.lineWidth = Math.max(BUTTON_LINE_WIDTH_MIN, zoom * BUTTON_LINE_WIDTH_ZOOM_FACTOR);
   ctx.lineCap = 'round';
   const arcR = radius * BUTTON_ICON_SIZE_FACTOR;

@@ -27,8 +27,8 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
-      'simple-import-sort/imports': 'warn',
-      'simple-import-sort/exports': 'warn',
+      'simple-import-sort/imports': 'error',
+      'simple-import-sort/exports': 'error',
       // These react-hooks rules misfire on this project's imperative game-state patterns:
       // - immutability: singleton OfficeState/EditorState mutations are by design
       // - refs: containerRef reads during render feed canvas pipeline, not React state
@@ -36,9 +36,9 @@ export default defineConfig([
       'react-hooks/immutability': 'off',
       'react-hooks/refs': 'off',
       'react-hooks/set-state-in-effect': 'off',
-      'pixel-agents/no-inline-colors': 'warn',
-      'pixel-agents/pixel-shadow': 'warn',
-      'pixel-agents/pixel-font': 'warn',
+      'pixel-agents/no-inline-colors': 'error',
+      'pixel-agents/pixel-shadow': 'error',
+      'pixel-agents/pixel-font': 'error',
     },
   },
   {

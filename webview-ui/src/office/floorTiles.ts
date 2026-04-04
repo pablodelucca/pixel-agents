@@ -7,7 +7,7 @@
  */
 
 import type { ColorValue } from '../components/ui/types.js';
-import { FALLBACK_FLOOR_COLOR, TILE_SIZE } from '../constants.js';
+import { CANVAS_ERROR_TILE_COLOR, FALLBACK_FLOOR_COLOR, TILE_SIZE } from '../constants.js';
 import { clearColorizeCache, getColorizedSprite } from './colorize.js';
 import type { SpriteData } from './types.js';
 
@@ -20,8 +20,8 @@ const DEFAULT_FLOOR_SPRITE: SpriteData = Array.from(
 /** Module-level storage for floor tile sprites (set once on load) */
 let floorSprites: SpriteData[] = [];
 
-/** Wall color constant */
-export const WALL_COLOR = '#3A3A5C';
+// Re-export WALL_COLOR from constants for backward compatibility
+export { WALL_COLOR } from '../constants.js';
 
 /** Set floor tile sprites (called once when extension sends floorTilesLoaded) */
 export function setFloorSprites(sprites: SpriteData[]): void {
@@ -66,7 +66,9 @@ export function getColorizedFloorSprite(patternIndex: number, color: ColorValue)
   const base = getFloorSprite(patternIndex);
   if (!base) {
     // Return a 16x16 magenta error tile
-    const err: SpriteData = Array.from({ length: 16 }, () => Array(16).fill('#FF00FF'));
+    const err: SpriteData = Array.from({ length: 16 }, () =>
+      Array(16).fill(CANVAS_ERROR_TILE_COLOR),
+    );
     return err;
   }
 

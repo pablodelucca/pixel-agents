@@ -27,6 +27,9 @@ export const MATRIX_FLICKER_FPS = 30;
 export const MATRIX_FLICKER_VISIBILITY_THRESHOLD = 180;
 export const MATRIX_COLUMN_STAGGER_RANGE = 0.3;
 export const MATRIX_HEAD_COLOR = '#ccffcc';
+export const matrixGreenBright = (a: number): string => `rgba(0, 255, 65, ${a})`;
+export const matrixGreenMid = (a: number): string => `rgba(0, 170, 40, ${a})`;
+export const matrixGreenDim = (a: number): string => `rgba(0, 85, 20, ${a})`;
 export const MATRIX_TRAIL_OVERLAY_ALPHA = 0.6;
 export const MATRIX_TRAIL_EMPTY_ALPHA = 0.5;
 export const MATRIX_TRAIL_MID_THRESHOLD = 0.33;
@@ -66,6 +69,10 @@ export const GHOST_INVALID_TINT = '#ff0000';
 export const SELECTION_HIGHLIGHT_COLOR = '#007fd4';
 export const DELETE_BUTTON_BG = 'rgba(200, 50, 50, 0.85)';
 export const ROTATE_BUTTON_BG = 'rgba(50, 120, 200, 0.85)';
+export const BUTTON_ICON_COLOR = '#fff';
+export const CANVAS_FALLBACK_TILE_COLOR = '#444';
+export const CANVAS_ERROR_TILE_COLOR = '#FF00FF';
+export const WALL_COLOR = '#3A3A5C';
 
 // ── Camera ───────────────────────────────────────────────────
 export const CAMERA_FOLLOW_LERP = 0.1;

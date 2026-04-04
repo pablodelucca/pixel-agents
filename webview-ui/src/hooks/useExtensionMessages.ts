@@ -452,6 +452,7 @@ export function useExtensionMessages(
     window.addEventListener('message', handler);
     vscode.postMessage({ type: 'webviewReady' });
     return () => window.removeEventListener('message', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getOfficeState]);
 
   return {

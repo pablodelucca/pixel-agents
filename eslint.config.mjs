@@ -22,19 +22,19 @@ export default [
 
     rules: {
       '@typescript-eslint/naming-convention': [
-        'warn',
+        'error',
         {
           selector: 'import',
           format: ['camelCase', 'PascalCase'],
         },
       ],
 
-      curly: 'warn',
-      eqeqeq: 'warn',
-      'no-throw-literal': 'warn',
-      'simple-import-sort/imports': 'warn',
-      'simple-import-sort/exports': 'warn',
-      'pixel-agents/no-inline-colors': 'warn',
+      curly: 'error',
+      eqeqeq: 'error',
+      'no-throw-literal': 'error',
+      'simple-import-sort/imports': 'error',
+      'simple-import-sort/exports': 'error',
+      'pixel-agents/no-inline-colors': 'error',
     },
   },
   {
