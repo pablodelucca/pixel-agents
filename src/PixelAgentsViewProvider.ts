@@ -48,7 +48,6 @@ import {
 import {
   dismissedJsonlFiles,
   ensureProjectScan,
-  isTrackedProjectDir,
   startExternalSessionScanning,
   startStaleExternalAgentCheck,
 } from './fileWatcher.js';
@@ -95,7 +94,6 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   private pixelAgentsServer: PixelAgentsServer | null = null;
   // ServerConfig is not stored as a field; use this.pixelAgentsServer?.getConfig() if needed.
   private hookEventHandler: HookEventHandler | null = null;
-  private hooksReady = false;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.initHooks();
@@ -137,7 +135,6 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           installHooks();
           copyHookScript(this.context.extensionPath);
         }
-        this.hooksReady = true;
         console.log(`[Pixel Agents] Server ready on port ${config.port}`);
       })
       .catch((e) => {

@@ -314,7 +314,7 @@ function processProgressRecord(
   agentId: number,
   record: Record<string, unknown>,
   agents: Map<number, AgentState>,
-  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  _waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
 ): void {

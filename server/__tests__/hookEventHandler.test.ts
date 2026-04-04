@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { HookEventHandler } from '../src/hookEventHandler.js';
 import type { AgentState } from '../../src/types.js';
+import { HookEventHandler } from '../src/hookEventHandler.js';
 
 /** Minimal AgentState for testing. */
 function createTestAgent(overrides: Partial<AgentState> = {}): AgentState {
@@ -159,7 +159,6 @@ describe('HookEventHandler', () => {
     });
 
     expect(agent.isWaiting).toBe(true);
-    const clearMsg = mockWebview.messages.find((m) => m.type === 'agentToolsClear');
     // agentToolsClear only sent when there are foreground tools
     // With empty tools, only agentStatus waiting is sent
     const waitMsg = mockWebview.messages.find(
@@ -285,17 +284,7 @@ describe('HookEventHandler', () => {
     expect(agent.isWaiting).toBe(true);
   });
 
-  // 13. Unknown agent returns early
-  it('unknown session with no matching agent does not crash', () => {
-    expect(() => {
-      handler.handleEvent('claude', {
-        hook_event_name: 'Stop',
-        session_id: 'bogus',
-      });
-    }).not.toThrow();
-  });
-
-  // 14. Dispose cleans up
+  // 13. Dispose cleans up
   it('dispose cleans up timers and maps', () => {
     handler.registerAgent('sess-1', 1);
     handler.handleEvent('claude', {

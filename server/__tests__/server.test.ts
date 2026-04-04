@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Use isolated temp HOME to avoid touching real ~/.pixel-agents/
 let tmpBase: string;
@@ -33,7 +33,7 @@ async function postHook(
 }
 
 describe('PixelAgentsServer', () => {
-  let server: PixelAgentsServer;
+  let server: InstanceType<typeof PixelAgentsServer>;
 
   beforeEach(() => {
     tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'pxl-server-test-'));
@@ -66,7 +66,7 @@ describe('PixelAgentsServer', () => {
     const config = await server.start();
     const res = await fetch(`http://127.0.0.1:${config.port}/api/health`);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { status: string; uptime: number; pid: number };
     expect(body.status).toBe('ok');
     expect(body.uptime).toBeGreaterThanOrEqual(0);
     expect(body.pid).toBe(process.pid);
@@ -97,7 +97,7 @@ describe('PixelAgentsServer', () => {
   it('hook callback fires on valid event', async () => {
     const config = await server.start();
     const received: Array<{ providerId: string; event: Record<string, unknown> }> = [];
-    server.onHookEvent((providerId, event) => {
+    server.onHookEvent((providerId: string, event: Record<string, unknown>) => {
       received.push({ providerId, event });
     });
 
@@ -197,7 +197,7 @@ describe('PixelAgentsServer', () => {
   it('hook callback does not fire for events without session_id', async () => {
     const config = await server.start();
     const received: unknown[] = [];
-    server.onHookEvent((_pid, event) => received.push(event));
+    server.onHookEvent((_pid: string, event: Record<string, unknown>) => received.push(event));
 
     await postHook(
       config.port,
@@ -212,7 +212,7 @@ describe('PixelAgentsServer', () => {
   it('hook callback does not fire for events without hook_event_name', async () => {
     const config = await server.start();
     const received: unknown[] = [];
-    server.onHookEvent((_pid, event) => received.push(event));
+    server.onHookEvent((_pid: string, event: Record<string, unknown>) => received.push(event));
 
     await postHook(
       config.port,

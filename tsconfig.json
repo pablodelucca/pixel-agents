@@ -8,6 +8,9 @@
 		"sourceMap": true,
 		"rootDir": ".",
 		"strict": true,
+		"skipLibCheck": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
 		"allowUnreachableCode": false,
 		"noFallthroughCasesInSwitch": true
 	},

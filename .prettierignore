@@ -6,7 +6,6 @@ webview-ui/dist/
 *.vsix
 *.png
 *.json
-*.md
 webview-ui/public/
 scripts/*.html
 
