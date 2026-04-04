@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 
+import type { ColorValue } from '../components/ui/types.js';
 import { LAYOUT_SAVE_DEBOUNCE_MS, ZOOM_MAX, ZOOM_MIN } from '../constants.js';
 import type { ExpandDirection } from '../office/editor/editorActions.js';
 import {
@@ -23,7 +24,6 @@ import {
 import { defaultZoom } from '../office/toolUtils.js';
 import type {
   EditTool as EditToolType,
-  FloorColor,
   OfficeLayout,
   PlacedFurniture,
   TileType as TileTypeVal,
@@ -44,10 +44,10 @@ export interface EditorActions {
   handleToggleEditMode: () => void;
   handleToolChange: (tool: EditToolType) => void;
   handleTileTypeChange: (type: TileTypeVal) => void;
-  handleFloorColorChange: (color: FloorColor) => void;
-  handleWallColorChange: (color: FloorColor) => void;
+  handleFloorColorChange: (color: ColorValue) => void;
+  handleWallColorChange: (color: ColorValue) => void;
   handleWallSetChange: (setIndex: number) => void;
-  handleSelectedFurnitureColorChange: (color: FloorColor | null) => void;
+  handleSelectedFurnitureColorChange: (color: ColorValue | null) => void;
   handleFurnitureTypeChange: (type: string) => void; // FurnitureType enum or asset ID
   handleDeleteSelected: () => void;
   handleRotateSelected: () => void;
@@ -160,7 +160,7 @@ export function useEditorActions(
   );
 
   const handleFloorColorChange = useCallback(
-    (color: FloorColor) => {
+    (color: ColorValue) => {
       editorState.floorColor = color;
       setEditorTick((n) => n + 1);
     },
@@ -171,7 +171,7 @@ export function useEditorActions(
   const wallColorEditActiveRef = useRef(false);
 
   const handleWallColorChange = useCallback(
-    (color: FloorColor) => {
+    (color: ColorValue) => {
       editorState.wallColor = color;
 
       // Update all existing wall tiles to the new color
@@ -217,7 +217,7 @@ export function useEditorActions(
   const colorEditUidRef = useRef<string | null>(null);
 
   const handleSelectedFurnitureColorChange = useCallback(
-    (color: FloorColor | null) => {
+    (color: ColorValue | null) => {
       const uid = editorState.selectedFurnitureUid;
       if (!uid) return;
       const os = getOfficeState();

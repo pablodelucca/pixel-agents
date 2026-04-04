@@ -6,9 +6,10 @@
  * Caches colorized SpriteData by (pattern, h, s, b, c) key.
  */
 
+import type { ColorValue } from '../components/ui/types.js';
 import { FALLBACK_FLOOR_COLOR, TILE_SIZE } from '../constants.js';
 import { clearColorizeCache, getColorizedSprite } from './colorize.js';
-import type { FloorColor, SpriteData } from './types.js';
+import type { SpriteData } from './types.js';
 
 /** Default solid gray 16×16 tile used when floor tile PNGs are not loaded */
 const DEFAULT_FLOOR_SPRITE: SpriteData = Array.from(
@@ -59,7 +60,7 @@ export function getAllFloorSprites(): SpriteData[] {
  * Uses Photoshop-style Colorize: grayscale -> HSL with given hue/saturation,
  * then brightness/contrast adjustment.
  */
-export function getColorizedFloorSprite(patternIndex: number, color: FloorColor): SpriteData {
+export function getColorizedFloorSprite(patternIndex: number, color: ColorValue): SpriteData {
   const key = `floor-${patternIndex}-${color.h}-${color.s}-${color.b}-${color.c}`;
 
   const base = getFloorSprite(patternIndex);

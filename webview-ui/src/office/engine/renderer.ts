@@ -1,3 +1,4 @@
+import type { ColorValue } from '../../components/ui/types.js';
 import {
   BUBBLE_FADE_DURATION_SEC,
   BUBBLE_SITTING_OFFSET_PX,
@@ -40,7 +41,6 @@ import {
 } from '../sprites/spriteData.js';
 import type {
   Character,
-  FloorColor,
   FurnitureInstance,
   Seat,
   SpriteData,
@@ -59,7 +59,7 @@ export function renderTileGrid(
   offsetX: number,
   offsetY: number,
   zoom: number,
-  tileColors?: Array<FloorColor | null>,
+  tileColors?: Array<ColorValue | null>,
   cols?: number,
 ): void {
   const s = TILE_SIZE * zoom;
@@ -572,7 +572,7 @@ export function renderFrame(
   panY: number,
   selection?: SelectionRenderState,
   editor?: EditorRenderState,
-  tileColors?: Array<FloorColor | null>,
+  tileColors?: Array<ColorValue | null>,
   layoutCols?: number,
   layoutRows?: number,
 ): { offsetX: number; offsetY: number } {

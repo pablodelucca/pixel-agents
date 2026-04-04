@@ -4,9 +4,11 @@ import { toMajorMinor } from './changelogData.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
 import { DebugView } from './components/DebugView.js';
+import { EditActionBar } from './components/EditActionBar.js';
+import { MigrationNotice } from './components/MigrationNotice.js';
+import { SettingsModal } from './components/SettingsModal.js';
 import { VersionIndicator } from './components/VersionIndicator.js';
 import { ZoomControls } from './components/ZoomControls.js';
-import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
 import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
 import { useExtensionMessages } from './hooks/useExtensionMessages.js';
@@ -29,98 +31,6 @@ function getOfficeState(): OfficeState {
     officeStateRef.current = new OfficeState();
   }
   return officeStateRef.current;
-}
-
-const actionBarBtnStyle: React.CSSProperties = {
-  padding: '4px 10px',
-  fontSize: '22px',
-  background: 'var(--pixel-btn-bg)',
-  color: 'var(--pixel-text-dim)',
-  border: '2px solid transparent',
-  borderRadius: 0,
-  cursor: 'pointer',
-};
-
-const actionBarBtnDisabled: React.CSSProperties = {
-  ...actionBarBtnStyle,
-  opacity: 'var(--pixel-btn-disabled-opacity)',
-  cursor: 'default',
-};
-
-function EditActionBar({
-  editor,
-  editorState: es,
-}: {
-  editor: ReturnType<typeof useEditorActions>;
-  editorState: EditorState;
-}) {
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-
-  const undoDisabled = es.undoStack.length === 0;
-  const redoDisabled = es.redoStack.length === 0;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 8,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 'var(--pixel-controls-z)',
-        display: 'flex',
-        gap: 4,
-        alignItems: 'center',
-        background: 'var(--pixel-bg)',
-        border: '2px solid var(--pixel-border)',
-        borderRadius: 0,
-        padding: '4px 8px',
-        boxShadow: 'var(--pixel-shadow)',
-      }}
-    >
-      <button
-        style={undoDisabled ? actionBarBtnDisabled : actionBarBtnStyle}
-        onClick={undoDisabled ? undefined : editor.handleUndo}
-        title="Undo (Ctrl+Z)"
-      >
-        Undo
-      </button>
-      <button
-        style={redoDisabled ? actionBarBtnDisabled : actionBarBtnStyle}
-        onClick={redoDisabled ? undefined : editor.handleRedo}
-        title="Redo (Ctrl+Y)"
-      >
-        Redo
-      </button>
-      <button style={actionBarBtnStyle} onClick={editor.handleSave} title="Save layout">
-        Save
-      </button>
-      {!showResetConfirm ? (
-        <button
-          style={actionBarBtnStyle}
-          onClick={() => setShowResetConfirm(true)}
-          title="Reset to last saved layout"
-        >
-          Reset
-        </button>
-      ) : (
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          <span style={{ fontSize: '22px', color: 'var(--pixel-reset-text)' }}>Reset?</span>
-          <button
-            style={{ ...actionBarBtnStyle, background: 'var(--pixel-danger-bg)', color: '#fff' }}
-            onClick={() => {
-              setShowResetConfirm(false);
-              editor.handleReset();
-            }}
-          >
-            Yes
-          </button>
-          <button style={actionBarBtnStyle} onClick={() => setShowResetConfirm(false)}>
-            No
-          </button>
-        </div>
-      )}
-    </div>
-  );
 }
 
 function App() {
@@ -163,6 +73,7 @@ function App() {
   const showMigrationNotice = layoutWasReset && !migrationNoticeDismissed;
 
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [alwaysShowOverlay, setAlwaysShowOverlay] = useState(false);
 
@@ -247,36 +158,11 @@ function App() {
     })();
 
   if (!layoutReady) {
-    return (
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--vscode-foreground)',
-        }}
-      >
-        Loading...
-      </div>
-    );
+    return <div className="w-full h-full flex items-center justify-center ">Loading...</div>;
   }
 
   return (
-    <div
-      ref={containerRef}
-      style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
-    >
-      <style>{`
-        @keyframes pixel-agents-pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-        .pixel-agents-pulse { animation: pixel-agents-pulse ${PULSE_ANIMATION_DURATION_SEC}s ease-in-out infinite; }
-        .pixel-agents-migration-btn:hover { filter: brightness(0.8); }
-      `}</style>
-
+    <div ref={containerRef} className="w-full h-full relative overflow-hidden">
       <OfficeCanvas
         officeState={officeState}
         onClick={handleClick}
@@ -294,35 +180,87 @@ function App() {
         panRef={editor.panRef}
       />
 
-      {!isDebugMode && <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />}
+      {!isDebugMode ? (
+        <>
+          <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />
 
-      {/* Vignette overlay */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'var(--pixel-vignette)',
-          pointerEvents: 'none',
-          zIndex: 40,
-        }}
-      />
+          {/* Vignette overlay */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ background: 'var(--vignette)' }}
+          />
+
+          {editor.isEditMode && editor.isDirty && (
+            <EditActionBar editor={editor} editorState={editorState} />
+          )}
+
+          {showRotateHint && (
+            <div
+              className="absolute left-1/2 -translate-x-1/2 z-11 bg-accent-bright text-white text-sm py-3 px-8 rounded-none border-2 border-accent shadow-pixel pointer-events-none whitespace-nowrap"
+              style={{ top: editor.isDirty ? 64 : 8 }}
+            >
+              Rotate (R)
+            </div>
+          )}
+
+          {editor.isEditMode &&
+            (() => {
+              const selUid = editorState.selectedFurnitureUid;
+              const selColor = selUid
+                ? (officeState.getLayout().furniture.find((f) => f.uid === selUid)?.color ?? null)
+                : null;
+              return (
+                <EditorToolbar
+                  activeTool={editorState.activeTool}
+                  selectedTileType={editorState.selectedTileType}
+                  selectedFurnitureType={editorState.selectedFurnitureType}
+                  selectedFurnitureUid={selUid}
+                  selectedFurnitureColor={selColor}
+                  floorColor={editorState.floorColor}
+                  wallColor={editorState.wallColor}
+                  selectedWallSet={editorState.selectedWallSet}
+                  onToolChange={editor.handleToolChange}
+                  onTileTypeChange={editor.handleTileTypeChange}
+                  onFloorColorChange={editor.handleFloorColorChange}
+                  onWallColorChange={editor.handleWallColorChange}
+                  onWallSetChange={editor.handleWallSetChange}
+                  onSelectedFurnitureColorChange={editor.handleSelectedFurnitureColorChange}
+                  onFurnitureTypeChange={editor.handleFurnitureTypeChange}
+                  loadedAssets={loadedAssets}
+                />
+              );
+            })()}
+
+          <ToolOverlay
+            officeState={officeState}
+            agents={agents}
+            agentTools={agentTools}
+            subagentCharacters={subagentCharacters}
+            containerRef={containerRef}
+            zoom={editor.zoom}
+            panRef={editor.panRef}
+            onCloseAgent={handleCloseAgent}
+            alwaysShowOverlay={alwaysShowOverlay}
+          />
+        </>
+      ) : (
+        <DebugView
+          agents={agents}
+          selectedAgent={selectedAgent}
+          agentTools={agentTools}
+          agentStatuses={agentStatuses}
+          subagentTools={subagentTools}
+          onSelectAgent={handleSelectAgent}
+        />
+      )}
 
       <BottomToolbar
         isEditMode={editor.isEditMode}
         onOpenClaude={editor.handleOpenClaude}
         onToggleEditMode={editor.handleToggleEditMode}
-        isDebugMode={isDebugMode}
-        onToggleDebugMode={handleToggleDebugMode}
-        alwaysShowOverlay={alwaysShowOverlay}
-        onToggleAlwaysShowOverlay={handleToggleAlwaysShowOverlay}
+        isSettingsOpen={isSettingsOpen}
+        onToggleSettings={() => setIsSettingsOpen((v) => !v)}
         workspaceFolders={workspaceFolders}
-        externalAssetDirectories={externalAssetDirectories}
-        watchAllSessions={watchAllSessions}
-        onToggleWatchAllSessions={() => {
-          const newVal = !watchAllSessions;
-          setWatchAllSessions(newVal);
-          vscode.postMessage({ type: 'setWatchAllSessions', enabled: newVal });
-        }}
       />
 
       <VersionIndicator
@@ -338,148 +276,24 @@ function App() {
         currentVersion={extensionVersion}
       />
 
-      {editor.isEditMode && editor.isDirty && (
-        <EditActionBar editor={editor} editorState={editorState} />
-      )}
-
-      {showRotateHint && (
-        <div
-          style={{
-            position: 'absolute',
-            top: editor.isDirty ? 52 : 8,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 49,
-            background: 'var(--pixel-hint-bg)',
-            color: '#fff',
-            fontSize: '20px',
-            padding: '3px 8px',
-            borderRadius: 0,
-            border: '2px solid var(--pixel-accent)',
-            boxShadow: 'var(--pixel-shadow)',
-            pointerEvents: 'none',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Rotate (R)
-        </div>
-      )}
-
-      {editor.isEditMode &&
-        (() => {
-          // Compute selected furniture color from current layout
-          const selUid = editorState.selectedFurnitureUid;
-          const selColor = selUid
-            ? (officeState.getLayout().furniture.find((f) => f.uid === selUid)?.color ?? null)
-            : null;
-          return (
-            <EditorToolbar
-              activeTool={editorState.activeTool}
-              selectedTileType={editorState.selectedTileType}
-              selectedFurnitureType={editorState.selectedFurnitureType}
-              selectedFurnitureUid={selUid}
-              selectedFurnitureColor={selColor}
-              floorColor={editorState.floorColor}
-              wallColor={editorState.wallColor}
-              selectedWallSet={editorState.selectedWallSet}
-              onToolChange={editor.handleToolChange}
-              onTileTypeChange={editor.handleTileTypeChange}
-              onFloorColorChange={editor.handleFloorColorChange}
-              onWallColorChange={editor.handleWallColorChange}
-              onWallSetChange={editor.handleWallSetChange}
-              onSelectedFurnitureColorChange={editor.handleSelectedFurnitureColorChange}
-              onFurnitureTypeChange={editor.handleFurnitureTypeChange}
-              loadedAssets={loadedAssets}
-            />
-          );
-        })()}
-
-      {!isDebugMode && (
-        <ToolOverlay
-          officeState={officeState}
-          agents={agents}
-          agentTools={agentTools}
-          subagentCharacters={subagentCharacters}
-          containerRef={containerRef}
-          zoom={editor.zoom}
-          panRef={editor.panRef}
-          onCloseAgent={handleCloseAgent}
-          alwaysShowOverlay={alwaysShowOverlay}
-        />
-      )}
-
-      {isDebugMode && (
-        <DebugView
-          agents={agents}
-          selectedAgent={selectedAgent}
-          agentTools={agentTools}
-          agentStatuses={agentStatuses}
-          subagentTools={subagentTools}
-          onSelectAgent={handleSelectAgent}
-        />
-      )}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        isDebugMode={isDebugMode}
+        onToggleDebugMode={handleToggleDebugMode}
+        alwaysShowOverlay={alwaysShowOverlay}
+        onToggleAlwaysShowOverlay={handleToggleAlwaysShowOverlay}
+        externalAssetDirectories={externalAssetDirectories}
+        watchAllSessions={watchAllSessions}
+        onToggleWatchAllSessions={() => {
+          const newVal = !watchAllSessions;
+          setWatchAllSessions(newVal);
+          vscode.postMessage({ type: 'setWatchAllSessions', enabled: newVal });
+        }}
+      />
 
       {showMigrationNotice && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-          }}
-          onClick={() => setMigrationNoticeDismissed(true)}
-        >
-          <div
-            style={{
-              background: 'var(--pixel-bg)',
-              border: '2px solid var(--pixel-border)',
-              borderRadius: 0,
-              padding: '24px 32px',
-              maxWidth: 620,
-              boxShadow: 'var(--pixel-shadow)',
-              textAlign: 'center',
-              lineHeight: 1.3,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontSize: '40px', marginBottom: 12, color: 'var(--pixel-accent)' }}>
-              We owe you an apology!
-            </div>
-            <p style={{ fontSize: '26px', color: 'var(--pixel-text)', margin: '0 0 12px 0' }}>
-              We've just migrated to fully open-source assets, all built from scratch with love.
-              Unfortunately, this means your previous layout had to be reset.
-            </p>
-            <p style={{ fontSize: '26px', color: 'var(--pixel-text)', margin: '0 0 12px 0' }}>
-              We're really sorry about that.
-            </p>
-            <p style={{ fontSize: '26px', color: 'var(--pixel-text)', margin: '0 0 12px 0' }}>
-              The good news? This was a one-time thing, and it paves the way for some genuinely
-              exciting updates ahead.
-            </p>
-            <p style={{ fontSize: '26px', color: 'var(--pixel-text-dim)', margin: '0 0 20px 0' }}>
-              Stay tuned, and thanks for using Pixel Agents!
-            </p>
-            <button
-              className="pixel-agents-migration-btn"
-              style={{
-                padding: '6px 24px 8px',
-                fontSize: '30px',
-                background: 'var(--pixel-accent)',
-                color: '#fff',
-                border: '2px solid var(--pixel-accent)',
-                borderRadius: 0,
-                cursor: 'pointer',
-                boxShadow: 'var(--pixel-shadow)',
-              }}
-              onClick={() => setMigrationNoticeDismissed(true)}
-            >
-              Got it
-            </button>
-          </div>
-        </div>
+        <MigrationNotice onDismiss={() => setMigrationNoticeDismissed(true)} />
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { Button } from '../../components/ui/Button.js';
 import { CHARACTER_SITTING_OFFSET_PX, TOOL_OVERLAY_VERTICAL_OFFSET } from '../../constants.js';
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
 import type { OfficeState } from '../engine/officeState.js';
@@ -123,109 +124,59 @@ export function ToolOverlay({
 
         let dotColor: string | null = null;
         if (hasPermission) {
-          dotColor = 'var(--pixel-status-permission)';
+          dotColor = 'var(--color-status-permission)';
         } else if (isActive && hasActiveTools) {
-          dotColor = 'var(--pixel-status-active)';
+          dotColor = 'var(--color-status-active)';
         }
 
         return (
           <div
             key={id}
+            className="absolute flex flex-col items-center -translate-x-1/2"
             style={{
-              position: 'absolute',
               left: screenX,
-              top: screenY - 24,
-              transform: 'translateX(-50%)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
+              top: screenY - (ch.folderName ? 34 : 28),
               pointerEvents: isSelected ? 'auto' : 'none',
               opacity: alwaysShowOverlay && !isSelected && !isHovered ? (isSub ? 0.5 : 0.75) : 1,
-              zIndex: isSelected ? 'var(--pixel-overlay-selected-z)' : 'var(--pixel-overlay-z)',
+              zIndex: isSelected ? 42 : 41,
             }}
           >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                background: 'var(--pixel-bg)',
-                border: isSelected
-                  ? '2px solid var(--pixel-border-light)'
-                  : '2px solid var(--pixel-border)',
-                borderRadius: 0,
-                padding: isSelected ? '3px 6px 3px 8px' : '3px 8px',
-                boxShadow: 'var(--pixel-shadow)',
-                whiteSpace: 'nowrap',
-                maxWidth: 220,
-              }}
-            >
+            <div className="flex items-center border-border px-8 pt-2 pb-4 gap-5 pixel-panel whitespace-nowrap max-w-2xs">
               {dotColor && (
                 <span
-                  className={isActive && !hasPermission ? 'pixel-agents-pulse' : undefined}
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: dotColor,
-                    flexShrink: 0,
-                  }}
+                  className={`w-6 h-6 rounded-full shrink-0 ${isActive && !hasPermission ? 'pixel-pulse' : ''}`}
+                  style={{ background: dotColor }}
                 />
               )}
-              <div style={{ overflow: 'hidden' }}>
+              <div className="flex flex-col gap-0 overflow-hidden">
                 <span
+                  className="overflow-hidden text-ellipsis block leading-none"
                   style={{
                     fontSize: isSub ? '20px' : '22px',
                     fontStyle: isSub ? 'italic' : undefined,
-                    color: 'var(--pixel-text)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    display: 'block',
                   }}
                 >
                   {activityText}
                 </span>
                 {ch.folderName && (
-                  <span
-                    style={{
-                      fontSize: '16px',
-                      color: 'var(--pixel-text-dim)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      display: 'block',
-                    }}
-                  >
+                  <span className="text-2xs leading-none overflow-hidden text-ellipsis block">
                     {ch.folderName}
                   </span>
                 )}
               </div>
               {isSelected && !isSub && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={(e) => {
                     e.stopPropagation();
                     onCloseAgent(id);
                   }}
                   title="Close agent"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--pixel-close-text)',
-                    cursor: 'pointer',
-                    padding: '0 2px',
-                    fontSize: '26px',
-                    lineHeight: 1,
-                    marginLeft: 2,
-                    flexShrink: 0,
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.color = 'var(--pixel-close-hover)';
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.color = 'var(--pixel-close-text)';
-                  }}
+                  className="ml-2 shrink-0 leading-none"
                 >
                   ×
-                </button>
+                </Button>
               )}
             </div>
           </div>
