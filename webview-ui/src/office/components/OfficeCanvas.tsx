@@ -369,12 +369,13 @@ export function OfficeCanvas({
             }
           }
 
-          // Paint on drag (tile/wall/erase paint tool only, not during furniture drag)
+          // Paint on drag (tile/wall/erase/carpet paint tool only, not during furniture drag)
           if (
             editorState.isDragging &&
             (editorState.activeTool === EditTool.TILE_PAINT ||
               editorState.activeTool === EditTool.WALL_PAINT ||
-              editorState.activeTool === EditTool.ERASE) &&
+              editorState.activeTool === EditTool.ERASE ||
+              editorState.activeTool === EditTool.CARPET_PAINT) &&
             !editorState.dragUid
           ) {
             onEditorTileAction(tile.col, tile.row);
@@ -384,7 +385,8 @@ export function OfficeCanvas({
             isEraseDraggingRef.current &&
             (editorState.activeTool === EditTool.TILE_PAINT ||
               editorState.activeTool === EditTool.WALL_PAINT ||
-              editorState.activeTool === EditTool.ERASE)
+              editorState.activeTool === EditTool.ERASE ||
+              editorState.activeTool === EditTool.CARPET_PAINT)
           ) {
             const layout = officeState.getLayout();
             if (
@@ -524,7 +526,8 @@ export function OfficeCanvas({
           tile &&
           (editorState.activeTool === EditTool.TILE_PAINT ||
             editorState.activeTool === EditTool.WALL_PAINT ||
-            editorState.activeTool === EditTool.ERASE)
+            editorState.activeTool === EditTool.ERASE ||
+            editorState.activeTool === EditTool.CARPET_PAINT)
         ) {
           const layout = officeState.getLayout();
           if (tile.col >= 0 && tile.col < layout.cols && tile.row >= 0 && tile.row < layout.rows) {
@@ -663,6 +666,7 @@ export function OfficeCanvas({
 
       editorState.isDragging = false;
       editorState.wallDragAdding = null;
+      editorState.carpetDragErasing = null;
     },
     [editorState, isEditMode, officeState, onDragMove, onEditorSelectionChange],
   );
@@ -737,6 +741,7 @@ export function OfficeCanvas({
     isEraseDraggingRef.current = false;
     editorState.isDragging = false;
     editorState.wallDragAdding = null;
+    editorState.carpetDragErasing = null;
     editorState.clearDrag();
     editorState.ghostCol = -1;
     editorState.ghostRow = -1;

@@ -78,6 +78,7 @@ export interface ToolActivity {
 export const EditTool = {
   TILE_PAINT: 'tile_paint',
   WALL_PAINT: 'wall_paint',
+  CARPET_PAINT: 'carpet_paint',
   FURNITURE_PLACE: 'furniture_place',
   FURNITURE_PICK: 'furniture_pick',
   SELECT: 'select',

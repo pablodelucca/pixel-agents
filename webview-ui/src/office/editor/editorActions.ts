@@ -2,7 +2,12 @@ import type { ColorValue } from '../../components/ui/types.js';
 import { DEFAULT_NEUTRAL_COLOR } from '../../constants.js';
 import { getCatalogEntry, getRotatedType, getToggledType } from '../layout/furnitureCatalog.js';
 import { getPlacementBlockedTiles } from '../layout/layoutSerializer.js';
-import type { OfficeLayout, PlacedFurniture, TileType as TileTypeVal } from '../types.js';
+import type {
+  CarpetTile,
+  OfficeLayout,
+  PlacedFurniture,
+  TileType as TileTypeVal,
+} from '../types.js';
 import { MAX_COLS, MAX_ROWS, TileType } from '../types.js';
 
 /** Paint a single tile with pattern and color. Returns new layout (immutable). */
@@ -44,6 +49,57 @@ export function paintTile(
   const tileColors = [...existingColors];
   tileColors[idx] = newColor;
   return { ...layout, tiles, tileColors };
+}
+
+/** Paint carpet on a floor tile. Returns new layout (immutable). Only applies to FLOOR tiles. */
+export function paintCarpet(
+  layout: OfficeLayout,
+  col: number,
+  row: number,
+  variant: number,
+  color?: ColorValue,
+): OfficeLayout {
+  const idx = row * layout.cols + col;
+  if (idx < 0 || idx >= layout.tiles.length) return layout;
+  // Only paint on floor tiles (skip VOID and WALL)
+  const tileVal = layout.tiles[idx];
+  if (tileVal === TileType.VOID || tileVal === TileType.WALL) return layout;
+
+  const existingCarpets: Array<CarpetTile | null> =
+    layout.carpetTiles ?? new Array(layout.cols * layout.rows).fill(null);
+
+  // Check if anything changed
+  const existing = existingCarpets[idx];
+  if (existing && existing.variant === variant) {
+    const existingColor = existing.color;
+    if (!color && !existingColor) return layout;
+    if (
+      color &&
+      existingColor &&
+      color.h === existingColor.h &&
+      color.s === existingColor.s &&
+      color.b === existingColor.b &&
+      color.c === existingColor.c &&
+      !!color.colorize === !!existingColor.colorize
+    )
+      return layout;
+  }
+
+  const carpetTiles = [...existingCarpets];
+  carpetTiles[idx] = color !== undefined ? { variant, color } : { variant };
+  return { ...layout, carpetTiles };
+}
+
+/** Erase carpet from a tile. Returns new layout (immutable). */
+export function eraseCarpet(layout: OfficeLayout, col: number, row: number): OfficeLayout {
+  const idx = row * layout.cols + col;
+  if (idx < 0 || idx >= layout.tiles.length) return layout;
+  if (!layout.carpetTiles) return layout;
+  if (layout.carpetTiles[idx] === null || layout.carpetTiles[idx] === undefined) return layout;
+
+  const carpetTiles = [...layout.carpetTiles];
+  carpetTiles[idx] = null;
+  return { ...layout, carpetTiles };
 }
 
 /** Place furniture. Returns new layout (immutable). */
@@ -208,7 +264,7 @@ export function expandLayout(
   layout: OfficeLayout,
   direction: ExpandDirection,
 ): { layout: OfficeLayout; shift: { col: number; row: number } } | null {
-  const { cols, rows, tiles, furniture, tileColors } = layout;
+  const { cols, rows, tiles, furniture, tileColors, carpetTiles } = layout;
   const existingColors = tileColors || new Array(tiles.length).fill(null);
 
   let newCols = cols;
@@ -233,6 +289,7 @@ export function expandLayout(
   // Build new tile array
   const newTiles: TileTypeVal[] = new Array(newCols * newRows).fill(TileType.VOID as TileTypeVal);
   const newColors: Array<ColorValue | null> = new Array(newCols * newRows).fill(null);
+  const newCarpets: Array<CarpetTile | null> = new Array(newCols * newRows).fill(null);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -240,6 +297,9 @@ export function expandLayout(
       const newIdx = (r + shiftRow) * newCols + (c + shiftCol);
       newTiles[newIdx] = tiles[oldIdx];
       newColors[newIdx] = existingColors[oldIdx];
+      if (carpetTiles) {
+        newCarpets[newIdx] = carpetTiles[oldIdx] ?? null;
+      }
     }
   }
 
@@ -258,6 +318,7 @@ export function expandLayout(
       tiles: newTiles,
       tileColors: newColors,
       furniture: newFurniture,
+      ...(carpetTiles ? { carpetTiles: newCarpets } : {}),
     },
     shift: { col: shiftCol, row: shiftRow },
   };

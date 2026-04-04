@@ -5,9 +5,11 @@ import { LAYOUT_SAVE_DEBOUNCE_MS, ZOOM_MAX, ZOOM_MIN } from '../constants.js';
 import type { ExpandDirection } from '../office/editor/editorActions.js';
 import {
   canPlaceFurniture,
+  eraseCarpet,
   expandLayout,
   getWallPlacementRow,
   moveFurniture,
+  paintCarpet,
   paintTile,
   placeFurniture,
   removeFurniture,
@@ -49,6 +51,8 @@ export interface EditorActions {
   handleWallSetChange: (setIndex: number) => void;
   handleSelectedFurnitureColorChange: (color: ColorValue | null) => void;
   handleFurnitureTypeChange: (type: string) => void; // FurnitureType enum or asset ID
+  handleCarpetColorChange: (color: ColorValue | undefined) => void;
+  handleCarpetVariantChange: (variant: number) => void;
   handleDeleteSelected: () => void;
   handleRotateSelected: () => void;
   handleToggleState: () => void;
@@ -259,6 +263,22 @@ export function useEditorActions(
     [editorState],
   );
 
+  const handleCarpetColorChange = useCallback(
+    (color: ColorValue | undefined) => {
+      editorState.carpetColor = color;
+      setEditorTick((n) => n + 1);
+    },
+    [editorState],
+  );
+
+  const handleCarpetVariantChange = useCallback(
+    (variant: number) => {
+      editorState.carpetVariant = variant;
+      setEditorTick((n) => n + 1);
+    },
+    [editorState],
+  );
+
   const handleDeleteSelected = useCallback(() => {
     const uid = editorState.selectedFurnitureUid;
     if (!uid) return;
@@ -433,6 +453,39 @@ export function useEditorActions(
       let effectiveCol = col;
       let effectiveRow = row;
 
+      // Handle carpet paint/erase
+      if (editorState.activeTool === EditTool.CARPET_PAINT) {
+        if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return;
+        const idx = row * layout.cols + col;
+        const existingCarpet = layout.carpetTiles?.[idx];
+
+        // Determine drag direction on first tile
+        if (editorState.carpetDragErasing === null) {
+          const hasSameVariant =
+            existingCarpet !== null &&
+            existingCarpet !== undefined &&
+            existingCarpet.variant === editorState.carpetVariant;
+          editorState.carpetDragErasing = hasSameVariant;
+        }
+
+        let newLayout: OfficeLayout;
+        if (editorState.carpetDragErasing) {
+          newLayout = eraseCarpet(layout, col, row);
+        } else {
+          newLayout = paintCarpet(
+            layout,
+            col,
+            row,
+            editorState.carpetVariant,
+            editorState.carpetColor,
+          );
+        }
+        if (newLayout !== layout) {
+          applyEdit(newLayout);
+        }
+        return;
+      }
+
       // Handle ghost border expansion for floor/wall tools
       if (
         editorState.activeTool === EditTool.TILE_PAINT ||
@@ -592,6 +645,16 @@ export function useEditorActions(
       const os = getOfficeState();
       const layout = os.getLayout();
       if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return;
+
+      // Carpet tool: right-click erases carpet
+      if (editorState.activeTool === EditTool.CARPET_PAINT) {
+        const newLayout = eraseCarpet(layout, col, row);
+        if (newLayout !== layout) {
+          applyEdit(newLayout);
+        }
+        return;
+      }
+
       const idx = row * layout.cols + col;
       // Only erase non-VOID tiles
       if (layout.tiles[idx] === TileType.VOID) return;
@@ -600,7 +663,7 @@ export function useEditorActions(
         applyEdit(newLayout);
       }
     },
-    [getOfficeState, applyEdit],
+    [getOfficeState, editorState, applyEdit],
   );
 
   return {
@@ -620,6 +683,8 @@ export function useEditorActions(
     handleWallSetChange,
     handleSelectedFurnitureColorChange,
     handleFurnitureTypeChange,
+    handleCarpetColorChange,
+    handleCarpetVariantChange,
     handleDeleteSelected,
     handleRotateSelected,
     handleToggleState,

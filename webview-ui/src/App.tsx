@@ -226,6 +226,8 @@ function App() {
                   floorColor={editorState.floorColor}
                   wallColor={editorState.wallColor}
                   selectedWallSet={editorState.selectedWallSet}
+                  carpetVariant={editorState.carpetVariant}
+                  carpetColor={editorState.carpetColor}
                   onToolChange={editor.handleToolChange}
                   onTileTypeChange={editor.handleTileTypeChange}
                   onFloorColorChange={editor.handleFloorColorChange}
@@ -233,6 +235,8 @@ function App() {
                   onWallSetChange={editor.handleWallSetChange}
                   onSelectedFurnitureColorChange={editor.handleSelectedFurnitureColorChange}
                   onFurnitureTypeChange={editor.handleFurnitureTypeChange}
+                  onCarpetColorChange={editor.handleCarpetColorChange}
+                  onCarpetVariantChange={editor.handleCarpetVariantChange}
                   loadedAssets={loadedAssets}
                 />
               );

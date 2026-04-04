@@ -4,7 +4,8 @@ import { Button } from '../../components/ui/Button.js';
 import { ColorPicker } from '../../components/ui/ColorPicker.js';
 import { ItemSelect } from '../../components/ui/ItemSelect.js';
 import type { ColorValue } from '../../components/ui/types.js';
-import { CANVAS_FALLBACK_TILE_COLOR } from '../../constants.js';
+import { CANVAS_FALLBACK_TILE_COLOR, CARPET_DEFAULT_COLOR } from '../../constants.js';
+import { getCarpetJunctionSprite, getCarpetSetCount, hasCarpetSprites } from '../carpetTiles.js';
 import { getColorizedSprite } from '../colorize.js';
 import { getColorizedFloorSprite, getFloorPatternCount, hasFloorSprites } from '../floorTiles.js';
 import type { FurnitureCategory, LoadedAssetData } from '../layout/furnitureCatalog.js';
@@ -27,6 +28,8 @@ interface EditorToolbarProps {
   floorColor: ColorValue;
   wallColor: ColorValue;
   selectedWallSet: number;
+  carpetVariant: number;
+  carpetColor: ColorValue | undefined;
   onToolChange: (tool: EditTool) => void;
   onTileTypeChange: (type: TileTypeVal) => void;
   onFloorColorChange: (color: ColorValue) => void;
@@ -34,6 +37,8 @@ interface EditorToolbarProps {
   onWallSetChange: (setIndex: number) => void;
   onSelectedFurnitureColorChange: (color: ColorValue | null) => void;
   onFurnitureTypeChange: (type: string) => void;
+  onCarpetColorChange: (color: ColorValue | undefined) => void;
+  onCarpetVariantChange: (variant: number) => void;
   loadedAssets?: LoadedAssetData;
 }
 
@@ -50,6 +55,8 @@ export function EditorToolbar({
   floorColor,
   wallColor,
   selectedWallSet,
+  carpetVariant,
+  carpetColor,
   onToolChange,
   onTileTypeChange,
   onFloorColorChange,
@@ -57,12 +64,15 @@ export function EditorToolbar({
   onWallSetChange,
   onSelectedFurnitureColorChange,
   onFurnitureTypeChange,
+  onCarpetColorChange,
+  onCarpetVariantChange,
   loadedAssets,
 }: EditorToolbarProps) {
   const [activeCategory, setActiveCategory] = useState<FurnitureCategory>('desks');
   const [showColor, setShowColor] = useState(false);
   const [showWallColor, setShowWallColor] = useState(false);
   const [showFurnitureColor, setShowFurnitureColor] = useState(false);
+  const [showCarpetColor, setShowCarpetColor] = useState(false);
 
   // Build dynamic catalog from loaded assets
   useEffect(() => {
@@ -103,8 +113,11 @@ export function EditorToolbar({
   const isFloorActive = activeTool === EditTool.TILE_PAINT || activeTool === EditTool.EYEDROPPER;
   const isWallActive = activeTool === EditTool.WALL_PAINT;
   const isEraseActive = activeTool === EditTool.ERASE;
+  const isCarpetActive = activeTool === EditTool.CARPET_PAINT;
   const isFurnitureActive =
     activeTool === EditTool.FURNITURE_PLACE || activeTool === EditTool.FURNITURE_PICK;
+
+  const effectiveCarpetColor: ColorValue = carpetColor ?? CARPET_DEFAULT_COLOR;
 
   return (
     <div className="absolute bottom-76 left-10 z-10 pixel-panel p-4 flex flex-col-reverse gap-4 max-w-[calc(100vw-20px)]">
@@ -141,6 +154,14 @@ export function EditorToolbar({
           title="Erase tiles to void"
         >
           Erase
+        </Button>
+        <Button
+          variant={isCarpetActive ? 'active' : 'default'}
+          size="md"
+          onClick={() => onToolChange(EditTool.CARPET_PAINT)}
+          title="Paint carpet overlay on floor tiles"
+        >
+          Carpet
         </Button>
       </div>
 
@@ -239,6 +260,88 @@ export function EditorToolbar({
                       colorize: true,
                     });
                     ctx.drawImage(getCachedSprite(colorized, THUMB_ZOOM), 0, 0);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sub-panel: Carpet — stacked bottom-to-top via column-reverse */}
+      {isCarpetActive && (
+        <div className="flex flex-col-reverse gap-4">
+          {/* Color toggle + Clear — just above tool row */}
+          <div className="flex gap-4 items-center">
+            <Button
+              variant={showCarpetColor ? 'active' : 'default'}
+              size="sm"
+              onClick={() => setShowCarpetColor((v) => !v)}
+              title="Adjust carpet color"
+            >
+              Color
+            </Button>
+            {carpetColor && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onCarpetColorChange(undefined)}
+                title="Reset to default carpet color"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+
+          {/* Color controls (collapsible) */}
+          {showCarpetColor && (
+            <ColorPicker
+              value={effectiveCarpetColor}
+              onChange={(color) => onCarpetColorChange({ ...color, colorize: true })}
+              colorize
+            />
+          )}
+
+          {/* Variant picker — horizontal carousel */}
+          {hasCarpetSprites() && getCarpetSetCount() > 0 && (
+            <div className="carousel">
+              {Array.from({ length: getCarpetSetCount() }, (_, i) => (
+                <ItemSelect
+                  key={i}
+                  width={32}
+                  height={32}
+                  selected={carpetVariant === i}
+                  onClick={() => onCarpetVariantChange(i)}
+                  title={`Carpet ${String.fromCharCode(65 + i)}`}
+                  deps={[i, effectiveCarpetColor]}
+                  draw={(ctx, w, h) => {
+                    if (!hasCarpetSprites()) {
+                      ctx.fillStyle = CANVAS_FALLBACK_TILE_COLOR;
+                      ctx.fillRect(0, 0, w, h);
+                      return;
+                    }
+                    // Draw a filled 2x2 carpet preview using the center junction (all 4 tiles filled)
+                    const fakeCarpets = [
+                      { variant: i },
+                      { variant: i },
+                      { variant: i },
+                      { variant: i },
+                    ] as Array<import('../types.js').CarpetTile | null>;
+                    const sprite = getCarpetJunctionSprite(
+                      1,
+                      1,
+                      i,
+                      fakeCarpets,
+                      2,
+                      2,
+                      effectiveCarpetColor,
+                    );
+                    if (!sprite) {
+                      ctx.fillStyle = CANVAS_FALLBACK_TILE_COLOR;
+                      ctx.fillRect(0, 0, w, h);
+                      return;
+                    }
+                    ctx.drawImage(getCachedSprite(sprite, THUMB_ZOOM), 0, 0);
                   }}
                 />
               ))}
