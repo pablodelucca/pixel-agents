@@ -18,6 +18,7 @@ git clone https://github.com/pablodelucca/pixel-agents.git
 cd pixel-agents
 npm install
 cd webview-ui && npm install && cd ..
+cd server && npm install && cd ..
 npm run build
 ```
 
@@ -58,12 +59,13 @@ Vite will print a local URL (typically `http://localhost:5173`) where the mocked
 
 ### Project Structure
 
-| Directory | Description |
-|---|---|
-| `src/` | Extension backend — Node.js, VS Code API |
-| `webview-ui/` | React + TypeScript frontend (separate Vite project) |
-| `scripts/` | Asset extraction and generation tooling |
-| `assets/` | Bundled sprites, catalog, and default layout |
+| Directory     | Description                                                     |
+| ------------- | --------------------------------------------------------------- |
+| `src/`        | Extension backend -- Node.js, VS Code API                       |
+| `server/`     | Standalone HTTP server, hook installer, and test suite (Vitest) |
+| `webview-ui/` | React + TypeScript frontend (separate Vite project)             |
+| `scripts/`    | Asset extraction and generation tooling                         |
+| `assets/`     | Bundled sprites, catalog, and default layout                    |
 
 ## Code Guidelines
 
@@ -86,13 +88,28 @@ The project uses a pixel art aesthetic. All overlays should use:
 
 These conventions are enforced by custom ESLint rules (`eslint-rules/pixel-agents-rules.mjs`):
 
-| Rule | Scope | What it checks |
-|---|---|---|
-| `no-inline-colors` | Extension + Webview | No hex/rgb/rgba/hsl/hsla literals outside `constants.ts` |
-| `pixel-shadow` | Webview only | Box shadows must use `var(--pixel-shadow)` or `2px 2px 0px` |
-| `pixel-font` | Webview only | Font family must reference FS Pixel Sans |
+| Rule               | Scope               | What it checks                                              |
+| ------------------ | ------------------- | ----------------------------------------------------------- |
+| `no-inline-colors` | Extension + Webview | No hex/rgb/rgba/hsl/hsla literals outside `constants.ts`    |
+| `pixel-shadow`     | Webview only        | Box shadows must use `var(--pixel-shadow)` or `2px 2px 0px` |
+| `pixel-font`       | Webview only        | Font family must reference FS Pixel Sans                    |
 
 These rules are set to `warn` — they won't block your PR but will flag violations for cleanup.
+
+## Unit & Integration Tests
+
+```bash
+# Run all tests (webview + server)
+npm test
+
+# Run only server tests (Vitest)
+npm run test:server
+
+# Run only webview tests
+npm run test:webview
+```
+
+Server tests cover the HTTP server, hook event routing, hook installer, and the hook script (integration test spawning a real Node process). They run after build since `claude-hook.test.ts` needs the compiled hook script at `dist/hooks/claude-hook.js`.
 
 ## End-to-End Tests
 
@@ -117,11 +134,11 @@ On the first run, `@vscode/test-electron` will download a stable VS Code release
 
 All test artifacts are written to `test-results/e2e/`:
 
-| Path | Contents |
-|---|---|
-| `test-results/e2e/videos/<test-name>/` | `.webm` screen recording for every test |
-| `playwright-report/e2e/` | Playwright HTML report (`npx playwright show-report playwright-report/e2e`) |
-| `test-results/e2e/*.png` | Final screenshots saved on failure |
+| Path                                   | Contents                                                                    |
+| -------------------------------------- | --------------------------------------------------------------------------- |
+| `test-results/e2e/videos/<test-name>/` | `.webm` screen recording for every test                                     |
+| `playwright-report/e2e/`               | Playwright HTML report (`npx playwright show-report playwright-report/e2e`) |
+| `test-results/e2e/*.png`               | Final screenshots saved on failure                                          |
 
 On failure, the test output prints the path to the video for that run.
 
@@ -130,6 +147,7 @@ On failure, the test output prints the path to the video for that run.
 Tests never invoke the real `claude` CLI. Instead, a bash script at `e2e/fixtures/mock-claude` is copied into an isolated `bin/` directory and prepended to `PATH` before VS Code starts.
 
 The mock:
+
 1. Parses `--session-id <uuid>` from its arguments.
 2. Appends a line to `$HOME/.claude-mock/invocations.log` so tests can assert it was called.
 3. Creates `$HOME/.claude/projects/<project-hash>/<session-id>.jsonl` with a minimal init line so the extension's file-watcher can detect the session.
@@ -143,9 +161,9 @@ Each test runs with an isolated `HOME` and `--user-data-dir`, so no test state l
 2. Make your changes
 3. Verify everything passes locally:
    ```bash
-   npm run lint                         # Extension lint
-   cd webview-ui && npm run lint && cd ..  # Webview lint
+   npm run lint                         # Extension + server + webview lint
    npm run build                        # Type check + esbuild + Vite
+   npm test                             # Unit + integration tests
    ```
    CI runs these same checks automatically on every PR.
 4. Open a pull request against `main` with:

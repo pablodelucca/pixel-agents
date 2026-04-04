@@ -26,6 +26,11 @@ server/                       — Standalone server (Node.js, no VS Code deps ex
     providers/file/
       claudeHookInstaller.ts  — Install/uninstall hooks in ~/.claude/settings.json
       hooks/claude-hook.ts    — Hook script: reads stdin, POSTs to server (bundled to CJS by esbuild)
+  __tests__/                  — Vitest test suite
+    server.test.ts            — HTTP server lifecycle, auth, hooks, server.json
+    hookEventHandler.test.ts  — Event routing, buffering, timer cancellation
+    claudeHookInstaller.test.ts — Hook install/uninstall in settings.json
+    claude-hook.test.ts       — Integration: spawns real hook script process
 
 webview-ui/src/               — React + TypeScript (Vite)
   constants.ts                — All webview magic numbers/strings (grid, animation, rendering, camera, zoom, editor, game logic, notification sound)
@@ -187,9 +192,17 @@ Toggle via "Layout" button. Tools: SELECT (default), Floor paint, Wall paint, Er
 ## Build & Dev
 
 ```sh
-npm install && cd webview-ui && npm install && cd .. && npm run build
+npm install && cd webview-ui && npm install && cd ../server && npm install && cd .. && npm run build
 ```
+
 Build: type-check → lint → esbuild (extension) → vite (webview). F5 for Extension Dev Host.
+
+Testing:
+
+- `npm test` -- all unit/integration tests (webview + server)
+- `npm run test:server` -- server tests (Vitest)
+- `npm run test:webview` -- webview asset integration tests (Node test runner)
+- `npm run e2e` -- Playwright E2E tests (real VS Code instance)
 
 ## TypeScript Constraints
 

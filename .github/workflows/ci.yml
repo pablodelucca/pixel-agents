@@ -55,24 +55,22 @@ jobs:
         working-directory: webview-ui
         run: npm ci
 
+      - name: Install Server Dependencies
+        id: install_server
+        working-directory: server
+        run: npm ci
+
       # --- Quality Checks (blocking) ---
 
       - name: Type Check
         id: type_check
-        if: always() && steps.install_root.outcome == 'success'
+        if: always() && steps.install_root.outcome == 'success' && steps.install_server.outcome == 'success'
         run: npm run check-types
         continue-on-error: true
 
-      - name: Root Lint
-        id: root_lint
-        if: always() && steps.install_root.outcome == 'success'
-        run: npm run lint
-        continue-on-error: true
-
-      - name: Webview Lint
-        id: webview_lint
-        if: always() && steps.install_webview.outcome == 'success'
-        working-directory: webview-ui
+      - name: Lint
+        id: lint
+        if: always() && steps.install_root.outcome == 'success' && steps.install_webview.outcome == 'success'
         run: npm run lint
         continue-on-error: true
 
@@ -107,16 +105,9 @@ jobs:
 
       # --- Server Tests (require build for hook script) ---
 
-      - name: Install Server Dependencies
-        id: install_server
-        if: always() && steps.build.outcome == 'success'
-        working-directory: server
-        run: npm ci
-        continue-on-error: true
-
       - name: Server Tests
         id: server_test
-        if: always() && steps.install_server.outcome == 'success'
+        if: always() && steps.build.outcome == 'success' && steps.install_server.outcome == 'success'
         working-directory: server
         run: npm test
         continue-on-error: true
@@ -153,8 +144,7 @@ jobs:
           INSTALL_ROOT: ${{ steps.install_root.outcome }}
           INSTALL_WEBVIEW: ${{ steps.install_webview.outcome }}
           TYPE_CHECK: ${{ steps.type_check.outcome }}
-          ROOT_LINT: ${{ steps.root_lint.outcome }}
-          WEBVIEW_LINT: ${{ steps.webview_lint.outcome }}
+          LINT: ${{ steps.lint.outcome }}
           WEBVIEW_TEST: ${{ steps.webview_test.outcome }}
           FORMAT_CHECK: ${{ steps.format_check.outcome }}
           BUILD: ${{ steps.build.outcome }}
@@ -180,16 +170,15 @@ jobs:
             echo "| Install root deps | $(status "$INSTALL_ROOT") |"
             echo "| Install webview deps | $(status "$INSTALL_WEBVIEW") |"
             echo "| **Type check** | $(status "$TYPE_CHECK") |"
-            echo "| **Root lint** | $(status "$ROOT_LINT") |"
-            echo "| **Webview lint** | $(status "$WEBVIEW_LINT") |"
+            echo "| **Lint** | $(status "$LINT") |"
             echo "| **Webview tests** | $(status "$WEBVIEW_TEST") |"
             echo "| **Format check** | $(status "$FORMAT_CHECK") |"
             echo "| **Build** | $(status "$BUILD") |"
             echo "| **Server tests** | $(status "$SERVER_TEST") |"
-            echo "| **Audit root** | $(status "$AUDIT_ROOT") |"
-            echo "| **Audit webview** | $(status "$AUDIT_WEBVIEW") |"
-            echo "| **Audit server** | $(status "$AUDIT_SERVER") |"
-            echo "| Knip (advisory) | $(advisory "$KNIP") |"
+            echo "| Audit root _(advisory)_ | $(advisory "$AUDIT_ROOT") |"
+            echo "| Audit webview _(advisory)_ | $(advisory "$AUDIT_WEBVIEW") |"
+            echo "| Audit server _(advisory)_ | $(advisory "$AUDIT_SERVER") |"
+            echo "| Knip _(advisory)_ | $(advisory "$KNIP") |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # --- Final Gate ---
@@ -202,21 +191,16 @@ jobs:
           INSTALL_ROOT: ${{ steps.install_root.outcome }}
           INSTALL_WEBVIEW: ${{ steps.install_webview.outcome }}
           TYPE_CHECK: ${{ steps.type_check.outcome }}
-          ROOT_LINT: ${{ steps.root_lint.outcome }}
-          WEBVIEW_LINT: ${{ steps.webview_lint.outcome }}
+          LINT: ${{ steps.lint.outcome }}
           WEBVIEW_TEST: ${{ steps.webview_test.outcome }}
           FORMAT_CHECK: ${{ steps.format_check.outcome }}
           BUILD: ${{ steps.build.outcome }}
           SERVER_TEST: ${{ steps.server_test.outcome }}
-          AUDIT_ROOT: ${{ steps.audit_root.outcome }}
-          AUDIT_WEBVIEW: ${{ steps.audit_webview.outcome }}
-          AUDIT_SERVER: ${{ steps.audit_server.outcome }}
         run: |
           failed=0
           for step in CHECKOUT SETUP_NODE INSTALL_ROOT INSTALL_WEBVIEW \
-                      TYPE_CHECK ROOT_LINT WEBVIEW_LINT \
-                      WEBVIEW_TEST FORMAT_CHECK BUILD SERVER_TEST \
-                      AUDIT_ROOT AUDIT_WEBVIEW AUDIT_SERVER; do
+                      TYPE_CHECK LINT \
+                      WEBVIEW_TEST FORMAT_CHECK BUILD SERVER_TEST; do
             val=$(printenv "$step" 2>/dev/null || echo "skipped")
             if [ "$val" != "success" ]; then
               echo "::error::$step failed"

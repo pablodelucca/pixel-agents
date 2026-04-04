@@ -48,9 +48,9 @@ let clearDetectionDeps: {
 
 export function startFileWatching(
   agentId: number,
-  filePath: string,
+  _filePath: string,
   agents: Map<number, AgentState>,
-  fileWatchers: Map<number, fs.FSWatcher>,
+  _fileWatchers: Map<number, fs.FSWatcher>,
   pollingTimers: Map<number, ReturnType<typeof setInterval>>,
   waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
@@ -220,7 +220,7 @@ export function ensureProjectScan(
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
-  onAgentCreated?: (agent: AgentState) => void,
+  _onAgentCreated?: (agent: AgentState) => void,
 ): void {
   // Set deps for per-agent /clear detection (only on first call)
   if (!clearDetectionDeps) {
@@ -239,7 +239,6 @@ export function ensureProjectScan(
 
   // Always seed this directory's files (supports multi-root workspaces).
   try {
-    const now = Date.now();
     const files = fs
       .readdirSync(projectDir)
       .filter((f) => f.endsWith('.jsonl'))
@@ -540,7 +539,7 @@ function adoptExternalSession(
  * that produce JSONL files without an associated terminal.
  */
 export function startExternalSessionScanning(
-  projectDir: string,
+  _projectDir: string,
   knownJsonlFiles: Set<string>,
   nextAgentIdRef: { current: number },
   agents: Map<number, AgentState>,
@@ -548,7 +547,7 @@ export function startExternalSessionScanning(
   pollingTimers: Map<number, ReturnType<typeof setInterval>>,
   waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-  jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
+  _jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
   watchAllSessionsRef?: { current: boolean },
@@ -817,7 +816,6 @@ export function startStaleExternalAgentCheck(
   persistAgents: () => void,
 ): ReturnType<typeof setInterval> {
   return setInterval(() => {
-    const now = Date.now();
     const toRemove: number[] = [];
 
     for (const [id, agent] of agents) {

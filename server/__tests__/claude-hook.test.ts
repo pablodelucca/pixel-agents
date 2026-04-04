@@ -1,15 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { execSync, spawn } from 'child_process';
+import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const HOOK_SCRIPT = path.join(__dirname, '../../dist/hooks/claude-hook.js');
 
 // Isolated temp HOME
 let tmpBase: string;
-let serverJsonPath: string;
 
 function writeServerJson(port: number, token: string): void {
   const dir = path.join(tmpBase, '.pixel-agents');
@@ -39,7 +38,6 @@ function runHookScript(stdin: string): Promise<{ code: number | null; stdout: st
 describe('claude-hook.js integration', () => {
   beforeEach(() => {
     tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'pxl-hook-int-'));
-    serverJsonPath = path.join(tmpBase, '.pixel-agents', 'server.json');
   });
 
   afterEach(() => {
