@@ -1,0 +1,14 @@
+{
+  "name": "pixel-agents-standalone",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "pngjs": "^7.0.0",
+    "ws": "^8.18.0"
+  }
+}
