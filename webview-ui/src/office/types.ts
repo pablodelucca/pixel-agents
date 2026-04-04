@@ -115,6 +115,13 @@ export interface PlacedFurniture {
   color?: ColorValue;
 }
 
+export interface CarpetTile {
+  /** Carpet variant index (0, 1, or 2) */
+  variant: number;
+  /** Optional color override for this carpet tile */
+  color?: ColorValue;
+}
+
 export interface OfficeLayout {
   version: 1;
   cols: number;
@@ -123,6 +130,8 @@ export interface OfficeLayout {
   furniture: PlacedFurniture[];
   /** Per-tile color settings, parallel to tiles array. null = wall/no color */
   tileColors?: Array<ColorValue | null>;
+  /** Per-tile carpet data, parallel to tiles array. null/undefined = no carpet */
+  carpetTiles?: Array<CarpetTile | null>;
   /** Bumped when the bundled default layout changes; forces a reset on existing installs */
   layoutRevision?: number;
 }

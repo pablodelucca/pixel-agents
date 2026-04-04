@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
+import { setCarpetSprites } from '../office/carpetTiles.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
@@ -405,6 +406,10 @@ export function useExtensionMessages(
         const sets = msg.sets as string[][][][];
         console.log(`[Webview] Received ${sets.length} wall tile set(s)`);
         setWallSprites(sets);
+      } else if (msg.type === 'carpetTilesLoaded') {
+        const sets = msg.sets as string[][][][];
+        console.log(`[Webview] Received ${sets.length} carpet tile variant(s)`);
+        setCarpetSprites(sets);
       } else if (msg.type === 'workspaceFolders') {
         const folders = msg.folders as WorkspaceFolder[];
         setWorkspaceFolders(folders);

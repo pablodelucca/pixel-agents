@@ -33,6 +33,7 @@ import {
   VOID_TILE_DASH_PATTERN,
   VOID_TILE_OUTLINE_COLOR,
 } from '../../constants.js';
+import { getCarpetJunctionSprite, hasCarpetSprites } from '../carpetTiles.js';
 import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js';
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js';
 import {
@@ -41,6 +42,7 @@ import {
   getCharacterSprites,
 } from '../sprites/spriteData.js';
 import type {
+  CarpetTile,
   Character,
   FurnitureInstance,
   Seat,
@@ -96,6 +98,49 @@ export function renderTileGrid(
       const sprite = getColorizedFloorSprite(tile, color);
       const cached = getCachedSprite(sprite, zoom);
       ctx.drawImage(cached, offsetX + c * s, offsetY + r * s);
+    }
+  }
+}
+
+/**
+ * Render carpet junctions after the floor tiles pass.
+ * Uses dual-grid marching squares: iterates all junctions (corners between tiles)
+ * and draws the appropriate 16×16 sprite centered on each corner.
+ */
+export function renderCarpetLayer(
+  ctx: CanvasRenderingContext2D,
+  carpetTiles: (CarpetTile | null)[],
+  cols: number,
+  rows: number,
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  if (!hasCarpetSprites()) return;
+
+  const s = TILE_SIZE * zoom;
+  // Half tile offset so junction sprite is centered on the corner between 4 tiles
+  const halfS = s / 2;
+
+  // Determine which variants are present for the junction pass
+  const presentVariants = new Set<number>();
+  for (const tile of carpetTiles) {
+    if (tile !== null && tile !== undefined) {
+      presentVariants.add(tile.variant);
+    }
+  }
+  if (presentVariants.size === 0) return;
+
+  for (const variant of presentVariants) {
+    for (let jy = 0; jy <= rows; jy++) {
+      for (let jx = 0; jx <= cols; jx++) {
+        const sprite = getCarpetJunctionSprite(jx, jy, variant, carpetTiles, cols, rows);
+        if (!sprite) continue;
+        const cached = getCachedSprite(sprite, zoom);
+        // Junction (jx, jy) maps to pixel corner (jx*TILE_SIZE, jy*TILE_SIZE)
+        // Sprite is centered on the corner: offset by -halfS so it spans all 4 adjacent tiles
+        ctx.drawImage(cached, offsetX + jx * s - halfS, offsetY + jy * s - halfS);
+      }
     }
   }
 }
@@ -576,6 +621,7 @@ export function renderFrame(
   tileColors?: Array<ColorValue | null>,
   layoutCols?: number,
   layoutRows?: number,
+  carpetTiles?: Array<CarpetTile | null>,
 ): { offsetX: number; offsetY: number } {
   // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -592,6 +638,11 @@ export function renderFrame(
 
   // Draw tiles (floor + wall base color)
   renderTileGrid(ctx, tileMap, offsetX, offsetY, zoom, tileColors, layoutCols);
+
+  // Draw carpet overlay (after floor, before furniture and characters)
+  if (carpetTiles && carpetTiles.length > 0) {
+    renderCarpetLayer(ctx, carpetTiles, cols, rows, offsetX, offsetY, zoom);
+  }
 
   // Seat indicators (below furniture/characters, on top of floor)
   if (selection) {
