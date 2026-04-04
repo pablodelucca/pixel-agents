@@ -241,7 +241,7 @@ export function loadDefaultLayout(assetsRoot: string): Record<string, unknown> |
 
 // ── Wall tile loading ────────────────────────────────────────
 
-export interface LoadedWallTiles {
+interface LoadedWallTiles {
   /** Array of wall sets, each containing 16 sprites indexed by bitmask (N=1,E=2,S=4,W=8) */
   sets: string[][][][];
 }
@@ -309,7 +309,7 @@ export function sendWallTilesToWebview(webview: vscode.Webview, wallTiles: Loade
   console.log(`📤 Sent ${wallTiles.sets.length} wall tile set(s) to webview`);
 }
 
-export interface LoadedFloorTiles {
+interface LoadedFloorTiles {
   sprites: string[][][]; // N sprites (one per floor_N.png), each 16x16 SpriteData
 }
 

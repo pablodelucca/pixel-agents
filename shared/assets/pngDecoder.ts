@@ -20,7 +20,6 @@ import {
   WALL_PIECE_WIDTH,
 } from './constants.js';
 import type { CharacterDirectionSprites } from './types.js';
-export type { CharacterDirectionSprites } from './types.js';
 
 // ── Sprite decoding ──────────────────────────────────────────
 

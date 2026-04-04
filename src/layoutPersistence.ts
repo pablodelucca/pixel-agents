@@ -48,7 +48,7 @@ export function writeLayoutToFile(layout: Record<string, unknown>): void {
   }
 }
 
-export interface LayoutLoadResult {
+interface LayoutLoadResult {
   layout: Record<string, unknown>;
   /** True when the user's saved layout was replaced by a newer bundled default */
   wasReset: boolean;

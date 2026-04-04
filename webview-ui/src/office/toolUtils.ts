@@ -1,5 +1,5 @@
 /** Map status prefixes back to tool names for animation selection */
-export const STATUS_TO_TOOL: Record<string, string> = {
+const STATUS_TO_TOOL: Record<string, string> = {
   Reading: 'Read',
   Searching: 'Grep',
   Globbing: 'Glob',

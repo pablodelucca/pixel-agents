@@ -32,7 +32,7 @@ import { EditTool } from '../office/types.js';
 import { TileType } from '../office/types.js';
 import { vscode } from '../vscodeApi.js';
 
-export interface EditorActions {
+interface EditorActions {
   isEditMode: boolean;
   editorTick: number;
   isDirty: boolean;

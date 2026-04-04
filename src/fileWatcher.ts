@@ -197,10 +197,13 @@ export function readNewLines(
 // Track all project directories to scan (supports multi-root workspaces)
 const trackedProjectDirs = new Set<string>();
 
-/** Check if a project dir is tracked by the workspace scanner. */
-export function isTrackedProjectDir(dir: string): boolean {
-  return trackedProjectDirs.has(dir);
-}
+/** Check if a project dir is tracked by the workspace scanner.
+ * Used to prevent adoption of files in untracked dirs before hooks implementation.
+ * TODO: use it or remove it when hooks & heuristic approach are implemented in multi-root workspaces.
+ */
+// export function isTrackedProjectDir(dir: string): boolean {
+//   return trackedProjectDirs.has(dir);
+// }
 
 /**
  * Seed a project directory's known files and register it for periodic scanning.
@@ -855,7 +858,7 @@ export function startStaleExternalAgentCheck(
   }, EXTERNAL_STALE_CHECK_INTERVAL_MS);
 }
 
-export function reassignAgentToFile(
+function reassignAgentToFile(
   agentId: number,
   newFilePath: string,
   agents: Map<number, AgentState>,

@@ -54,6 +54,7 @@ import { renderMatrixEffect } from './matrixEffect.js';
 
 // ── Render functions ────────────────────────────────────────────
 
+/** @internal */
 export function renderTileGrid(
   ctx: CanvasRenderingContext2D,
   tileMap: TileTypeVal[][],
@@ -105,6 +106,7 @@ interface ZDrawable {
   draw: (ctx: CanvasRenderingContext2D) => void;
 }
 
+/** @internal */
 export function renderScene(
   ctx: CanvasRenderingContext2D,
   furniture: FurnitureInstance[],
@@ -212,7 +214,7 @@ export function renderScene(
 
 // ── Seat indicators ─────────────────────────────────────────────
 
-export function renderSeatIndicators(
+function renderSeatIndicators(
   ctx: CanvasRenderingContext2D,
   seats: Map<string, Seat>,
   characters: Map<number, Character>,
@@ -251,6 +253,7 @@ export function renderSeatIndicators(
 
 // ── Edit mode overlays ──────────────────────────────────────────
 
+/** @internal */
 export function renderGridOverlay(
   ctx: CanvasRenderingContext2D,
   offsetX: number,
@@ -296,7 +299,7 @@ export function renderGridOverlay(
 }
 
 /** Draw faint expansion placeholders 1 tile outside grid bounds (ghost border). */
-export function renderGhostBorder(
+function renderGhostBorder(
   ctx: CanvasRenderingContext2D,
   offsetX: number,
   offsetY: number,
@@ -339,6 +342,7 @@ export function renderGhostBorder(
   ctx.restore();
 }
 
+/** @internal */
 export function renderGhostPreview(
   ctx: CanvasRenderingContext2D,
   sprite: SpriteData,
@@ -371,6 +375,7 @@ export function renderGhostPreview(
   ctx.restore();
 }
 
+/** @internal */
 export function renderSelectionHighlight(
   ctx: CanvasRenderingContext2D,
   col: number,
@@ -392,6 +397,7 @@ export function renderSelectionHighlight(
   ctx.restore();
 }
 
+/** @internal */
 export function renderDeleteButton(
   ctx: CanvasRenderingContext2D,
   col: number,
@@ -431,7 +437,7 @@ export function renderDeleteButton(
   return { cx, cy, radius };
 }
 
-export function renderRotateButton(
+function renderRotateButton(
   ctx: CanvasRenderingContext2D,
   col: number,
   row: number,
@@ -480,7 +486,7 @@ export function renderRotateButton(
 
 // ── Speech bubbles ──────────────────────────────────────────────
 
-export function renderBubbles(
+function renderBubbles(
   ctx: CanvasRenderingContext2D,
   characters: Character[],
   offsetX: number,
