@@ -11,7 +11,7 @@ export function MigrationNotice({ onDismiss }: MigrationNoticeProps) {
       onClick={onDismiss}
     >
       <div
-        className="pixel-panel py-24 px-32 max-w-[620px] text-center leading-[1.3]"
+        className="pixel-panel py-24 px-32 max-w-xl text-center leading-[1.3]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-5xl mb-12 text-accent">We owe you an apology!</div>
@@ -25,12 +25,7 @@ export function MigrationNotice({ onDismiss }: MigrationNoticeProps) {
           updates ahead.
         </p>
         <p className="text-xl m-0 mb-20">Stay tuned, and thanks for using Pixel Agents!</p>
-        <Button
-          variant="accent"
-          size="xl"
-          className="pixel-agents-migration-btn shadow-pixel"
-          onClick={onDismiss}
-        >
+        <Button variant="accent" size="xl" onClick={onDismiss}>
           Got it
         </Button>
       </div>

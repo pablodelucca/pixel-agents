@@ -33,7 +33,7 @@ export function SettingsModal({
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Settings" className="min-w-[200px]">
+    <Modal isOpen={isOpen} onClose={onClose} title="Settings">
       <MenuItem
         onClick={() => {
           vscode.postMessage({ type: 'openSessionsFolder' });
@@ -69,7 +69,7 @@ export function SettingsModal({
       {externalAssetDirectories.map((dir) => (
         <div key={dir} className="flex items-center justify-between py-4 px-10 gap-8">
           <span
-            className="text-xs text-text-muted overflow-hidden text-ellipsis whitespace-nowrap max-w-[180px]"
+            className="text-xs text-text-muted overflow-hidden text-ellipsis whitespace-nowrap"
             title={dir}
           >
             {dir.split(/[/\\]/).pop() ?? dir}

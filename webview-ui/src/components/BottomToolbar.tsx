@@ -26,8 +26,6 @@ export function BottomToolbar({
   const [isBypassMenuOpen, setIsBypassMenuOpen] = useState(false);
   const folderPickerRef = useRef<HTMLDivElement>(null);
   const pendingBypassRef = useRef(false);
-  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // Close folder picker / bypass menu on outside click
   useEffect(() => {
     if (!isFolderPickerOpen && !isBypassMenuOpen) return;
@@ -54,19 +52,15 @@ export function BottomToolbar({
   };
 
   const handleAgentHover = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
+    if (!isFolderPickerOpen) {
+      setIsBypassMenuOpen(true);
     }
-    setIsFolderPickerOpen(false);
-    setIsBypassMenuOpen(true);
   };
 
   const handleAgentLeave = () => {
-    hoverTimeoutRef.current = setTimeout(() => {
+    if (!isFolderPickerOpen) {
       setIsBypassMenuOpen(false);
-      hoverTimeoutRef.current = null;
-    }, 150);
+    }
   };
 
   const handleFolderSelect = (folder: WorkspaceFolder) => {
@@ -87,7 +81,7 @@ export function BottomToolbar({
   };
 
   return (
-    <div className="absolute bottom-10 left-10 z-10 flex items-center gap-4 pixel-panel p-4">
+    <div className="absolute bottom-10 left-10 z-20 flex items-center gap-4 pixel-panel p-4">
       <div
         ref={folderPickerRef}
         className="relative"
@@ -110,7 +104,7 @@ export function BottomToolbar({
             Skip permissions mode <span className="text-2xs text-warning">⚠</span>
           </DropdownItem>
         </Dropdown>
-        <Dropdown isOpen={isFolderPickerOpen} className="min-w-[160px]">
+        <Dropdown isOpen={isFolderPickerOpen} className="min-w-128">
           {workspaceFolders.map((folder) => (
             <DropdownItem
               key={folder.path}

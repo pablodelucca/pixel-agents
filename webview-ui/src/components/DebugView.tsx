@@ -33,7 +33,7 @@ function ToolDot({ tool }: { tool: ToolActivity }) {
       : 'bg-status-active';
   return (
     <span
-      className={`w-6 h-6 rounded-full inline-block shrink-0 ${color} ${tool.done ? '' : 'pixel-agents-pulse'}`}
+      className={`w-6 h-6 rounded-full inline-block shrink-0 ${color} ${tool.done ? '' : 'pixel-pulse'}`}
     />
   );
 }
@@ -149,7 +149,7 @@ export function DebugView({
         )}
         {/* Connection diagnostics */}
         {diag && (
-          <div className="mt-6 py-4 px-6 text-xs opacity-70 flex flex-col gap-2 border-t border-white/[0.08]">
+          <div className="mt-6 py-4 px-6 text-xs opacity-70 flex flex-col gap-2 border-t border-white/8">
             <span>
               <span className={diag.jsonlExists ? 'text-status-success' : 'text-status-error'}>
                 {diag.jsonlExists ? 'JSONL connected' : 'JSONL not found'}
@@ -177,7 +177,7 @@ export function DebugView({
   };
 
   return (
-    <div className="absolute inset-0 overflow-auto bg-bg z-40">
+    <div className="absolute inset-0 overflow-auto bg-bg z-15">
       <div className="px-12 py-6 text-2xl">
         <h2 className="text-3xl font-bold mb-8">Debug View</h2>
         <div className="flex flex-col gap-6">{agents.map(renderAgentCard)}</div>

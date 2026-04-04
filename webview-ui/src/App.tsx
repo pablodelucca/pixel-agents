@@ -9,7 +9,6 @@ import { MigrationNotice } from './components/MigrationNotice.js';
 import { SettingsModal } from './components/SettingsModal.js';
 import { VersionIndicator } from './components/VersionIndicator.js';
 import { ZoomControls } from './components/ZoomControls.js';
-import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
 import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
 import { useExtensionMessages } from './hooks/useExtensionMessages.js';
@@ -164,15 +163,6 @@ function App() {
 
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden">
-      <style>{`
-        @keyframes pixel-agents-pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-        .pixel-agents-pulse { animation: pixel-agents-pulse ${PULSE_ANIMATION_DURATION_SEC}s ease-in-out infinite; }
-        .pixel-agents-migration-btn:hover { filter: brightness(0.8); }
-      `}</style>
-
       <OfficeCanvas
         officeState={officeState}
         onClick={handleClick}
@@ -190,13 +180,79 @@ function App() {
         panRef={editor.panRef}
       />
 
-      {!isDebugMode && <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />}
+      {!isDebugMode ? (
+        <>
+          <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />
 
-      {/* Vignette overlay */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: 'var(--vignette)' }}
-      />
+          {/* Vignette overlay */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ background: 'var(--vignette)' }}
+          />
+
+          {editor.isEditMode && editor.isDirty && (
+            <EditActionBar editor={editor} editorState={editorState} />
+          )}
+
+          {showRotateHint && (
+            <div
+              className="absolute left-1/2 -translate-x-1/2 z-11 bg-accent-bright text-white text-sm py-3 px-8 rounded-none border-2 border-accent shadow-pixel pointer-events-none whitespace-nowrap"
+              style={{ top: editor.isDirty ? 64 : 8 }}
+            >
+              Rotate (R)
+            </div>
+          )}
+
+          {editor.isEditMode &&
+            (() => {
+              const selUid = editorState.selectedFurnitureUid;
+              const selColor = selUid
+                ? (officeState.getLayout().furniture.find((f) => f.uid === selUid)?.color ?? null)
+                : null;
+              return (
+                <EditorToolbar
+                  activeTool={editorState.activeTool}
+                  selectedTileType={editorState.selectedTileType}
+                  selectedFurnitureType={editorState.selectedFurnitureType}
+                  selectedFurnitureUid={selUid}
+                  selectedFurnitureColor={selColor}
+                  floorColor={editorState.floorColor}
+                  wallColor={editorState.wallColor}
+                  selectedWallSet={editorState.selectedWallSet}
+                  onToolChange={editor.handleToolChange}
+                  onTileTypeChange={editor.handleTileTypeChange}
+                  onFloorColorChange={editor.handleFloorColorChange}
+                  onWallColorChange={editor.handleWallColorChange}
+                  onWallSetChange={editor.handleWallSetChange}
+                  onSelectedFurnitureColorChange={editor.handleSelectedFurnitureColorChange}
+                  onFurnitureTypeChange={editor.handleFurnitureTypeChange}
+                  loadedAssets={loadedAssets}
+                />
+              );
+            })()}
+
+          <ToolOverlay
+            officeState={officeState}
+            agents={agents}
+            agentTools={agentTools}
+            subagentCharacters={subagentCharacters}
+            containerRef={containerRef}
+            zoom={editor.zoom}
+            panRef={editor.panRef}
+            onCloseAgent={handleCloseAgent}
+            alwaysShowOverlay={alwaysShowOverlay}
+          />
+        </>
+      ) : (
+        <DebugView
+          agents={agents}
+          selectedAgent={selectedAgent}
+          agentTools={agentTools}
+          agentStatuses={agentStatuses}
+          subagentTools={subagentTools}
+          onSelectAgent={handleSelectAgent}
+        />
+      )}
 
       <BottomToolbar
         isEditMode={editor.isEditMode}
@@ -235,73 +291,6 @@ function App() {
           vscode.postMessage({ type: 'setWatchAllSessions', enabled: newVal });
         }}
       />
-
-      {editor.isEditMode && editor.isDirty && (
-        <EditActionBar editor={editor} editorState={editorState} />
-      )}
-
-      {showRotateHint && (
-        <div
-          className="absolute left-1/2 -translate-x-1/2 z-15 bg-accent-bright text-white text-sm py-3 px-8 rounded-none border-2 border-accent shadow-pixel pointer-events-none whitespace-nowrap"
-          style={{ top: editor.isDirty ? 52 : 8 }}
-        >
-          Rotate (R)
-        </div>
-      )}
-
-      {editor.isEditMode &&
-        (() => {
-          // Compute selected furniture color from current layout
-          const selUid = editorState.selectedFurnitureUid;
-          const selColor = selUid
-            ? (officeState.getLayout().furniture.find((f) => f.uid === selUid)?.color ?? null)
-            : null;
-          return (
-            <EditorToolbar
-              activeTool={editorState.activeTool}
-              selectedTileType={editorState.selectedTileType}
-              selectedFurnitureType={editorState.selectedFurnitureType}
-              selectedFurnitureUid={selUid}
-              selectedFurnitureColor={selColor}
-              floorColor={editorState.floorColor}
-              wallColor={editorState.wallColor}
-              selectedWallSet={editorState.selectedWallSet}
-              onToolChange={editor.handleToolChange}
-              onTileTypeChange={editor.handleTileTypeChange}
-              onFloorColorChange={editor.handleFloorColorChange}
-              onWallColorChange={editor.handleWallColorChange}
-              onWallSetChange={editor.handleWallSetChange}
-              onSelectedFurnitureColorChange={editor.handleSelectedFurnitureColorChange}
-              onFurnitureTypeChange={editor.handleFurnitureTypeChange}
-              loadedAssets={loadedAssets}
-            />
-          );
-        })()}
-
-      {!isDebugMode && (
-        <ToolOverlay
-          officeState={officeState}
-          agents={agents}
-          agentTools={agentTools}
-          subagentCharacters={subagentCharacters}
-          containerRef={containerRef}
-          zoom={editor.zoom}
-          panRef={editor.panRef}
-          onCloseAgent={handleCloseAgent}
-          alwaysShowOverlay={alwaysShowOverlay}
-        />
-      )}
-
-      {isDebugMode && (
-        <DebugView
-          agents={agents}
-          selectedAgent={selectedAgent}
-          agentTools={agentTools}
-          agentStatuses={agentStatuses}
-          subagentTools={subagentTools}
-          onSelectAgent={handleSelectAgent}
-        />
-      )}
 
       {showMigrationNotice && (
         <MigrationNotice onDismiss={() => setMigrationNoticeDismissed(true)} />
