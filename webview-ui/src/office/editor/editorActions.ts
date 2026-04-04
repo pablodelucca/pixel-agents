@@ -1,12 +1,8 @@
+import type { ColorValue } from '../../components/ui/types.js';
 import { DEFAULT_NEUTRAL_COLOR } from '../../constants.js';
 import { getCatalogEntry, getRotatedType, getToggledType } from '../layout/furnitureCatalog.js';
 import { getPlacementBlockedTiles } from '../layout/layoutSerializer.js';
-import type {
-  FloorColor,
-  OfficeLayout,
-  PlacedFurniture,
-  TileType as TileTypeVal,
-} from '../types.js';
+import type { OfficeLayout, PlacedFurniture, TileType as TileTypeVal } from '../types.js';
 import { MAX_COLS, MAX_ROWS, TileType } from '../types.js';
 
 /** Paint a single tile with pattern and color. Returns new layout (immutable). */
@@ -15,7 +11,7 @@ export function paintTile(
   col: number,
   row: number,
   tileType: TileTypeVal,
-  color?: FloorColor,
+  color?: ColorValue,
 ): OfficeLayout {
   const idx = row * layout.cols + col;
   if (idx < 0 || idx >= layout.tiles.length) return layout;
@@ -236,7 +232,7 @@ export function expandLayout(
 
   // Build new tile array
   const newTiles: TileTypeVal[] = new Array(newCols * newRows).fill(TileType.VOID as TileTypeVal);
-  const newColors: Array<FloorColor | null> = new Array(newCols * newRows).fill(null);
+  const newColors: Array<ColorValue | null> = new Array(newCols * newRows).fill(null);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {

@@ -1,5 +1,7 @@
+import type { ColorValue } from '../../components/ui/types.js';
+import { PALETTE_COUNT } from '../../constants.js';
 import { adjustSprite } from '../colorize.js';
-import type { Direction, FloorColor, SpriteData } from '../types.js';
+import type { Direction, SpriteData } from '../types.js';
 import { Direction as Dir } from '../types.js';
 import bubblePermissionData from './bubble-permission.json';
 import bubbleWaitingData from './bubble-waiting.json';
@@ -40,6 +42,11 @@ export function setCharacterTemplates(data: LoadedCharacterData[]): void {
   spriteCache.clear();
 }
 
+/** Return the number of loaded character palettes, or PALETTE_COUNT as fallback. */
+export function getLoadedCharacterCount(): number {
+  return loadedCharacters ? loadedCharacters.length : PALETTE_COUNT;
+}
+
 /** Flip a SpriteData horizontally (for generating left sprites from right) */
 export function flipSpriteHorizontal(sprite: SpriteData): SpriteData {
   return sprite.map((row) => [...row].reverse());
@@ -59,7 +66,7 @@ const spriteCache = new Map<string, CharacterSprites>();
 
 /** Apply hue shift to every sprite in a CharacterSprites set */
 function hueShiftSprites(sprites: CharacterSprites, hueShift: number): CharacterSprites {
-  const color: FloorColor = { h: hueShift, s: 0, b: 0, c: 0 };
+  const color: ColorValue = { h: hueShift, s: 0, b: 0, c: 0 };
   const shift = (s: SpriteData) => adjustSprite(s, color);
   const shiftWalk = (
     arr: [SpriteData, SpriteData, SpriteData, SpriteData],

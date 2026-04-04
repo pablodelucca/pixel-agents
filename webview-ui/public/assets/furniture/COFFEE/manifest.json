@@ -1,7 +1,7 @@
 {
   "id": "COFFEE",
   "name": "Coffee",
-  "category": "decor",
+  "category": "misc",
   "type": "asset",
   "canPlaceOnWalls": false,
   "canPlaceOnSurfaces": true,
