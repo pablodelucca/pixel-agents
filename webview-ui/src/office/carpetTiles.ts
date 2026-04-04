@@ -21,10 +21,10 @@ import { getColorizedSprite } from './colorize.js';
 import type { CarpetTile, SpriteData } from './types.js';
 
 /** Carpet sprite sets: indexed [variant][msCase] */
-let carpetSets: SpriteData[][][] = [];
+let carpetSets: SpriteData[][] = [];
 
 /** Set carpet sprite sets (called once when extension sends carpetTilesLoaded) */
-export function setCarpetSprites(sprites: SpriteData[][][]): void {
+export function setCarpetSprites(sprites: SpriteData[][]): void {
   carpetSets = sprites;
 }
 
