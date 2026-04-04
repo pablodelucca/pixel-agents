@@ -40,6 +40,7 @@ interface EditorToolbarProps {
   onCarpetColorChange: (color: ColorValue | undefined) => void;
   onCarpetVariantChange: (variant: number) => void;
   loadedAssets?: LoadedAssetData;
+  carpetAssetsLoaded?: boolean; // TODO: should be part of loadedAssets
 }
 
 const THUMB_ZOOM = 2;
@@ -67,6 +68,7 @@ export function EditorToolbar({
   onCarpetColorChange,
   onCarpetVariantChange,
   loadedAssets,
+  carpetAssetsLoaded,
 }: EditorToolbarProps) {
   const [activeCategory, setActiveCategory] = useState<FurnitureCategory>('desks');
   const [showColor, setShowColor] = useState(false);
@@ -303,7 +305,7 @@ export function EditorToolbar({
           )}
 
           {/* Variant picker — horizontal carousel */}
-          {hasCarpetSprites() && getCarpetSetCount() > 0 && (
+          {carpetAssetsLoaded && hasCarpetSprites() && getCarpetSetCount() > 0 && (
             <div className="carousel">
               {Array.from({ length: getCarpetSetCount() }, (_, i) => (
                 <ItemSelect

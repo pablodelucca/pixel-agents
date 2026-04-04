@@ -67,6 +67,7 @@ export interface ExtensionMessageState {
   hooksEnabled: boolean;
   setHooksEnabled: (v: boolean) => void;
   hooksInfoShown: boolean;
+  carpetAssetsLoaded: boolean; // TODO: should be part of loadedAssets? Investigate if compatible with existing furniture assets loading logic
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -104,6 +105,7 @@ export function useExtensionMessages(
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
   const [hooksEnabled, setHooksEnabled] = useState(true);
   const [hooksInfoShown, setHooksInfoShown] = useState(true);
+  const [carpetAssetsLoaded, setCarpetAssetsLoaded] = useState(false);
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -410,6 +412,7 @@ export function useExtensionMessages(
         const sets = msg.sets as string[][][][];
         console.log(`[Webview] Received ${sets.length} carpet tile variant(s)`);
         setCarpetSprites(sets);
+        setCarpetAssetsLoaded(true);
       } else if (msg.type === 'workspaceFolders') {
         const folders = msg.folders as WorkspaceFolder[];
         setWorkspaceFolders(folders);
@@ -480,5 +483,6 @@ export function useExtensionMessages(
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
+    carpetAssetsLoaded,
   };
 }

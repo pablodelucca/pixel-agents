@@ -71,6 +71,7 @@ function App() {
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
+    carpetAssetsLoaded,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -238,6 +239,7 @@ function App() {
                   onCarpetColorChange={editor.handleCarpetColorChange}
                   onCarpetVariantChange={editor.handleCarpetVariantChange}
                   loadedAssets={loadedAssets}
+                  carpetAssetsLoaded={carpetAssetsLoaded}
                 />
               );
             })()}

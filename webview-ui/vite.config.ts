@@ -7,6 +7,7 @@ import { defineConfig } from 'vite';
 
 import { buildAssetIndex, buildFurnitureCatalog } from '../shared/assets/build.ts';
 import {
+  decodeAllCarpets,
   decodeAllCharacters,
   decodeAllFloors,
   decodeAllFurniture,
@@ -20,6 +21,7 @@ interface DecodedCache {
   floors: ReturnType<typeof decodeAllFloors> | null;
   walls: ReturnType<typeof decodeAllWalls> | null;
   furniture: ReturnType<typeof decodeAllFurniture> | null;
+  carpets: ReturnType<typeof decodeAllCarpets> | null;
 }
 
 // ── Vite plugin ───────────────────────────────────────────────────────────────
@@ -28,13 +30,20 @@ function browserMockAssetsPlugin(): Plugin {
   const assetsDir = path.resolve(__dirname, 'public/assets');
   const distAssetsDir = path.resolve(__dirname, '../dist/webview/assets');
 
-  const cache: DecodedCache = { characters: null, floors: null, walls: null, furniture: null };
+  const cache: DecodedCache = {
+    characters: null,
+    floors: null,
+    walls: null,
+    furniture: null,
+    carpets: null,
+  };
 
   function clearCache(): void {
     cache.characters = null;
     cache.floors = null;
     cache.walls = null;
     cache.furniture = null;
+    cache.carpets = null;
   }
 
   return {
@@ -73,6 +82,11 @@ function browserMockAssetsPlugin(): Plugin {
         cache.furniture ??= decodeAllFurniture(assetsDir, buildFurnitureCatalog(assetsDir));
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(cache.furniture));
+      });
+      server.middlewares.use(`${base}/assets/decoded/carpets.json`, (_req, res) => {
+        cache.carpets ??= decodeAllCarpets(assetsDir);
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(cache.carpets));
       });
 
       // Hot-reload on asset file changes (PNGs, manifests, layouts)

@@ -13,6 +13,7 @@ export interface AssetIndex {
   floors: string[];
   walls: string[];
   characters: string[];
+  carpets: string[];
   defaultLayout: string | null;
 }
 
