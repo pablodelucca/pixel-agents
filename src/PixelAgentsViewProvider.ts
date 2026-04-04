@@ -13,6 +13,12 @@ import {
   sendExistingAgents,
   sendLayout,
 } from './agentManager.js';
+import {
+  AGENT_PROVIDER_ID,
+  type AgentProviderId,
+  getCustomProviderDefaults,
+  resolveProviderRuntime,
+} from './agentProvider.js';
 import type { LoadedAssets } from './assetLoader.js';
 import {
   loadCharacterSprites,
@@ -38,7 +44,6 @@ import {
 import {
   dismissedJsonlFiles,
   ensureProjectScan,
-  isTrackedProjectDir,
   startExternalSessionScanning,
   startStaleExternalAgentCheck,
 } from './fileWatcher.js';
@@ -91,6 +96,195 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     return this.webviewView?.webview;
   }
 
+  private getProviderRuntime() {
+    const config = readConfig();
+    return resolveProviderRuntime(config.provider);
+  }
+
+  private sendSettingsToWebview(): void {
+    const runtime = this.getProviderRuntime();
+    const config = readConfig();
+    const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
+    const lastSeenVersion = this.context.globalState.get<string>(GLOBAL_KEY_LAST_SEEN_VERSION, '');
+    const extensionVersion =
+      (this.context.extension.packageJSON as { version?: string }).version ?? '';
+    const watchAllSessions = this.context.globalState.get<boolean>(
+      GLOBAL_KEY_WATCH_ALL_SESSIONS,
+      false,
+    );
+    const alwaysShowLabels = this.context.globalState.get<boolean>(
+      GLOBAL_KEY_ALWAYS_SHOW_LABELS,
+      false,
+    );
+    this.watchAllSessions.current = watchAllSessions;
+    this.webview?.postMessage({
+      type: 'settingsLoaded',
+      soundEnabled,
+      lastSeenVersion,
+      extensionVersion,
+      watchAllSessions,
+      alwaysShowLabels,
+      externalAssetDirectories: config.externalAssetDirectories,
+      agentProviderId: runtime.id,
+      agentProviderName: runtime.displayName,
+      agentSupportsBypassPermissions: runtime.supportsBypassPermissions,
+      agentProjectsRoot: runtime.projectsRoot,
+    });
+  }
+
+  private registerWorkspaceProjectDirs(projectsRoot: string): string {
+    const projectDir = getProjectDirPath(undefined, projectsRoot);
+    ensureProjectScan(
+      projectDir,
+      this.knownJsonlFiles,
+      this.projectScanTimer,
+      this.activeAgentId,
+      this.nextAgentId,
+      this.agents,
+      this.fileWatchers,
+      this.pollingTimers,
+      this.waitingTimers,
+      this.permissionTimers,
+      this.webview,
+      this.persistAgents,
+    );
+
+    const wsFolders = vscode.workspace.workspaceFolders;
+    if (wsFolders && wsFolders.length > 1) {
+      for (const folder of wsFolders) {
+        const folderProjectDir = getProjectDirPath(folder.uri.fsPath, projectsRoot);
+        if (folderProjectDir && folderProjectDir !== projectDir) {
+          console.log(`[Pixel Agents] Registering additional project dir: ${folderProjectDir}`);
+          ensureProjectScan(
+            folderProjectDir,
+            this.knownJsonlFiles,
+            this.projectScanTimer,
+            this.activeAgentId,
+            this.nextAgentId,
+            this.agents,
+            this.fileWatchers,
+            this.pollingTimers,
+            this.waitingTimers,
+            this.permissionTimers,
+            this.webview,
+            this.persistAgents,
+          );
+        }
+      }
+    }
+
+    return projectDir;
+  }
+
+  private restartExternalScan(projectDir: string, projectsRoot: string): void {
+    if (this.externalScanTimer) {
+      clearInterval(this.externalScanTimer);
+      this.externalScanTimer = null;
+    }
+
+    this.externalScanTimer = startExternalSessionScanning(
+      projectDir,
+      this.knownJsonlFiles,
+      this.nextAgentId,
+      this.agents,
+      this.fileWatchers,
+      this.pollingTimers,
+      this.waitingTimers,
+      this.permissionTimers,
+      this.jsonlPollTimers,
+      this.webview,
+      this.persistAgents,
+      projectsRoot,
+      this.watchAllSessions,
+    );
+  }
+
+  private async configureAgentProvider(): Promise<void> {
+    const currentConfig = readConfig();
+    const currentRuntime = resolveProviderRuntime(currentConfig.provider);
+
+    const selected = await vscode.window.showQuickPick(
+      [
+        { label: 'Claude Code', description: 'Default runtime', id: AGENT_PROVIDER_ID.CLAUDE },
+        { label: 'Codex', description: 'OpenAI Codex CLI', id: AGENT_PROVIDER_ID.CODEX },
+        {
+          label: 'Gemini CLI',
+          description: 'Experimental runtime (requires compatible JSONL output)',
+          id: AGENT_PROVIDER_ID.GEMINI,
+        },
+        {
+          label: 'Custom Runtime',
+          description: 'Define your own command and projects root',
+          id: AGENT_PROVIDER_ID.CUSTOM,
+        },
+      ],
+      {
+        title: 'Pixel Agents: Select Agent Runtime',
+        placeHolder: `Current runtime: ${currentRuntime.displayName}`,
+      },
+    );
+    if (!selected) return;
+
+    if (selected.id === AGENT_PROVIDER_ID.CUSTOM) {
+      const defaults = getCustomProviderDefaults();
+      const commandTemplate = await vscode.window.showInputBox({
+        title: 'Pixel Agents: Custom Command',
+        prompt: `Use ${'{sessionId}'} placeholder for the generated session id (optional ${'{bypassFlag}'} placeholder).`,
+        value:
+          currentConfig.provider.id === AGENT_PROVIDER_ID.CUSTOM &&
+          currentConfig.provider.customCommand
+            ? currentConfig.provider.customCommand
+            : defaults.commandTemplate,
+      });
+      if (!commandTemplate) return;
+
+      const projectsRoot = await vscode.window.showInputBox({
+        title: 'Pixel Agents: Sessions Root Folder',
+        prompt: 'Directory where JSONL sessions are created (supports ~).',
+        value:
+          currentConfig.provider.id === AGENT_PROVIDER_ID.CUSTOM &&
+          currentConfig.provider.customProjectsRoot
+            ? currentConfig.provider.customProjectsRoot
+            : defaults.projectsRoot,
+      });
+      if (!projectsRoot) return;
+
+      const displayName = await vscode.window.showInputBox({
+        title: 'Pixel Agents: Runtime Display Name',
+        prompt: 'Label used in settings and terminal tabs.',
+        value:
+          currentConfig.provider.id === AGENT_PROVIDER_ID.CUSTOM &&
+          currentConfig.provider.customDisplayName
+            ? currentConfig.provider.customDisplayName
+            : defaults.displayName,
+      });
+      if (!displayName) return;
+
+      writeConfig({
+        ...currentConfig,
+        provider: {
+          id: AGENT_PROVIDER_ID.CUSTOM,
+          customCommand: commandTemplate.trim(),
+          customProjectsRoot: projectsRoot.trim(),
+          customDisplayName: displayName.trim(),
+        },
+      });
+    } else {
+      writeConfig({
+        ...currentConfig,
+        provider: { id: selected.id as Exclude<AgentProviderId, 'custom'> },
+      });
+    }
+
+    const runtime = this.getProviderRuntime();
+    const projectDir = this.registerWorkspaceProjectDirs(runtime.projectsRoot);
+    this.restartExternalScan(projectDir, runtime.projectsRoot);
+    this.sendSettingsToWebview();
+    vscode.window.showInformationMessage(
+      `Pixel Agents: New agents will launch with ${runtime.displayName}.`,
+    );
+  }
+
   private persistAgents = (): void => {
     persistAgents(this.agents, this.context);
   };
@@ -101,7 +295,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
-      if (message.type === 'openClaude') {
+      if (message.type === 'openClaude' || message.type === 'openAgent') {
+        const runtime = this.getProviderRuntime();
         await launchNewTerminal(
           this.nextAgentId,
           this.nextTerminalIndex,
@@ -116,6 +311,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.projectScanTimer,
           this.webview,
           this.persistAgents,
+          runtime,
           message.folderPath as string | undefined,
           message.bypassPermissions as boolean | undefined,
         );
@@ -174,9 +370,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.globalDismissedFiles.clear();
         } else {
           // Remove all external agents not from the current workspace folders
+          const runtime = this.getProviderRuntime();
           const workspaceDirs = new Set<string>();
           for (const folder of vscode.workspace.workspaceFolders ?? []) {
-            const dir = getProjectDirPath(folder.uri.fsPath);
+            const dir = getProjectDirPath(folder.uri.fsPath, runtime.projectsRoot);
             if (dir) workspaceDirs.add(dir);
           }
           const toRemove: number[] = [];
@@ -205,6 +402,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             this.webview?.postMessage({ type: 'agentClosed', id });
           }
         }
+      } else if (message.type === 'configureAgentProvider') {
+        await this.configureAgentProvider();
       } else if (message.type === 'webviewReady') {
         restoreAgents(
           this.context,
@@ -222,33 +421,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.webview,
           this.persistAgents,
         );
-        // Send persisted settings to webview
-        const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
-        const lastSeenVersion = this.context.globalState.get<string>(
-          GLOBAL_KEY_LAST_SEEN_VERSION,
-          '',
-        );
-        const extensionVersion =
-          (this.context.extension.packageJSON as { version?: string }).version ?? '';
-        const watchAllSessions = this.context.globalState.get<boolean>(
-          GLOBAL_KEY_WATCH_ALL_SESSIONS,
-          false,
-        );
-        const alwaysShowLabels = this.context.globalState.get<boolean>(
-          GLOBAL_KEY_ALWAYS_SHOW_LABELS,
-          false,
-        );
-        this.watchAllSessions.current = watchAllSessions;
-        const config = readConfig();
-        this.webview?.postMessage({
-          type: 'settingsLoaded',
-          soundEnabled,
-          lastSeenVersion,
-          extensionVersion,
-          watchAllSessions,
-          alwaysShowLabels,
-          externalAssetDirectories: config.externalAssetDirectories,
-        });
+        this.sendSettingsToWebview();
+
+        const runtime = this.getProviderRuntime();
 
         // Send workspace folders to webview (only when multi-root)
         const wsFolders = vscode.workspace.workspaceFolders;
@@ -260,70 +435,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
 
         // Ensure project scan runs even with no restored agents (to adopt external terminals)
-        const projectDir = getProjectDirPath();
+        const projectDir = this.registerWorkspaceProjectDirs(runtime.projectsRoot);
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         console.log(`[Pixel Agents] Platform: ${process.platform}, arch: ${process.arch}`);
         console.log('[Extension] workspaceRoot:', workspaceRoot);
         console.log('[Extension] projectDir:', projectDir);
-        ensureProjectScan(
-          projectDir,
-          this.knownJsonlFiles,
-          this.projectScanTimer,
-          this.activeAgentId,
-          this.nextAgentId,
-          this.agents,
-          this.fileWatchers,
-          this.pollingTimers,
-          this.waitingTimers,
-          this.permissionTimers,
-          this.webview,
-          this.persistAgents,
-        );
-
-        // Start external session scanning (detects VS Code extension panel sessions)
-        if (!this.externalScanTimer) {
-          this.externalScanTimer = startExternalSessionScanning(
-            projectDir,
-            this.knownJsonlFiles,
-            this.nextAgentId,
-            this.agents,
-            this.fileWatchers,
-            this.pollingTimers,
-            this.waitingTimers,
-            this.permissionTimers,
-            this.jsonlPollTimers,
-            this.webview,
-            this.persistAgents,
-            this.watchAllSessions,
-          );
-
-          // In multi-root workspaces, also scan project dirs for all other folders
-          // so agents running in any workspace folder are discovered
-          if (wsFolders && wsFolders.length > 1) {
-            for (const folder of wsFolders) {
-              const folderProjectDir = getProjectDirPath(folder.uri.fsPath);
-              if (folderProjectDir && folderProjectDir !== projectDir) {
-                console.log(
-                  `[Pixel Agents] Registering additional project dir: ${folderProjectDir}`,
-                );
-                ensureProjectScan(
-                  folderProjectDir,
-                  this.knownJsonlFiles,
-                  this.projectScanTimer,
-                  this.activeAgentId,
-                  this.nextAgentId,
-                  this.agents,
-                  this.fileWatchers,
-                  this.pollingTimers,
-                  this.waitingTimers,
-                  this.permissionTimers,
-                  this.webview,
-                  this.persistAgents,
-                );
-              }
-            }
-          }
-        }
+        this.restartExternalScan(projectDir, runtime.projectsRoot);
         if (!this.staleCheckTimer) {
           this.staleCheckTimer = startStaleExternalAgentCheck(
             this.agents,
@@ -440,7 +557,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
         this.webview?.postMessage({ type: 'agentDiagnostics', agents: diagnostics });
       } else if (message.type === 'openSessionsFolder') {
-        const projectDir = getProjectDirPath();
+        const runtime = this.getProviderRuntime();
+        const projectDir = getProjectDirPath(undefined, runtime.projectsRoot);
         if (projectDir && fs.existsSync(projectDir)) {
           vscode.env.openExternal(vscode.Uri.file(projectDir));
         }

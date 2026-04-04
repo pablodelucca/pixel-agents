@@ -1,0 +1,56 @@
+name: Desktop Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/core/**'
+      - 'webview-ui/**'
+      - '.github/workflows/desktop-build.yml'
+
+jobs:
+  package-desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Root Dependencies
+        run: npm ci
+
+      - name: Install Desktop Dependencies
+        run: npm install --prefix apps/desktop
+
+      - name: Build Webview
+        run: npm run build:webview
+
+      - name: Build Desktop Host
+        run: npm run --prefix apps/desktop build
+
+      - name: Package macOS DMG
+        if: startsWith(matrix.os, 'macos')
+        run: npm run --prefix apps/desktop package:mac
+
+      - name: Package Windows EXE
+        if: startsWith(matrix.os, 'windows')
+        run: npm run --prefix apps/desktop package:win
+
+      - name: Upload Desktop Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixel-agents-desktop-${{ matrix.os }}
+          path: apps/desktop/release/*

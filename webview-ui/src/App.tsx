@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { toMajorMinor } from './changelogData.js';
+import { AgentCreateModal } from './components/AgentCreateModal.js';
+import { AgentDock } from './components/AgentDock.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
 import { DebugView } from './components/DebugView.js';
+import { type RuntimeLogEntry,RuntimeLogPanel } from './components/RuntimeLogPanel.js';
 import { VersionIndicator } from './components/VersionIndicator.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
@@ -17,7 +20,7 @@ import { EditorToolbar } from './office/editor/EditorToolbar.js';
 import { OfficeState } from './office/engine/officeState.js';
 import { isRotatable } from './office/layout/furnitureCatalog.js';
 import { EditTool } from './office/types.js';
-import { isBrowserRuntime } from './runtime.js';
+import { isBrowserRuntime, isElectronRuntime } from './runtime.js';
 import { vscode } from './vscodeApi.js';
 
 // Game state lives outside React — updated imperatively by message handlers
@@ -151,6 +154,9 @@ function App() {
     loadedAssets,
     workspaceFolders,
     externalAssetDirectories,
+    agentProviderId,
+    agentProviderName,
+    agentSupportsBypassPermissions,
     lastSeenVersion,
     extensionVersion,
     watchAllSessions,
@@ -163,8 +169,12 @@ function App() {
   const showMigrationNotice = layoutWasReset && !migrationNoticeDismissed;
 
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
+  const [isAgentCreateOpen, setIsAgentCreateOpen] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [alwaysShowOverlay, setAlwaysShowOverlay] = useState(false);
+  const [hostError, setHostError] = useState<string | null>(null);
+  const [showRuntimeLogs, setShowRuntimeLogs] = useState(false);
+  const [runtimeLogs, setRuntimeLogs] = useState<RuntimeLogEntry[]>([]);
 
   const currentMajorMinor = toMajorMinor(extensionVersion);
 
@@ -182,6 +192,47 @@ function App() {
     setAlwaysShowOverlay(alwaysShowLabels);
   }, [alwaysShowLabels]);
 
+  useEffect(() => {
+    const openModal = () => setIsAgentCreateOpen(true);
+    window.addEventListener('pixel-agents-open-create-modal', openModal);
+    return () => window.removeEventListener('pixel-agents-open-create-modal', openModal);
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      const message = event.data as {
+        type?: string;
+        level?: 'info' | 'error';
+        message?: string;
+      };
+      if (message.type === 'hostError' && typeof message.message === 'string') {
+        const errorMessage = message.message;
+        setHostError(errorMessage);
+        window.setTimeout(() => {
+          setHostError((current) => (current === errorMessage ? null : current));
+        }, 4500);
+        return;
+      }
+      if (message.type === 'runtimeLog' && typeof message.message === 'string') {
+        const logMessage = message.message;
+        setRuntimeLogs((current) => {
+          const next: RuntimeLogEntry[] = [
+            ...current,
+            {
+              id: Date.now() + Math.floor(Math.random() * 1000),
+              level: message.level === 'error' ? 'error' : 'info',
+              message: logMessage,
+              at: Date.now(),
+            },
+          ];
+          return next.slice(-180);
+        });
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), []);
   const handleToggleAlwaysShowOverlay = useCallback(() => {
     setAlwaysShowOverlay((prev) => {
@@ -194,6 +245,14 @@ function App() {
   const handleSelectAgent = useCallback((id: number) => {
     vscode.postMessage({ type: 'focusAgent', id });
   }, []);
+
+  const handleOpenAgent = useCallback(() => {
+    if (isElectronRuntime) {
+      setIsAgentCreateOpen(true);
+      return;
+    }
+    editor.handleOpenClaude();
+  }, [editor]);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -296,6 +355,27 @@ function App() {
 
       {!isDebugMode && <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />}
 
+      <button
+        onClick={() => setShowRuntimeLogs((prev) => !prev)}
+        style={{
+          position: 'absolute',
+          right: 10,
+          top: 8,
+          zIndex: 'var(--pixel-controls-z)',
+          border: '2px solid var(--pixel-border)',
+          borderRadius: 0,
+          padding: '5px 10px',
+          background: showRuntimeLogs ? 'var(--pixel-active-bg)' : 'var(--pixel-bg)',
+          color: 'var(--pixel-text)',
+          boxShadow: 'var(--pixel-shadow)',
+          cursor: 'pointer',
+          fontSize: '15px',
+        }}
+        title="Open runtime logs"
+      >
+        Logs ({runtimeLogs.length})
+      </button>
+
       {/* Vignette overlay */}
       <div
         style={{
@@ -309,7 +389,9 @@ function App() {
 
       <BottomToolbar
         isEditMode={editor.isEditMode}
-        onOpenClaude={editor.handleOpenClaude}
+        onOpenClaude={handleOpenAgent}
+        agentProviderName={agentProviderName}
+        agentSupportsBypassPermissions={agentSupportsBypassPermissions}
         onToggleEditMode={editor.handleToggleEditMode}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
@@ -336,6 +418,15 @@ function App() {
         isOpen={isChangelogOpen}
         onClose={() => setIsChangelogOpen(false)}
         currentVersion={extensionVersion}
+      />
+
+      <AgentCreateModal
+        isOpen={isAgentCreateOpen}
+        onClose={() => setIsAgentCreateOpen(false)}
+        defaultProviderId={agentProviderId}
+        providerName={agentProviderName}
+        workspaceFolders={workspaceFolders}
+        supportsBypassPermissions={agentSupportsBypassPermissions}
       />
 
       {editor.isEditMode && editor.isDirty && (
@@ -417,6 +508,42 @@ function App() {
           subagentTools={subagentTools}
           onSelectAgent={handleSelectAgent}
         />
+      )}
+
+      {!isDebugMode && (
+        <AgentDock
+          agents={agents}
+          selectedAgent={selectedAgent}
+          statuses={agentStatuses}
+          onSelectAgent={handleSelectAgent}
+        />
+      )}
+
+      <RuntimeLogPanel
+        isOpen={showRuntimeLogs}
+        logs={runtimeLogs}
+        onClose={() => setShowRuntimeLogs(false)}
+      />
+
+      {hostError && (
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: 56,
+            transform: 'translateX(-50%)',
+            zIndex: 90,
+            maxWidth: 'min(90vw, 720px)',
+            border: '2px solid #8c3a3a',
+            background: 'rgba(58, 20, 20, 0.92)',
+            boxShadow: 'var(--pixel-shadow)',
+            color: '#ffd9d9',
+            padding: '8px 12px',
+            fontSize: '16px',
+          }}
+        >
+          {hostError}
+        </div>
       )}
 
       {showMigrationNotice && (

@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 import {
+  ZOOM_BUTTON_LEVELS,
   ZOOM_LEVEL_FADE_DELAY_MS,
   ZOOM_LEVEL_FADE_DURATION_SEC,
   ZOOM_LEVEL_HIDE_DELAY_MS,
-  ZOOM_MAX,
-  ZOOM_MIN,
 } from '../constants.js';
 
 interface ZoomControlsProps {
@@ -36,8 +35,30 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevZoomRef = useRef(zoom);
 
-  const minDisabled = zoom <= ZOOM_MIN;
-  const maxDisabled = zoom >= ZOOM_MAX;
+  const roundedZoom = Math.round(zoom * 10) / 10;
+  const minLevel = ZOOM_BUTTON_LEVELS[0];
+  const maxLevel = ZOOM_BUTTON_LEVELS[ZOOM_BUTTON_LEVELS.length - 1];
+  const minDisabled = roundedZoom <= minLevel;
+  const maxDisabled = roundedZoom >= maxLevel;
+
+  const findNextZoomLevel = (direction: 'in' | 'out'): number => {
+    if (direction === 'in') {
+      for (const level of ZOOM_BUTTON_LEVELS) {
+        if (level > roundedZoom + 0.001) return level;
+      }
+      return maxLevel;
+    }
+    for (let i = ZOOM_BUTTON_LEVELS.length - 1; i >= 0; i--) {
+      const level = ZOOM_BUTTON_LEVELS[i];
+      if (level < roundedZoom - 0.001) return level;
+    }
+    return minLevel;
+  };
+
+  const formatZoom = (value: number): string => {
+    const rounded = Math.round(value * 10) / 10;
+    return Number.isInteger(rounded) ? `${rounded}` : rounded.toFixed(1);
+  };
 
   // Show zoom level briefly when zoom changes
   useEffect(() => {
@@ -92,7 +113,7 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
             pointerEvents: 'none',
           }}
         >
-          {zoom}x
+          {formatZoom(zoom)}x
         </div>
       )}
 
@@ -109,7 +130,7 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
         }}
       >
         <button
-          onClick={() => onZoomChange(zoom + 1)}
+          onClick={() => onZoomChange(findNextZoomLevel('in'))}
           disabled={maxDisabled}
           onMouseEnter={() => setHovered('plus')}
           onMouseLeave={() => setHovered(null)}
@@ -120,7 +141,7 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
             cursor: maxDisabled ? 'default' : 'pointer',
             opacity: maxDisabled ? 'var(--pixel-btn-disabled-opacity)' : 1,
           }}
-          title="Zoom in (Ctrl+Scroll)"
+          title="Zoom in (step levels: 1x, 2x, 4x...)"
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <line
@@ -144,7 +165,7 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
           </svg>
         </button>
         <button
-          onClick={() => onZoomChange(zoom - 1)}
+          onClick={() => onZoomChange(findNextZoomLevel('out'))}
           disabled={minDisabled}
           onMouseEnter={() => setHovered('minus')}
           onMouseLeave={() => setHovered(null)}
@@ -157,7 +178,7 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
             cursor: minDisabled ? 'default' : 'pointer',
             opacity: minDisabled ? 'var(--pixel-btn-disabled-opacity)' : 1,
           }}
-          title="Zoom out (Ctrl+Scroll)"
+          title="Zoom out (step levels: 1x, 2x, 4x...)"
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <line

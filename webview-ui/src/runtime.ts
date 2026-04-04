@@ -8,9 +8,17 @@
 
 declare function acquireVsCodeApi(): unknown;
 
-export type Runtime = 'vscode' | 'browser';
-// Future: 'cursor' | 'windsurf' | 'electron' | etc.
+export type Runtime = 'vscode' | 'electron' | 'browser';
 
-export const runtime: Runtime = typeof acquireVsCodeApi !== 'undefined' ? 'vscode' : 'browser';
+const hasElectronBridge =
+  typeof window !== 'undefined' && typeof window.pixelAgentsHost !== 'undefined';
+const hasVsCodeApi = typeof acquireVsCodeApi !== 'undefined';
+
+export const runtime: Runtime = hasVsCodeApi
+  ? 'vscode'
+  : hasElectronBridge
+    ? 'electron'
+    : 'browser';
 
 export const isBrowserRuntime = runtime === 'browser';
+export const isElectronRuntime = runtime === 'electron';

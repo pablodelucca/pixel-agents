@@ -58,6 +58,9 @@ export interface ExtensionMessageState {
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> };
   workspaceFolders: WorkspaceFolder[];
   externalAssetDirectories: string[];
+  agentProviderId: string;
+  agentProviderName: string;
+  agentSupportsBypassPermissions: boolean;
   lastSeenVersion: string;
   extensionVersion: string;
   watchAllSessions: boolean;
@@ -94,6 +97,9 @@ export function useExtensionMessages(
   >();
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([]);
   const [externalAssetDirectories, setExternalAssetDirectories] = useState<string[]>([]);
+  const [agentProviderId, setAgentProviderId] = useState('claude');
+  const [agentProviderName, setAgentProviderName] = useState('Claude Code');
+  const [agentSupportsBypassPermissions, setAgentSupportsBypassPermissions] = useState(true);
   const [lastSeenVersion, setLastSeenVersion] = useState('');
   const [extensionVersion, setExtensionVersion] = useState('');
   const [watchAllSessions, setWatchAllSessions] = useState(false);
@@ -404,6 +410,15 @@ export function useExtensionMessages(
         if (Array.isArray(msg.externalAssetDirectories)) {
           setExternalAssetDirectories(msg.externalAssetDirectories as string[]);
         }
+        if (typeof msg.agentProviderId === 'string') {
+          setAgentProviderId(msg.agentProviderId as string);
+        }
+        if (typeof msg.agentProviderName === 'string') {
+          setAgentProviderName(msg.agentProviderName as string);
+        }
+        if (typeof msg.agentSupportsBypassPermissions === 'boolean') {
+          setAgentSupportsBypassPermissions(msg.agentSupportsBypassPermissions as boolean);
+        }
         if (typeof msg.lastSeenVersion === 'string') {
           setLastSeenVersion(msg.lastSeenVersion as string);
         }
@@ -444,6 +459,9 @@ export function useExtensionMessages(
     loadedAssets,
     workspaceFolders,
     externalAssetDirectories,
+    agentProviderId,
+    agentProviderName,
+    agentSupportsBypassPermissions,
     lastSeenVersion,
     extensionVersion,
     watchAllSessions,

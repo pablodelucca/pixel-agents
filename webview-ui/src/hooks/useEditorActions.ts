@@ -104,7 +104,7 @@ export function useEditorActions(
   );
 
   const handleOpenClaude = useCallback(() => {
-    vscode.postMessage({ type: 'openClaude' });
+    vscode.postMessage({ type: 'openAgent' });
   }, []);
 
   const handleToggleEditMode = useCallback(() => {
@@ -366,7 +366,9 @@ export function useEditorActions(
   }, []);
 
   const handleZoomChange = useCallback((newZoom: number) => {
-    setZoom(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newZoom)));
+    const clamped = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newZoom));
+    const rounded = Math.round(clamped * 100) / 100;
+    setZoom((prev) => (Math.abs(prev - rounded) < 0.001 ? prev : rounded));
   }, []);
 
   const handleDragMove = useCallback(

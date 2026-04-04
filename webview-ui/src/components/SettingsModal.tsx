@@ -1,11 +1,13 @@
 import { useState } from 'react';
 
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js';
+import { isElectronRuntime } from '../runtime.js';
 import { vscode } from '../vscodeApi.js';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  agentProviderName: string;
   isDebugMode: boolean;
   onToggleDebugMode: () => void;
   alwaysShowOverlay: boolean;
@@ -21,7 +23,7 @@ const menuItemBase: React.CSSProperties = {
   justifyContent: 'space-between',
   width: '100%',
   padding: '6px 10px',
-  fontSize: '24px',
+  fontSize: '16px',
   color: 'rgba(255, 255, 255, 0.8)',
   background: 'transparent',
   border: 'none',
@@ -33,6 +35,7 @@ const menuItemBase: React.CSSProperties = {
 export function SettingsModal({
   isOpen,
   onClose,
+  agentProviderName,
   isDebugMode,
   onToggleDebugMode,
   alwaysShowOverlay,
@@ -98,7 +101,7 @@ export function SettingsModal({
               border: 'none',
               borderRadius: 0,
               color: 'rgba(255, 255, 255, 0.6)',
-              fontSize: '24px',
+              fontSize: '18px',
               cursor: 'pointer',
               padding: '0 4px',
               lineHeight: 1,
@@ -108,6 +111,27 @@ export function SettingsModal({
           </button>
         </div>
         {/* Menu items */}
+        <button
+          onClick={() => {
+            if (isElectronRuntime) {
+              window.dispatchEvent(new Event('pixel-agents-open-create-modal'));
+            } else {
+              vscode.postMessage({ type: 'configureAgentProvider' });
+            }
+            onClose();
+          }}
+          onMouseEnter={() => setHovered('provider')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...menuItemBase,
+            background: hovered === 'provider' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          }}
+        >
+          <span>Agent Runtime</span>
+          <span style={{ color: 'rgba(255, 255, 255, 0.6)', marginLeft: 8 }}>
+            {agentProviderName}
+          </span>
+        </button>
         <button
           onClick={() => {
             vscode.postMessage({ type: 'openSessionsFolder' });

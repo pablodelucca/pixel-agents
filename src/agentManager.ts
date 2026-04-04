@@ -3,9 +3,9 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+import type { AgentProviderRuntime } from './agentProvider.js';
 import {
   JSONL_POLL_INTERVAL_MS,
-  TERMINAL_NAME_PREFIX,
   WORKSPACE_KEY_AGENT_SEATS,
   WORKSPACE_KEY_AGENTS,
 } from './constants.js';
@@ -14,28 +14,51 @@ import { migrateAndLoadLayout } from './layoutPersistence.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
 import type { AgentState, PersistedAgent } from './types.js';
 
-export function getProjectDirPath(cwd?: string): string {
+function resolveProjectsRoot(projectsRoot?: string): string {
+  return projectsRoot || path.join(os.homedir(), '.claude', 'projects');
+}
+
+function findSessionFileById(projectsRoot: string, sessionId: string): string | null {
+  try {
+    if (!fs.existsSync(projectsRoot)) return null;
+
+    const directFile = path.join(projectsRoot, `${sessionId}.jsonl`);
+    if (fs.existsSync(directFile)) return directFile;
+
+    const dirs = fs.readdirSync(projectsRoot, { withFileTypes: true });
+    for (const dir of dirs) {
+      if (!dir.isDirectory()) continue;
+      const candidate = path.join(projectsRoot, dir.name, `${sessionId}.jsonl`);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+  } catch {
+    // Ignore lookup failures.
+  }
+  return null;
+}
+
+export function getProjectDirPath(cwd?: string, projectsRoot?: string): string {
   // Fall back to home directory when no workspace folder is open.
   // This is the common case on Linux/macOS when VS Code is launched without a folder
-  // (e.g. `code` with no arguments). Claude Code writes JSONL files to
-  // ~/.claude/projects/<hash>/ where <hash> is derived from the process cwd, so we
-  // must use the same directory as the terminal's working directory.
+  // (e.g. `code` with no arguments). Agent CLIs write JSONL files under a
+  // provider-specific projects root where <hash> is derived from the process cwd,
+  // so we must use the same directory as the terminal's working directory.
   const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || os.homedir();
   const dirName = workspacePath.replace(/[^a-zA-Z0-9-]/g, '-');
-  const projectDir = path.join(os.homedir(), '.claude', 'projects', dirName);
+  const root = resolveProjectsRoot(projectsRoot);
+  const projectDir = path.join(root, dirName);
   console.log(`[Pixel Agents] Project dir: ${workspacePath} → ${dirName}`);
 
   // Verify the directory exists; if not, try fuzzy matching against existing dirs
   if (!fs.existsSync(projectDir)) {
-    const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
     try {
-      if (fs.existsSync(projectsRoot)) {
-        const candidates = fs.readdirSync(projectsRoot);
+      if (fs.existsSync(root)) {
+        const candidates = fs.readdirSync(root);
         // Try case-insensitive match (handles Windows drive letter casing)
         const lowerDirName = dirName.toLowerCase();
         const match = candidates.find((c) => c.toLowerCase() === lowerDirName);
         if (match && match !== dirName) {
-          const matchedDir = path.join(projectsRoot, match);
+          const matchedDir = path.join(root, match);
           console.log(
             `[Pixel Agents] Project dir not found, using case-insensitive match: ${dirName} → ${match}`,
           );
@@ -69,6 +92,7 @@ export async function launchNewTerminal(
   projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  providerRuntime: AgentProviderRuntime,
   folderPath?: string,
   bypassPermissions?: boolean,
 ): Promise<void> {
@@ -80,18 +104,16 @@ export async function launchNewTerminal(
   const isMultiRoot = !!(folders && folders.length > 1);
   const idx = nextTerminalIndexRef.current++;
   const terminal = vscode.window.createTerminal({
-    name: `${TERMINAL_NAME_PREFIX} #${idx}`,
+    name: `${providerRuntime.terminalNamePrefix} #${idx}`,
     cwd,
   });
   terminal.show();
 
   const sessionId = crypto.randomUUID();
-  const claudeCmd = bypassPermissions
-    ? `claude --session-id ${sessionId} --dangerously-skip-permissions`
-    : `claude --session-id ${sessionId}`;
-  terminal.sendText(claudeCmd);
+  const launchCmd = providerRuntime.buildLaunchCommand(sessionId, bypassPermissions);
+  terminal.sendText(launchCmd);
 
-  const projectDir = getProjectDirPath(cwd);
+  const projectDir = getProjectDirPath(cwd, providerRuntime.projectsRoot);
 
   // Pre-register expected JSONL file so project scan won't treat it as a /clear file
   const expectedFile = path.join(projectDir, `${sessionId}.jsonl`);
@@ -150,6 +172,15 @@ export async function launchNewTerminal(
   const pollTimer = setInterval(() => {
     pollCount++;
     try {
+      const discoveredFile = findSessionFileById(providerRuntime.projectsRoot, sessionId);
+      if (discoveredFile && discoveredFile !== agent.jsonlFile) {
+        knownJsonlFiles.delete(agent.jsonlFile);
+        agent.jsonlFile = discoveredFile;
+        agent.projectDir = path.dirname(discoveredFile);
+        knownJsonlFiles.add(discoveredFile);
+        persistAgents();
+      }
+
       if (fs.existsSync(agent.jsonlFile)) {
         console.log(
           `[Pixel Agents] Agent ${id}: found JSONL file ${path.basename(agent.jsonlFile)} (after ${pollCount}s)`,
@@ -169,11 +200,11 @@ export async function launchNewTerminal(
         readNewLines(id, agents, waitingTimers, permissionTimers, webview);
       } else if (pollCount === 10) {
         // After 10s of polling, warn with path details to help diagnose path encoding mismatches
-        const dirExists = fs.existsSync(projectDir);
+        const dirExists = fs.existsSync(agent.projectDir);
         let dirContents = '';
         if (dirExists) {
           try {
-            const files = fs.readdirSync(projectDir).filter((f) => f.endsWith('.jsonl'));
+            const files = fs.readdirSync(agent.projectDir).filter((f) => f.endsWith('.jsonl'));
             dirContents =
               files.length > 0
                 ? `Dir has ${files.length} JSONL file(s): ${files.slice(0, 3).join(', ')}${files.length > 3 ? '...' : ''}`
@@ -186,7 +217,7 @@ export async function launchNewTerminal(
         }
         console.warn(
           `[Pixel Agents] Agent ${id}: JSONL file not found after 10s. ` +
-            `Expected: ${agent.jsonlFile}. ${dirContents}`,
+            `Expected: ${agent.jsonlFile}. Root: ${providerRuntime.projectsRoot}. ${dirContents}`,
         );
       }
     } catch {
@@ -332,7 +363,7 @@ export function restoreAgents(
     }
 
     if (p.id > maxId) maxId = p.id;
-    // Extract terminal index from name like "Claude Code #3"
+    // Extract terminal index from names like "<Provider> #3"
     const match = p.terminalName.match(/#(\d+)$/);
     if (match) {
       const idx = parseInt(match[1], 10);

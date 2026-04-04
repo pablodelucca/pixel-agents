@@ -267,6 +267,9 @@ export function dispatchMockMessages(): void {
   dispatch({
     type: 'settingsLoaded',
     soundEnabled: false,
+    agentProviderId: 'claude',
+    agentProviderName: 'Claude Code',
+    agentSupportsBypassPermissions: true,
     extensionVersion: '1.2.0',
     lastSeenVersion: '1.1',
   });

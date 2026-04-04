@@ -26,7 +26,7 @@
 
 Pixel Agents turns multi-agent AI systems into something you can actually see and manage. Each agent becomes a character in a pixel art office. They walk around, sit at their desk, and visually reflect what they are doing — typing when writing code, reading when searching files, waiting when it needs your attention.
 
-Right now it works as a VS Code extension with Claude Code. The vision though, is a fully agent-agnostic, platform-agnostic interface for orchestrating any AI agents, deployable anywhere.
+The extension ships with runtime presets for **Claude Code** (default), **Codex**, **Gemini CLI** (experimental), and a **Custom Runtime** option where you can provide your own launch command and sessions directory.
 
 This is the source code for the free Pixel Agents extension for VS Code — install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents) or [Open VSX](https://open-vsx.org/extension/pablodelucca/pixel-agents) with the full furniture catalog included.
 
@@ -34,7 +34,7 @@ This is the source code for the free Pixel Agents extension for VS Code — inst
 
 ## Features
 
-- **One agent, one character** — every Claude Code terminal gets its own animated character
+- **One agent, one character** — every supported agent terminal gets its own animated character
 - **Live activity tracking** — characters animate based on what the agent is actually doing (writing, reading, running commands)
 - **Office layout editor** — design your office with floors, walls, and furniture using a built-in editor
 - **Speech bubbles** — visual indicators when an agent is waiting for input or needs permission
@@ -51,7 +51,7 @@ This is the source code for the free Pixel Agents extension for VS Code — inst
 ## Requirements
 
 - VS Code 1.105.0 or later
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
+- At least one supported CLI installed and configured (Claude Code, Codex, Gemini CLI, or a custom-compatible runtime)
 - **Platform**: Windows, Linux, and macOS are supported
 
 ## Getting Started
@@ -70,13 +70,41 @@ npm run build
 
 Then press **F5** in VS Code to launch the Extension Development Host.
 
+### Desktop App (Electron MVP)
+
+The repository now also ships a native desktop host in `apps/desktop` (parallel to the extension).
+
+```bash
+# one-time setup
+npm install --prefix apps/desktop
+
+# build webview + desktop host
+npm run desktop:build
+
+# run desktop app locally
+npm run desktop:dev
+```
+
+Installer builds:
+
+```bash
+# macOS (.dmg)
+npm run desktop:package:mac
+
+# Windows (.exe via NSIS, run on Windows runner)
+npm run desktop:package:win
+```
+
+Generated artifacts are saved under `apps/desktop/release/`.
+
 ### Usage
 
 1. Open the **Pixel Agents** panel (it appears in the bottom panel area alongside your terminal)
-2. Click **+ Agent** to spawn a new Claude Code terminal and its character. Right-click for the option to launch with `--dangerously-skip-permissions` (bypasses all tool approval prompts)
-3. Start coding with Claude — watch the character react in real time
-4. Click a character to select it, then click a seat to reassign it
-5. Click **Layout** to open the office editor and customize your space
+2. (Optional) Open **Settings → Agent Runtime** and choose your runtime preset (or configure a custom command/path)
+3. Click **+ Agent** to spawn a new terminal and its character. On Claude runtime, right-click gives the `--dangerously-skip-permissions` launch option
+4. Start coding — watch the character react in real time
+5. Click a character to select it, then click a seat to reassign it
+6. Click **Layout** to open the office editor and customize your space
 
 ## Layout Editor
 
@@ -104,7 +132,7 @@ Characters are based on the amazing work of [JIK-A-4, Metro City](https://jik-a-
 
 ## How It Works
 
-Pixel Agents watches Claude Code's JSONL transcript files to track what each agent is doing. When an agent uses a tool (like writing a file or running a command), the extension detects it and updates the character's animation accordingly. No modifications to Claude Code are needed — it's purely observational.
+Pixel Agents watches runtime JSONL transcript files to track what each agent is doing. When an agent uses a tool (like writing a file or running a command), the extension detects it and updates the character's animation accordingly.
 
 The webview runs a lightweight game loop with canvas rendering, BFS pathfinding, and a character state machine (idle → walk → type/read). Everything is pixel-perfect at integer zoom levels.
 
@@ -115,9 +143,10 @@ The webview runs a lightweight game loop with canvas rendering, BFS pathfinding,
 
 ## Known Limitations
 
-- **Agent-terminal sync** — the way agents are connected to Claude Code terminal instances is not super robust and sometimes desyncs, especially when terminals are rapidly opened/closed or restored across sessions.
-- **Heuristic-based status detection** — Claude Code's JSONL transcript format does not provide clear signals for when an agent is waiting for user input or when it has finished its turn. The current detection is based on heuristics (idle timers, turn-duration events) and often misfires — agents may briefly show the wrong status or miss transitions.
-- **Linux/macOS tip** — if you launch VS Code without a folder open (e.g. bare `code` command), agents will start in your home directory. This is fully supported; just be aware your Claude sessions will be tracked under `~/.claude/projects/` using your home directory as the project root.
+- **Agent-terminal sync** — the way agents are connected to terminal instances is not super robust and sometimes desyncs, especially when terminals are rapidly opened/closed or restored across sessions.
+- **Heuristic-based status detection** — transcript formats do not always provide clear signals for waiting vs turn-end. Detection still uses heuristics (idle timers, turn-duration events) and may briefly misfire.
+- **Runtime compatibility** — Claude/Codex-style JSONL transcripts are best supported today. Gemini/custom runtimes require compatible transcript structure to show full tool/activity state.
+- **Linux/macOS tip** — if you launch VS Code without a folder open (e.g. bare `code` command), agents will start in your home directory. This is fully supported; just be aware sessions will be tracked under your configured runtime projects root.
 
 ## Troubleshooting
 

@@ -7,41 +7,46 @@
 }
 
 :root {
-  --pixel-bg: #1e1e2e;
-  --pixel-border: #4a4a6a;
-  --pixel-border-light: #6a6a8a;
-  --pixel-accent: #5a8cff;
-  --pixel-green: #5ac88c;
-  --pixel-shadow: 2px 2px 0px #0a0a14;
+  --pixel-bg: rgba(18, 24, 38, 0.92);
+  --pixel-border: #3d5a82;
+  --pixel-border-light: #6a8bb8;
+  --pixel-accent: #68b2ff;
+  --pixel-green: #6fd6ac;
+  --pixel-shadow: 2px 2px 0px rgba(7, 10, 20, 0.9);
 
   /* Button base */
-  --pixel-text: rgba(255, 255, 255, 0.8);
-  --pixel-text-dim: rgba(255, 255, 255, 0.7);
-  --pixel-btn-bg: rgba(255, 255, 255, 0.08);
-  --pixel-btn-hover-bg: rgba(255, 255, 255, 0.15);
+  --pixel-text: rgba(233, 244, 255, 0.92);
+  --pixel-text-dim: rgba(203, 219, 238, 0.75);
+  --pixel-btn-bg: rgba(112, 153, 210, 0.18);
+  --pixel-btn-hover-bg: rgba(132, 182, 242, 0.3);
   --pixel-btn-disabled-opacity: 0.35;
 
   /* Active/selected button state */
-  --pixel-active-bg: rgba(90, 140, 255, 0.25);
+  --pixel-active-bg: rgba(104, 178, 255, 0.32);
 
   /* Agent button */
-  --pixel-agent-bg: rgba(90, 200, 140, 0.15);
-  --pixel-agent-hover-bg: rgba(90, 200, 140, 0.3);
-  --pixel-agent-border: #5ac88c;
-  --pixel-agent-text: rgba(200, 255, 220, 0.95);
+  --pixel-agent-bg: rgba(72, 201, 176, 0.22);
+  --pixel-agent-hover-bg: rgba(72, 201, 176, 0.36);
+  --pixel-agent-border: #6fd6ac;
+  --pixel-agent-text: rgba(222, 255, 244, 0.96);
 
   /* Close button */
   --pixel-close-text: rgba(255, 255, 255, 0.5);
   --pixel-close-hover: #e55;
 
   /* Hints & confirmations */
-  --pixel-hint-bg: #3278c8;
+  --pixel-hint-bg: #2c7fd7;
   --pixel-reset-text: #ecc;
   --pixel-danger-bg: #a33;
   --pixel-warning-text: #f59e0b;
 
   /* Vignette */
-  --pixel-vignette: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.6) 100%);
+  --pixel-vignette: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.02) 0%,
+    transparent 52%,
+    rgba(1, 4, 12, 0.72) 100%
+  );
 
   /* Status dot colors */
   --pixel-status-permission: var(--vscode-charts-yellow, #cca700);
@@ -61,8 +66,21 @@ body,
   height: 100%;
   overflow: hidden;
   font-family: 'FS Pixel Sans', sans-serif;
+  background: radial-gradient(circle at top, #2d3a4f 0%, #1b2233 48%, #101523 100%);
 }
 
 * {
   font-family: 'FS Pixel Sans', sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  color: var(--pixel-text);
+}
+
+select option {
+  color: var(--pixel-text);
+  background: #102138;
 }

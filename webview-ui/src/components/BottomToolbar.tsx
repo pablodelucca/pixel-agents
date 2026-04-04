@@ -7,6 +7,8 @@ import { SettingsModal } from './SettingsModal.js';
 interface BottomToolbarProps {
   isEditMode: boolean;
   onOpenClaude: () => void;
+  agentProviderName: string;
+  agentSupportsBypassPermissions: boolean;
   onToggleEditMode: () => void;
   isDebugMode: boolean;
   onToggleDebugMode: () => void;
@@ -35,7 +37,7 @@ const panelStyle: React.CSSProperties = {
 
 const btnBase: React.CSSProperties = {
   padding: '5px 10px',
-  fontSize: '24px',
+  fontSize: '18px',
   color: 'var(--pixel-text)',
   background: 'var(--pixel-btn-bg)',
   border: '2px solid transparent',
@@ -52,6 +54,8 @@ const btnActive: React.CSSProperties = {
 export function BottomToolbar({
   isEditMode,
   onOpenClaude,
+  agentProviderName,
+  agentSupportsBypassPermissions,
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
@@ -98,6 +102,7 @@ export function BottomToolbar({
 
   const handleAgentRightClick = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (!agentSupportsBypassPermissions) return;
     setIsFolderPickerOpen(false);
     setIsBypassMenuOpen((v) => !v);
   };
@@ -106,7 +111,7 @@ export function BottomToolbar({
     setIsFolderPickerOpen(false);
     const bypassPermissions = pendingBypassRef.current;
     pendingBypassRef.current = false;
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path, bypassPermissions });
+    vscode.postMessage({ type: 'openAgent', folderPath: folder.path, bypassPermissions });
   };
 
   const handleBypassSelect = (bypassPermissions: boolean) => {
@@ -115,7 +120,7 @@ export function BottomToolbar({
       pendingBypassRef.current = bypassPermissions;
       setIsFolderPickerOpen(true);
     } else {
-      vscode.postMessage({ type: 'openClaude', bypassPermissions });
+      vscode.postMessage({ type: 'openAgent', bypassPermissions });
     }
   };
 
@@ -137,10 +142,11 @@ export function BottomToolbar({
             border: '2px solid var(--pixel-agent-border)',
             color: 'var(--pixel-agent-text)',
           }}
+          title={`Spawn ${agentProviderName} agent`}
         >
           + Agent
         </button>
-        {isBypassMenuOpen && (
+        {isBypassMenuOpen && agentSupportsBypassPermissions && (
           <div
             style={{
               position: 'absolute',
@@ -165,7 +171,7 @@ export function BottomToolbar({
                 width: '100%',
                 textAlign: 'left',
                 padding: '6px 10px',
-                fontSize: '24px',
+                fontSize: '17px',
                 color: 'var(--pixel-text)',
                 background: hoveredBypass === 0 ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
                 border: 'none',
@@ -185,7 +191,7 @@ export function BottomToolbar({
                 width: '100%',
                 textAlign: 'left',
                 padding: '6px 10px',
-                fontSize: '24px',
+                fontSize: '17px',
                 color: 'var(--pixel-warning-text)',
                 background: hoveredBypass === 1 ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
                 border: 'none',
@@ -224,7 +230,7 @@ export function BottomToolbar({
                   width: '100%',
                   textAlign: 'left',
                   padding: '6px 10px',
-                  fontSize: '22px',
+                  fontSize: '16px',
                   color: 'var(--pixel-text)',
                   background: hoveredFolder === i ? 'var(--pixel-btn-hover-bg)' : 'transparent',
                   border: 'none',
@@ -276,6 +282,7 @@ export function BottomToolbar({
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
+          agentProviderName={agentProviderName}
           isDebugMode={isDebugMode}
           onToggleDebugMode={onToggleDebugMode}
           alwaysShowOverlay={alwaysShowOverlay}

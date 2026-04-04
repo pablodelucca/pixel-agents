@@ -6,7 +6,7 @@ import {
   PAN_MARGIN_FRACTION,
   ZOOM_MAX,
   ZOOM_MIN,
-  ZOOM_SCROLL_THRESHOLD,
+  ZOOM_SMOOTH_SENSITIVITY,
 } from '../../constants.js';
 import { unlockAudio } from '../../notificationSound.js';
 import { vscode } from '../../vscodeApi.js';
@@ -68,8 +68,19 @@ export function OfficeCanvas({
   const rotateButtonBoundsRef = useRef<RotateButtonBounds | null>(null);
   // Right-click erase dragging
   const isEraseDraggingRef = useRef(false);
-  // Zoom scroll accumulator for trackpad pinch sensitivity
-  const zoomAccumulatorRef = useRef(0);
+  const zoomRef = useRef(zoom);
+  const isEditModeRef = useRef(isEditMode);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  useEffect(() => {
+    isEditModeRef.current = isEditMode;
+  }, [isEditMode]);
+
+  // Keep for explicit UI invalidation semantics; rendering loop reads mutable editor state directly.
+  void _editorTick;
 
   // Clamp pan so the map edge can't go past a margin inside the viewport
   const clampPan = useCallback(
@@ -77,8 +88,9 @@ export function OfficeCanvas({
       const canvas = canvasRef.current;
       if (!canvas) return { x: px, y: py };
       const layout = officeState.getLayout();
-      const mapW = layout.cols * TILE_SIZE * zoom;
-      const mapH = layout.rows * TILE_SIZE * zoom;
+      const currentZoom = zoomRef.current;
+      const mapW = layout.cols * TILE_SIZE * currentZoom;
+      const mapH = layout.rows * TILE_SIZE * currentZoom;
       const marginX = canvas.width * PAN_MARGIN_FRACTION;
       const marginY = canvas.height * PAN_MARGIN_FRACTION;
       const maxPanX = mapW / 2 + canvas.width / 2 - marginX;
@@ -88,7 +100,7 @@ export function OfficeCanvas({
         y: Math.max(-maxPanY, Math.min(maxPanY, py)),
       };
     },
-    [officeState, zoom],
+    [officeState],
   );
 
   // Resize canvas backing store to device pixels (no DPR transform on ctx)
@@ -121,13 +133,15 @@ export function OfficeCanvas({
         officeState.update(dt);
       },
       render: (ctx) => {
+        const currentZoom = zoomRef.current;
+        const currentEditMode = isEditModeRef.current;
         // Canvas dimensions are in device pixels
         const w = canvas.width;
         const h = canvas.height;
 
         // Build editor render state
         let editorRender: EditorRenderState | undefined;
-        if (isEditMode) {
+        if (currentEditMode) {
           const showGhostBorder =
             editorState.activeTool === EditTool.TILE_PAINT ||
             editorState.activeTool === EditTool.WALL_PAINT ||
@@ -223,10 +237,10 @@ export function OfficeCanvas({
           const followCh = officeState.characters.get(officeState.cameraFollowId);
           if (followCh) {
             const layout = officeState.getLayout();
-            const mapW = layout.cols * TILE_SIZE * zoom;
-            const mapH = layout.rows * TILE_SIZE * zoom;
-            const targetX = mapW / 2 - followCh.x * zoom;
-            const targetY = mapH / 2 - followCh.y * zoom;
+            const mapW = layout.cols * TILE_SIZE * currentZoom;
+            const mapH = layout.rows * TILE_SIZE * currentZoom;
+            const targetX = mapW / 2 - followCh.x * currentZoom;
+            const targetY = mapH / 2 - followCh.y * currentZoom;
             const dx = targetX - panRef.current.x;
             const dy = targetY - panRef.current.y;
             if (
@@ -259,7 +273,7 @@ export function OfficeCanvas({
           officeState.tileMap,
           officeState.furniture,
           officeState.getCharacters(),
-          zoom,
+          currentZoom,
           panRef.current.x,
           panRef.current.y,
           selectionRender,
@@ -280,28 +294,26 @@ export function OfficeCanvas({
       stop();
       observer.disconnect();
     };
-  }, [officeState, resizeCanvas, isEditMode, editorState, _editorTick, zoom, panRef]);
+  }, [officeState, resizeCanvas, editorState, panRef]);
 
   // Convert CSS mouse coords to world (sprite pixel) coords
-  const screenToWorld = useCallback(
-    (clientX: number, clientY: number) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return null;
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      // CSS coords relative to canvas
-      const cssX = clientX - rect.left;
-      const cssY = clientY - rect.top;
-      // Convert to device pixels
-      const deviceX = cssX * dpr;
-      const deviceY = cssY * dpr;
-      // Convert to world (sprite pixel) coords
-      const worldX = (deviceX - offsetRef.current.x) / zoom;
-      const worldY = (deviceY - offsetRef.current.y) / zoom;
-      return { worldX, worldY, screenX: cssX, screenY: cssY, deviceX, deviceY };
-    },
-    [zoom],
-  );
+  const screenToWorld = useCallback((clientX: number, clientY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    // CSS coords relative to canvas
+    const cssX = clientX - rect.left;
+    const cssY = clientY - rect.top;
+    // Convert to device pixels
+    const deviceX = cssX * dpr;
+    const deviceY = cssY * dpr;
+    // Convert to world (sprite pixel) coords
+    const currentZoom = zoomRef.current;
+    const worldX = (deviceX - offsetRef.current.x) / currentZoom;
+    const worldY = (deviceY - offsetRef.current.y) / currentZoom;
+    return { worldX, worldY, screenX: cssX, screenY: cssY, deviceX, deviceY };
+  }, []);
 
   const screenToTile = useCallback(
     (clientX: number, clientY: number): { col: number; row: number } | null => {
@@ -312,7 +324,7 @@ export function OfficeCanvas({
       const layout = officeState.getLayout();
       // In edit mode with floor/wall/erase tool, extend valid range by 1 for ghost border
       if (
-        isEditMode &&
+        isEditModeRef.current &&
         (editorState.activeTool === EditTool.TILE_PAINT ||
           editorState.activeTool === EditTool.WALL_PAINT ||
           editorState.activeTool === EditTool.ERASE)
@@ -323,7 +335,7 @@ export function OfficeCanvas({
       if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return null;
       return { col, row };
     },
-    [screenToWorld, officeState, isEditMode, editorState],
+    [screenToWorld, officeState, editorState],
   );
 
   // Check if device-pixel coords hit the delete button
@@ -355,7 +367,7 @@ export function OfficeCanvas({
         return;
       }
 
-      if (isEditMode) {
+      if (isEditModeRef.current) {
         const tile = screenToTile(e.clientX, e.clientY);
         if (tile) {
           editorState.ghostCol = tile.col;
@@ -485,7 +497,6 @@ export function OfficeCanvas({
       officeState,
       screenToWorld,
       screenToTile,
-      isEditMode,
       editorState,
       onEditorTileAction,
       onEditorEraseAction,
@@ -517,7 +528,7 @@ export function OfficeCanvas({
       }
 
       // Right-click in edit mode for erasing
-      if (e.button === 2 && isEditMode) {
+      if (e.button === 2 && isEditModeRef.current) {
         const tile = screenToTile(e.clientX, e.clientY);
         if (
           tile &&
@@ -534,7 +545,7 @@ export function OfficeCanvas({
         return;
       }
 
-      if (!isEditMode) return;
+      if (!isEditModeRef.current) return;
 
       // Check rotate/delete button hit first
       const pos = screenToWorld(e.clientX, e.clientY);
@@ -595,7 +606,6 @@ export function OfficeCanvas({
     },
     [
       officeState,
-      isEditMode,
       editorState,
       screenToTile,
       screenToWorld,
@@ -615,7 +625,7 @@ export function OfficeCanvas({
       if (e.button === 1) {
         isPanningRef.current = false;
         const canvas = canvasRef.current;
-        if (canvas) canvas.style.cursor = isEditMode ? 'crosshair' : 'default';
+        if (canvas) canvas.style.cursor = isEditModeRef.current ? 'crosshair' : 'default';
         return;
       }
       if (e.button === 2) {
@@ -663,12 +673,12 @@ export function OfficeCanvas({
       editorState.isDragging = false;
       editorState.wallDragAdding = null;
     },
-    [editorState, isEditMode, officeState, onDragMove, onEditorSelectionChange],
+    [editorState, officeState, onDragMove, onEditorSelectionChange],
   );
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (isEditMode) return; // handled by mouseDown/mouseUp
+      if (isEditModeRef.current) return; // handled by mouseDown/mouseUp
       const pos = screenToWorld(e.clientX, e.clientY);
       if (!pos) return;
 
@@ -728,7 +738,7 @@ export function OfficeCanvas({
         officeState.cameraFollowId = null;
       }
     },
-    [officeState, onClick, screenToWorld, screenToTile, isEditMode],
+    [officeState, onClick, screenToWorld, screenToTile],
   );
 
   const handleMouseLeave = useCallback(() => {
@@ -746,7 +756,7 @@ export function OfficeCanvas({
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
-      if (isEditMode) return;
+      if (isEditModeRef.current) return;
       // Right-click to walk selected agent to tile
       if (officeState.selectedAgentId !== null) {
         const tile = screenToTile(e.clientX, e.clientY);
@@ -755,7 +765,7 @@ export function OfficeCanvas({
         }
       }
     },
-    [isEditMode, officeState, screenToTile],
+    [officeState, screenToTile],
   );
 
   // Wheel: Ctrl+wheel to zoom, plain wheel/trackpad to pan
@@ -763,15 +773,12 @@ export function OfficeCanvas({
     (e: React.WheelEvent) => {
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
-        // Accumulate scroll delta, step zoom when threshold crossed
-        zoomAccumulatorRef.current += e.deltaY;
-        if (Math.abs(zoomAccumulatorRef.current) >= ZOOM_SCROLL_THRESHOLD) {
-          const delta = zoomAccumulatorRef.current < 0 ? 1 : -1;
-          zoomAccumulatorRef.current = 0;
-          const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom + delta));
-          if (newZoom !== zoom) {
-            onZoomChange(newZoom);
-          }
+        // Smooth zoom for trackpad pinch / ctrl+wheel.
+        const currentZoom = zoomRef.current;
+        const scale = Math.exp(-e.deltaY * ZOOM_SMOOTH_SENSITIVITY);
+        const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, currentZoom * scale));
+        if (Math.abs(newZoom - currentZoom) > 0.001) {
+          onZoomChange(newZoom);
         }
       } else {
         // Pan via trackpad two-finger scroll or mouse wheel
@@ -783,7 +790,7 @@ export function OfficeCanvas({
         );
       }
     },
-    [zoom, onZoomChange, officeState, panRef, clampPan],
+    [onZoomChange, officeState, panRef, clampPan],
   );
 
   // Prevent default middle-click browser behavior (auto-scroll)
@@ -799,7 +806,7 @@ export function OfficeCanvas({
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
-        background: '#1E1E2E',
+        background: 'radial-gradient(circle at 20% 15%, #2d3a4f 0%, #1f2638 42%, #141928 100%)',
       }}
     >
       <canvas

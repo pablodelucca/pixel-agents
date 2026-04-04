@@ -1,0 +1,37 @@
+{
+  "appId": "com.pixelagents.desktop",
+  "productName": "Pixel Agents Desktop",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "../../dist/webview",
+      "to": "webview"
+    },
+    {
+      "from": "../../webview-ui/public/assets",
+      "to": "assets"
+    }
+  ],
+  "mac": {
+    "target": [
+      "dmg"
+    ],
+    "artifactName": "Pixel-Agents-Desktop-${version}-${arch}.${ext}"
+  },
+  "win": {
+    "target": [
+      "nsis"
+    ],
+    "artifactName": "Pixel-Agents-Desktop-${version}-${arch}-Setup.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
+  }
+}

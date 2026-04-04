@@ -1,5 +1,4 @@
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
@@ -310,7 +309,7 @@ function scanForNewJsonlFiles(
     // Non-adopted files stay OUT of knownJsonlFiles so the per-agent /clear
     // check can find them when the idle check passes (up to 5s later).
 
-    // Try to adopt the focused terminal (for manually-opened Claude terminals)
+    // Try to adopt the focused terminal (for manually-opened agent terminals)
     const activeTerminal = vscode.window.activeTerminal;
     if (activeTerminal) {
       let owned = false;
@@ -338,7 +337,7 @@ function scanForNewJsonlFiles(
         );
       } else {
         // No active agent -- scan all terminals (not just the focused one)
-        // to find an untracked Claude terminal that may own this JSONL file
+        // to find an untracked terminal that may own this JSONL file
         for (const terminal of vscode.window.terminals) {
           let owned = false;
           for (const agent of agents.values()) {
@@ -535,6 +534,7 @@ export function startExternalSessionScanning(
   jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  globalProjectsRoot: string,
   watchAllSessionsRef?: { current: boolean },
 ): ReturnType<typeof setInterval> {
   return setInterval(() => {
@@ -556,6 +556,7 @@ export function startExternalSessionScanning(
     // If "Watch All Sessions" is ON, also scan all global project dirs
     if (watchAllSessionsRef?.current) {
       scanGlobalProjectDirs(
+        globalProjectsRoot,
         knownJsonlFiles,
         nextAgentIdRef,
         agents,
@@ -705,14 +706,15 @@ function scanExternalDir(
   }
 }
 
-/** Derive a readable folder name from the Claude project dir hash. */
+/** Derive a readable folder name from a hashed project directory name. */
 function folderNameFromProjectDir(dirName: string): string {
   const parts = dirName.replace(/^-+/, '').split('-');
   return parts[parts.length - 1] || dirName;
 }
 
-/** Scan ALL ~/.claude/projects/ directories for active sessions (global discovery). */
+/** Scan all provider project directories for active sessions (global discovery). */
 function scanGlobalProjectDirs(
+  projectsRoot: string,
   knownJsonlFiles: Set<string>,
   nextAgentIdRef: { current: number },
   agents: Map<number, AgentState>,
@@ -723,7 +725,6 @@ function scanGlobalProjectDirs(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
 ): void {
-  const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
   let dirs: fs.Dirent[];
   try {
     dirs = fs.readdirSync(projectsRoot, { withFileTypes: true }).filter((d) => d.isDirectory());
@@ -809,7 +810,7 @@ export function startStaleExternalAgentCheck(
 
       // Only despawn if the JSONL file has been deleted from disk.
       // Inactive external agents stay alive so they can resume when
-      // the session continues (e.g., claude --resume).
+      // the session continues (e.g., resumed CLI session).
       try {
         fs.statSync(agent.jsonlFile);
         // File still exists — keep the agent alive regardless of mtime
