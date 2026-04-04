@@ -10,7 +10,6 @@ import {
   HUE_SHIFT_RANGE_DEG,
   INACTIVE_SEAT_TIMER_MIN_SEC,
   INACTIVE_SEAT_TIMER_RANGE_SEC,
-  PALETTE_COUNT,
   WAITING_BUBBLE_DURATION_SEC,
 } from '../../constants.js';
 import { getAnimationFrames, getCatalogEntry, getOnStateType } from '../layout/furnitureCatalog.js';
@@ -22,6 +21,7 @@ import {
   layoutToTileMap,
 } from '../layout/layoutSerializer.js';
 import { findPath, getWalkableTiles, isWalkable } from '../layout/tileMap.js';
+import { getLoadedCharacterCount } from '../sprites/spriteData.js';
 import type {
   Character,
   FurnitureInstance,
@@ -239,15 +239,16 @@ export class OfficeState {
    */
   private pickDiversePalette(): { palette: number; hueShift: number } {
     // Count how many non-sub-agents use each base palette (0-5)
-    const counts = new Array(PALETTE_COUNT).fill(0) as number[];
+    const paletteCount = getLoadedCharacterCount();
+    const counts = new Array(paletteCount).fill(0) as number[];
     for (const ch of this.characters.values()) {
       if (ch.isSubagent) continue;
-      counts[ch.palette]++;
+      if (ch.palette < paletteCount) counts[ch.palette]++;
     }
     const minCount = Math.min(...counts);
     // Available = palettes at the minimum count (least used)
     const available: number[] = [];
-    for (let i = 0; i < PALETTE_COUNT; i++) {
+    for (let i = 0; i < paletteCount; i++) {
       if (counts[i] === minCount) available.push(i);
     }
     const palette = available[Math.floor(Math.random() * available.length)];

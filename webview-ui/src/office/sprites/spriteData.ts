@@ -1,3 +1,4 @@
+import { PALETTE_COUNT } from '../../constants.js';
 import { adjustSprite } from '../colorize.js';
 import type { Direction, FloorColor, SpriteData } from '../types.js';
 import { Direction as Dir } from '../types.js';
@@ -38,6 +39,11 @@ export function setCharacterTemplates(data: LoadedCharacterData[]): void {
   loadedCharacters = data;
   // Clear cache so sprites are rebuilt from loaded data
   spriteCache.clear();
+}
+
+/** Return the number of loaded character palettes, or PALETTE_COUNT as fallback. */
+export function getLoadedCharacterCount(): number {
+  return loadedCharacters ? loadedCharacters.length : PALETTE_COUNT;
 }
 
 /** Flip a SpriteData horizontally (for generating left sprites from right) */

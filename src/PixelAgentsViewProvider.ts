@@ -13,13 +13,15 @@ import {
   sendExistingAgents,
   sendLayout,
 } from './agentManager.js';
-import type { LoadedAssets } from './assetLoader.js';
+import type { LoadedAssets, LoadedCharacterSprites } from './assetLoader.js';
 import {
   loadCharacterSprites,
   loadDefaultLayout,
+  loadExternalCharacterSprites,
   loadFloorTiles,
   loadFurnitureAssets,
   loadWallTiles,
+  mergeCharacterSprites,
   mergeLoadedAssets,
   sendAssetsToWebview,
   sendCharacterSpritesToWebview,
@@ -374,10 +376,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             // Load bundled default layout
             this.defaultLayout = loadDefaultLayout(assetsRoot);
 
-            // Load character sprites
-            const charSprites = await loadCharacterSprites(assetsRoot);
+            // Load character sprites (bundled + external)
+            const charSprites = await this.loadAllCharacterSprites();
             if (charSprites && this.webview) {
-              console.log('[Extension] Character sprites loaded, sending to webview');
+              console.log(
+                `[Extension] ${charSprites.characters.length} character sprites loaded, sending to webview`,
+              );
               sendCharacterSpritesToWebview(this.webview, charSprites);
             }
 
@@ -472,6 +476,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           cfg.externalAssetDirectories.push(newPath);
           writeConfig(cfg);
         }
+        await this.reloadAndSendCharacters();
         await this.reloadAndSendFurniture();
         this.webview?.postMessage({
           type: 'externalAssetDirectoriesUpdated',
@@ -483,6 +488,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           (d) => d !== (message.path as string),
         );
         writeConfig(cfg);
+        await this.reloadAndSendCharacters();
         await this.reloadAndSendFurniture();
         this.webview?.postMessage({
           type: 'externalAssetDirectoriesUpdated',
@@ -596,6 +602,20 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     return assets;
   }
 
+  private async loadAllCharacterSprites(): Promise<LoadedCharacterSprites | null> {
+    if (!this.assetsRoot) return null;
+    let chars = await loadCharacterSprites(this.assetsRoot);
+    const config = readConfig();
+    for (const extraDir of config.externalAssetDirectories) {
+      console.log('[Extension] Loading external character sprites from:', extraDir);
+      const extra = await loadExternalCharacterSprites(extraDir);
+      if (extra) {
+        chars = chars ? mergeCharacterSprites(chars, extra) : extra;
+      }
+    }
+    return chars;
+  }
+
   private async reloadAndSendFurniture(): Promise<void> {
     if (!this.assetsRoot || !this.webview) return;
     try {
@@ -605,6 +625,18 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       }
     } catch (err) {
       console.error('[Extension] Error reloading furniture assets:', err);
+    }
+  }
+
+  private async reloadAndSendCharacters(): Promise<void> {
+    if (!this.assetsRoot || !this.webview) return;
+    try {
+      const chars = await this.loadAllCharacterSprites();
+      if (chars) {
+        sendCharacterSpritesToWebview(this.webview, chars);
+      }
+    } catch (err) {
+      console.error('[Extension] Error reloading character sprites:', err);
     }
   }
 
