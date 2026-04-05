@@ -30,6 +30,10 @@ export interface AgentState {
   seenUnknownRecordTypes: Set<string>;
   /** Whether a hook event has been delivered for this agent (suppresses heuristic timers) */
   hookDelivered: boolean;
+  /** Set when SessionEnd(reason=clear) fires; cleared when SessionStart(source=clear) reassigns */
+  pendingClear?: boolean;
+  /** Hook-generated tool ID for PreToolUse/PostToolUse correlation */
+  currentHookToolId?: string;
 }
 
 export interface PersistedAgent {

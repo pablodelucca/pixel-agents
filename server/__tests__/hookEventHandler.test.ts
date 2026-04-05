@@ -7,6 +7,7 @@ import { HookEventHandler } from '../src/hookEventHandler.js';
 function createTestAgent(overrides: Partial<AgentState> = {}): AgentState {
   return {
     id: 1,
+    sessionId: '',
     terminalRef: undefined,
     isExternal: true,
     projectDir: '/test',
@@ -24,8 +25,8 @@ function createTestAgent(overrides: Partial<AgentState> = {}): AgentState {
     hadToolsInTurn: false,
     lastDataAt: 0,
     linesProcessed: 0,
-    hasScannedSinceIdle: false,
     seenUnknownRecordTypes: new Set(),
+    hookDelivered: false,
     ...overrides,
   } as AgentState;
 }
@@ -61,7 +62,8 @@ describe('HookEventHandler', () => {
     );
   });
 
-  // 1. PermissionRequest sends agentToolPermission
+  // ── PermissionRequest ───────────────────────────────────────
+
   it('PermissionRequest sends agentToolPermission', () => {
     const agent = createTestAgent({ id: 1 });
     agents.set(1, agent);
@@ -77,7 +79,6 @@ describe('HookEventHandler', () => {
     expect(msg?.id).toBe(1);
   });
 
-  // 2. PermissionRequest cancels permission timer
   it('PermissionRequest cancels permission timer', () => {
     const agent = createTestAgent({ id: 1 });
     agents.set(1, agent);
@@ -94,7 +95,6 @@ describe('HookEventHandler', () => {
     expect(permissionTimers.has(1)).toBe(false);
   });
 
-  // 3. PermissionRequest notifies sub-agents
   it('PermissionRequest notifies sub-agents', () => {
     const agent = createTestAgent({ id: 1 });
     agent.activeSubagentToolNames.set('tool-parent', new Map([['sub-1', 'Read']]));
@@ -111,7 +111,8 @@ describe('HookEventHandler', () => {
     expect(subMsg?.parentToolId).toBe('tool-parent');
   });
 
-  // 4. Notification permission_prompt shows bubble
+  // ── Notification ────────────────────────────────────────────
+
   it('Notification permission_prompt sends agentToolPermission', () => {
     const agent = createTestAgent({ id: 1 });
     agents.set(1, agent);
@@ -128,7 +129,6 @@ describe('HookEventHandler', () => {
     expect(agent.permissionSent).toBe(true);
   });
 
-  // 5. Notification idle_prompt marks waiting
   it('Notification idle_prompt marks agent waiting', () => {
     const agent = createTestAgent({ id: 1 });
     agents.set(1, agent);
@@ -147,7 +147,8 @@ describe('HookEventHandler', () => {
     expect(msg).toBeTruthy();
   });
 
-  // 6. Stop marks agent waiting
+  // ── Stop ────────────────────────────────────────────────────
+
   it('Stop marks agent waiting', () => {
     const agent = createTestAgent({ id: 1 });
     agents.set(1, agent);
@@ -159,15 +160,12 @@ describe('HookEventHandler', () => {
     });
 
     expect(agent.isWaiting).toBe(true);
-    // agentToolsClear only sent when there are foreground tools
-    // With empty tools, only agentStatus waiting is sent
     const waitMsg = mockWebview.messages.find(
       (m) => m.type === 'agentStatus' && m.status === 'waiting',
     );
     expect(waitMsg).toBeTruthy();
   });
 
-  // 7. Stop clears foreground tools, preserves background
   it('Stop clears foreground tools but preserves background agents', () => {
     const agent = createTestAgent({ id: 1 });
     agent.activeToolIds.add('fg-tool');
@@ -185,24 +183,20 @@ describe('HookEventHandler', () => {
       session_id: 'sess-1',
     });
 
-    // Foreground cleared
     expect(agent.activeToolIds.has('fg-tool')).toBe(false);
-    // Background preserved
     expect(agent.activeToolIds.has('bg-tool')).toBe(true);
-    // agentToolsClear was sent (had foreground tools)
     const clearMsg = mockWebview.messages.find((m) => m.type === 'agentToolsClear');
     expect(clearMsg).toBeTruthy();
-    // Background tool re-sent
     const reSent = mockWebview.messages.find(
       (m) => m.type === 'agentToolStart' && m.toolId === 'bg-tool',
     );
     expect(reSent).toBeTruthy();
   });
 
-  // 8. Sets hookDelivered flag
+  // ── hookDelivered ───────────────────────────────────────────
+
   it('sets hookDelivered flag on agent', () => {
-    const agent = createTestAgent({ id: 1 });
-    (agent as AgentState & { hookDelivered?: boolean }).hookDelivered = false;
+    const agent = createTestAgent({ id: 1, hookDelivered: false } as Partial<AgentState>);
     agents.set(1, agent);
     handler.registerAgent('sess-1', 1);
 
@@ -211,45 +205,60 @@ describe('HookEventHandler', () => {
       session_id: 'sess-1',
     });
 
-    expect((agent as AgentState & { hookDelivered?: boolean }).hookDelivered).toBe(true);
+    expect(agent.hookDelivered).toBe(true);
   });
 
-  // 9. Buffers events for unknown session
-  it('buffers events for unknown session', () => {
-    // No agent registered for 'unknown-sess'
+  // ── Buffering ───────────────────────────────────────────────
+
+  it('silently drops events for untracked sessions', () => {
+    // No agents, no pending sessions, no prior buffered events
     handler.handleEvent('claude', {
       hook_event_name: 'Stop',
       session_id: 'unknown-sess',
     });
 
-    // No messages sent (buffered)
+    // No messages sent, no crash
     expect(mockWebview.messages).toHaveLength(0);
   });
 
-  // 10. Flushes buffer on registerAgent
-  it('flushes buffered events on registerAgent', () => {
-    const agent = createTestAgent({ id: 1 });
+  it('buffers events when unregistered agents exist (internal agent race)', () => {
+    // Agent exists in map but not yet registered for hooks
+    const agent = createTestAgent({ id: 1, sessionId: 'sess-1' } as Partial<AgentState>);
     agents.set(1, agent);
+    // Don't call registerAgent yet (simulates race)
 
-    // Buffer event before registration
     handler.handleEvent('claude', {
       hook_event_name: 'Stop',
       session_id: 'sess-1',
     });
-    expect(mockWebview.messages).toHaveLength(0);
 
-    // Register triggers flush
-    handler.registerAgent('sess-1', 1);
+    // Event should be buffered (auto-discovery finds agent by sessionId and delivers)
+    expect(agent.isWaiting).toBe(true);
+  });
 
+  it('flushes buffered events on registerAgent', () => {
+    // Agent exists with sessionId but not registered
+    const agent = createTestAgent({ id: 1, sessionId: 'sess-1' } as Partial<AgentState>);
+    agents.set(1, agent);
+
+    // Send event (auto-discovery will find it immediately in this case)
+    handler.handleEvent('claude', {
+      hook_event_name: 'Stop',
+      session_id: 'sess-1',
+    });
+
+    // Auto-discovery handles it directly
     const waitMsg = mockWebview.messages.find(
       (m) => m.type === 'agentStatus' && m.status === 'waiting',
     );
     expect(waitMsg).toBeTruthy();
   });
 
-  // 11. Prunes expired buffered events
   it('prunes expired buffered events', async () => {
-    // Buffer an event
+    // Create agent so events get buffered (unregistered agent exists)
+    const agent = createTestAgent({ id: 1, sessionId: 'other-sess' } as Partial<AgentState>);
+    agents.set(1, agent);
+
     handler.handleEvent('claude', {
       hook_event_name: 'Stop',
       session_id: 'expired-sess',
@@ -259,8 +268,8 @@ describe('HookEventHandler', () => {
     await new Promise((r) => setTimeout(r, 7000));
 
     // Now register -- event should have been pruned
-    const agent = createTestAgent({ id: 2 });
-    agents.set(2, agent);
+    const agent2 = createTestAgent({ id: 2 });
+    agents.set(2, agent2);
     handler.registerAgent('expired-sess', 2);
 
     // No messages (event was pruned)
@@ -269,12 +278,11 @@ describe('HookEventHandler', () => {
     handler.dispose();
   });
 
-  // 12. Auto-discovers agent by sessionId
+  // ── Auto-discovery ──────────────────────────────────────────
+
   it('auto-discovers agent by sessionId field', () => {
-    const agent = createTestAgent({ id: 1 });
-    (agent as AgentState & { sessionId?: string }).sessionId = 'auto-sess';
+    const agent = createTestAgent({ id: 1, sessionId: 'auto-sess' } as Partial<AgentState>);
     agents.set(1, agent);
-    // Don't explicitly register
 
     handler.handleEvent('claude', {
       hook_event_name: 'Stop',
@@ -284,17 +292,383 @@ describe('HookEventHandler', () => {
     expect(agent.isWaiting).toBe(true);
   });
 
-  // 13. Dispose cleans up
+  // ── Dispose ─────────────────────────────────────────────────
+
   it('dispose cleans up timers and maps', () => {
     handler.registerAgent('sess-1', 1);
+    handler.dispose();
+    expect(() => handler.dispose()).not.toThrow();
+  });
+
+  // ── SessionStart ────────────────────────────────────────────
+
+  it('SessionStart for known agent sets hookDelivered', () => {
+    const agent = createTestAgent({ id: 1, hookDelivered: false } as Partial<AgentState>);
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
     handler.handleEvent('claude', {
-      hook_event_name: 'Stop',
-      session_id: 'buffered-sess',
+      hook_event_name: 'SessionStart',
+      session_id: 'sess-1',
+      source: 'startup',
     });
 
-    handler.dispose();
+    expect(agent.hookDelivered).toBe(true);
+  });
 
-    // Internal state cleaned (no way to inspect directly, but no crash on subsequent calls)
-    expect(() => handler.dispose()).not.toThrow();
+  it('SessionStart auto-discovers agent by sessionId', () => {
+    const agent = createTestAgent({
+      id: 1,
+      sessionId: 'auto-sess',
+      hookDelivered: false,
+    } as Partial<AgentState>);
+    agents.set(1, agent);
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'auto-sess',
+      source: 'startup',
+    });
+
+    expect(agent.hookDelivered).toBe(true);
+  });
+
+  it('SessionStart(source=clear) reassigns agent with pendingClear', () => {
+    const agent = createTestAgent({
+      id: 1,
+      projectDir: '/projects/test',
+      pendingClear: true,
+    } as Partial<AgentState>);
+    agents.set(1, agent);
+    handler.registerAgent('old-sess', 1);
+
+    const onSessionClear = vi.fn();
+    handler.setLifecycleCallbacks({ onSessionClear });
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'new-sess',
+      source: 'clear',
+      transcript_path: '/projects/test/new-sess.jsonl',
+    });
+
+    expect(onSessionClear).toHaveBeenCalledWith(1, 'new-sess', '/projects/test/new-sess.jsonl');
+    expect(agent.pendingClear).toBe(false);
+  });
+
+  it('SessionStart for unknown session stores as pending', () => {
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'ext-sess',
+      source: 'startup',
+      transcript_path: '/projects/test/ext-sess.jsonl',
+      cwd: '/projects/test',
+    });
+
+    // No agent created (pending, awaiting confirmation)
+    expect(mockWebview.messages).toHaveLength(0);
+  });
+
+  // ── SessionEnd ──────────────────────────────────────────────
+
+  it('SessionEnd(reason=clear) sets pendingClear and marks waiting', () => {
+    const agent = createTestAgent({ id: 1 });
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionEnd',
+      session_id: 'sess-1',
+      reason: 'clear',
+    });
+
+    expect(agent.pendingClear).toBe(true);
+    expect(agent.isWaiting).toBe(true);
+  });
+
+  it('SessionEnd(reason=exit) calls onSessionEnd immediately', () => {
+    const agent = createTestAgent({ id: 1 });
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    const onSessionEnd = vi.fn();
+    handler.setLifecycleCallbacks({ onSessionEnd });
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionEnd',
+      session_id: 'sess-1',
+      reason: 'exit',
+    });
+
+    // Exit is immediate, no pendingClear delay
+    expect(agent.isWaiting).toBe(true);
+    expect(onSessionEnd).toHaveBeenCalledWith(1, 'exit');
+  });
+
+  it('SessionEnd(reason=resume) delays onSessionEnd for SESSION_END_GRACE_MS', async () => {
+    const agent = createTestAgent({ id: 1 });
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    const onSessionEnd = vi.fn();
+    handler.setLifecycleCallbacks({ onSessionEnd });
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionEnd',
+      session_id: 'sess-1',
+      reason: 'resume',
+    });
+
+    // pendingClear set, onSessionEnd delayed
+    expect(agent.pendingClear).toBe(true);
+    expect(agent.isWaiting).toBe(true);
+    expect(onSessionEnd).not.toHaveBeenCalled();
+
+    // Wait for grace period (2000ms + margin)
+    await new Promise((r) => setTimeout(r, 2500));
+    expect(onSessionEnd).toHaveBeenCalledWith(1, 'resume');
+    expect(agent.pendingClear).toBe(false);
+  });
+
+  it('SessionEnd discards pending external session (transient filtering)', () => {
+    // Store pending session via SessionStart
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'transient-sess',
+      source: 'startup',
+      transcript_path: '/projects/test/transient.jsonl',
+      cwd: '/projects/test',
+    });
+
+    // SessionEnd arrives before confirmation -> discard
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionEnd',
+      session_id: 'transient-sess',
+      reason: 'other',
+    });
+
+    // No agent created, no messages
+    expect(mockWebview.messages).toHaveLength(0);
+  });
+
+  // ── PreToolUse / PostToolUse ─────────────────────────────────
+
+  it('PreToolUse sends agentToolStart with formatted status', () => {
+    const agent = createTestAgent({ id: 1, isWaiting: true });
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'PreToolUse',
+      session_id: 'sess-1',
+      tool_name: 'Read',
+      tool_input: { file_path: '/src/server.ts' },
+    });
+
+    const toolMsg = mockWebview.messages.find((m) => m.type === 'agentToolStart');
+    expect(toolMsg).toBeTruthy();
+    expect(toolMsg?.toolName).toBe('Read');
+    expect(toolMsg?.status).toBe('Reading server.ts');
+    expect(agent.currentHookToolId).toBeTruthy();
+  });
+
+  it('PreToolUse marks agent active and cancels waiting', () => {
+    const agent = createTestAgent({ id: 1, isWaiting: true });
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'PreToolUse',
+      session_id: 'sess-1',
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test' },
+    });
+
+    expect(agent.isWaiting).toBe(false);
+    expect(agent.hadToolsInTurn).toBe(true);
+    const activeMsg = mockWebview.messages.find(
+      (m) => m.type === 'agentStatus' && m.status === 'active',
+    );
+    expect(activeMsg).toBeTruthy();
+  });
+
+  it('PostToolUse sends agentToolDone and clears currentHookToolId', () => {
+    const agent = createTestAgent({ id: 1 });
+    agent.currentHookToolId = 'hook-123';
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'PostToolUse',
+      session_id: 'sess-1',
+    });
+
+    const doneMsg = mockWebview.messages.find((m) => m.type === 'agentToolDone');
+    expect(doneMsg).toBeTruthy();
+    expect(doneMsg?.toolId).toBe('hook-123');
+    expect(agent.currentHookToolId).toBeUndefined();
+  });
+
+  it('PostToolUseFailure sends agentToolDone', () => {
+    const agent = createTestAgent({ id: 1 });
+    agent.currentHookToolId = 'hook-456';
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'PostToolUseFailure',
+      session_id: 'sess-1',
+    });
+
+    const doneMsg = mockWebview.messages.find((m) => m.type === 'agentToolDone');
+    expect(doneMsg).toBeTruthy();
+    expect(doneMsg?.toolId).toBe('hook-456');
+    expect(agent.currentHookToolId).toBeUndefined();
+  });
+
+  // ── Pending external session confirmation ────────────────────
+
+  it('confirmation event creates pending external session and delivers event', () => {
+    const onExternalSessionDetected = vi.fn();
+    handler.setLifecycleCallbacks({ onExternalSessionDetected });
+
+    // SessionStart stores as pending
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'ext-sess',
+      source: 'startup',
+      transcript_path: '/projects/test/ext-sess.jsonl',
+      cwd: '/projects/test',
+    });
+
+    expect(onExternalSessionDetected).not.toHaveBeenCalled();
+
+    // Simulate the provider creating the agent (callback side effect)
+    onExternalSessionDetected.mockImplementation((sessionId: string) => {
+      const agent = createTestAgent({
+        id: 2,
+        sessionId,
+        projectDir: '/projects/test',
+      } as Partial<AgentState>);
+      agents.set(2, agent);
+      handler.registerAgent(sessionId, 2);
+    });
+
+    // Stop confirms the session -> creates agent -> re-processes Stop
+    handler.handleEvent('claude', {
+      hook_event_name: 'Stop',
+      session_id: 'ext-sess',
+    });
+
+    expect(onExternalSessionDetected).toHaveBeenCalledWith(
+      'ext-sess',
+      '/projects/test/ext-sess.jsonl',
+      '/projects/test',
+    );
+    // Stop was re-processed after agent creation
+    const agent = agents.get(2);
+    expect(agent?.isWaiting).toBe(true);
+  });
+
+  // ── Resume ──────────────────────────────────────────────────
+
+  it('SessionStart(source=resume) calls onSessionResume', () => {
+    const onSessionResume = vi.fn();
+    handler.setLifecycleCallbacks({ onSessionResume });
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'resume-sess',
+      source: 'resume',
+      transcript_path: '/projects/test/resume-sess.jsonl',
+      cwd: '/projects/test',
+    });
+
+    expect(onSessionResume).toHaveBeenCalledWith('/projects/test/resume-sess.jsonl');
+  });
+
+  it('SessionEnd(resume) + SessionStart(resume) reassigns agent within grace period', async () => {
+    const agent = createTestAgent({
+      id: 1,
+      sessionId: 'old-sess',
+      projectDir: '/projects/test',
+    });
+    agents.set(1, agent);
+    handler.registerAgent('old-sess', 1);
+
+    const onSessionClear = vi.fn();
+    const onSessionEnd = vi.fn();
+    handler.setLifecycleCallbacks({ onSessionClear, onSessionEnd });
+
+    // SessionEnd(reason=resume) sets pendingClear, starts grace timer
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionEnd',
+      session_id: 'old-sess',
+      reason: 'resume',
+    });
+    expect(agent.pendingClear).toBe(true);
+
+    // SessionStart(source=resume) arrives within grace period -> reassigns
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'new-resume-sess',
+      source: 'resume',
+      transcript_path: '/projects/test/new-resume-sess.jsonl',
+      cwd: '/projects/test',
+    });
+    expect(agent.pendingClear).toBe(false);
+    expect(onSessionClear).toHaveBeenCalledWith(
+      1,
+      'new-resume-sess',
+      '/projects/test/new-resume-sess.jsonl',
+    );
+
+    // Grace timer fires but pendingClear is already false -> no-op
+    await new Promise((r) => setTimeout(r, 2500));
+    expect(onSessionEnd).not.toHaveBeenCalled();
+  });
+
+  it('SessionStart(source=resume) reassigns agent with pendingClear, not other agents in same projectDir', () => {
+    const onSessionClear = vi.fn();
+    handler.setLifecycleCallbacks({ onSessionClear });
+
+    // Agent 1: the one that did /resume (has pendingClear from SessionEnd)
+    const resumingAgent = createTestAgent({
+      id: 1,
+      sessionId: 'old-sess-1',
+      projectDir: '/projects/test',
+      pendingClear: true,
+    });
+    agents.set(1, resumingAgent);
+    handler.registerAgent('old-sess-1', 1);
+
+    // Agent 2: external agent in same projectDir (no pendingClear)
+    const externalAgent = createTestAgent({
+      id: 2,
+      sessionId: 'ext-sess-2',
+      projectDir: '/projects/test',
+      pendingClear: false,
+    });
+    agents.set(2, externalAgent);
+    handler.registerAgent('ext-sess-2', 2);
+
+    // SessionStart(source=resume) should reassign Agent 1 (pendingClear), NOT Agent 2
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'new-resume-sess',
+      source: 'resume',
+      transcript_path: '/projects/test/new-resume-sess.jsonl',
+      cwd: '/projects/test',
+    });
+
+    expect(onSessionClear).toHaveBeenCalledWith(
+      1,
+      'new-resume-sess',
+      '/projects/test/new-resume-sess.jsonl',
+    );
+    expect(resumingAgent.pendingClear).toBe(false);
+    // Agent 2 should be untouched
+    expect(externalAgent.pendingClear).toBe(false);
+    expect(externalAgent.sessionId).toBe('ext-sess-2');
   });
 });
