@@ -49,6 +49,28 @@ const THUMB_ZOOM = 2;
 
 const DEFAULT_FURNITURE_COLOR: ColorValue = { h: 0, s: 0, b: 0, c: 0 };
 
+const CARPET_PRESETS: Array<{
+  label: string;
+  main: ColorValue;
+  accent: ColorValue;
+}> = [
+  {
+    label: 'Red',
+    main: { h: 348, s: 81, b: 2, c: 0, colorize: true },
+    accent: { h: 45, s: 100, b: -43, c: 0, colorize: true },
+  },
+  {
+    label: 'Blue',
+    main: { h: 215, s: 68, b: 19, c: 0, colorize: true },
+    accent: { h: 45, s: 100, b: -43, c: 0, colorize: true },
+  },
+  {
+    label: 'Violet',
+    main: { h: 306, s: 50, b: 18, c: 0, colorize: true },
+    accent: { h: 45, s: 100, b: -43, c: 0, colorize: true },
+  },
+];
+
 export function EditorToolbar({
   activeTool,
   selectedTileType,
@@ -126,6 +148,10 @@ export function EditorToolbar({
 
   const effectiveCarpetColor: ColorValue = carpetColor ?? CARPET_DEFAULT_COLOR;
   const effectiveCarpetAccentColor: ColorValue = carpetAccentColor ?? effectiveCarpetColor;
+  const applyCarpetPreset = (main: ColorValue, accent: ColorValue) => {
+    onCarpetColorChange({ ...main });
+    onCarpetAccentColorChange({ ...accent });
+  };
 
   return (
     <div className="absolute bottom-76 left-10 z-10 pixel-panel p-4 flex flex-col-reverse gap-4 max-w-[calc(100vw-20px)]">
@@ -302,6 +328,22 @@ export function EditorToolbar({
           {/* Color controls (collapsible) */}
           {showCarpetColor && (
             <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="text-xs uppercase tracking-[0.08em] text-text-muted mr-2">
+                  Presets
+                </div>
+                {CARPET_PRESETS.map((preset) => (
+                  <Button
+                    key={preset.label}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => applyCarpetPreset(preset.main, preset.accent)}
+                    title={`${preset.label} carpet preset`}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
               <div className="text-xs uppercase tracking-[0.08em] text-text-muted">Main</div>
               <ColorPicker
                 value={effectiveCarpetColor}
