@@ -323,7 +323,7 @@ export function EditorToolbar({
               {Array.from({ length: getCarpetSetCount() }, (_, i) => (
                 <ItemSelect
                   key={i}
-                  width={32}
+                  width={48}
                   height={32}
                   selected={carpetVariant === i}
                   onClick={() => onCarpetVariantChange(i)}
@@ -335,7 +335,14 @@ export function EditorToolbar({
                       ctx.fillRect(0, 0, w, h);
                       return;
                     }
-                    // Draw a filled 2x2 carpet preview using the center junction (all 4 tiles filled)
+                    const previewCols = 2;
+                    const previewRows = 1;
+                    const previewZoom = 1;
+                    const tileSize = 16 * previewZoom;
+                    const carpetWidth = previewCols * tileSize;
+                    const carpetHeight = previewRows * tileSize;
+                    const originX = Math.floor((w - carpetWidth) / 2);
+                    const originY = Math.floor((h - carpetHeight) / 2);
                     const fakeCarpets = [
                       {
                         variant: i,
@@ -358,22 +365,26 @@ export function EditorToolbar({
                         accentColor: effectiveCarpetAccentColor,
                       },
                     ] as Array<import('../types.js').CarpetTile | null>;
-                    const sprite = getCarpetJunctionSprite(
-                      1,
-                      1,
-                      i,
-                      fakeCarpets,
-                      2,
-                      2,
-                      effectiveCarpetColor,
-                      effectiveCarpetAccentColor,
-                    );
-                    if (!sprite) {
-                      ctx.fillStyle = CANVAS_FALLBACK_TILE_COLOR;
-                      ctx.fillRect(0, 0, w, h);
-                      return;
+
+                    for (let jy = 0; jy <= previewRows; jy++) {
+                      for (let jx = 0; jx <= previewCols; jx++) {
+                        const sprite = getCarpetJunctionSprite(
+                          jx,
+                          jy,
+                          i,
+                          fakeCarpets,
+                          previewCols,
+                          previewRows,
+                          effectiveCarpetColor,
+                          effectiveCarpetAccentColor,
+                        );
+                        if (!sprite) continue;
+
+                        const drawX = originX + jx * tileSize - tileSize / 2;
+                        const drawY = originY + jy * tileSize - tileSize / 2;
+                        ctx.drawImage(getCachedSprite(sprite, previewZoom), drawX, drawY);
+                      }
                     }
-                    ctx.drawImage(getCachedSprite(sprite, THUMB_ZOOM), 0, 0);
                   }}
                 />
               ))}
