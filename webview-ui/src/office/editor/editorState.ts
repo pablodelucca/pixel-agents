@@ -1,5 +1,10 @@
 import type { ColorValue } from '../../components/ui/types.js';
-import { DEFAULT_FLOOR_COLOR, DEFAULT_WALL_COLOR, UNDO_STACK_MAX_SIZE } from '../../constants.js';
+import {
+  CARPET_DEFAULT_COLOR,
+  DEFAULT_FLOOR_COLOR,
+  DEFAULT_WALL_COLOR,
+  UNDO_STACK_MAX_SIZE,
+} from '../../constants.js';
 import type { OfficeLayout, TileType as TileTypeVal } from '../types.js';
 import { EditTool, TileType } from '../types.js';
 
@@ -20,6 +25,24 @@ export class EditorState {
 
   // Tracks toggle direction during wall drag (true=adding walls, false=removing, null=undecided)
   wallDragAdding: boolean | null = null;
+
+  // Carpet variant index (0, 1, or 2) — which variant to paint
+  carpetVariant = 0;
+
+  // Carpet color (undefined = use default color from CARPET_DEFAULT_COLOR)
+  carpetColor: ColorValue | undefined = { ...CARPET_DEFAULT_COLOR };
+
+  // Carpet accent color (undefined = follow carpetColor/default color)
+  carpetAccentColor: ColorValue | undefined = undefined;
+
+  // Picked carpet draw order. Undefined means new carpet paints on top.
+  carpetOrder: number | undefined = undefined;
+
+  // Tracks toggle direction during carpet drag (true=painting, false=erasing, null=undecided)
+  carpetDragErasing: boolean | null = null;
+
+  // Layout snapshot captured at the start of a carpet paint/erase stroke.
+  carpetStrokeInitialLayout: OfficeLayout | null = null;
 
   // Picked furniture color (copied by pick tool, applied on placement)
   pickedFurnitureColor: ColorValue | null = null;
@@ -107,6 +130,23 @@ export class EditorState {
     this.isDragMoving = false;
   }
 
+  beginCarpetStroke(layout: OfficeLayout): void {
+    if (!this.carpetStrokeInitialLayout) {
+      this.carpetStrokeInitialLayout = layout;
+    }
+  }
+
+  takeCarpetStrokeUndoLayout(currentLayout: OfficeLayout): OfficeLayout | null {
+    if (!this.carpetStrokeInitialLayout) {
+      this.carpetStrokeInitialLayout = currentLayout;
+    }
+    return this.carpetStrokeInitialLayout === currentLayout ? this.carpetStrokeInitialLayout : null;
+  }
+
+  endCarpetStroke(): void {
+    this.carpetStrokeInitialLayout = null;
+  }
+
   reset(): void {
     this.activeTool = EditTool.SELECT;
     this.selectedFurnitureUid = null;
@@ -115,6 +155,8 @@ export class EditorState {
     this.ghostValid = false;
     this.isDragging = false;
     this.wallDragAdding = null;
+    this.carpetDragErasing = null;
+    this.carpetStrokeInitialLayout = null;
     this.undoStack = [];
     this.redoStack = [];
     this.isDirty = false;

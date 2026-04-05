@@ -9,6 +9,7 @@ export { startGameLoop } from './gameLoop.js';
 export { OfficeState } from './officeState.js';
 export type { DeleteButtonBounds, EditorRenderState, SelectionRenderState } from './renderer.js';
 export {
+  renderCarpetLayer,
   renderDeleteButton,
   renderFrame,
   renderGhostPreview,

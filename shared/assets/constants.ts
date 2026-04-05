@@ -17,3 +17,8 @@ export const CHAR_FRAME_W = 16;
 export const CHAR_FRAME_H = 32;
 export const CHAR_FRAMES_PER_ROW = 7;
 export const CHAR_COUNT = 6;
+
+// ── Carpet Tile Parsing ──────────────────────────────────────
+export const CARPET_TILE_SIZE = 16;
+export const CARPET_GRID_COLS = 4;
+export const CARPET_MARCHING_SQUARES_COUNT = 16;

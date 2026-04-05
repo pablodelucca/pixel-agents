@@ -267,6 +267,7 @@ export function OfficeCanvas({
           officeState.getLayout().tileColors,
           officeState.getLayout().cols,
           officeState.getLayout().rows,
+          officeState.getLayout().carpetTiles,
         );
         offsetRef.current = { x: offsetX, y: offsetY };
 
@@ -368,12 +369,13 @@ export function OfficeCanvas({
             }
           }
 
-          // Paint on drag (tile/wall/erase paint tool only, not during furniture drag)
+          // Paint on drag (tile/wall/erase/carpet paint tool only, not during furniture drag)
           if (
             editorState.isDragging &&
             (editorState.activeTool === EditTool.TILE_PAINT ||
               editorState.activeTool === EditTool.WALL_PAINT ||
-              editorState.activeTool === EditTool.ERASE) &&
+              editorState.activeTool === EditTool.ERASE ||
+              editorState.activeTool === EditTool.CARPET_PAINT) &&
             !editorState.dragUid
           ) {
             onEditorTileAction(tile.col, tile.row);
@@ -383,7 +385,8 @@ export function OfficeCanvas({
             isEraseDraggingRef.current &&
             (editorState.activeTool === EditTool.TILE_PAINT ||
               editorState.activeTool === EditTool.WALL_PAINT ||
-              editorState.activeTool === EditTool.ERASE)
+              editorState.activeTool === EditTool.ERASE ||
+              editorState.activeTool === EditTool.CARPET_PAINT)
           ) {
             const layout = officeState.getLayout();
             if (
@@ -427,6 +430,10 @@ export function OfficeCanvas({
                 );
               });
               canvas.style.cursor = hitFurniture ? 'pointer' : 'crosshair';
+            } else if (editorState.activeTool === EditTool.CARPET_PICK && tile) {
+              const layout = officeState.getLayout();
+              const idx = tile.row * layout.cols + tile.col;
+              canvas.style.cursor = layout.carpetTiles?.[idx] ? 'pointer' : 'crosshair';
             } else if (
               (editorState.activeTool === EditTool.SELECT ||
                 (editorState.activeTool === EditTool.FURNITURE_PLACE &&
@@ -523,10 +530,14 @@ export function OfficeCanvas({
           tile &&
           (editorState.activeTool === EditTool.TILE_PAINT ||
             editorState.activeTool === EditTool.WALL_PAINT ||
-            editorState.activeTool === EditTool.ERASE)
+            editorState.activeTool === EditTool.ERASE ||
+            editorState.activeTool === EditTool.CARPET_PAINT)
         ) {
           const layout = officeState.getLayout();
           if (tile.col >= 0 && tile.col < layout.cols && tile.row >= 0 && tile.row < layout.rows) {
+            if (editorState.activeTool === EditTool.CARPET_PAINT) {
+              editorState.beginCarpetStroke(layout);
+            }
             isEraseDraggingRef.current = true;
             onEditorEraseAction(tile.col, tile.row);
           }
@@ -590,6 +601,9 @@ export function OfficeCanvas({
       // Non-select tools: start paint drag
       editorState.isDragging = true;
       if (tile) {
+        if (editorState.activeTool === EditTool.CARPET_PAINT) {
+          editorState.beginCarpetStroke(officeState.getLayout());
+        }
         onEditorTileAction(tile.col, tile.row);
       }
     },
@@ -620,6 +634,8 @@ export function OfficeCanvas({
       }
       if (e.button === 2) {
         isEraseDraggingRef.current = false;
+        editorState.carpetDragErasing = null;
+        editorState.endCarpetStroke();
         return;
       }
 
@@ -662,6 +678,8 @@ export function OfficeCanvas({
 
       editorState.isDragging = false;
       editorState.wallDragAdding = null;
+      editorState.carpetDragErasing = null;
+      editorState.endCarpetStroke();
     },
     [editorState, isEditMode, officeState, onDragMove, onEditorSelectionChange],
   );
@@ -736,6 +754,8 @@ export function OfficeCanvas({
     isEraseDraggingRef.current = false;
     editorState.isDragging = false;
     editorState.wallDragAdding = null;
+    editorState.carpetDragErasing = null;
+    editorState.endCarpetStroke();
     editorState.clearDrag();
     editorState.ghostCol = -1;
     editorState.ghostRow = -1;

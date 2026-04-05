@@ -68,6 +68,10 @@ const esbuildProblemMatcherPlugin = {
         console.error(`✘ [ERROR] ${text}`);
         console.error(`    ${location.file}:${location.line}:${location.column}:`);
       });
+      if (result.errors.length === 0) {
+        copyAssets();
+        buildHooks();
+      }
       console.log('[watch] build finished');
     });
   },
@@ -91,13 +95,12 @@ async function main() {
     ],
   });
   if (watch) {
+    copyAssets();
+    buildHooks();
     await ctx.watch();
   } else {
     await ctx.rebuild();
     await ctx.dispose();
-    // Copy assets and hooks after build
-    copyAssets();
-    buildHooks();
   }
 }
 

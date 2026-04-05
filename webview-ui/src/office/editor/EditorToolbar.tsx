@@ -4,7 +4,8 @@ import { Button } from '../../components/ui/Button.js';
 import { ColorPicker } from '../../components/ui/ColorPicker.js';
 import { ItemSelect } from '../../components/ui/ItemSelect.js';
 import type { ColorValue } from '../../components/ui/types.js';
-import { CANVAS_FALLBACK_TILE_COLOR } from '../../constants.js';
+import { CANVAS_FALLBACK_TILE_COLOR, CARPET_DEFAULT_COLOR } from '../../constants.js';
+import { getCarpetJunctionSprite, getCarpetSetCount, hasCarpetSprites } from '../carpetTiles.js';
 import { getColorizedSprite } from '../colorize.js';
 import { getColorizedFloorSprite, getFloorPatternCount, hasFloorSprites } from '../floorTiles.js';
 import type { FurnitureCategory, LoadedAssetData } from '../layout/furnitureCatalog.js';
@@ -27,6 +28,9 @@ interface EditorToolbarProps {
   floorColor: ColorValue;
   wallColor: ColorValue;
   selectedWallSet: number;
+  carpetVariant: number;
+  carpetColor: ColorValue | undefined;
+  carpetAccentColor: ColorValue | undefined;
   onToolChange: (tool: EditTool) => void;
   onTileTypeChange: (type: TileTypeVal) => void;
   onFloorColorChange: (color: ColorValue) => void;
@@ -34,12 +38,37 @@ interface EditorToolbarProps {
   onWallSetChange: (setIndex: number) => void;
   onSelectedFurnitureColorChange: (color: ColorValue | null) => void;
   onFurnitureTypeChange: (type: string) => void;
+  onCarpetColorChange: (color: ColorValue | undefined) => void;
+  onCarpetAccentColorChange: (color: ColorValue | undefined) => void;
+  onCarpetVariantChange: (variant: number) => void;
   loadedAssets?: LoadedAssetData;
 }
 
 const THUMB_ZOOM = 2;
 
 const DEFAULT_FURNITURE_COLOR: ColorValue = { h: 0, s: 0, b: 0, c: 0 };
+
+const CARPET_PRESETS: Array<{
+  label: string;
+  main: ColorValue;
+  accent: ColorValue;
+}> = [
+  {
+    label: 'Red',
+    main: { h: 348, s: 81, b: 2, c: 0, colorize: true },
+    accent: { h: 45, s: 100, b: -43, c: 0, colorize: true },
+  },
+  {
+    label: 'Blue',
+    main: { h: 215, s: 68, b: 19, c: 0, colorize: true },
+    accent: { h: 45, s: 100, b: -43, c: 0, colorize: true },
+  },
+  {
+    label: 'Violet',
+    main: { h: 306, s: 50, b: 18, c: 0, colorize: true },
+    accent: { h: 45, s: 100, b: -43, c: 0, colorize: true },
+  },
+];
 
 export function EditorToolbar({
   activeTool,
@@ -50,6 +79,9 @@ export function EditorToolbar({
   floorColor,
   wallColor,
   selectedWallSet,
+  carpetVariant,
+  carpetColor,
+  carpetAccentColor,
   onToolChange,
   onTileTypeChange,
   onFloorColorChange,
@@ -57,12 +89,16 @@ export function EditorToolbar({
   onWallSetChange,
   onSelectedFurnitureColorChange,
   onFurnitureTypeChange,
+  onCarpetColorChange,
+  onCarpetAccentColorChange,
+  onCarpetVariantChange,
   loadedAssets,
 }: EditorToolbarProps) {
   const [activeCategory, setActiveCategory] = useState<FurnitureCategory>('desks');
   const [showColor, setShowColor] = useState(false);
   const [showWallColor, setShowWallColor] = useState(false);
   const [showFurnitureColor, setShowFurnitureColor] = useState(false);
+  const [showCarpetColor, setShowCarpetColor] = useState(false);
 
   // Build dynamic catalog from loaded assets
   useEffect(() => {
@@ -103,8 +139,17 @@ export function EditorToolbar({
   const isFloorActive = activeTool === EditTool.TILE_PAINT || activeTool === EditTool.EYEDROPPER;
   const isWallActive = activeTool === EditTool.WALL_PAINT;
   const isEraseActive = activeTool === EditTool.ERASE;
+  const isCarpetActive =
+    activeTool === EditTool.CARPET_PAINT || activeTool === EditTool.CARPET_PICK;
   const isFurnitureActive =
     activeTool === EditTool.FURNITURE_PLACE || activeTool === EditTool.FURNITURE_PICK;
+
+  const effectiveCarpetColor: ColorValue = carpetColor ?? CARPET_DEFAULT_COLOR;
+  const effectiveCarpetAccentColor: ColorValue = carpetAccentColor ?? effectiveCarpetColor;
+  const applyCarpetPreset = (main: ColorValue, accent: ColorValue) => {
+    onCarpetColorChange({ ...main });
+    onCarpetAccentColorChange({ ...accent });
+  };
 
   return (
     <div className="absolute bottom-76 left-10 z-10 pixel-panel p-4 flex flex-col-reverse gap-4 max-w-[calc(100vw-20px)]">
@@ -141,6 +186,14 @@ export function EditorToolbar({
           title="Erase tiles to void"
         >
           Erase
+        </Button>
+        <Button
+          variant={isCarpetActive ? 'active' : 'default'}
+          size="md"
+          onClick={() => onToolChange(EditTool.CARPET_PAINT)}
+          title="Paint carpet overlay on floor tiles"
+        >
+          Carpet
         </Button>
       </div>
 
@@ -244,6 +297,142 @@ export function EditorToolbar({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Sub-panel: Carpet — stacked bottom-to-top via column-reverse */}
+      {isCarpetActive && (
+        <div className="flex flex-col-reverse gap-4">
+          {/* Color toggle + Pick — just above tool row */}
+          <div className="flex gap-4 items-center">
+            <Button
+              variant={showCarpetColor ? 'active' : 'default'}
+              size="sm"
+              onClick={() => setShowCarpetColor((v) => !v)}
+              title="Adjust carpet color"
+            >
+              Color
+            </Button>
+            <Button
+              variant={activeTool === EditTool.CARPET_PICK ? 'active' : 'ghost'}
+              size="sm"
+              onClick={() => onToolChange(EditTool.CARPET_PICK)}
+              title="Pick carpet variant + color from existing carpet"
+            >
+              Pick
+            </Button>
+          </div>
+
+          {/* Color controls (collapsible) */}
+          {showCarpetColor && (
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="text-xs uppercase tracking-[0.08em] text-text-muted mr-2">
+                  Presets
+                </div>
+                {CARPET_PRESETS.map((preset) => (
+                  <Button
+                    key={preset.label}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => applyCarpetPreset(preset.main, preset.accent)}
+                    title={`${preset.label} carpet preset`}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
+              <div className="text-xs uppercase tracking-[0.08em] text-text-muted">Main</div>
+              <ColorPicker
+                value={effectiveCarpetColor}
+                onChange={(color) => onCarpetColorChange({ ...color, colorize: true })}
+                colorize
+              />
+              <div className="text-xs uppercase tracking-[0.08em] text-text-muted">Accent</div>
+              <ColorPicker
+                value={effectiveCarpetAccentColor}
+                onChange={(color) => onCarpetAccentColorChange({ ...color, colorize: true })}
+                colorize
+              />
+            </div>
+          )}
+
+          {/* Variant picker — horizontal carousel */}
+          {loadedAssets &&
+            loadedAssets.carpetVariantCount > 0 &&
+            hasCarpetSprites() &&
+            getCarpetSetCount() > 0 && (
+              <div className="carousel">
+                {Array.from({ length: getCarpetSetCount() }, (_, i) => (
+                  <ItemSelect
+                    key={i}
+                    width={48}
+                    height={32}
+                    selected={carpetVariant === i}
+                    onClick={() => onCarpetVariantChange(i)}
+                    title={`Carpet ${String.fromCharCode(65 + i)}`}
+                    deps={[i, effectiveCarpetColor, effectiveCarpetAccentColor]}
+                    draw={(ctx, w, h) => {
+                      if (!hasCarpetSprites()) {
+                        ctx.fillStyle = CANVAS_FALLBACK_TILE_COLOR;
+                        ctx.fillRect(0, 0, w, h);
+                        return;
+                      }
+                      const previewCols = 2;
+                      const previewRows = 1;
+                      const previewZoom = 1;
+                      const tileSize = 16 * previewZoom;
+                      const carpetWidth = previewCols * tileSize;
+                      const carpetHeight = previewRows * tileSize;
+                      const originX = Math.floor((w - carpetWidth) / 2);
+                      const originY = Math.floor((h - carpetHeight) / 2);
+                      const fakeCarpets = [
+                        {
+                          variant: i,
+                          color: effectiveCarpetColor,
+                          accentColor: effectiveCarpetAccentColor,
+                        },
+                        {
+                          variant: i,
+                          color: effectiveCarpetColor,
+                          accentColor: effectiveCarpetAccentColor,
+                        },
+                        {
+                          variant: i,
+                          color: effectiveCarpetColor,
+                          accentColor: effectiveCarpetAccentColor,
+                        },
+                        {
+                          variant: i,
+                          color: effectiveCarpetColor,
+                          accentColor: effectiveCarpetAccentColor,
+                        },
+                      ] as Array<import('../types.js').CarpetTile | null>;
+
+                      for (let jy = 0; jy <= previewRows; jy++) {
+                        for (let jx = 0; jx <= previewCols; jx++) {
+                          const sprite = getCarpetJunctionSprite(
+                            jx,
+                            jy,
+                            i,
+                            fakeCarpets,
+                            previewCols,
+                            previewRows,
+                            effectiveCarpetColor,
+                            effectiveCarpetAccentColor,
+                          );
+                          if (!sprite) continue;
+
+                          const drawX = originX + jx * tileSize - tileSize / 2;
+                          const drawY = originY + jy * tileSize - tileSize / 2;
+                          ctx.drawImage(getCachedSprite(sprite, previewZoom), drawX, drawY);
+                        }
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            )}
         </div>
       )}
 
