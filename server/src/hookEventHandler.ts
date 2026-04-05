@@ -78,7 +78,7 @@ export class HookEventHandler {
     if (!transcriptPath) return false;
     const projectDir = path.dirname(transcriptPath);
     return [...this.agents.values()].some(
-      (a) => path.resolve(a.projectDir) === path.resolve(projectDir),
+      (a) => path.resolve(a.projectDir).toLowerCase() === path.resolve(projectDir).toLowerCase(),
     );
   }
 
@@ -153,9 +153,12 @@ export class HookEventHandler {
           for (const [id, agent] of this.agents) {
             // Both /clear and /resume send SessionEnd first (sets pendingClear),
             // then SessionStart. Match the agent that has pendingClear in same project dir.
-            // Normalize paths for cross-platform comparison (Windows backslash vs forward slash).
+            // Normalize paths for cross-platform comparison (separators + case-insensitive
+            // for Windows where drive letter casing differs: c:\ vs C:\).
             const isMatch =
-              agent.pendingClear && path.resolve(agent.projectDir) === path.resolve(projectDir);
+              agent.pendingClear &&
+              path.resolve(agent.projectDir).toLowerCase() ===
+                path.resolve(projectDir).toLowerCase();
             if (isMatch) {
               agent.pendingClear = false;
               console.log(

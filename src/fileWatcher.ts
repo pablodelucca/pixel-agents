@@ -220,7 +220,13 @@ const trackedProjectDirs = new Set<string>();
 
 /** Check if a project dir is tracked by the workspace scanner. */
 export function isTrackedProjectDir(dir: string): boolean {
-  return trackedProjectDirs.has(dir);
+  if (trackedProjectDirs.has(dir)) return true;
+  // Case-insensitive fallback for Windows (drive letter casing: c:\ vs C:\)
+  const resolved = path.resolve(dir).toLowerCase();
+  for (const tracked of trackedProjectDirs) {
+    if (path.resolve(tracked).toLowerCase() === resolved) return true;
+  }
+  return false;
 }
 
 /**
@@ -519,11 +525,12 @@ export function adoptExternalSessionFromHook(
   persistAgents: () => void,
   onAgentCreated?: (agent: AgentState) => void,
 ): void {
-  // Guard: don't adopt if file is already tracked
-  if (knownJsonlFiles.has(transcriptPath)) return;
+  // Guard: don't adopt if file is already tracked by an agent
   for (const agent of agents.values()) {
     if (agent.jsonlFile === transcriptPath) return;
   }
+  // Don't check knownJsonlFiles here -- hooks confirmed this is a real session,
+  // and seeded files at startup are in knownJsonlFiles but may become active later.
   if (dismissedJsonlFiles.has(transcriptPath)) return;
   if (clearDismissedFiles.has(transcriptPath)) return;
 
