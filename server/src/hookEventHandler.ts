@@ -8,7 +8,7 @@ import { formatToolStatus } from '../../src/transcriptParser.js';
 import type { AgentState } from '../../src/types.js';
 import { HOOK_EVENT_BUFFER_MS, SESSION_END_GRACE_MS } from './constants.js';
 
-const debug = process.env.PIXEL_AGENTS_DEBUG === '1';
+const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
 /** Normalized hook event received from any provider's hook script via the HTTP server. */
 export interface HookEvent {

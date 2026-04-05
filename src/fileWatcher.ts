@@ -23,6 +23,8 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
+
 import {
   CLEAR_IDLE_THRESHOLD_MS,
   DISMISSED_COOLDOWN_MS,
@@ -554,7 +556,7 @@ export function adoptExternalSessionFromHook(
 
   // Log with Hook: prefix (this adoption was triggered by hooks, not heuristic scanner)
   const adoptedAgent = [...agents.values()].find((a) => a.jsonlFile === transcriptPath);
-  if (adoptedAgent) {
+  if (adoptedAgent && debug) {
     console.log(
       `[Pixel Agents] Hook: Agent ${adoptedAgent.id} - detected external session ${path.basename(transcriptPath)}${adoptedAgent.folderName ? ` (${adoptedAgent.folderName})` : ''}`,
     );

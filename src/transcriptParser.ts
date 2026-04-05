@@ -1,7 +1,7 @@
 import * as path from 'path';
 import type * as vscode from 'vscode';
 
-const debug = process.env.PIXEL_AGENTS_DEBUG === '1';
+const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
 import {
   BASH_COMMAND_DISPLAY_MAX_LENGTH,
