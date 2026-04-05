@@ -22,4 +22,3 @@ export const CHAR_COUNT = 6;
 export const CARPET_TILE_SIZE = 16;
 export const CARPET_GRID_COLS = 4;
 export const CARPET_MARCHING_SQUARES_COUNT = 16;
-export const CARPET_VARIANT_COUNT = 3;

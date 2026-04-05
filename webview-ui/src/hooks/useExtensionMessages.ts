@@ -4,8 +4,7 @@ import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notifica
 import { setCarpetSprites } from '../office/carpetTiles.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
-import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
-import type { LoadedAssetData } from '../office/layout/furnitureCatalog.js';
+import { buildDynamicCatalog, type LoadedAssetData } from '../office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js';
 import { setCharacterTemplates } from '../office/sprites/spriteData.js';
 import { extractToolName } from '../office/toolUtils.js';
