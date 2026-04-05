@@ -27,7 +27,7 @@ export const dismissedJsonlFiles = new Map<string, number>(); // path → dismis
 const clearDismissedFiles = new Set<string>();
 
 /** Mtime at seeding time. If mtime changes later, file was resumed (--resume). */
-const seededMtimes = new Map<string, number>();
+export const seededMtimes = new Map<string, number>();
 
 /** /clear files waiting for second tick (gives per-agent check time to claim first). */
 const pendingClearFiles = new Map<string, number>();
@@ -121,7 +121,7 @@ export function startFileWatching(
           // Found a /clear file (has last-prompt) → claim it
           deps.knownJsonlFiles.add(file);
           console.log(
-            `[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${agentId} (/clear)`,
+            `[Pixel Agents] Watcher: Agent ${agentId} - /clear detected, reassigning to ${path.basename(file)}`,
           );
           reassignAgentToFile(
             agentId,
@@ -190,7 +190,7 @@ export function readNewLines(
       processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
     }
   } catch (e) {
-    console.log(`[Pixel Agents] Read error for agent ${agentId}: ${e}`);
+    console.log(`[Pixel Agents] Watcher: Agent ${agentId} - read error: ${e}`);
   }
 }
 
@@ -315,9 +315,9 @@ function scanForNewJsonlFiles(
     // Non-adopted files stay OUT of knownJsonlFiles so the per-agent /clear
     // check can find them when the idle check passes (up to 5s later).
 
-    // Try to adopt the focused terminal (for manually-opened Claude terminals)
+    // Try to adopt the focused terminal (only if it's a Claude-named terminal)
     const activeTerminal = vscode.window.activeTerminal;
-    if (activeTerminal) {
+    if (activeTerminal && activeTerminal.name.startsWith(TERMINAL_NAME_PREFIX)) {
       let owned = false;
       for (const agent of agents.values()) {
         if (agent.terminalRef === activeTerminal) {
@@ -382,7 +382,7 @@ function scanForNewJsonlFiles(
   for (const [id, agent] of agents) {
     if (agent.isExternal) continue;
     if (agent.terminalRef && agent.terminalRef.exitStatus !== undefined) {
-      console.log(`[Pixel Agents] Agent ${id}: terminal closed, cleaning up orphan`);
+      console.log(`[Pixel Agents] Watcher: Agent ${id} - terminal closed, cleaning up orphan`);
       // Stop file watching
       fileWatchers.get(id)?.close();
       fileWatchers.delete(id);
@@ -417,6 +417,14 @@ function adoptTerminalForFile(
 ): void {
   const id = nextAgentIdRef.current++;
   const sessionId = path.basename(jsonlFile, '.jsonl');
+  // Skip to end of file -- adopted terminals show live activity only, not replay history
+  let fileOffset = 0;
+  try {
+    const stat = fs.statSync(jsonlFile);
+    fileOffset = stat.size;
+  } catch {
+    /* start from beginning if stat fails */
+  }
   const agent: AgentState = {
     id,
     sessionId,
@@ -424,7 +432,7 @@ function adoptTerminalForFile(
     isExternal: false,
     projectDir,
     jsonlFile,
-    fileOffset: 0,
+    fileOffset,
     lineBuffer: '',
     activeToolIds: new Set(),
     activeToolStatuses: new Map(),
@@ -447,7 +455,7 @@ function adoptTerminalForFile(
   onAgentCreated?.(agent);
 
   console.log(
-    `[Pixel Agents] Agent ${id}: adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`,
+    `[Pixel Agents] Watcher: Agent ${id} - adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`,
   );
   webview?.postMessage({ type: 'agentCreated', id });
 
@@ -465,6 +473,61 @@ function adoptTerminalForFile(
 }
 
 // ── External session support (VS Code extension panel, etc.) ──
+
+/**
+ * Adopt an external session detected via hooks (SessionStart for unknown session_id).
+ * Thinner wrapper than filesystem-based adoptExternalSession: hooks provide
+ * transcript_path and cwd directly, no scanning needed.
+ */
+export function adoptExternalSessionFromHook(
+  sessionId: string,
+  transcriptPath: string,
+  _cwd: string,
+  knownJsonlFiles: Set<string>,
+  nextAgentIdRef: { current: number },
+  agents: Map<number, AgentState>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+  onAgentCreated?: (agent: AgentState) => void,
+): void {
+  // Guard: don't adopt if file is already tracked
+  if (knownJsonlFiles.has(transcriptPath)) return;
+  for (const agent of agents.values()) {
+    if (agent.jsonlFile === transcriptPath) return;
+  }
+  if (dismissedJsonlFiles.has(transcriptPath)) return;
+  if (clearDismissedFiles.has(transcriptPath)) return;
+
+  knownJsonlFiles.add(transcriptPath);
+  const projectDir = path.dirname(transcriptPath);
+  const folderName = folderNameFromProjectDir(path.basename(projectDir));
+
+  adoptExternalSession(
+    transcriptPath,
+    projectDir,
+    nextAgentIdRef,
+    agents,
+    fileWatchers,
+    pollingTimers,
+    waitingTimers,
+    permissionTimers,
+    webview,
+    persistAgents,
+    folderName,
+  );
+
+  // After adoption, register the session ID so future hooks route to this agent
+  const adoptedAgent = [...agents.values()].find((a) => a.jsonlFile === transcriptPath);
+  if (adoptedAgent) {
+    adoptedAgent.sessionId = sessionId;
+    adoptedAgent.hookDelivered = true;
+    onAgentCreated?.(adoptedAgent);
+  }
+}
 
 function adoptExternalSession(
   jsonlFile: string,
@@ -517,7 +580,7 @@ function adoptExternalSession(
   persistAgents();
 
   console.log(
-    `[Pixel Agents] Agent ${id}: detected external session ${path.basename(jsonlFile)}${folderName ? ` (${folderName})` : ''}`,
+    `[Pixel Agents] Watcher: Agent ${id} - detected external session ${path.basename(jsonlFile)}${folderName ? ` (${folderName})` : ''}`,
   );
   webview?.postMessage({ type: 'agentCreated', id, isExternal: true, folderName });
 
@@ -635,7 +698,7 @@ function scanExternalDir(
       }
       if (tracked) continue;
       seededMtimes.delete(file);
-      console.log(`[Pixel Agents] Resumed session detected: ${path.basename(file)}`);
+      console.log(`[Pixel Agents] Watcher: Resumed session detected: ${path.basename(file)}`);
       adoptExternalSession(
         file,
         projectDir,
@@ -839,7 +902,7 @@ export function startStaleExternalAgentCheck(
         // Remove from knownJsonlFiles so the file can be re-adopted if it becomes active again
         knownJsonlFiles.delete(agent.jsonlFile);
       }
-      console.log(`[Pixel Agents] Removing stale external agent ${id}`);
+      console.log(`[Pixel Agents] Watcher: Agent ${id} - removing stale external agent`);
       removeAgent(
         id,
         agents,

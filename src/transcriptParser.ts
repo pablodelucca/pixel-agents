@@ -1,6 +1,8 @@
 import * as path from 'path';
 import type * as vscode from 'vscode';
 
+const debug = process.env.PIXEL_AGENTS_DEBUG === '1';
+
 import {
   BASH_COMMAND_DISPLAY_MAX_LENGTH,
   TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
@@ -95,7 +97,9 @@ export function processTranscriptLine(
           if (block.type === 'tool_use' && block.id) {
             const toolName = block.name || '';
             const status = formatToolStatus(toolName, block.input || {});
-            console.log(`[Pixel Agents] Agent ${agentId} tool start: ${block.id} ${status}`);
+            console.log(
+              `[Pixel Agents] JSONL: Agent ${agentId} - tool start: ${block.id} ${status}`,
+            );
             agent.activeToolIds.add(block.id);
             agent.activeToolStatuses.set(block.id, status);
             agent.activeToolNames.set(block.id, toolName);
@@ -160,7 +164,9 @@ export function processTranscriptLine(
                 continue; // don't mark as done yet
               }
 
-              console.log(`[Pixel Agents] Agent ${agentId} tool done: ${block.tool_use_id}`);
+              console.log(
+                `[Pixel Agents] JSONL: Agent ${agentId} - tool done: ${block.tool_use_id}`,
+              );
               // If the completed tool was a Task/Agent, clear its subagent tools
               if (completedToolName === 'Task' || completedToolName === 'Agent') {
                 agent.activeSubagentToolIds.delete(completedToolId);
@@ -299,10 +305,12 @@ export function processTranscriptLine(
       const knownSkippableTypes = new Set(['file-history-snapshot', 'system', 'queue-operation']);
       if (!knownSkippableTypes.has(record.type)) {
         agent.seenUnknownRecordTypes.add(record.type);
-        console.log(
-          `[Pixel Agents] Agent ${agentId}: unrecognized record type '${record.type}'. ` +
-            `Keys: ${Object.keys(record).join(', ')}`,
-        );
+        if (debug) {
+          console.log(
+            `[Pixel Agents] JSONL: Agent ${agentId} - unrecognized record type '${record.type}'. ` +
+              `Keys: ${Object.keys(record).join(', ')}`,
+          );
+        }
       }
     }
   } catch {

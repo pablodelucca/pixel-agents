@@ -50,6 +50,8 @@ import {
 import {
   dismissedJsonlFiles,
   ensureProjectScan,
+  reassignAgentToFile,
+  seededMtimes,
   startExternalSessionScanning,
   startStaleExternalAgentCheck,
 } from './fileWatcher.js';
@@ -121,6 +123,40 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       () => this.webview,
     );
 
+    this.hookEventHandler.setLifecycleCallbacks({
+      // TODO(Phase C): Add onExternalSessionDetected with workspace filtering
+      onSessionClear: (agentId, newSessionId, newTranscriptPath) => {
+        this.knownJsonlFiles.add(newTranscriptPath);
+        reassignAgentToFile(
+          agentId,
+          newTranscriptPath,
+          this.agents,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.webview,
+          this.persistAgents,
+        );
+        // Update session mapping for future hook events
+        const agent = this.agents.get(agentId);
+        if (agent) {
+          this.unregisterAgentHook(agent);
+          agent.sessionId = newSessionId;
+          this.registerAgentHook(agent);
+        }
+      },
+      onSessionEnd: (agentId) => {
+        // Dismiss the file so heuristic scanners (seededMtimes, external scanner)
+        // don't re-adopt it as a ghost agent after the session truly ended.
+        const agent = this.agents.get(agentId);
+        if (agent) {
+          seededMtimes.delete(agent.jsonlFile);
+          dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+        }
+      },
+    });
+
     this.pixelAgentsServer = new PixelAgentsServer();
     this.pixelAgentsServer.onHookEvent((providerId, event) => {
       this.hookEventHandler?.handleEvent(providerId, event as HookEvent);
@@ -137,7 +173,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           installHooks();
           copyHookScript(this.context.extensionPath);
         }
-        console.log(`[Pixel Agents] Server ready on port ${config.port}`);
+        console.log(`[Pixel Agents] Server: ready on port ${config.port}`);
       })
       .catch((e) => {
         console.error(`[Pixel Agents] Failed to start server: ${e}`);
@@ -220,7 +256,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
       } else if (message.type === 'saveAgentSeats') {
         // Store seat assignments in a separate key (never touched by persistAgents)
-        console.log(`[Pixel Agents] saveAgentSeats:`, JSON.stringify(message.seats));
+        console.log(`[Pixel Agents] State: saveAgentSeats:`, JSON.stringify(message.seats));
         this.context.workspaceState.update(WORKSPACE_KEY_AGENT_SEATS, message.seats);
       } else if (message.type === 'saveLayout') {
         this.layoutWatcher?.markOwnWrite();
@@ -355,7 +391,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         // Ensure project scan runs even with no restored agents (to adopt external terminals)
         const projectDir = getProjectDirPath();
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        console.log(`[Pixel Agents] Platform: ${process.platform}, arch: ${process.arch}`);
+        console.log(`[Pixel Agents] Debug: Platform: ${process.platform}, arch: ${process.arch}`);
         console.log('[Extension] workspaceRoot:', workspaceRoot);
         console.log('[Extension] projectDir:', projectDir);
         ensureProjectScan(

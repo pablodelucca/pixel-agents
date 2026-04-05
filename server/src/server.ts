@@ -95,9 +95,9 @@ export class PixelAgentsServer {
           // Replace startup error handler with runtime error handler
           this.server!.removeListener('error', reject);
           this.server!.on('error', (err) => {
-            console.error(`[Pixel Agents] Server error: ${err}`);
+            console.error(`[Pixel Agents] Server: error: ${err}`);
           });
-          console.log(`[Pixel Agents] Server listening on 127.0.0.1:${addr.port}`);
+          console.log(`[Pixel Agents] Server: listening on 127.0.0.1:${addr.port}`);
           resolve(this.config);
         } else {
           reject(new Error('Failed to get server address'));
