@@ -63,4 +63,9 @@ export const HOOK_EVENTS = [
   'SubagentStop',
 ] as const;
 export const HOOK_EVENT_BUFFER_MS = 5_000;
+/** Grace period after SessionEnd(reason=clear/resume) before triggering onSessionEnd.
+ *  /clear and /resume fire SessionEnd then SessionStart within ms. This timeout is a
+ *  safety net: if SessionStart never arrives (e.g. Claude crashes mid-transition),
+ *  the agent is cleaned up instead of staying as a zombie with pendingClear forever. */
+export const SESSION_END_GRACE_MS = 500;
 export const MAX_HOOK_BODY_SIZE = 65_536; // 64KB

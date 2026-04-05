@@ -6,7 +6,7 @@ import type * as vscode from 'vscode';
 import { cancelPermissionTimer, cancelWaitingTimer } from '../../src/timerManager.js';
 import { formatToolStatus } from '../../src/transcriptParser.js';
 import type { AgentState } from '../../src/types.js';
-import { HOOK_EVENT_BUFFER_MS } from './constants.js';
+import { HOOK_EVENT_BUFFER_MS, SESSION_END_GRACE_MS } from './constants.js';
 
 const debug = process.env.PIXEL_AGENTS_DEBUG === '1';
 
@@ -143,16 +143,19 @@ export class HookEventHandler {
           return;
         }
       }
-      // /clear: find agent with pendingClear in same project dir
-      if (event.source === 'clear') {
+      // /clear or /resume: reassign existing agent to new session
+      if (event.source === 'clear' || event.source === 'resume') {
         const transcriptPath = event.transcript_path as string | undefined;
         if (transcriptPath) {
           const projectDir = path.dirname(transcriptPath);
           for (const [id, agent] of this.agents) {
-            if (agent.pendingClear && agent.projectDir === projectDir) {
+            // Both /clear and /resume send SessionEnd first (sets pendingClear),
+            // then SessionStart. Match the agent that has pendingClear in same project dir.
+            const isMatch = agent.pendingClear && agent.projectDir === projectDir;
+            if (isMatch) {
               agent.pendingClear = false;
               console.log(
-                `[Pixel Agents] Hook: Agent ${id} - /clear detected, reassigning to ${event.session_id}`,
+                `[Pixel Agents] Hook: Agent ${id} - /${event.source} detected, reassigning to ${event.session_id}`,
               );
               this.sessionToAgentId.delete(agent.sessionId);
               this.registerAgent(event.session_id, id);
@@ -298,15 +301,26 @@ export class HookEventHandler {
         `[Pixel Agents] Hook: Agent ${agentId} - SessionEnd(reason=${reason ?? 'unknown'})`,
       );
 
-    if (reason === 'clear') {
-      // /clear: don't clean up, SessionStart with source=clear is coming next
+    // /clear and /resume send SessionEnd then SessionStart. Wait briefly for the follow-up.
+    // All other reasons (exit, logout, prompt_input_exit) are final -- despawn immediately.
+    const expectsFollowUp = reason === 'clear' || reason === 'resume';
+
+    if (expectsFollowUp) {
       agent.pendingClear = true;
+      this.markAgentWaiting(agent, agentId, webview);
       if (debug)
         console.log(
-          `[Pixel Agents] Hook: Agent ${agentId} - SessionEnd(reason=clear), awaiting SessionStart`,
+          `[Pixel Agents] Hook: Agent ${agentId} - SessionEnd(reason=${reason}), awaiting possible SessionStart`,
         );
+      // Safety net: if SessionStart never arrives, clean up the zombie agent
+      setTimeout(() => {
+        if (agent.pendingClear) {
+          agent.pendingClear = false;
+          this.lifecycleCallbacks.onSessionEnd?.(agentId, reason);
+        }
+      }, SESSION_END_GRACE_MS);
     } else {
-      // Session truly ending (exit, logout, etc.)
+      // Immediate cleanup for exit/logout
       this.markAgentWaiting(agent, agentId, webview);
       this.lifecycleCallbacks.onSessionEnd?.(agentId, reason ?? 'unknown');
     }

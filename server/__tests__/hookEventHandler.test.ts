@@ -371,7 +371,7 @@ describe('HookEventHandler', () => {
 
   // ── SessionEnd ──────────────────────────────────────────────
 
-  it('SessionEnd(reason=clear) sets pendingClear', () => {
+  it('SessionEnd(reason=clear) sets pendingClear and marks waiting', () => {
     const agent = createTestAgent({ id: 1 });
     agents.set(1, agent);
     handler.registerAgent('sess-1', 1);
@@ -383,11 +383,10 @@ describe('HookEventHandler', () => {
     });
 
     expect(agent.pendingClear).toBe(true);
-    // Should NOT mark waiting (SessionStart with source=clear is coming)
-    expect(agent.isWaiting).toBe(false);
+    expect(agent.isWaiting).toBe(true);
   });
 
-  it('SessionEnd(reason=exit) calls onSessionEnd', () => {
+  it('SessionEnd(reason=exit) calls onSessionEnd immediately', () => {
     const agent = createTestAgent({ id: 1 });
     agents.set(1, agent);
     handler.registerAgent('sess-1', 1);
@@ -401,8 +400,34 @@ describe('HookEventHandler', () => {
       reason: 'exit',
     });
 
-    expect(onSessionEnd).toHaveBeenCalledWith(1, 'exit');
+    // Exit is immediate, no pendingClear delay
     expect(agent.isWaiting).toBe(true);
+    expect(onSessionEnd).toHaveBeenCalledWith(1, 'exit');
+  });
+
+  it('SessionEnd(reason=resume) delays onSessionEnd for SESSION_END_GRACE_MS', async () => {
+    const agent = createTestAgent({ id: 1 });
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    const onSessionEnd = vi.fn();
+    handler.setLifecycleCallbacks({ onSessionEnd });
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionEnd',
+      session_id: 'sess-1',
+      reason: 'resume',
+    });
+
+    // pendingClear set, onSessionEnd delayed
+    expect(agent.pendingClear).toBe(true);
+    expect(agent.isWaiting).toBe(true);
+    expect(onSessionEnd).not.toHaveBeenCalled();
+
+    // Wait for grace period (500ms + margin)
+    await new Promise((r) => setTimeout(r, 700));
+    expect(onSessionEnd).toHaveBeenCalledWith(1, 'resume');
+    expect(agent.pendingClear).toBe(false);
   });
 
   it('SessionEnd discards pending external session (transient filtering)', () => {
@@ -560,5 +585,90 @@ describe('HookEventHandler', () => {
     });
 
     expect(onSessionResume).toHaveBeenCalledWith('/projects/test/resume-sess.jsonl');
+  });
+
+  it('SessionEnd(resume) + SessionStart(resume) reassigns agent within grace period', async () => {
+    const agent = createTestAgent({
+      id: 1,
+      sessionId: 'old-sess',
+      projectDir: '/projects/test',
+    });
+    agents.set(1, agent);
+    handler.registerAgent('old-sess', 1);
+
+    const onSessionClear = vi.fn();
+    const onSessionEnd = vi.fn();
+    handler.setLifecycleCallbacks({ onSessionClear, onSessionEnd });
+
+    // SessionEnd(reason=resume) sets pendingClear, starts grace timer
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionEnd',
+      session_id: 'old-sess',
+      reason: 'resume',
+    });
+    expect(agent.pendingClear).toBe(true);
+
+    // SessionStart(source=resume) arrives within grace period -> reassigns
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'new-resume-sess',
+      source: 'resume',
+      transcript_path: '/projects/test/new-resume-sess.jsonl',
+      cwd: '/projects/test',
+    });
+    expect(agent.pendingClear).toBe(false);
+    expect(onSessionClear).toHaveBeenCalledWith(
+      1,
+      'new-resume-sess',
+      '/projects/test/new-resume-sess.jsonl',
+    );
+
+    // Grace timer fires but pendingClear is already false -> no-op
+    await new Promise((r) => setTimeout(r, 700));
+    expect(onSessionEnd).not.toHaveBeenCalled();
+  });
+
+  it('SessionStart(source=resume) reassigns agent with pendingClear, not other agents in same projectDir', () => {
+    const onSessionClear = vi.fn();
+    handler.setLifecycleCallbacks({ onSessionClear });
+
+    // Agent 1: the one that did /resume (has pendingClear from SessionEnd)
+    const resumingAgent = createTestAgent({
+      id: 1,
+      sessionId: 'old-sess-1',
+      projectDir: '/projects/test',
+      pendingClear: true,
+    });
+    agents.set(1, resumingAgent);
+    handler.registerAgent('old-sess-1', 1);
+
+    // Agent 2: external agent in same projectDir (no pendingClear)
+    const externalAgent = createTestAgent({
+      id: 2,
+      sessionId: 'ext-sess-2',
+      projectDir: '/projects/test',
+      pendingClear: false,
+    });
+    agents.set(2, externalAgent);
+    handler.registerAgent('ext-sess-2', 2);
+
+    // SessionStart(source=resume) should reassign Agent 1 (pendingClear), NOT Agent 2
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'new-resume-sess',
+      source: 'resume',
+      transcript_path: '/projects/test/new-resume-sess.jsonl',
+      cwd: '/projects/test',
+    });
+
+    expect(onSessionClear).toHaveBeenCalledWith(
+      1,
+      'new-resume-sess',
+      '/projects/test/new-resume-sess.jsonl',
+    );
+    expect(resumingAgent.pendingClear).toBe(false);
+    // Agent 2 should be untouched
+    expect(externalAgent.pendingClear).toBe(false);
+    expect(externalAgent.sessionId).toBe('ext-sess-2');
   });
 });
