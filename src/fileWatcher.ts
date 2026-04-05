@@ -1,3 +1,23 @@
+/**
+ * Session Detection: Dual-Mode Architecture
+ *
+ * HOOKS MODE (preferred): Claude Code Hooks API delivers instant, reliable events
+ * for session lifecycle (SessionStart, SessionEnd, Stop, PermissionRequest, etc.).
+ * When hooks work, heuristic scanners and timers are suppressed. The hookDelivered
+ * flag per agent and hooksEnabledRef globally control the switch.
+ *
+ * HEURISTIC MODE (fallback): For environments without hooks (other providers,
+ * hooks disabled, older Claude versions). Uses:
+ * - Per-agent 500ms JSONL polling for tool activity and /clear detection
+ * - 1s main scanner for terminal adoption
+ * - 3s external scanner for external session detection
+ * - 30s stale check for orphaned external agents
+ * - Multiple dismissal systems to prevent re-adoption races
+ *
+ * JSONL POLLING (always active): readNewLines + processTranscriptLine run in both
+ * modes. They provide tool content (status text, animations) that hooks don't carry.
+ * Only their timer logic (permission 7s, text-idle 5s) is suppressed by hookDelivered.
+ */
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -70,11 +90,10 @@ export function startFileWatching(
     const prevOffset = agent.fileOffset;
     readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
 
-    // Per-agent /clear detection: when this INTERNAL agent's file is idle AND
-    // terminal focused AND no external agents exist. The !hasExternalAgents guard
-    // prevents stealing external /clear files. Trade-off: internal /clear in mixed
-    // mode creates a clone (external scanner adopts via two-tick).
+    // HEURISTIC FALLBACK: Per-agent /clear detection (skipped when hooks handle sessions).
+    // When hooks are active, SessionEnd+SessionStart handle /clear reliably.
     if (
+      !agent.hookDelivered &&
       clearDetectionDeps &&
       agent.fileOffset === prevOffset &&
       agent.terminalRef &&
