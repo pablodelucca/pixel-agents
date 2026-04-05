@@ -77,7 +77,9 @@ export class HookEventHandler {
     if (this.watchAllSessionsRef?.current) return true;
     if (!transcriptPath) return false;
     const projectDir = path.dirname(transcriptPath);
-    return [...this.agents.values()].some((a) => a.projectDir === projectDir);
+    return [...this.agents.values()].some(
+      (a) => path.resolve(a.projectDir) === path.resolve(projectDir),
+    );
   }
 
   /** Set callbacks for session lifecycle events (SessionStart/SessionEnd). */
@@ -151,7 +153,9 @@ export class HookEventHandler {
           for (const [id, agent] of this.agents) {
             // Both /clear and /resume send SessionEnd first (sets pendingClear),
             // then SessionStart. Match the agent that has pendingClear in same project dir.
-            const isMatch = agent.pendingClear && agent.projectDir === projectDir;
+            // Normalize paths for cross-platform comparison (Windows backslash vs forward slash).
+            const isMatch =
+              agent.pendingClear && path.resolve(agent.projectDir) === path.resolve(projectDir);
             if (isMatch) {
               agent.pendingClear = false;
               console.log(
