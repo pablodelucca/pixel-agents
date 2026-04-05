@@ -30,6 +30,7 @@ interface EditorToolbarProps {
   selectedWallSet: number;
   carpetVariant: number;
   carpetColor: ColorValue | undefined;
+  carpetAccentColor: ColorValue | undefined;
   onToolChange: (tool: EditTool) => void;
   onTileTypeChange: (type: TileTypeVal) => void;
   onFloorColorChange: (color: ColorValue) => void;
@@ -38,6 +39,7 @@ interface EditorToolbarProps {
   onSelectedFurnitureColorChange: (color: ColorValue | null) => void;
   onFurnitureTypeChange: (type: string) => void;
   onCarpetColorChange: (color: ColorValue | undefined) => void;
+  onCarpetAccentColorChange: (color: ColorValue | undefined) => void;
   onCarpetVariantChange: (variant: number) => void;
   loadedAssets?: LoadedAssetData;
   carpetAssetsLoaded?: boolean; // TODO: should be part of loadedAssets
@@ -58,6 +60,7 @@ export function EditorToolbar({
   selectedWallSet,
   carpetVariant,
   carpetColor,
+  carpetAccentColor,
   onToolChange,
   onTileTypeChange,
   onFloorColorChange,
@@ -66,6 +69,7 @@ export function EditorToolbar({
   onSelectedFurnitureColorChange,
   onFurnitureTypeChange,
   onCarpetColorChange,
+  onCarpetAccentColorChange,
   onCarpetVariantChange,
   loadedAssets,
   carpetAssetsLoaded,
@@ -121,6 +125,7 @@ export function EditorToolbar({
     activeTool === EditTool.FURNITURE_PLACE || activeTool === EditTool.FURNITURE_PICK;
 
   const effectiveCarpetColor: ColorValue = carpetColor ?? CARPET_DEFAULT_COLOR;
+  const effectiveCarpetAccentColor: ColorValue = carpetAccentColor ?? effectiveCarpetColor;
 
   return (
     <div className="absolute bottom-76 left-10 z-10 pixel-panel p-4 flex flex-col-reverse gap-4 max-w-[calc(100vw-20px)]">
@@ -296,11 +301,20 @@ export function EditorToolbar({
 
           {/* Color controls (collapsible) */}
           {showCarpetColor && (
-            <ColorPicker
-              value={effectiveCarpetColor}
-              onChange={(color) => onCarpetColorChange({ ...color, colorize: true })}
-              colorize
-            />
+            <div className="flex flex-col gap-4">
+              <div className="text-xs uppercase tracking-[0.08em] text-text-muted">Main</div>
+              <ColorPicker
+                value={effectiveCarpetColor}
+                onChange={(color) => onCarpetColorChange({ ...color, colorize: true })}
+                colorize
+              />
+              <div className="text-xs uppercase tracking-[0.08em] text-text-muted">Accent</div>
+              <ColorPicker
+                value={effectiveCarpetAccentColor}
+                onChange={(color) => onCarpetAccentColorChange({ ...color, colorize: true })}
+                colorize
+              />
+            </div>
           )}
 
           {/* Variant picker — horizontal carousel */}
@@ -314,7 +328,7 @@ export function EditorToolbar({
                   selected={carpetVariant === i}
                   onClick={() => onCarpetVariantChange(i)}
                   title={`Carpet ${String.fromCharCode(65 + i)}`}
-                  deps={[i, effectiveCarpetColor]}
+                  deps={[i, effectiveCarpetColor, effectiveCarpetAccentColor]}
                   draw={(ctx, w, h) => {
                     if (!hasCarpetSprites()) {
                       ctx.fillStyle = CANVAS_FALLBACK_TILE_COLOR;
@@ -323,10 +337,26 @@ export function EditorToolbar({
                     }
                     // Draw a filled 2x2 carpet preview using the center junction (all 4 tiles filled)
                     const fakeCarpets = [
-                      { variant: i },
-                      { variant: i },
-                      { variant: i },
-                      { variant: i },
+                      {
+                        variant: i,
+                        color: effectiveCarpetColor,
+                        accentColor: effectiveCarpetAccentColor,
+                      },
+                      {
+                        variant: i,
+                        color: effectiveCarpetColor,
+                        accentColor: effectiveCarpetAccentColor,
+                      },
+                      {
+                        variant: i,
+                        color: effectiveCarpetColor,
+                        accentColor: effectiveCarpetAccentColor,
+                      },
+                      {
+                        variant: i,
+                        color: effectiveCarpetColor,
+                        accentColor: effectiveCarpetAccentColor,
+                      },
                     ] as Array<import('../types.js').CarpetTile | null>;
                     const sprite = getCarpetJunctionSprite(
                       1,
@@ -336,6 +366,7 @@ export function EditorToolbar({
                       2,
                       2,
                       effectiveCarpetColor,
+                      effectiveCarpetAccentColor,
                     );
                     if (!sprite) {
                       ctx.fillStyle = CANVAS_FALLBACK_TILE_COLOR;

@@ -32,6 +32,9 @@ export class EditorState {
   // Carpet color (undefined = use default color from CARPET_DEFAULT_COLOR)
   carpetColor: ColorValue | undefined = { ...CARPET_DEFAULT_COLOR };
 
+  // Carpet accent color (undefined = follow carpetColor/default color)
+  carpetAccentColor: ColorValue | undefined = undefined;
+
   // Picked carpet draw order. Undefined means new carpet paints on top.
   carpetOrder: number | undefined = undefined;
 

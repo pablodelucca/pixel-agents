@@ -34,7 +34,7 @@ import {
   VOID_TILE_DASH_PATTERN,
   VOID_TILE_OUTLINE_COLOR,
 } from '../../constants.js';
-import { getCarpetColorKey, getCarpetJunctionSprite, hasCarpetSprites } from '../carpetTiles.js';
+import { getCarpetJunctionSprite, getCarpetPaletteKey, hasCarpetSprites } from '../carpetTiles.js';
 import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js';
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js';
 import {
@@ -127,7 +127,13 @@ export function renderCarpetLayer(
     for (let jx = 0; jx <= cols; jx++) {
       const localGroups = new Map<
         string,
-        { variant: number; color: ColorValue; colorKey: string; order: number }
+        {
+          variant: number;
+          color: ColorValue;
+          accentColor: ColorValue;
+          paletteKey: string;
+          order: number;
+        }
       >();
 
       const adjacent = [
@@ -142,17 +148,18 @@ export function renderCarpetLayer(
         const tile = carpetTiles[pos.row * cols + pos.col];
         if (!tile) continue;
         const color = tile.color ?? CARPET_DEFAULT_COLOR;
-        const colorKey = getCarpetColorKey(color);
-        const key = `${tile.variant}:${colorKey}`;
+        const accentColor = tile.accentColor ?? color;
+        const paletteKey = getCarpetPaletteKey(color, accentColor);
+        const key = `${tile.variant}:${paletteKey}`;
         const order = tile.order ?? 0;
         const existing = localGroups.get(key);
         if (!existing || order > existing.order) {
-          localGroups.set(key, { variant: tile.variant, color, colorKey, order });
+          localGroups.set(key, { variant: tile.variant, color, accentColor, paletteKey, order });
         }
       }
 
       const orderedGroups = [...localGroups.values()].sort((a, b) => a.order - b.order);
-      for (const { variant, color, colorKey } of orderedGroups) {
+      for (const { variant, color, accentColor, paletteKey } of orderedGroups) {
         const sprite = getCarpetJunctionSprite(
           jx,
           jy,
@@ -161,7 +168,8 @@ export function renderCarpetLayer(
           cols,
           rows,
           color,
-          colorKey,
+          accentColor,
+          paletteKey,
         );
         if (!sprite) continue;
         const cached = getCachedSprite(sprite, zoom);

@@ -52,6 +52,7 @@ export interface EditorActions {
   handleSelectedFurnitureColorChange: (color: ColorValue | null) => void;
   handleFurnitureTypeChange: (type: string) => void; // FurnitureType enum or asset ID
   handleCarpetColorChange: (color: ColorValue | undefined) => void;
+  handleCarpetAccentColorChange: (color: ColorValue | undefined) => void;
   handleCarpetVariantChange: (variant: number) => void;
   handleDeleteSelected: () => void;
   handleRotateSelected: () => void;
@@ -238,6 +239,15 @@ export function useEditorActions(
   const handleCarpetColorChange = useCallback(
     (color: ColorValue | undefined) => {
       editorState.carpetColor = color;
+      editorState.carpetOrder = undefined;
+      setEditorTick((n) => n + 1);
+    },
+    [editorState],
+  );
+
+  const handleCarpetAccentColorChange = useCallback(
+    (color: ColorValue | undefined) => {
+      editorState.carpetAccentColor = color;
       editorState.carpetOrder = undefined;
       setEditorTick((n) => n + 1);
     },
@@ -452,6 +462,7 @@ export function useEditorActions(
             row,
             editorState.carpetVariant,
             editorState.carpetColor,
+            editorState.carpetAccentColor,
             editorState.carpetOrder,
           );
         }
@@ -603,6 +614,9 @@ export function useEditorActions(
         if (carpet) {
           editorState.carpetVariant = carpet.variant;
           editorState.carpetColor = carpet.color ? { ...carpet.color } : undefined;
+          editorState.carpetAccentColor = carpet.accentColor
+            ? { ...carpet.accentColor }
+            : undefined;
           editorState.carpetOrder = carpet.order;
           editorState.activeTool = EditTool.CARPET_PAINT;
         }
@@ -669,6 +683,7 @@ export function useEditorActions(
     handleSelectedFurnitureColorChange,
     handleFurnitureTypeChange,
     handleCarpetColorChange,
+    handleCarpetAccentColorChange,
     handleCarpetVariantChange,
     handleDeleteSelected,
     handleRotateSelected,

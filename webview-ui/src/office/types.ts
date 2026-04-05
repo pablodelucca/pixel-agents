@@ -122,6 +122,8 @@ export interface CarpetTile {
   variant: number;
   /** Optional color override for this carpet tile */
   color?: ColorValue;
+  /** Optional accent color override for this carpet tile */
+  accentColor?: ColorValue;
   /** Paint order used to resolve overlapping carpet junctions */
   order?: number;
 }

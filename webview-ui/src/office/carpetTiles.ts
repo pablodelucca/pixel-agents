@@ -16,23 +16,35 @@
 
 import type { ColorValue } from '../components/ui/types.js';
 import { CARPET_DEFAULT_COLOR } from '../constants.js';
-import { getColorizedSprite } from './colorize.js';
+import { colorizeSprite, getColorizedSprite } from './colorize.js';
 import type { CarpetTile, SpriteData } from './types.js';
 
 /** Carpet sprite sets: indexed [variant][msCase] */
 let carpetSets: SpriteData[][] = [];
+let carpetVariantPalettes: Array<{ mainRgb: string | null; accentRgb: string | null }> = [];
+const carpetCache = new Map<string, SpriteData>();
 
 function getCarpetEffectiveColor(tile: CarpetTile | null | undefined): ColorValue {
   return tile?.color ?? CARPET_DEFAULT_COLOR;
+}
+
+function getCarpetEffectiveAccentColor(tile: CarpetTile | null | undefined): ColorValue {
+  return tile?.accentColor ?? tile?.color ?? CARPET_DEFAULT_COLOR;
 }
 
 export function getCarpetColorKey(color: ColorValue): string {
   return `${color.h}-${color.s}-${color.b}-${color.c}-${color.colorize ? 1 : 0}`;
 }
 
+export function getCarpetPaletteKey(color: ColorValue, accentColor: ColorValue): string {
+  return `${getCarpetColorKey(color)}|${getCarpetColorKey(accentColor)}`;
+}
+
 /** Set carpet sprite sets (called once when extension sends carpetTilesLoaded) */
 export function setCarpetSprites(sprites: SpriteData[][]): void {
   carpetSets = sprites;
+  carpetVariantPalettes = sprites.map(classifyCarpetPalette);
+  carpetCache.clear();
 }
 
 /** Check if carpet sprites have been loaded */
@@ -63,17 +75,19 @@ export function getCarpetJunctionSprite(
   cols: number,
   rows: number,
   color?: ColorValue,
-  colorKey?: string,
+  accentColor?: ColorValue,
+  paletteKey?: string,
 ): SpriteData | null {
   if (carpetSets.length === 0) return null;
   const sprites = carpetSets[variant] ?? carpetSets[0];
+  const palette = carpetVariantPalettes[variant] ?? carpetVariantPalettes[0];
   if (!sprites) return null;
 
   // Build 4-bit marching squares case
-  const nw = tileHasVariant(jx - 1, jy - 1, variant, carpetTiles, cols, rows, colorKey);
-  const ne = tileHasVariant(jx, jy - 1, variant, carpetTiles, cols, rows, colorKey);
-  const se = tileHasVariant(jx, jy, variant, carpetTiles, cols, rows, colorKey);
-  const sw = tileHasVariant(jx - 1, jy, variant, carpetTiles, cols, rows, colorKey);
+  const nw = tileHasVariant(jx - 1, jy - 1, variant, carpetTiles, cols, rows, paletteKey);
+  const ne = tileHasVariant(jx, jy - 1, variant, carpetTiles, cols, rows, paletteKey);
+  const se = tileHasVariant(jx, jy, variant, carpetTiles, cols, rows, paletteKey);
+  const sw = tileHasVariant(jx - 1, jy, variant, carpetTiles, cols, rows, paletteKey);
 
   const msCase = (nw ? 1 : 0) | (ne ? 2 : 0) | (se ? 4 : 0) | (sw ? 8 : 0);
   if (msCase === 0) return null;
@@ -82,8 +96,15 @@ export function getCarpetJunctionSprite(
   if (!sprite) return null;
 
   const effectiveColor: ColorValue = color ?? CARPET_DEFAULT_COLOR;
-  const cacheKey = `carpet-${variant}-${msCase}-${getCarpetColorKey(effectiveColor)}`;
-  return getColorizedSprite(cacheKey, sprite, effectiveColor);
+  const effectiveAccentColor: ColorValue = accentColor ?? effectiveColor;
+  const cacheKey = `carpet-${variant}-${msCase}-${getCarpetPaletteKey(effectiveColor, effectiveAccentColor)}`;
+  return getDualColorizedCarpetSprite(
+    cacheKey,
+    sprite,
+    palette,
+    effectiveColor,
+    effectiveAccentColor,
+  );
 }
 
 /** Check if a tile at (col, row) has carpet of the given variant. Out-of-bounds = false. */
@@ -94,7 +115,7 @@ function tileHasVariant(
   carpetTiles: (CarpetTile | null)[],
   cols: number,
   rows: number,
-  colorKey?: string,
+  paletteKey?: string,
 ): boolean {
   if (col < 0 || row < 0 || col >= cols || row >= rows) return false;
   const tile = carpetTiles[row * cols + col];
@@ -102,6 +123,81 @@ function tileHasVariant(
     tile !== null &&
     tile !== undefined &&
     tile.variant === variant &&
-    (colorKey === undefined || getCarpetColorKey(getCarpetEffectiveColor(tile)) === colorKey)
+    (paletteKey === undefined ||
+      getCarpetPaletteKey(getCarpetEffectiveColor(tile), getCarpetEffectiveAccentColor(tile)) ===
+        paletteKey)
+  );
+}
+
+function classifyCarpetPalette(sprites: SpriteData[]): {
+  mainRgb: string | null;
+  accentRgb: string | null;
+} {
+  const uniqueColors = new Map<string, number>();
+
+  for (const sprite of sprites) {
+    for (const row of sprite) {
+      for (const pixel of row) {
+        if (pixel === '') continue;
+        const rgb = pixel.slice(1, 7).toUpperCase();
+        if (!uniqueColors.has(rgb)) {
+          uniqueColors.set(rgb, luminanceFromRgb(rgb));
+        }
+      }
+    }
+  }
+
+  const ordered = [...uniqueColors.entries()].sort((a, b) => a[1] - b[1]);
+  if (ordered.length === 0) {
+    return { mainRgb: null, accentRgb: null };
+  }
+  if (ordered.length === 1) {
+    return { mainRgb: ordered[0][0], accentRgb: ordered[0][0] };
+  }
+  return { mainRgb: ordered[0][0], accentRgb: ordered[ordered.length - 1][0] };
+}
+
+function luminanceFromRgb(rgb: string): number {
+  const r = parseInt(rgb.slice(0, 2), 16);
+  const g = parseInt(rgb.slice(2, 4), 16);
+  const b = parseInt(rgb.slice(4, 6), 16);
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+function getDualColorizedCarpetSprite(
+  cacheKey: string,
+  sprite: SpriteData,
+  palette: { mainRgb: string | null; accentRgb: string | null } | undefined,
+  color: ColorValue,
+  accentColor: ColorValue,
+): SpriteData {
+  const cached = carpetCache.get(cacheKey);
+  if (cached) return cached;
+
+  if (!palette?.mainRgb || palette.mainRgb === palette.accentRgb) {
+    const single = getColorizedSprite(`${cacheKey}-single`, sprite, color);
+    carpetCache.set(cacheKey, single);
+    return single;
+  }
+
+  const accentRgb = palette.accentRgb ?? palette.mainRgb;
+  const mainMask = maskCarpetSprite(sprite, palette.mainRgb);
+  const accentMask = maskCarpetSprite(sprite, accentRgb);
+  const mainSprite = colorizeSprite(mainMask, color);
+  const accentSprite = colorizeSprite(accentMask, accentColor);
+  const merged = mergeCarpetLayers(mainSprite, accentSprite);
+  carpetCache.set(cacheKey, merged);
+  return merged;
+}
+
+function maskCarpetSprite(sprite: SpriteData, rgb: string): SpriteData {
+  return sprite.map((row) =>
+    row.map((pixel) => (pixel !== '' && pixel.slice(1, 7).toUpperCase() === rgb ? pixel : '')),
+  );
+}
+
+function mergeCarpetLayers(base: SpriteData, accent: SpriteData): SpriteData {
+  return base.map((row, rowIndex) =>
+    row.map((pixel, colIndex) => accent[rowIndex]?.[colIndex] || pixel),
   );
 }
