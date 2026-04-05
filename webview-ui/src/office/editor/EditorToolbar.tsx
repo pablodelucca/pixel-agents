@@ -115,7 +115,8 @@ export function EditorToolbar({
   const isFloorActive = activeTool === EditTool.TILE_PAINT || activeTool === EditTool.EYEDROPPER;
   const isWallActive = activeTool === EditTool.WALL_PAINT;
   const isEraseActive = activeTool === EditTool.ERASE;
-  const isCarpetActive = activeTool === EditTool.CARPET_PAINT;
+  const isCarpetActive =
+    activeTool === EditTool.CARPET_PAINT || activeTool === EditTool.CARPET_PICK;
   const isFurnitureActive =
     activeTool === EditTool.FURNITURE_PLACE || activeTool === EditTool.FURNITURE_PICK;
 
@@ -273,7 +274,7 @@ export function EditorToolbar({
       {/* Sub-panel: Carpet — stacked bottom-to-top via column-reverse */}
       {isCarpetActive && (
         <div className="flex flex-col-reverse gap-4">
-          {/* Color toggle + Clear — just above tool row */}
+          {/* Color toggle + Clear + Pick — just above tool row */}
           <div className="flex gap-4 items-center">
             <Button
               variant={showCarpetColor ? 'active' : 'default'}
@@ -293,6 +294,14 @@ export function EditorToolbar({
                 Clear
               </Button>
             )}
+            <Button
+              variant={activeTool === EditTool.CARPET_PICK ? 'active' : 'ghost'}
+              size="sm"
+              onClick={() => onToolChange(EditTool.CARPET_PICK)}
+              title="Pick carpet variant + color from existing carpet"
+            >
+              Pick
+            </Button>
           </div>
 
           {/* Color controls (collapsible) */}

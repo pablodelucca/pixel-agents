@@ -591,6 +591,15 @@ export function useEditorActions(
           editorState.activeTool = EditTool.WALL_PAINT;
         }
         setEditorTick((n) => n + 1);
+      } else if (editorState.activeTool === EditTool.CARPET_PICK) {
+        const idx = row * layout.cols + col;
+        const carpet = layout.carpetTiles?.[idx];
+        if (carpet) {
+          editorState.carpetVariant = carpet.variant;
+          editorState.carpetColor = carpet.color ? { ...carpet.color } : undefined;
+          editorState.activeTool = EditTool.CARPET_PAINT;
+        }
+        setEditorTick((n) => n + 1);
       } else if (editorState.activeTool === EditTool.SELECT) {
         const hit = layout.furniture.find((f) => {
           const entry = getCatalogEntry(f.type);

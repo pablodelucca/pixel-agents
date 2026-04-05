@@ -430,6 +430,10 @@ export function OfficeCanvas({
                 );
               });
               canvas.style.cursor = hitFurniture ? 'pointer' : 'crosshair';
+            } else if (editorState.activeTool === EditTool.CARPET_PICK && tile) {
+              const layout = officeState.getLayout();
+              const idx = tile.row * layout.cols + tile.col;
+              canvas.style.cursor = layout.carpetTiles?.[idx] ? 'pointer' : 'crosshair';
             } else if (
               (editorState.activeTool === EditTool.SELECT ||
                 (editorState.activeTool === EditTool.FURNITURE_PLACE &&
