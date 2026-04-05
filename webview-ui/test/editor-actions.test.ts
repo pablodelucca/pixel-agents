@@ -1,5 +1,5 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
+import test from 'node:test';
 
 import type { ColorValue } from '../src/components/ui/types.js';
 import { paintCarpet } from '../src/office/editor/editorActions.js';
