@@ -4,6 +4,7 @@ import * as path from 'path';
 import type * as vscode from 'vscode';
 
 import { cancelPermissionTimer, cancelWaitingTimer } from '../../src/timerManager.js';
+import { formatToolStatus } from '../../src/transcriptParser.js';
 import type { AgentState } from '../../src/types.js';
 import { HOOK_EVENT_BUFFER_MS } from './constants.js';
 
@@ -68,7 +69,16 @@ export class HookEventHandler {
     private waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
     private permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
     private getWebview: () => vscode.Webview | undefined,
+    private watchAllSessionsRef?: { current: boolean },
   ) {}
+
+  /** Check if a session is tracked (in workspace project dir, or Watch All Sessions ON). */
+  private isTrackedSession(transcriptPath?: string): boolean {
+    if (this.watchAllSessionsRef?.current) return true;
+    if (!transcriptPath) return false;
+    const projectDir = path.dirname(transcriptPath);
+    return [...this.agents.values()].some((a) => a.projectDir === projectDir);
+  }
 
   /** Set callbacks for session lifecycle events (SessionStart/SessionEnd). */
   setLifecycleCallbacks(callbacks: SessionLifecycleCallbacks): void {
@@ -104,7 +114,8 @@ export class HookEventHandler {
     if (eventName === 'SessionStart') {
       const sid = event.session_id.slice(0, 8);
       const source = (event.source as string) ?? 'unknown';
-      if (debug)
+      const tracked = this.isTrackedSession(event.transcript_path as string | undefined);
+      if (debug && tracked)
         console.log(`[Pixel Agents] Hook: SessionStart(source=${source}, session=${sid}...)`);
 
       // Check registered mapping
@@ -161,7 +172,7 @@ export class HookEventHandler {
         if (event.source === 'resume') {
           this.lifecycleCallbacks.onSessionResume?.(transcriptPath2);
         }
-        if (debug)
+        if (debug && tracked)
           console.log(
             `[Pixel Agents] Hook: SessionStart(source=${source}) -> pending external session ${sid}..., awaiting confirmation`,
           );
@@ -171,7 +182,7 @@ export class HookEventHandler {
           cwd,
         });
       } else {
-        if (debug)
+        if (debug && tracked)
           console.log(
             `[Pixel Agents] Hook: SessionStart -> unknown session ${sid}..., no transcript_path`,
           );
@@ -219,11 +230,18 @@ export class HookEventHandler {
       }
     }
     if (agentId === undefined) {
-      if (debug)
-        console.log(
-          `[Pixel Agents] Hook: ${eventName} - unknown session ${event.session_id.slice(0, 8)}..., buffering`,
-        );
-      this.bufferEvent(_providerId, event);
+      // Only buffer if session was seen by SessionStart (pending or recently registered).
+      // Silently drop events for sessions we never tracked (e.g. other projects with Watch All OFF).
+      if (
+        this.pendingExternalSessions.has(event.session_id) ||
+        this.bufferedEvents.some((b) => b.event.session_id === event.session_id)
+      ) {
+        if (debug)
+          console.log(
+            `[Pixel Agents] Hook: ${eventName} - unknown session ${event.session_id.slice(0, 8)}..., buffering`,
+          );
+        this.bufferEvent(_providerId, event);
+      }
       return;
     }
 
@@ -295,23 +313,38 @@ export class HookEventHandler {
    * This just ensures the character starts animating without waiting for the 500ms JSONL poll.
    */
   private handlePreToolUse(
-    _event: HookEvent,
+    event: HookEvent,
     agent: AgentState,
     agentId: number,
     webview: vscode.Webview | undefined,
   ): void {
-    // Cancel waiting state immediately — agent is working
-    if (agent.isWaiting) {
-      cancelWaitingTimer(agentId, this.waitingTimers);
-      agent.isWaiting = false;
-      agent.permissionSent = false;
-      agent.hadToolsInTurn = true;
-      webview?.postMessage({
-        type: 'agentStatus',
-        id: agentId,
-        status: 'active',
-      });
-    }
+    const toolName = (event.tool_name as string) ?? '';
+    const toolInput = (event.tool_input as Record<string, unknown>) ?? {};
+    const status = formatToolStatus(toolName, toolInput);
+    const hookToolId = `hook-${Date.now()}`;
+
+    // Track for PostToolUse correlation
+    agent.currentHookToolId = hookToolId;
+
+    // Cancel waiting, mark active
+    cancelWaitingTimer(agentId, this.waitingTimers);
+    agent.isWaiting = false;
+    agent.permissionSent = false;
+    agent.hadToolsInTurn = true;
+
+    // Send tool start + active state to webview (instant, no 500ms JSONL delay)
+    webview?.postMessage({
+      type: 'agentToolStart',
+      id: agentId,
+      toolId: hookToolId,
+      status,
+      toolName,
+    });
+    webview?.postMessage({
+      type: 'agentStatus',
+      id: agentId,
+      status: 'active',
+    });
   }
 
   /**
@@ -321,16 +354,23 @@ export class HookEventHandler {
    */
   private handlePostToolUse(
     _event: HookEvent,
-    _agent: AgentState,
-    _agentId: number,
-    _webview: vscode.Webview | undefined,
+    agent: AgentState,
+    agentId: number,
+    webview: vscode.Webview | undefined,
   ): void {
-    // Intentionally empty -- JSONL handles tool completion details
+    if (agent.currentHookToolId) {
+      webview?.postMessage({
+        type: 'agentToolDone',
+        id: agentId,
+        toolId: agent.currentHookToolId,
+      });
+      agent.currentHookToolId = undefined;
+    }
   }
 
   /**
-   * Handle PostToolUseFailure: mark agent active (tool failed, Claude will retry or respond).
-   * Same as PreToolUse -- ensures character stays in active state during error recovery.
+   * Handle PostToolUseFailure: send tool done for the failed tool,
+   * keep agent active (Claude will retry or respond with error).
    */
   private handlePostToolUseFailure(
     _event: HookEvent,
@@ -338,14 +378,13 @@ export class HookEventHandler {
     agentId: number,
     webview: vscode.Webview | undefined,
   ): void {
-    if (agent.isWaiting) {
-      cancelWaitingTimer(agentId, this.waitingTimers);
-      agent.isWaiting = false;
+    if (agent.currentHookToolId) {
       webview?.postMessage({
-        type: 'agentStatus',
+        type: 'agentToolDone',
         id: agentId,
-        status: 'active',
+        toolId: agent.currentHookToolId,
       });
+      agent.currentHookToolId = undefined;
     }
   }
 

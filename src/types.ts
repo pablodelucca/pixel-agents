@@ -32,6 +32,8 @@ export interface AgentState {
   hookDelivered: boolean;
   /** Set when SessionEnd(reason=clear) fires; cleared when SessionStart(source=clear) reassigns */
   pendingClear?: boolean;
+  /** Hook-generated tool ID for PreToolUse/PostToolUse correlation */
+  currentHookToolId?: string;
 }
 
 export interface PersistedAgent {

@@ -106,14 +106,17 @@ export function processTranscriptLine(
             if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
               hasNonExemptTool = true;
             }
-            webview?.postMessage({
-              type: 'agentToolStart',
-              id: agentId,
-              toolId: block.id,
-              status,
-              toolName,
-              permissionActive: agent.permissionSent,
-            });
+            // Skip webview message when hooks handle tool visuals (PreToolUse sent it instantly)
+            if (!agent.hookDelivered) {
+              webview?.postMessage({
+                type: 'agentToolStart',
+                id: agentId,
+                toolId: block.id,
+                status,
+                toolName,
+                permissionActive: agent.permissionSent,
+              });
+            }
           }
         }
         if (hasNonExemptTool && !agent.hookDelivered) {
@@ -180,14 +183,16 @@ export function processTranscriptLine(
               agent.activeToolIds.delete(completedToolId);
               agent.activeToolStatuses.delete(completedToolId);
               agent.activeToolNames.delete(completedToolId);
-              const toolId = completedToolId;
-              setTimeout(() => {
-                webview?.postMessage({
-                  type: 'agentToolDone',
-                  id: agentId,
-                  toolId,
-                });
-              }, TOOL_DONE_DELAY_MS);
+              if (!agent.hookDelivered) {
+                const toolId = completedToolId;
+                setTimeout(() => {
+                  webview?.postMessage({
+                    type: 'agentToolDone',
+                    id: agentId,
+                    toolId,
+                  });
+                }, TOOL_DONE_DELAY_MS);
+              }
             }
           }
           // All tools completed — allow text-idle timer as fallback
@@ -229,14 +234,16 @@ export function processTranscriptLine(
             agent.activeToolIds.delete(completedToolId);
             agent.activeToolStatuses.delete(completedToolId);
             agent.activeToolNames.delete(completedToolId);
-            const toolId = completedToolId;
-            setTimeout(() => {
-              webview?.postMessage({
-                type: 'agentToolDone',
-                id: agentId,
-                toolId,
-              });
-            }, TOOL_DONE_DELAY_MS);
+            if (!agent.hookDelivered) {
+              const toolId = completedToolId;
+              setTimeout(() => {
+                webview?.postMessage({
+                  type: 'agentToolDone',
+                  id: agentId,
+                  toolId,
+                });
+              }, TOOL_DONE_DELAY_MS);
+            }
           }
         }
       }

@@ -125,6 +125,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       this.waitingTimers,
       this.permissionTimers,
       () => this.webview,
+      this.watchAllSessions,
     );
 
     this.hookEventHandler.setLifecycleCallbacks({

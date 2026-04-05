@@ -154,7 +154,7 @@ export async function launchNewTerminal(
     try {
       if (fs.existsSync(agent.jsonlFile)) {
         console.log(
-          `[Pixel Agents] Agent ${id}: found JSONL file ${path.basename(agent.jsonlFile)} (after ${pollCount}s)`,
+          `[Pixel Agents] Terminal: Agent ${id} - found JSONL file ${path.basename(agent.jsonlFile)} (after ${pollCount}s)`,
         );
         clearInterval(pollTimer);
         jsonlPollTimers.delete(id);
@@ -187,7 +187,7 @@ export async function launchNewTerminal(
           dirContents = 'Dir does not exist';
         }
         console.warn(
-          `[Pixel Agents] Agent ${id}: JSONL file not found after 10s. ` +
+          `[Pixel Agents] Terminal: Agent ${id} - JSONL file not found after 10s. ` +
             `Expected: ${agent.jsonlFile}. ${dirContents}`,
         );
       }
