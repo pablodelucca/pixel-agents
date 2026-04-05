@@ -9,6 +9,7 @@ import {
   BUTTON_LINE_WIDTH_ZOOM_FACTOR,
   BUTTON_MIN_RADIUS,
   BUTTON_RADIUS_ZOOM_FACTOR,
+  CARPET_DEFAULT_COLOR,
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_Z_SORT_OFFSET,
   DELETE_BUTTON_BG,
@@ -33,7 +34,7 @@ import {
   VOID_TILE_DASH_PATTERN,
   VOID_TILE_OUTLINE_COLOR,
 } from '../../constants.js';
-import { getCarpetJunctionSprite, hasCarpetSprites } from '../carpetTiles.js';
+import { getCarpetColorKey, getCarpetJunctionSprite, hasCarpetSprites } from '../carpetTiles.js';
 import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js';
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js';
 import {
@@ -122,19 +123,29 @@ export function renderCarpetLayer(
   // Half tile offset so junction sprite is centered on the corner between 4 tiles
   const halfS = s / 2;
 
-  // Determine which variants are present for the junction pass
-  const presentVariants = new Set<number>();
+  const presentGroups = new Map<string, { variant: number; color: ColorValue; colorKey: string }>();
   for (const tile of carpetTiles) {
     if (tile !== null && tile !== undefined) {
-      presentVariants.add(tile.variant);
+      const color = tile.color ?? CARPET_DEFAULT_COLOR;
+      const colorKey = getCarpetColorKey(color);
+      presentGroups.set(`${tile.variant}:${colorKey}`, { variant: tile.variant, color, colorKey });
     }
   }
-  if (presentVariants.size === 0) return;
+  if (presentGroups.size === 0) return;
 
-  for (const variant of presentVariants) {
+  for (const { variant, color, colorKey } of presentGroups.values()) {
     for (let jy = 0; jy <= rows; jy++) {
       for (let jx = 0; jx <= cols; jx++) {
-        const sprite = getCarpetJunctionSprite(jx, jy, variant, carpetTiles, cols, rows);
+        const sprite = getCarpetJunctionSprite(
+          jx,
+          jy,
+          variant,
+          carpetTiles,
+          cols,
+          rows,
+          color,
+          colorKey,
+        );
         if (!sprite) continue;
         const cached = getCachedSprite(sprite, zoom);
         // Junction (jx, jy) maps to pixel corner (jx*TILE_SIZE, jy*TILE_SIZE)

@@ -22,6 +22,14 @@ import type { CarpetTile, SpriteData } from './types.js';
 /** Carpet sprite sets: indexed [variant][msCase] */
 let carpetSets: SpriteData[][] = [];
 
+function getCarpetEffectiveColor(tile: CarpetTile | null | undefined): ColorValue {
+  return tile?.color ?? CARPET_DEFAULT_COLOR;
+}
+
+export function getCarpetColorKey(color: ColorValue): string {
+  return `${color.h}-${color.s}-${color.b}-${color.c}-${color.colorize ? 1 : 0}`;
+}
+
 /** Set carpet sprite sets (called once when extension sends carpetTilesLoaded) */
 export function setCarpetSprites(sprites: SpriteData[][]): void {
   carpetSets = sprites;
@@ -55,16 +63,17 @@ export function getCarpetJunctionSprite(
   cols: number,
   rows: number,
   color?: ColorValue,
+  colorKey?: string,
 ): SpriteData | null {
   if (carpetSets.length === 0) return null;
   const sprites = carpetSets[variant] ?? carpetSets[0];
   if (!sprites) return null;
 
   // Build 4-bit marching squares case
-  const nw = tileHasVariant(jx - 1, jy - 1, variant, carpetTiles, cols, rows);
-  const ne = tileHasVariant(jx, jy - 1, variant, carpetTiles, cols, rows);
-  const se = tileHasVariant(jx, jy, variant, carpetTiles, cols, rows);
-  const sw = tileHasVariant(jx - 1, jy, variant, carpetTiles, cols, rows);
+  const nw = tileHasVariant(jx - 1, jy - 1, variant, carpetTiles, cols, rows, colorKey);
+  const ne = tileHasVariant(jx, jy - 1, variant, carpetTiles, cols, rows, colorKey);
+  const se = tileHasVariant(jx, jy, variant, carpetTiles, cols, rows, colorKey);
+  const sw = tileHasVariant(jx - 1, jy, variant, carpetTiles, cols, rows, colorKey);
 
   const msCase = (nw ? 1 : 0) | (ne ? 2 : 0) | (se ? 4 : 0) | (sw ? 8 : 0);
   if (msCase === 0) return null;
@@ -73,7 +82,7 @@ export function getCarpetJunctionSprite(
   if (!sprite) return null;
 
   const effectiveColor: ColorValue = color ?? CARPET_DEFAULT_COLOR;
-  const cacheKey = `carpet-${variant}-${msCase}-${effectiveColor.h}-${effectiveColor.s}-${effectiveColor.b}-${effectiveColor.c}-${effectiveColor.colorize ? 1 : 0}`;
+  const cacheKey = `carpet-${variant}-${msCase}-${getCarpetColorKey(effectiveColor)}`;
   return getColorizedSprite(cacheKey, sprite, effectiveColor);
 }
 
@@ -85,8 +94,14 @@ function tileHasVariant(
   carpetTiles: (CarpetTile | null)[],
   cols: number,
   rows: number,
+  colorKey?: string,
 ): boolean {
   if (col < 0 || row < 0 || col >= cols || row >= rows) return false;
   const tile = carpetTiles[row * cols + col];
-  return tile !== null && tile !== undefined && tile.variant === variant;
+  return (
+    tile !== null &&
+    tile !== undefined &&
+    tile.variant === variant &&
+    (colorKey === undefined || getCarpetColorKey(getCarpetEffectiveColor(tile)) === colorKey)
+  );
 }
