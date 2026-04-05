@@ -144,6 +144,9 @@ export function useEditorActions(
       } else {
         editorState.activeTool = tool;
       }
+      if (tool === EditTool.CARPET_PAINT) {
+        editorState.carpetOrder = undefined;
+      }
       editorState.clearSelection();
       editorState.clearGhost();
       editorState.clearDrag();
@@ -235,6 +238,7 @@ export function useEditorActions(
   const handleCarpetColorChange = useCallback(
     (color: ColorValue | undefined) => {
       editorState.carpetColor = color;
+      editorState.carpetOrder = undefined;
       setEditorTick((n) => n + 1);
     },
     [editorState],
@@ -243,6 +247,7 @@ export function useEditorActions(
   const handleCarpetVariantChange = useCallback(
     (variant: number) => {
       editorState.carpetVariant = variant;
+      editorState.carpetOrder = undefined;
       setEditorTick((n) => n + 1);
     },
     [editorState],
@@ -447,6 +452,7 @@ export function useEditorActions(
             row,
             editorState.carpetVariant,
             editorState.carpetColor,
+            editorState.carpetOrder,
           );
         }
         if (newLayout !== layout) {
@@ -597,6 +603,7 @@ export function useEditorActions(
         if (carpet) {
           editorState.carpetVariant = carpet.variant;
           editorState.carpetColor = carpet.color ? { ...carpet.color } : undefined;
+          editorState.carpetOrder = carpet.order;
           editorState.activeTool = EditTool.CARPET_PAINT;
         }
         setEditorTick((n) => n + 1);

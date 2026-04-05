@@ -58,6 +58,7 @@ export function paintCarpet(
   row: number,
   variant: number,
   color?: ColorValue,
+  order?: number,
 ): OfficeLayout {
   const idx = row * layout.cols + col;
   if (idx < 0 || idx >= layout.tiles.length) return layout;
@@ -76,10 +77,9 @@ export function paintCarpet(
   }
 
   const carpetTiles = [...existingCarpets];
+  const nextOrder = order ?? maxOrder + 1;
   carpetTiles[idx] =
-    color !== undefined
-      ? { variant, color, order: maxOrder + 1 }
-      : { variant, order: maxOrder + 1 };
+    color !== undefined ? { variant, color, order: nextOrder } : { variant, order: nextOrder };
   return { ...layout, carpetTiles };
 }
 

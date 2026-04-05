@@ -32,6 +32,9 @@ export class EditorState {
   // Carpet color (undefined = use default color from CARPET_DEFAULT_COLOR)
   carpetColor: ColorValue | undefined = { ...CARPET_DEFAULT_COLOR };
 
+  // Picked carpet draw order. Undefined means new carpet paints on top.
+  carpetOrder: number | undefined = undefined;
+
   // Tracks toggle direction during carpet drag (true=painting, false=erasing, null=undecided)
   carpetDragErasing: boolean | null = null;
 
