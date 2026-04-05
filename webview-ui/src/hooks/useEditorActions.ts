@@ -108,6 +108,24 @@ export function useEditorActions(
     [getOfficeState, editorState, saveLayout],
   );
 
+  const applyCarpetEdit = useCallback(
+    (newLayout: OfficeLayout) => {
+      const os = getOfficeState();
+      const currentLayout = os.getLayout();
+      const undoLayout = editorState.takeCarpetStrokeUndoLayout(currentLayout);
+      if (undoLayout) {
+        editorState.pushUndo(undoLayout);
+        editorState.clearRedo();
+      }
+      editorState.isDirty = true;
+      setIsDirty(true);
+      os.rebuildFromLayout(newLayout);
+      saveLayout(newLayout);
+      setEditorTick((n) => n + 1);
+    },
+    [getOfficeState, editorState, saveLayout],
+  );
+
   const handleOpenClaude = useCallback(() => {
     vscode.postMessage({ type: 'openClaude' });
   }, []);
@@ -132,6 +150,7 @@ export function useEditorActions(
         editorState.clearSelection();
         editorState.clearGhost();
         editorState.clearDrag();
+        editorState.endCarpetStroke();
       }
       return next;
     });
@@ -147,6 +166,8 @@ export function useEditorActions(
       }
       if (tool === EditTool.CARPET_PAINT) {
         editorState.carpetOrder = undefined;
+      } else {
+        editorState.endCarpetStroke();
       }
       editorState.clearSelection();
       editorState.clearGhost();
@@ -467,7 +488,7 @@ export function useEditorActions(
           );
         }
         if (newLayout !== layout) {
-          applyEdit(newLayout);
+          applyCarpetEdit(newLayout);
         }
         return;
       }
@@ -636,7 +657,7 @@ export function useEditorActions(
         setEditorTick((n) => n + 1);
       }
     },
-    [getOfficeState, editorState, applyEdit, maybeExpand],
+    [getOfficeState, editorState, applyEdit, applyCarpetEdit, maybeExpand],
   );
 
   const handleEditorEraseAction = useCallback(
@@ -649,7 +670,7 @@ export function useEditorActions(
       if (editorState.activeTool === EditTool.CARPET_PAINT) {
         const newLayout = eraseCarpet(layout, col, row);
         if (newLayout !== layout) {
-          applyEdit(newLayout);
+          applyCarpetEdit(newLayout);
         }
         return;
       }
@@ -662,7 +683,7 @@ export function useEditorActions(
         applyEdit(newLayout);
       }
     },
-    [getOfficeState, editorState, applyEdit],
+    [getOfficeState, editorState, applyEdit, applyCarpetEdit],
   );
 
   return {

@@ -10,6 +10,12 @@ import type {
 } from '../types.js';
 import { MAX_COLS, MAX_ROWS, TileType } from '../types.js';
 
+function sameColorValue(a?: ColorValue, b?: ColorValue): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.h === b.h && a.s === b.s && a.b === b.b && a.c === b.c && !!a.colorize === !!b.colorize;
+}
+
 /** Paint a single tile with pattern and color. Returns new layout (immutable). */
 export function paintTile(
   layout: OfficeLayout,
@@ -80,8 +86,20 @@ export function paintCarpet(
   const carpetTiles = [...existingCarpets];
   const nextOrder = order ?? maxOrder + 1;
   const nextTile: CarpetTile = { variant, order: nextOrder };
-  if (color !== undefined) nextTile.color = color;
-  if (accentColor !== undefined) nextTile.accentColor = accentColor;
+  if (color !== undefined) nextTile.color = { ...color };
+  if (accentColor !== undefined) nextTile.accentColor = { ...accentColor };
+
+  const existingTile = existingCarpets[idx];
+  if (
+    existingTile &&
+    existingTile.variant === nextTile.variant &&
+    (existingTile.order ?? undefined) === nextTile.order &&
+    sameColorValue(existingTile.color, nextTile.color) &&
+    sameColorValue(existingTile.accentColor, nextTile.accentColor)
+  ) {
+    return layout;
+  }
+
   carpetTiles[idx] = nextTile;
   return { ...layout, carpetTiles };
 }

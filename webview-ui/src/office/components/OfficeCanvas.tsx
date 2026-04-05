@@ -535,6 +535,9 @@ export function OfficeCanvas({
         ) {
           const layout = officeState.getLayout();
           if (tile.col >= 0 && tile.col < layout.cols && tile.row >= 0 && tile.row < layout.rows) {
+            if (editorState.activeTool === EditTool.CARPET_PAINT) {
+              editorState.beginCarpetStroke(layout);
+            }
             isEraseDraggingRef.current = true;
             onEditorEraseAction(tile.col, tile.row);
           }
@@ -598,6 +601,9 @@ export function OfficeCanvas({
       // Non-select tools: start paint drag
       editorState.isDragging = true;
       if (tile) {
+        if (editorState.activeTool === EditTool.CARPET_PAINT) {
+          editorState.beginCarpetStroke(officeState.getLayout());
+        }
         onEditorTileAction(tile.col, tile.row);
       }
     },
@@ -628,6 +634,8 @@ export function OfficeCanvas({
       }
       if (e.button === 2) {
         isEraseDraggingRef.current = false;
+        editorState.carpetDragErasing = null;
+        editorState.endCarpetStroke();
         return;
       }
 
@@ -671,6 +679,7 @@ export function OfficeCanvas({
       editorState.isDragging = false;
       editorState.wallDragAdding = null;
       editorState.carpetDragErasing = null;
+      editorState.endCarpetStroke();
     },
     [editorState, isEditMode, officeState, onDragMove, onEditorSelectionChange],
   );
@@ -746,6 +755,7 @@ export function OfficeCanvas({
     editorState.isDragging = false;
     editorState.wallDragAdding = null;
     editorState.carpetDragErasing = null;
+    editorState.endCarpetStroke();
     editorState.clearDrag();
     editorState.ghostCol = -1;
     editorState.ghostRow = -1;

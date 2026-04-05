@@ -41,6 +41,9 @@ export class EditorState {
   // Tracks toggle direction during carpet drag (true=painting, false=erasing, null=undecided)
   carpetDragErasing: boolean | null = null;
 
+  // Layout snapshot captured at the start of a carpet paint/erase stroke.
+  carpetStrokeInitialLayout: OfficeLayout | null = null;
+
   // Picked furniture color (copied by pick tool, applied on placement)
   pickedFurnitureColor: ColorValue | null = null;
 
@@ -127,6 +130,23 @@ export class EditorState {
     this.isDragMoving = false;
   }
 
+  beginCarpetStroke(layout: OfficeLayout): void {
+    if (!this.carpetStrokeInitialLayout) {
+      this.carpetStrokeInitialLayout = layout;
+    }
+  }
+
+  takeCarpetStrokeUndoLayout(currentLayout: OfficeLayout): OfficeLayout | null {
+    if (!this.carpetStrokeInitialLayout) {
+      this.carpetStrokeInitialLayout = currentLayout;
+    }
+    return this.carpetStrokeInitialLayout === currentLayout ? this.carpetStrokeInitialLayout : null;
+  }
+
+  endCarpetStroke(): void {
+    this.carpetStrokeInitialLayout = null;
+  }
+
   reset(): void {
     this.activeTool = EditTool.SELECT;
     this.selectedFurnitureUid = null;
@@ -136,6 +156,7 @@ export class EditorState {
     this.isDragging = false;
     this.wallDragAdding = null;
     this.carpetDragErasing = null;
+    this.carpetStrokeInitialLayout = null;
     this.undoStack = [];
     this.redoStack = [];
     this.isDirty = false;
