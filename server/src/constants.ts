@@ -67,5 +67,5 @@ export const HOOK_EVENT_BUFFER_MS = 5_000;
  *  /clear and /resume fire SessionEnd then SessionStart within ms. This timeout is a
  *  safety net: if SessionStart never arrives (e.g. Claude crashes mid-transition),
  *  the agent is cleaned up instead of staying as a zombie with pendingClear forever. */
-export const SESSION_END_GRACE_MS = 500;
+export const SESSION_END_GRACE_MS = 2000;
 export const MAX_HOOK_BODY_SIZE = 65_536; // 64KB

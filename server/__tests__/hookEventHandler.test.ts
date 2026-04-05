@@ -424,8 +424,8 @@ describe('HookEventHandler', () => {
     expect(agent.isWaiting).toBe(true);
     expect(onSessionEnd).not.toHaveBeenCalled();
 
-    // Wait for grace period (500ms + margin)
-    await new Promise((r) => setTimeout(r, 700));
+    // Wait for grace period (2000ms + margin)
+    await new Promise((r) => setTimeout(r, 2500));
     expect(onSessionEnd).toHaveBeenCalledWith(1, 'resume');
     expect(agent.pendingClear).toBe(false);
   });
@@ -624,7 +624,7 @@ describe('HookEventHandler', () => {
     );
 
     // Grace timer fires but pendingClear is already false -> no-op
-    await new Promise((r) => setTimeout(r, 700));
+    await new Promise((r) => setTimeout(r, 2500));
     expect(onSessionEnd).not.toHaveBeenCalled();
   });
 
