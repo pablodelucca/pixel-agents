@@ -42,8 +42,17 @@ export interface SessionLifecycleCallbacks {
   onExternalSessionDetected?: (sessionId: string, transcriptPath: string, cwd: string) => void;
   /** Called when /clear is detected via hooks (SessionEnd reason=clear + SessionStart source=clear). */
   onSessionClear?: (agentId: number, newSessionId: string, newTranscriptPath: string) => void;
+  /** Called when a session is resumed (--resume). Clears dismissals so the file can be re-adopted. */
+  onSessionResume?: (transcriptPath: string) => void;
   /** Called when a session ends (exit/logout). */
   onSessionEnd?: (agentId: number, reason: string) => void;
+}
+
+/** Pending external session info (waiting for confirmation event before creating agent). */
+interface PendingExternalSession {
+  sessionId: string;
+  transcriptPath: string;
+  cwd: string;
 }
 
 export class HookEventHandler {
@@ -51,6 +60,8 @@ export class HookEventHandler {
   private bufferedEvents: BufferedEvent[] = [];
   private bufferTimer: ReturnType<typeof setInterval> | null = null;
   private lifecycleCallbacks: SessionLifecycleCallbacks = {};
+  /** Pending external sessions waiting for a confirmation event (Stop, Notification, etc.). */
+  private pendingExternalSessions = new Map<string, PendingExternalSession>();
 
   constructor(
     private agents: Map<number, AgentState>,
@@ -140,14 +151,63 @@ export class HookEventHandler {
           }
         }
       }
-      // Unknown session -- ignore for now (heuristic scanners handle external detection)
-      // TODO(Phase C): Add external session detection via hooks with workspace filtering
-      if (debug)
-        console.log(`[Pixel Agents] Hook: SessionStart -> unknown session ${sid}..., ignoring`);
+      // Unknown session -- store as pending, create only when a confirmation event
+      // arrives (Stop, Notification, PermissionRequest). This filters transient sessions
+      // from Claude Code Extension which fire SessionStart + SessionEnd without any activity.
+      const transcriptPath2 = event.transcript_path as string | undefined;
+      const cwd = event.cwd as string | undefined;
+      if (transcriptPath2 && cwd) {
+        // For --resume, clear dismissals so the file can be re-adopted
+        if (event.source === 'resume') {
+          this.lifecycleCallbacks.onSessionResume?.(transcriptPath2);
+        }
+        if (debug)
+          console.log(
+            `[Pixel Agents] Hook: SessionStart(source=${source}) -> pending external session ${sid}..., awaiting confirmation`,
+          );
+        this.pendingExternalSessions.set(event.session_id, {
+          sessionId: event.session_id,
+          transcriptPath: transcriptPath2,
+          cwd,
+        });
+      } else {
+        if (debug)
+          console.log(
+            `[Pixel Agents] Hook: SessionStart -> unknown session ${sid}..., no transcript_path`,
+          );
+      }
       return;
     }
 
     // --- All other events: standard agent lookup ---
+    // If SessionEnd arrives for a pending external session, discard it (transient session)
+    if (eventName === 'SessionEnd' && this.pendingExternalSessions.has(event.session_id)) {
+      this.pendingExternalSessions.delete(event.session_id);
+      if (debug)
+        console.log(
+          `[Pixel Agents] Hook: SessionEnd discarded pending external session ${event.session_id.slice(0, 8)}...`,
+        );
+      return;
+    }
+
+    // If a confirmation event arrives for a pending external session, create the agent first
+    if (this.pendingExternalSessions.has(event.session_id)) {
+      const pending = this.pendingExternalSessions.get(event.session_id)!;
+      this.pendingExternalSessions.delete(event.session_id);
+      if (debug)
+        console.log(
+          `[Pixel Agents] Hook: ${eventName} confirmed external session ${event.session_id.slice(0, 8)}..., creating agent`,
+        );
+      this.lifecycleCallbacks.onExternalSessionDetected?.(
+        pending.sessionId,
+        pending.transcriptPath,
+        pending.cwd,
+      );
+      // Re-process this event now that the agent exists
+      this.handleEvent(_providerId, event);
+      return;
+    }
+
     let agentId = this.sessionToAgentId.get(event.session_id);
     if (agentId === undefined) {
       for (const [id, agent] of this.agents) {
@@ -180,6 +240,16 @@ export class HookEventHandler {
 
     if (eventName === 'SessionEnd') {
       this.handleSessionEnd(event, agent, agentId, webview);
+    } else if (eventName === 'PreToolUse') {
+      this.handlePreToolUse(event, agent, agentId, webview);
+    } else if (eventName === 'PostToolUse') {
+      this.handlePostToolUse(event, agent, agentId, webview);
+    } else if (eventName === 'PostToolUseFailure') {
+      this.handlePostToolUseFailure(event, agent, agentId, webview);
+    } else if (eventName === 'SubagentStart') {
+      this.handleSubagentStart(event, agent, agentId, webview);
+    } else if (eventName === 'SubagentStop') {
+      this.handleSubagentStop(event, agent, agentId, webview);
     } else if (eventName === 'PermissionRequest') {
       this.handlePermissionRequest(agent, agentId, webview);
     } else if (eventName === 'Notification') {
@@ -217,6 +287,148 @@ export class HookEventHandler {
       this.markAgentWaiting(agent, agentId, webview);
       this.lifecycleCallbacks.onSessionEnd?.(agentId, reason ?? 'unknown');
     }
+  }
+
+  /**
+   * Handle PreToolUse: instantly mark agent as active (cancel waiting state).
+   * JSONL still handles detailed tool tracking (toolId, status text, webview messages).
+   * This just ensures the character starts animating without waiting for the 500ms JSONL poll.
+   */
+  private handlePreToolUse(
+    _event: HookEvent,
+    agent: AgentState,
+    agentId: number,
+    webview: vscode.Webview | undefined,
+  ): void {
+    // Cancel waiting state immediately — agent is working
+    if (agent.isWaiting) {
+      cancelWaitingTimer(agentId, this.waitingTimers);
+      agent.isWaiting = false;
+      agent.permissionSent = false;
+      agent.hadToolsInTurn = true;
+      webview?.postMessage({
+        type: 'agentStatus',
+        id: agentId,
+        status: 'active',
+      });
+    }
+  }
+
+  /**
+   * Handle PostToolUse: no action needed. JSONL handles tool_result processing.
+   * Stop hook handles the idle transition. This is here for completeness and
+   * to serve as a confirmation event for pending external sessions.
+   */
+  private handlePostToolUse(
+    _event: HookEvent,
+    _agent: AgentState,
+    _agentId: number,
+    _webview: vscode.Webview | undefined,
+  ): void {
+    // Intentionally empty -- JSONL handles tool completion details
+  }
+
+  /**
+   * Handle PostToolUseFailure: mark agent active (tool failed, Claude will retry or respond).
+   * Same as PreToolUse -- ensures character stays in active state during error recovery.
+   */
+  private handlePostToolUseFailure(
+    _event: HookEvent,
+    agent: AgentState,
+    agentId: number,
+    webview: vscode.Webview | undefined,
+  ): void {
+    if (agent.isWaiting) {
+      cancelWaitingTimer(agentId, this.waitingTimers);
+      agent.isWaiting = false;
+      webview?.postMessage({
+        type: 'agentStatus',
+        id: agentId,
+        status: 'active',
+      });
+    }
+  }
+
+  /**
+   * Handle SubagentStart: notify webview that a sub-agent is spawning.
+   * Creates the child character in the office immediately via hooks,
+   * without waiting for JSONL agent_progress records (500ms polling).
+   */
+  private handleSubagentStart(
+    event: HookEvent,
+    agent: AgentState,
+    agentId: number,
+    webview: vscode.Webview | undefined,
+  ): void {
+    // Find the parent Task/Agent tool ID that spawned this sub-agent.
+    // If we can't find one (hook arrived before JSONL tracked the parent tool),
+    // skip -- JSONL will handle it on the next poll.
+    const agentType = (event.agent_type as string) ?? 'unknown';
+    let parentToolId: string | undefined;
+    for (const [toolId, toolName] of agent.activeToolNames) {
+      if (toolName === 'Task' || toolName === 'Agent') {
+        parentToolId = toolId;
+        break;
+      }
+    }
+    if (!parentToolId) return; // JSONL will handle it
+
+    const subToolId = `hook-sub-${agentType}-${Date.now()}`;
+    const status = `Subtask: ${agentType}`;
+
+    // Track sub-agent
+    let subTools = agent.activeSubagentToolIds.get(parentToolId);
+    if (!subTools) {
+      subTools = new Set();
+      agent.activeSubagentToolIds.set(parentToolId, subTools);
+    }
+    subTools.add(subToolId);
+
+    let subNames = agent.activeSubagentToolNames.get(parentToolId);
+    if (!subNames) {
+      subNames = new Map();
+      agent.activeSubagentToolNames.set(parentToolId, subNames);
+    }
+    subNames.set(subToolId, agentType);
+
+    webview?.postMessage({
+      type: 'subagentToolStart',
+      id: agentId,
+      parentToolId,
+      toolId: subToolId,
+      status,
+    });
+  }
+
+  /**
+   * Handle SubagentStop: notify webview that a sub-agent finished.
+   * Removes the child character from the office.
+   */
+  private handleSubagentStop(
+    _event: HookEvent,
+    agent: AgentState,
+    agentId: number,
+    webview: vscode.Webview | undefined,
+  ): void {
+    // Find parent tool and clear all sub-agent tracking for it.
+    // SubagentStop doesn't give us the specific sub-tool ID, so clear all
+    // sub-agents under the first matching Task/Agent parent.
+    let parentToolId: string | undefined;
+    for (const [toolId, toolName] of agent.activeToolNames) {
+      if (toolName === 'Task' || toolName === 'Agent') {
+        parentToolId = toolId;
+        break;
+      }
+    }
+    if (!parentToolId) return;
+
+    agent.activeSubagentToolIds.delete(parentToolId);
+    agent.activeSubagentToolNames.delete(parentToolId);
+    webview?.postMessage({
+      type: 'subagentClear',
+      id: agentId,
+      parentToolId,
+    });
   }
 
   /** Handle PermissionRequest: cancel heuristic timer, show permission bubble on agent + sub-agents. */
@@ -385,5 +597,6 @@ export class HookEventHandler {
     }
     this.sessionToAgentId.clear();
     this.bufferedEvents = [];
+    this.pendingExternalSessions.clear();
   }
 }

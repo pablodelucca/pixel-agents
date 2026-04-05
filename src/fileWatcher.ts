@@ -190,6 +190,8 @@ export function readNewLines(
       processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
     }
   } catch (e) {
+    // ENOENT is expected for hook-detected agents where the JSONL file hasn't been created yet
+    if (e instanceof Error && 'code' in e && (e as NodeJS.ErrnoException).code === 'ENOENT') return;
     console.log(`[Pixel Agents] Watcher: Agent ${agentId} - read error: ${e}`);
   }
 }
@@ -221,6 +223,7 @@ export function ensureProjectScan(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
   _onAgentCreated?: (agent: AgentState) => void,
+  hooksEnabledRef?: { current: boolean },
 ): void {
   // Set deps for per-agent /clear detection (only on first call)
   if (!clearDetectionDeps) {
@@ -264,6 +267,9 @@ export function ensureProjectScan(
   // Start the shared timer only once
   if (projectScanTimerRef.current) return;
   projectScanTimerRef.current = setInterval(() => {
+    // When hooks are active, SessionStart handles new file detection.
+    if (hooksEnabledRef?.current) return;
+
     for (const dir of trackedProjectDirs) {
       scanForNewJsonlFiles(
         dir,
@@ -520,8 +526,15 @@ export function adoptExternalSessionFromHook(
     folderName,
   );
 
-  // After adoption, register the session ID so future hooks route to this agent
+  // Log with Hook: prefix (this adoption was triggered by hooks, not heuristic scanner)
   const adoptedAgent = [...agents.values()].find((a) => a.jsonlFile === transcriptPath);
+  if (adoptedAgent) {
+    console.log(
+      `[Pixel Agents] Hook: Agent ${adoptedAgent.id} - detected external session ${path.basename(transcriptPath)}${adoptedAgent.folderName ? ` (${adoptedAgent.folderName})` : ''}`,
+    );
+  }
+
+  // Register the session ID so future hooks route to this agent
   if (adoptedAgent) {
     adoptedAgent.sessionId = sessionId;
     adoptedAgent.hookDelivered = true;
@@ -579,9 +592,8 @@ function adoptExternalSession(
   agents.set(id, agent);
   persistAgents();
 
-  console.log(
-    `[Pixel Agents] Watcher: Agent ${id} - detected external session ${path.basename(jsonlFile)}${folderName ? ` (${folderName})` : ''}`,
-  );
+  // Log is emitted by the caller (adoptExternalSessionFromHook or scanExternalDir)
+  // to use the correct prefix (Hook: vs Watcher:).
   webview?.postMessage({ type: 'agentCreated', id, isExternal: true, folderName });
 
   startFileWatching(
@@ -614,22 +626,28 @@ export function startExternalSessionScanning(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
   watchAllSessionsRef?: { current: boolean },
+  hooksEnabledRef?: { current: boolean },
 ): ReturnType<typeof setInterval> {
   return setInterval(() => {
-    // Scan all tracked project dirs (multi-root workspace support)
-    for (const dir of trackedProjectDirs) {
-      scanExternalDir(
-        dir,
-        knownJsonlFiles,
-        nextAgentIdRef,
-        agents,
-        fileWatchers,
-        pollingTimers,
-        waitingTimers,
-        permissionTimers,
-        webview,
-        persistAgents,
-      );
+    // When hooks are active, SessionStart handles workspace session detection.
+    // Only skip workspace scanning; global scanning (Watch All) still needed
+    // because hooks can't detect already-running sessions from other projects.
+    if (!hooksEnabledRef?.current) {
+      // Scan all tracked project dirs (heuristic fallback)
+      for (const dir of trackedProjectDirs) {
+        scanExternalDir(
+          dir,
+          knownJsonlFiles,
+          nextAgentIdRef,
+          agents,
+          fileWatchers,
+          pollingTimers,
+          waitingTimers,
+          permissionTimers,
+          webview,
+          persistAgents,
+        );
+      }
     }
     // If "Watch All Sessions" is ON, also scan all global project dirs
     if (watchAllSessionsRef?.current) {
@@ -768,6 +786,7 @@ function scanExternalDir(
     }
 
     knownJsonlFiles.add(file);
+    console.log(`[Pixel Agents] Watcher: detected external session ${path.basename(file)}`);
     adoptExternalSession(
       file,
       projectDir,
@@ -846,6 +865,9 @@ function scanGlobalProjectDirs(
 
       const folderName = folderNameFromProjectDir(dir.name);
       knownJsonlFiles.add(file);
+      console.log(
+        `[Pixel Agents] Watcher: detected global session ${path.basename(file)} (${folderName})`,
+      );
       adoptExternalSession(
         file,
         dirPath,
@@ -877,8 +899,11 @@ export function startStaleExternalAgentCheck(
   jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  hooksEnabledRef?: { current: boolean },
 ): ReturnType<typeof setInterval> {
   return setInterval(() => {
+    // When hooks are active, SessionEnd handles agent cleanup.
+    if (hooksEnabledRef?.current) return;
     const toRemove: number[] = [];
 
     for (const [id, agent] of agents) {

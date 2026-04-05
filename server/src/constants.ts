@@ -55,6 +55,12 @@ export const HOOK_EVENTS = [
   'Stop',
   'PermissionRequest',
   'Notification',
+  'UserPromptSubmit',
+  'PreToolUse',
+  'PostToolUse',
+  'PostToolUseFailure',
+  'SubagentStart',
+  'SubagentStop',
 ] as const;
 export const HOOK_EVENT_BUFFER_MS = 5_000;
 export const MAX_HOOK_BODY_SIZE = 65_536; // 64KB

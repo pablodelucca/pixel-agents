@@ -48,8 +48,10 @@ import {
   WORKSPACE_KEY_AGENT_SEATS,
 } from './constants.js';
 import {
+  adoptExternalSessionFromHook,
   dismissedJsonlFiles,
   ensureProjectScan,
+  isTrackedProjectDir,
   reassignAgentToFile,
   seededMtimes,
   startExternalSessionScanning,
@@ -83,6 +85,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
   // Global session scanning (opt-in "Watch All Sessions" toggle)
   watchAllSessions = { current: false };
+  // Hooks enabled state (mutable ref for passing to scanners)
+  hooksEnabled = { current: true };
   globalDismissedFiles = new Set<string>();
 
   // Bundled default layout (loaded from assets/default-layout.json)
@@ -124,7 +128,28 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     );
 
     this.hookEventHandler.setLifecycleCallbacks({
-      // TODO(Phase C): Add onExternalSessionDetected with workspace filtering
+      onExternalSessionDetected: (sessionId, transcriptPath, cwd) => {
+        // Workspace filtering: only adopt if in a tracked project dir or Watch All Sessions is ON
+        const projectDir = path.dirname(transcriptPath);
+        if (!isTrackedProjectDir(projectDir) && !this.watchAllSessions.current) {
+          return; // Not our workspace and Watch All is OFF, ignore
+        }
+        adoptExternalSessionFromHook(
+          sessionId,
+          transcriptPath,
+          cwd,
+          this.knownJsonlFiles,
+          this.nextAgentId,
+          this.agents,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.webview,
+          this.persistAgents,
+          (agent) => this.registerAgentHook(agent),
+        );
+      },
       onSessionClear: (agentId, newSessionId, newTranscriptPath) => {
         this.knownJsonlFiles.add(newTranscriptPath);
         reassignAgentToFile(
@@ -146,13 +171,32 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.registerAgentHook(agent);
         }
       },
+      onSessionResume: (transcriptPath) => {
+        // Clear dismissals so --resume can re-adopt the file
+        dismissedJsonlFiles.delete(transcriptPath);
+        seededMtimes.delete(transcriptPath);
+        this.knownJsonlFiles.delete(transcriptPath);
+      },
       onSessionEnd: (agentId) => {
-        // Dismiss the file so heuristic scanners (seededMtimes, external scanner)
-        // don't re-adopt it as a ghost agent after the session truly ended.
         const agent = this.agents.get(agentId);
-        if (agent) {
-          seededMtimes.delete(agent.jsonlFile);
-          dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+        if (!agent) return;
+        // Dismiss the file so heuristic scanners don't re-adopt it
+        seededMtimes.delete(agent.jsonlFile);
+        dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+        // External agents: remove immediately (no terminal to keep alive)
+        if (agent.isExternal) {
+          this.unregisterAgentHook(agent);
+          removeAgent(
+            agentId,
+            this.agents,
+            this.fileWatchers,
+            this.pollingTimers,
+            this.waitingTimers,
+            this.permissionTimers,
+            this.jsonlPollTimers,
+            this.persistAgents,
+          );
+          this.webview?.postMessage({ type: 'agentClosed', id: agentId });
         }
       },
     });
@@ -169,6 +213,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         // It's the foundation for WebSocket transport and health monitoring.
         // Only hook installation/script-copy is gated by the toggle.
         const hooksEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_HOOKS_ENABLED, true);
+        this.hooksEnabled.current = hooksEnabled;
         if (hooksEnabled) {
           installHooks();
           copyHookScript(this.context.extensionPath);
@@ -270,6 +315,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       } else if (message.type === 'setHooksEnabled') {
         const enabled = message.enabled as boolean;
         this.context.globalState.update(GLOBAL_KEY_HOOKS_ENABLED, enabled);
+        this.hooksEnabled.current = enabled;
         if (enabled) {
           installHooks();
           copyHookScript(this.context.extensionPath);
@@ -408,6 +454,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.webview,
           this.persistAgents,
           (agent) => this.registerAgentHook(agent),
+          this.hooksEnabled,
         );
 
         // Start external session scanning (detects VS Code extension panel sessions)
@@ -425,6 +472,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             this.webview,
             this.persistAgents,
             this.watchAllSessions,
+            this.hooksEnabled,
           );
 
           // In multi-root workspaces, also scan project dirs for all other folders
@@ -449,6 +497,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
                   this.permissionTimers,
                   this.webview,
                   this.persistAgents,
+                  undefined,
+                  this.hooksEnabled,
                 );
               }
             }
@@ -465,6 +515,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             this.jsonlPollTimers,
             this.webview,
             this.persistAgents,
+            this.hooksEnabled,
           );
         }
 
