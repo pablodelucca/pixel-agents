@@ -68,25 +68,18 @@ export function paintCarpet(
   const existingCarpets: Array<CarpetTile | null> =
     layout.carpetTiles ?? new Array(layout.cols * layout.rows).fill(null);
 
-  // Check if anything changed
-  const existing = existingCarpets[idx];
-  if (existing && existing.variant === variant) {
-    const existingColor = existing.color;
-    if (!color && !existingColor) return layout;
-    if (
-      color &&
-      existingColor &&
-      color.h === existingColor.h &&
-      color.s === existingColor.s &&
-      color.b === existingColor.b &&
-      color.c === existingColor.c &&
-      !!color.colorize === !!existingColor.colorize
-    )
-      return layout;
+  let maxOrder = 0;
+  for (const carpet of existingCarpets) {
+    if (carpet && carpet.order !== undefined && carpet.order > maxOrder) {
+      maxOrder = carpet.order;
+    }
   }
 
   const carpetTiles = [...existingCarpets];
-  carpetTiles[idx] = color !== undefined ? { variant, color } : { variant };
+  carpetTiles[idx] =
+    color !== undefined
+      ? { variant, color, order: maxOrder + 1 }
+      : { variant, order: maxOrder + 1 };
   return { ...layout, carpetTiles };
 }
 

@@ -123,19 +123,36 @@ export function renderCarpetLayer(
   // Half tile offset so junction sprite is centered on the corner between 4 tiles
   const halfS = s / 2;
 
-  const presentGroups = new Map<string, { variant: number; color: ColorValue; colorKey: string }>();
-  for (const tile of carpetTiles) {
-    if (tile !== null && tile !== undefined) {
-      const color = tile.color ?? CARPET_DEFAULT_COLOR;
-      const colorKey = getCarpetColorKey(color);
-      presentGroups.set(`${tile.variant}:${colorKey}`, { variant: tile.variant, color, colorKey });
-    }
-  }
-  if (presentGroups.size === 0) return;
+  for (let jy = 0; jy <= rows; jy++) {
+    for (let jx = 0; jx <= cols; jx++) {
+      const localGroups = new Map<
+        string,
+        { variant: number; color: ColorValue; colorKey: string; order: number }
+      >();
 
-  for (const { variant, color, colorKey } of presentGroups.values()) {
-    for (let jy = 0; jy <= rows; jy++) {
-      for (let jx = 0; jx <= cols; jx++) {
+      const adjacent = [
+        { col: jx - 1, row: jy - 1 },
+        { col: jx, row: jy - 1 },
+        { col: jx, row: jy },
+        { col: jx - 1, row: jy },
+      ];
+
+      for (const pos of adjacent) {
+        if (pos.col < 0 || pos.row < 0 || pos.col >= cols || pos.row >= rows) continue;
+        const tile = carpetTiles[pos.row * cols + pos.col];
+        if (!tile) continue;
+        const color = tile.color ?? CARPET_DEFAULT_COLOR;
+        const colorKey = getCarpetColorKey(color);
+        const key = `${tile.variant}:${colorKey}`;
+        const order = tile.order ?? 0;
+        const existing = localGroups.get(key);
+        if (!existing || order > existing.order) {
+          localGroups.set(key, { variant: tile.variant, color, colorKey, order });
+        }
+      }
+
+      const orderedGroups = [...localGroups.values()].sort((a, b) => a.order - b.order);
+      for (const { variant, color, colorKey } of orderedGroups) {
         const sprite = getCarpetJunctionSprite(
           jx,
           jy,

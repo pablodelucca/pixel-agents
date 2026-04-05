@@ -274,7 +274,7 @@ export function EditorToolbar({
       {/* Sub-panel: Carpet — stacked bottom-to-top via column-reverse */}
       {isCarpetActive && (
         <div className="flex flex-col-reverse gap-4">
-          {/* Color toggle + Clear + Pick — just above tool row */}
+          {/* Color toggle + Pick — just above tool row */}
           <div className="flex gap-4 items-center">
             <Button
               variant={showCarpetColor ? 'active' : 'default'}
@@ -284,16 +284,6 @@ export function EditorToolbar({
             >
               Color
             </Button>
-            {carpetColor && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onCarpetColorChange(undefined)}
-                title="Reset to default carpet color"
-              >
-                Clear
-              </Button>
-            )}
             <Button
               variant={activeTool === EditTool.CARPET_PICK ? 'active' : 'ghost'}
               size="sm"

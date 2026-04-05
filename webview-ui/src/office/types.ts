@@ -122,6 +122,8 @@ export interface CarpetTile {
   variant: number;
   /** Optional color override for this carpet tile */
   color?: ColorValue;
+  /** Paint order used to resolve overlapping carpet junctions */
+  order?: number;
 }
 
 export interface OfficeLayout {
