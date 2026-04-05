@@ -12,7 +12,6 @@
  *   NW: (jx-1, jy-1)  NE: (jx, jy-1)
  *   SW: (jx-1, jy  )  SE: (jx, jy  )
  *
- * Default carpet color: { h: 30, s: 30, b: 0, c: 0, colorize: true }
  */
 
 import type { ColorValue } from '../components/ui/types.js';
