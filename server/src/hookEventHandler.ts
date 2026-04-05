@@ -230,12 +230,17 @@ export class HookEventHandler {
       }
     }
     if (agentId === undefined) {
-      // Only buffer if session was seen by SessionStart (pending or recently registered).
-      // Silently drop events for sessions we never tracked (e.g. other projects with Watch All OFF).
-      if (
-        this.pendingExternalSessions.has(event.session_id) ||
-        this.bufferedEvents.some((b) => b.event.session_id === event.session_id)
-      ) {
+      // Buffer if: pending external session, already buffering for this session,
+      // OR agents exist that haven't been registered yet (internal agent race:
+      // hook event arrives before registerAgent is called after launchNewTerminal).
+      // Silently drop events for sessions we have no record of
+      // (e.g. other projects with Watch All OFF).
+      const isPending = this.pendingExternalSessions.has(event.session_id);
+      const hasBuffered = this.bufferedEvents.some((b) => b.event.session_id === event.session_id);
+      const hasUnregisteredAgents = [...this.agents.values()].some(
+        (a) => a.sessionId && !this.sessionToAgentId.has(a.sessionId),
+      );
+      if (isPending || hasBuffered || hasUnregisteredAgents) {
         if (debug)
           console.log(
             `[Pixel Agents] Hook: ${eventName} - unknown session ${event.session_id.slice(0, 8)}..., buffering`,
