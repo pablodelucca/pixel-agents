@@ -42,7 +42,6 @@ interface EditorToolbarProps {
   onCarpetAccentColorChange: (color: ColorValue | undefined) => void;
   onCarpetVariantChange: (variant: number) => void;
   loadedAssets?: LoadedAssetData;
-  carpetAssetsLoaded?: boolean; // TODO: should be part of loadedAssets
 }
 
 const THUMB_ZOOM = 2;
@@ -94,7 +93,6 @@ export function EditorToolbar({
   onCarpetAccentColorChange,
   onCarpetVariantChange,
   loadedAssets,
-  carpetAssetsLoaded,
 }: EditorToolbarProps) {
   const [activeCategory, setActiveCategory] = useState<FurnitureCategory>('desks');
   const [showColor, setShowColor] = useState(false);
@@ -360,78 +358,81 @@ export function EditorToolbar({
           )}
 
           {/* Variant picker — horizontal carousel */}
-          {carpetAssetsLoaded && hasCarpetSprites() && getCarpetSetCount() > 0 && (
-            <div className="carousel">
-              {Array.from({ length: getCarpetSetCount() }, (_, i) => (
-                <ItemSelect
-                  key={i}
-                  width={48}
-                  height={32}
-                  selected={carpetVariant === i}
-                  onClick={() => onCarpetVariantChange(i)}
-                  title={`Carpet ${String.fromCharCode(65 + i)}`}
-                  deps={[i, effectiveCarpetColor, effectiveCarpetAccentColor]}
-                  draw={(ctx, w, h) => {
-                    if (!hasCarpetSprites()) {
-                      ctx.fillStyle = CANVAS_FALLBACK_TILE_COLOR;
-                      ctx.fillRect(0, 0, w, h);
-                      return;
-                    }
-                    const previewCols = 2;
-                    const previewRows = 1;
-                    const previewZoom = 1;
-                    const tileSize = 16 * previewZoom;
-                    const carpetWidth = previewCols * tileSize;
-                    const carpetHeight = previewRows * tileSize;
-                    const originX = Math.floor((w - carpetWidth) / 2);
-                    const originY = Math.floor((h - carpetHeight) / 2);
-                    const fakeCarpets = [
-                      {
-                        variant: i,
-                        color: effectiveCarpetColor,
-                        accentColor: effectiveCarpetAccentColor,
-                      },
-                      {
-                        variant: i,
-                        color: effectiveCarpetColor,
-                        accentColor: effectiveCarpetAccentColor,
-                      },
-                      {
-                        variant: i,
-                        color: effectiveCarpetColor,
-                        accentColor: effectiveCarpetAccentColor,
-                      },
-                      {
-                        variant: i,
-                        color: effectiveCarpetColor,
-                        accentColor: effectiveCarpetAccentColor,
-                      },
-                    ] as Array<import('../types.js').CarpetTile | null>;
-
-                    for (let jy = 0; jy <= previewRows; jy++) {
-                      for (let jx = 0; jx <= previewCols; jx++) {
-                        const sprite = getCarpetJunctionSprite(
-                          jx,
-                          jy,
-                          i,
-                          fakeCarpets,
-                          previewCols,
-                          previewRows,
-                          effectiveCarpetColor,
-                          effectiveCarpetAccentColor,
-                        );
-                        if (!sprite) continue;
-
-                        const drawX = originX + jx * tileSize - tileSize / 2;
-                        const drawY = originY + jy * tileSize - tileSize / 2;
-                        ctx.drawImage(getCachedSprite(sprite, previewZoom), drawX, drawY);
+          {loadedAssets &&
+            loadedAssets.carpetVariantCount > 0 &&
+            hasCarpetSprites() &&
+            getCarpetSetCount() > 0 && (
+              <div className="carousel">
+                {Array.from({ length: getCarpetSetCount() }, (_, i) => (
+                  <ItemSelect
+                    key={i}
+                    width={48}
+                    height={32}
+                    selected={carpetVariant === i}
+                    onClick={() => onCarpetVariantChange(i)}
+                    title={`Carpet ${String.fromCharCode(65 + i)}`}
+                    deps={[i, effectiveCarpetColor, effectiveCarpetAccentColor]}
+                    draw={(ctx, w, h) => {
+                      if (!hasCarpetSprites()) {
+                        ctx.fillStyle = CANVAS_FALLBACK_TILE_COLOR;
+                        ctx.fillRect(0, 0, w, h);
+                        return;
                       }
-                    }
-                  }}
-                />
-              ))}
-            </div>
-          )}
+                      const previewCols = 2;
+                      const previewRows = 1;
+                      const previewZoom = 1;
+                      const tileSize = 16 * previewZoom;
+                      const carpetWidth = previewCols * tileSize;
+                      const carpetHeight = previewRows * tileSize;
+                      const originX = Math.floor((w - carpetWidth) / 2);
+                      const originY = Math.floor((h - carpetHeight) / 2);
+                      const fakeCarpets = [
+                        {
+                          variant: i,
+                          color: effectiveCarpetColor,
+                          accentColor: effectiveCarpetAccentColor,
+                        },
+                        {
+                          variant: i,
+                          color: effectiveCarpetColor,
+                          accentColor: effectiveCarpetAccentColor,
+                        },
+                        {
+                          variant: i,
+                          color: effectiveCarpetColor,
+                          accentColor: effectiveCarpetAccentColor,
+                        },
+                        {
+                          variant: i,
+                          color: effectiveCarpetColor,
+                          accentColor: effectiveCarpetAccentColor,
+                        },
+                      ] as Array<import('../types.js').CarpetTile | null>;
+
+                      for (let jy = 0; jy <= previewRows; jy++) {
+                        for (let jx = 0; jx <= previewCols; jx++) {
+                          const sprite = getCarpetJunctionSprite(
+                            jx,
+                            jy,
+                            i,
+                            fakeCarpets,
+                            previewCols,
+                            previewRows,
+                            effectiveCarpetColor,
+                            effectiveCarpetAccentColor,
+                          );
+                          if (!sprite) continue;
+
+                          const drawX = originX + jx * tileSize - tileSize / 2;
+                          const drawY = originY + jy * tileSize - tileSize / 2;
+                          ctx.drawImage(getCachedSprite(sprite, previewZoom), drawX, drawY);
+                        }
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            )}
         </div>
       )}
 

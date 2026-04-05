@@ -5,6 +5,7 @@ import { setCarpetSprites } from '../office/carpetTiles.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
+import type { LoadedAssetData } from '../office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js';
 import { setCharacterTemplates } from '../office/sprites/spriteData.js';
 import { extractToolName } from '../office/toolUtils.js';
@@ -56,7 +57,7 @@ export interface ExtensionMessageState {
   subagentCharacters: SubagentCharacter[];
   layoutReady: boolean;
   layoutWasReset: boolean;
-  loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> };
+  loadedAssets?: LoadedAssetData;
   workspaceFolders: WorkspaceFolder[];
   externalAssetDirectories: string[];
   lastSeenVersion: string;
@@ -67,7 +68,6 @@ export interface ExtensionMessageState {
   hooksEnabled: boolean;
   setHooksEnabled: (v: boolean) => void;
   hooksInfoShown: boolean;
-  carpetAssetsLoaded: boolean; // TODO: should be part of loadedAssets? Investigate if compatible with existing furniture assets loading logic
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -94,9 +94,7 @@ export function useExtensionMessages(
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([]);
   const [layoutReady, setLayoutReady] = useState(false);
   const [layoutWasReset, setLayoutWasReset] = useState(false);
-  const [loadedAssets, setLoadedAssets] = useState<
-    { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> } | undefined
-  >();
+  const [loadedAssets, setLoadedAssets] = useState<LoadedAssetData | undefined>();
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([]);
   const [externalAssetDirectories, setExternalAssetDirectories] = useState<string[]>([]);
   const [lastSeenVersion, setLastSeenVersion] = useState('');
@@ -105,10 +103,10 @@ export function useExtensionMessages(
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
   const [hooksEnabled, setHooksEnabled] = useState(true);
   const [hooksInfoShown, setHooksInfoShown] = useState(true);
-  const [carpetAssetsLoaded, setCarpetAssetsLoaded] = useState(false);
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
+  const carpetVariantCountRef = useRef(0);
 
   useEffect(() => {
     // Buffer agents from existingAgents until layout is loaded
@@ -412,7 +410,10 @@ export function useExtensionMessages(
         const sets = msg.sets as string[][][][];
         console.log(`[Webview] Received ${sets.length} carpet tile variant(s)`);
         setCarpetSprites(sets);
-        setCarpetAssetsLoaded(true);
+        carpetVariantCountRef.current = sets.length;
+        setLoadedAssets((prev) =>
+          prev ? { ...prev, carpetVariantCount: carpetVariantCountRef.current } : prev,
+        );
       } else if (msg.type === 'workspaceFolders') {
         const folders = msg.folders as WorkspaceFolder[];
         setWorkspaceFolders(folders);
@@ -448,10 +449,15 @@ export function useExtensionMessages(
         try {
           const catalog = msg.catalog as FurnitureAsset[];
           const sprites = msg.sprites as Record<string, string[][]>;
+          const assets: LoadedAssetData = {
+            catalog,
+            sprites,
+            carpetVariantCount: carpetVariantCountRef.current,
+          };
           console.log(`📦 Webview: Loaded ${catalog.length} furniture assets`);
           // Build dynamic catalog immediately so getCatalogEntry() works when layoutLoaded arrives next
-          buildDynamicCatalog({ catalog, sprites });
-          setLoadedAssets({ catalog, sprites });
+          buildDynamicCatalog(assets);
+          setLoadedAssets(assets);
         } catch (err) {
           console.error(`❌ Webview: Error processing furnitureAssetsLoaded:`, err);
         }
@@ -483,6 +489,5 @@ export function useExtensionMessages(
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
-    carpetAssetsLoaded,
   };
 }

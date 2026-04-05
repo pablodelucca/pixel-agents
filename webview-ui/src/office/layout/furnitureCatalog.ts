@@ -22,6 +22,7 @@ export interface LoadedAssetData {
     frame?: number;
   }>;
   sprites: Record<string, SpriteData>;
+  carpetVariantCount: number;
 }
 
 export type FurnitureCategory =
