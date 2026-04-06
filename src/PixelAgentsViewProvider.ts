@@ -131,7 +131,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     this.hookEventHandler.setLifecycleCallbacks({
       onExternalSessionDetected: (sessionId, transcriptPath, cwd) => {
         // Workspace filtering: only adopt if in a tracked project dir or Watch All Sessions is ON
-        const projectDir = path.dirname(transcriptPath);
+        const projectDir = transcriptPath ? path.dirname(transcriptPath) : cwd;
         if (!isTrackedProjectDir(projectDir) && !this.watchAllSessions.current) {
           return; // Not our workspace and Watch All is OFF, ignore
         }
@@ -152,18 +152,20 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         );
       },
       onSessionClear: (agentId, newSessionId, newTranscriptPath) => {
-        this.knownJsonlFiles.add(newTranscriptPath);
-        reassignAgentToFile(
-          agentId,
-          newTranscriptPath,
-          this.agents,
-          this.fileWatchers,
-          this.pollingTimers,
-          this.waitingTimers,
-          this.permissionTimers,
-          this.webview,
-          this.persistAgents,
-        );
+        if (newTranscriptPath) {
+          this.knownJsonlFiles.add(newTranscriptPath);
+          reassignAgentToFile(
+            agentId,
+            newTranscriptPath,
+            this.agents,
+            this.fileWatchers,
+            this.pollingTimers,
+            this.waitingTimers,
+            this.permissionTimers,
+            this.webview,
+            this.persistAgents,
+          );
+        }
         // Update session mapping for future hook events
         const agent = this.agents.get(agentId);
         if (agent) {

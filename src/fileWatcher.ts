@@ -514,8 +514,8 @@ function adoptTerminalForFile(
  */
 export function adoptExternalSessionFromHook(
   sessionId: string,
-  transcriptPath: string,
-  _cwd: string,
+  transcriptPath: string | undefined,
+  cwd: string,
   knownJsonlFiles: Set<string>,
   nextAgentIdRef: { current: number },
   agents: Map<number, AgentState>,
@@ -527,46 +527,84 @@ export function adoptExternalSessionFromHook(
   persistAgents: () => void,
   onAgentCreated?: (agent: AgentState) => void,
 ): void {
-  // Guard: don't adopt if file is already tracked by an agent
-  for (const agent of agents.values()) {
-    if (agent.jsonlFile === transcriptPath) return;
-  }
-  // Don't check knownJsonlFiles here -- hooks confirmed this is a real session,
-  // and seeded files at startup are in knownJsonlFiles but may become active later.
-  if (dismissedJsonlFiles.has(transcriptPath)) return;
-  if (clearDismissedFiles.has(transcriptPath)) return;
+  if (transcriptPath) {
+    // File-based provider (Claude, Codex): adopt with JSONL file watching
+    // Guard: don't adopt if file is already tracked by an agent
+    for (const agent of agents.values()) {
+      if (agent.jsonlFile === transcriptPath) return;
+    }
+    // Don't check knownJsonlFiles here -- hooks confirmed this is a real session,
+    // and seeded files at startup are in knownJsonlFiles but may become active later.
+    if (dismissedJsonlFiles.has(transcriptPath)) return;
+    if (clearDismissedFiles.has(transcriptPath)) return;
 
-  knownJsonlFiles.add(transcriptPath);
-  const projectDir = path.dirname(transcriptPath);
-  const folderName = folderNameFromProjectDir(path.basename(projectDir));
+    knownJsonlFiles.add(transcriptPath);
+    const projectDir = path.dirname(transcriptPath);
+    const folderName = folderNameFromProjectDir(path.basename(projectDir));
 
-  adoptExternalSession(
-    transcriptPath,
-    projectDir,
-    nextAgentIdRef,
-    agents,
-    fileWatchers,
-    pollingTimers,
-    waitingTimers,
-    permissionTimers,
-    webview,
-    persistAgents,
-    folderName,
-  );
-
-  // Log with Hook: prefix (this adoption was triggered by hooks, not heuristic scanner)
-  const adoptedAgent = [...agents.values()].find((a) => a.jsonlFile === transcriptPath);
-  if (adoptedAgent && debug) {
-    console.log(
-      `[Pixel Agents] Hook: Agent ${adoptedAgent.id} - detected external session ${path.basename(transcriptPath)}${adoptedAgent.folderName ? ` (${adoptedAgent.folderName})` : ''}`,
+    adoptExternalSession(
+      transcriptPath,
+      projectDir,
+      nextAgentIdRef,
+      agents,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
+      webview,
+      persistAgents,
+      folderName,
     );
-  }
 
-  // Register the session ID so future hooks route to this agent
-  if (adoptedAgent) {
-    adoptedAgent.sessionId = sessionId;
-    adoptedAgent.hookDelivered = true;
-    onAgentCreated?.(adoptedAgent);
+    const adoptedAgent = [...agents.values()].find((a) => a.jsonlFile === transcriptPath);
+    if (adoptedAgent && debug) {
+      console.log(
+        `[Pixel Agents] Hook: Agent ${adoptedAgent.id} - detected external session ${path.basename(transcriptPath)}${adoptedAgent.folderName ? ` (${adoptedAgent.folderName})` : ''}`,
+      );
+    }
+    if (adoptedAgent) {
+      adoptedAgent.sessionId = sessionId;
+      adoptedAgent.hookDelivered = true;
+      onAgentCreated?.(adoptedAgent);
+    }
+  } else {
+    // Hooks-only provider (OpenCode, Copilot): no transcript file, all state from hooks
+    const id = nextAgentIdRef.current++;
+    const folderName = cwd ? path.basename(cwd) : undefined;
+    const agent: AgentState = {
+      id,
+      sessionId,
+      terminalRef: undefined,
+      isExternal: true,
+      projectDir: cwd,
+      jsonlFile: '',
+      fileOffset: 0,
+      lineBuffer: '',
+      activeToolIds: new Set(),
+      activeToolStatuses: new Map(),
+      activeToolNames: new Map(),
+      activeSubagentToolIds: new Map(),
+      activeSubagentToolNames: new Map(),
+      backgroundAgentToolIds: new Set(),
+      isWaiting: false,
+      permissionSent: false,
+      hadToolsInTurn: false,
+      hookDelivered: true,
+      hooksOnly: true,
+      lastDataAt: Date.now(),
+      linesProcessed: 0,
+      seenUnknownRecordTypes: new Set(),
+      folderName,
+    };
+    agents.set(id, agent);
+    persistAgents();
+    if (debug) {
+      console.log(
+        `[Pixel Agents] Hook: Agent ${id} - detected hooks-only external session${folderName ? ` (${folderName})` : ''}`,
+      );
+    }
+    webview?.postMessage({ type: 'agentCreated', id, folderName });
+    onAgentCreated?.(agent);
   }
 }
 

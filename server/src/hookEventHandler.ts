@@ -39,10 +39,19 @@ interface BufferedEvent {
  */
 /** Callback for session lifecycle events detected via hooks. */
 export interface SessionLifecycleCallbacks {
-  /** Called when an external session is detected (unknown session_id in SessionStart). */
-  onExternalSessionDetected?: (sessionId: string, transcriptPath: string, cwd: string) => void;
+  /** Called when an external session is detected (unknown session_id in SessionStart).
+   *  transcriptPath is undefined for providers without transcripts (OpenCode, Copilot). */
+  onExternalSessionDetected?: (
+    sessionId: string,
+    transcriptPath: string | undefined,
+    cwd: string,
+  ) => void;
   /** Called when /clear is detected via hooks (SessionEnd reason=clear + SessionStart source=clear). */
-  onSessionClear?: (agentId: number, newSessionId: string, newTranscriptPath: string) => void;
+  onSessionClear?: (
+    agentId: number,
+    newSessionId: string,
+    newTranscriptPath: string | undefined,
+  ) => void;
   /** Called when a session is resumed (--resume). Clears dismissals so the file can be re-adopted. */
   onSessionResume?: (transcriptPath: string) => void;
   /** Called when a session ends (exit/logout). */
@@ -52,7 +61,8 @@ export interface SessionLifecycleCallbacks {
 /** Pending external session info (waiting for confirmation event before creating agent). */
 interface PendingExternalSession {
   sessionId: string;
-  transcriptPath: string;
+  /** Transcript file path. Undefined for providers without transcripts (OpenCode, Copilot). */
+  transcriptPath: string | undefined;
   cwd: string;
 }
 
@@ -73,10 +83,10 @@ export class HookEventHandler {
   ) {}
 
   /** Check if a session is tracked (in workspace project dir, or Watch All Sessions ON). */
-  private isTrackedSession(transcriptPath?: string): boolean {
+  private isTrackedSession(transcriptPath?: string, cwd?: string): boolean {
     if (this.watchAllSessionsRef?.current) return true;
-    if (!transcriptPath) return false;
-    const projectDir = path.dirname(transcriptPath);
+    const projectDir = transcriptPath ? path.dirname(transcriptPath) : cwd;
+    if (!projectDir) return false;
     return [...this.agents.values()].some(
       (a) => path.resolve(a.projectDir).toLowerCase() === path.resolve(projectDir).toLowerCase(),
     );
@@ -116,7 +126,10 @@ export class HookEventHandler {
     if (eventName === 'SessionStart') {
       const sid = event.session_id.slice(0, 8);
       const source = (event.source as string) ?? 'unknown';
-      const tracked = this.isTrackedSession(event.transcript_path as string | undefined);
+      const tracked = this.isTrackedSession(
+        event.transcript_path as string | undefined,
+        event.cwd as string | undefined,
+      );
       if (debug && tracked)
         console.log(`[Pixel Agents] Hook: SessionStart(source=${source}, session=${sid}...)`);
 
@@ -148,8 +161,10 @@ export class HookEventHandler {
       // /clear or /resume: reassign existing agent to new session
       if (event.source === 'clear' || event.source === 'resume') {
         const transcriptPath = event.transcript_path as string | undefined;
-        if (transcriptPath) {
-          const projectDir = path.dirname(transcriptPath);
+        const projectDir = transcriptPath
+          ? path.dirname(transcriptPath)
+          : (event.cwd as string | undefined);
+        if (projectDir) {
           for (const [id, agent] of this.agents) {
             // Both /clear and /resume send SessionEnd first (sets pendingClear),
             // then SessionStart. Match the agent that has pendingClear in same project dir.
@@ -177,9 +192,9 @@ export class HookEventHandler {
       // from Claude Code Extension which fire SessionStart + SessionEnd without any activity.
       const transcriptPath2 = event.transcript_path as string | undefined;
       const cwd = event.cwd as string | undefined;
-      if (transcriptPath2 && cwd) {
+      if (transcriptPath2 || cwd) {
         // For --resume, clear dismissals so the file can be re-adopted
-        if (event.source === 'resume') {
+        if (event.source === 'resume' && transcriptPath2) {
           this.lifecycleCallbacks.onSessionResume?.(transcriptPath2);
         }
         if (debug && tracked)
@@ -189,7 +204,7 @@ export class HookEventHandler {
         this.pendingExternalSessions.set(event.session_id, {
           sessionId: event.session_id,
           transcriptPath: transcriptPath2,
-          cwd,
+          cwd: cwd ?? '',
         });
       } else {
         if (debug && tracked)

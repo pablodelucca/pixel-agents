@@ -49,7 +49,7 @@ export const HOOK_API_PREFIX = '/api/hooks';
  *  SessionStart/SessionEnd handle session lifecycle (start, /clear, resume, exit).
  *  Stop/PermissionRequest/Notification handle turn completion and permission UI.
  */
-export const HOOK_EVENTS = [
+export const CLAUDE_HOOK_EVENTS = [
   'SessionStart',
   'SessionEnd',
   'Stop',
