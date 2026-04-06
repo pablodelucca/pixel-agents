@@ -671,4 +671,83 @@ describe('HookEventHandler', () => {
     expect(externalAgent.pendingClear).toBe(false);
     expect(externalAgent.sessionId).toBe('ext-sess-2');
   });
+
+  // ── Provider-agnostic (optional transcript_path) ────────────
+
+  it('SessionStart stores pending with cwd only (no transcript_path)', () => {
+    const onExternalSessionDetected = vi.fn();
+    handler.setLifecycleCallbacks({ onExternalSessionDetected });
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'no-transcript-sess',
+      source: 'startup',
+      cwd: '/projects/test',
+    });
+
+    // Pending, no agent yet
+    expect(onExternalSessionDetected).not.toHaveBeenCalled();
+
+    // Simulate agent creation on confirmation
+    onExternalSessionDetected.mockImplementation((sessionId: string) => {
+      const agent = createTestAgent({
+        id: 2,
+        sessionId,
+        projectDir: '/projects/test',
+      } as Partial<AgentState>);
+      agents.set(2, agent);
+      handler.registerAgent(sessionId, 2);
+    });
+
+    // Confirmation event creates agent
+    handler.handleEvent('claude', {
+      hook_event_name: 'Stop',
+      session_id: 'no-transcript-sess',
+    });
+
+    expect(onExternalSessionDetected).toHaveBeenCalledWith(
+      'no-transcript-sess',
+      undefined,
+      '/projects/test',
+    );
+  });
+
+  it('SessionStart(source=resume) uses cwd for matching when no transcript_path', () => {
+    const onSessionClear = vi.fn();
+    handler.setLifecycleCallbacks({ onSessionClear });
+
+    const agent = createTestAgent({
+      id: 1,
+      sessionId: 'old-sess',
+      projectDir: '/projects/test',
+      pendingClear: true,
+    });
+    agents.set(1, agent);
+    handler.registerAgent('old-sess', 1);
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'resumed-sess',
+      source: 'resume',
+      cwd: '/projects/test',
+    });
+
+    expect(onSessionClear).toHaveBeenCalledWith(1, 'resumed-sess', undefined);
+    expect(agent.pendingClear).toBe(false);
+  });
+
+  it('SessionStart(source=resume) without transcript_path does not call onSessionResume', () => {
+    const onSessionResume = vi.fn();
+    handler.setLifecycleCallbacks({ onSessionResume });
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SessionStart',
+      session_id: 'resume-no-path',
+      source: 'resume',
+      cwd: '/projects/test',
+    });
+
+    // onSessionResume requires transcript_path to clear dismissals
+    expect(onSessionResume).not.toHaveBeenCalled();
+  });
 });
