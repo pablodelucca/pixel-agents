@@ -186,6 +186,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         // Dismiss the file so heuristic scanners don't re-adopt it
         seededMtimes.delete(agent.jsonlFile);
         dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+        // If this is a team lead, remove its teammates
+        if (agent.isTeamLead) {
+          this.removeTeammates(agentId);
+        }
         // External agents: remove immediately (no terminal to keep alive)
         if (agent.isExternal) {
           this.unregisterAgentHook(agent);
@@ -226,6 +230,35 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       .catch((e) => {
         console.error(`[Pixel Agents] Failed to start server: ${e}`);
       });
+  }
+
+  /** Remove all teammates of a lead agent */
+  private removeTeammates(leadId: number): void {
+    const teammates: number[] = [];
+    for (const [id, agent] of this.agents) {
+      if (agent.leadAgentId === leadId) {
+        teammates.push(id);
+      }
+    }
+    for (const id of teammates) {
+      const agent = this.agents.get(id);
+      if (agent) {
+        console.log(`[Pixel Agents] Removing teammate ${id} (lead ${leadId} closed)`);
+        dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+        this.unregisterAgentHook(agent);
+        removeAgent(
+          id,
+          this.agents,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.jsonlPollTimers,
+          this.persistAgents,
+        );
+        this.webview?.postMessage({ type: 'agentClosed', id });
+      }
+    }
   }
 
   /** Register an agent with the hook event handler for session->agent mapping.
@@ -277,8 +310,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         if (agent) {
           if (agent.terminalRef) {
             agent.terminalRef.show();
+          } else if (agent.leadAgentId !== undefined) {
+            // Teammate (tmux): focus the lead's terminal instead
+            const lead = this.agents.get(agent.leadAgentId);
+            if (lead?.terminalRef) {
+              lead.terminalRef.show();
+            }
           }
-          // External agents (extension panel) have no terminal to focus
         }
       } else if (message.type === 'closeAgent') {
         const agent = this.agents.get(message.id);
@@ -716,6 +754,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         if (agent.terminalRef && agent.terminalRef === closed) {
           if (this.activeAgentId.current === id) {
             this.activeAgentId.current = null;
+          }
+          // If this is a team lead, remove its teammates
+          if (agent.isTeamLead) {
+            this.removeTeammates(id);
           }
           // Dismiss JSONL so external scanner doesn't re-adopt it
           dismissedJsonlFiles.set(agent.jsonlFile, Date.now());

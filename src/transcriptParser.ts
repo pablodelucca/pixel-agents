@@ -54,6 +54,14 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
       return 'Planning';
     case 'NotebookEdit':
       return `Editing notebook`;
+    case 'TeamCreate': {
+      const teamName = typeof input.team_name === 'string' ? input.team_name : '';
+      return teamName ? `Creating team: ${teamName}` : 'Creating team';
+    }
+    case 'SendMessage': {
+      const recipient = typeof input.recipient === 'string' ? input.recipient : '';
+      return recipient ? `-> ${recipient}` : 'Sending message';
+    }
     default:
       return `Using ${toolName}`;
   }
@@ -73,6 +81,47 @@ export function processTranscriptLine(
   agent.linesProcessed++;
   try {
     const record = JSON.parse(line);
+
+    // -- Agent Teams: extract teamName/agentName from top-level JSONL fields --
+    if (record.teamName && !agent.teamName) {
+      agent.teamName = record.teamName as string;
+      agent.agentName = (record.agentName as string) || undefined;
+      if (debug) {
+        console.log(
+          `[Pixel Agents] Agent ${agentId} team metadata: team=${agent.teamName}, role=${agent.agentName ?? 'lead'}`,
+        );
+      }
+      // Link teammates to leads within the same team
+      linkTeammates(agentId, agent, agents);
+
+      webview?.postMessage({
+        type: 'agentTeamInfo',
+        id: agentId,
+        teamName: agent.teamName,
+        agentName: agent.agentName,
+        isTeamLead: agent.isTeamLead,
+        leadAgentId: agent.leadAgentId,
+      });
+    }
+
+    // -- Token usage extraction from assistant records --
+    const usage = record.message?.usage as
+      | { input_tokens?: number; output_tokens?: number }
+      | undefined;
+    if (usage) {
+      if (typeof usage.input_tokens === 'number') {
+        agent.inputTokens += usage.input_tokens;
+      }
+      if (typeof usage.output_tokens === 'number') {
+        agent.outputTokens += usage.output_tokens;
+      }
+      webview?.postMessage({
+        type: 'agentTokenUsage',
+        id: agentId,
+        inputTokens: agent.inputTokens,
+        outputTokens: agent.outputTokens,
+      });
+    }
 
     // Resilient content extraction: support both record.message.content and record.content
     // Claude Code may change the JSONL structure across versions
@@ -457,6 +506,67 @@ function processProgressRecord(
     if (stillHasNonExempt && !agent.hookDelivered) {
       startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
     }
+  }
+}
+
+/**
+ * Link teammates within the same team.
+ * The lead is the agent with no agentName (or the first one detected in the team).
+ * Teammates get leadAgentId pointing to the lead.
+ */
+function linkTeammates(_agentId: number, agent: AgentState, agents: Map<number, AgentState>): void {
+  const teamName = agent.teamName;
+  if (!teamName) return;
+
+  // Find all agents in this team
+  const teamAgents: AgentState[] = [];
+  for (const a of agents.values()) {
+    if (a.teamName === teamName) {
+      teamAgents.push(a);
+    }
+  }
+
+  // Determine lead: agent without agentName, or the first agent in the team that has isTeamLead
+  let lead: AgentState | undefined;
+  for (const a of teamAgents) {
+    if (a.isTeamLead) {
+      lead = a;
+      break;
+    }
+  }
+  if (!lead) {
+    // No lead found yet -- the agent without agentName is the lead
+    for (const a of teamAgents) {
+      if (!a.agentName) {
+        lead = a;
+        break;
+      }
+    }
+  }
+  if (!lead) {
+    // Still no lead -- first agent in the team is the lead
+    lead = teamAgents[0];
+  }
+
+  // Mark lead
+  if (lead && !lead.isTeamLead) {
+    lead.isTeamLead = true;
+    lead.leadAgentId = undefined;
+  }
+
+  // Link teammates to lead
+  for (const a of teamAgents) {
+    if (a.id !== lead.id && !a.isTeamLead) {
+      a.leadAgentId = lead.id;
+    }
+  }
+
+  // Update current agent's fields after linking
+  if (agent.id === lead.id) {
+    agent.isTeamLead = true;
+    agent.leadAgentId = undefined;
+  } else {
+    agent.leadAgentId = lead.id;
   }
 }
 

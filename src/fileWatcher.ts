@@ -480,6 +480,8 @@ function adoptTerminalForFile(
     linesProcessed: 0,
     seenUnknownRecordTypes: new Set(),
     hookDelivered: false,
+    inputTokens: 0,
+    outputTokens: 0,
   };
 
   agents.set(id, agent);
@@ -595,6 +597,8 @@ export function adoptExternalSessionFromHook(
       linesProcessed: 0,
       seenUnknownRecordTypes: new Set(),
       folderName,
+      inputTokens: 0,
+      outputTokens: 0,
     };
     agents.set(id, agent);
     persistAgents();
@@ -653,6 +657,8 @@ function adoptExternalSession(
     linesProcessed: 0,
     seenUnknownRecordTypes: new Set(),
     folderName,
+    inputTokens: 0,
+    outputTokens: 0,
   };
 
   agents.set(id, agent);

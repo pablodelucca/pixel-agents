@@ -61,6 +61,9 @@ export const CLAUDE_HOOK_EVENTS = [
   'PostToolUseFailure',
   'SubagentStart',
   'SubagentStop',
+  'TeammateIdle',
+  'TaskCreated',
+  'TaskCompleted',
 ] as const;
 export const HOOK_EVENT_BUFFER_MS = 5_000;
 /** Grace period after SessionEnd(reason=clear/resume) before triggering onSessionEnd.

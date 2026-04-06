@@ -38,6 +38,16 @@ export interface AgentState {
   pendingClear?: boolean;
   /** Hook-generated tool ID for PreToolUse/PostToolUse correlation */
   currentHookToolId?: string;
+
+  // -- Token tracking --
+  inputTokens: number;
+  outputTokens: number;
+
+  // -- Agent Teams --
+  teamName?: string;
+  agentName?: string;
+  isTeamLead?: boolean;
+  leadAgentId?: number;
 }
 
 export interface PersistedAgent {
@@ -51,4 +61,10 @@ export interface PersistedAgent {
   projectDir: string;
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+
+  // -- Agent Teams --
+  teamName?: string;
+  agentName?: string;
+  isTeamLead?: boolean;
+  leadAgentId?: number;
 }
