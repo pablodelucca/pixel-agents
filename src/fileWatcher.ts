@@ -757,6 +757,21 @@ function scanExternalDir(
 
   const now = Date.now();
 
+  // If an internal agent in this projectDir is still waiting for its JSONL file
+  // (file doesn't exist), skip all adoptions. The agent may have done /resume,
+  // and agentManager will detect and reassign it. Prevents the scanner from
+  // stealing the file as a new external agent.
+  const hasOrphanedInternal = [...agents.values()].some((a) => {
+    if (a.isExternal || a.projectDir !== projectDir) return false;
+    try {
+      fs.statSync(a.jsonlFile);
+      return false;
+    } catch {
+      return true;
+    }
+  });
+  if (hasOrphanedInternal) return;
+
   for (const file of files) {
     // --resume detection: seeded files whose mtime changed have new data.
     // Adopt directly, bypassing content check (old /clear files have
@@ -764,37 +779,19 @@ function scanExternalDir(
     // File stays in knownJsonlFiles (safe from per-agent /clear stealing).
     const seededMtime = seededMtimes.get(file);
     if (seededMtime !== undefined) {
+      // Seeded files are pre-existing at extension startup. If mtime changed,
+      // it could be --resume or internal agent activity. Don't adopt or reassign
+      // here (too ambiguous, causes cascading stealing). Just remove from tracking
+      // so the file can be handled through normal adoption if appropriate.
       try {
         const stat = fs.statSync(file);
-        if (stat.mtimeMs <= seededMtime) continue; // No new writes, skip
-      } catch {
-        continue;
-      }
-      // mtime changed → --resume. Check not tracked, not dismissed.
-      if (clearDismissedFiles.has(file)) continue;
-      const normalizedFile = path.resolve(file);
-      let tracked = false;
-      for (const agent of agents.values()) {
-        if (path.resolve(agent.jsonlFile) === normalizedFile) {
-          tracked = true;
-          break;
+        if (stat.mtimeMs > seededMtime) {
+          seededMtimes.delete(file);
+          knownJsonlFiles.delete(file);
         }
+      } catch {
+        /* ignore */
       }
-      if (tracked) continue;
-      seededMtimes.delete(file);
-      console.log(`[Pixel Agents] Watcher: Resumed session detected: ${path.basename(file)}`);
-      adoptExternalSession(
-        file,
-        projectDir,
-        nextAgentIdRef,
-        agents,
-        fileWatchers,
-        pollingTimers,
-        waitingTimers,
-        permissionTimers,
-        webview,
-        persistAgents,
-      );
       continue;
     }
 

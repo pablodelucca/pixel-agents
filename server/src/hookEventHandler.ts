@@ -38,7 +38,7 @@ interface BufferedEvent {
  * suppresses heuristic timers (permission 7s, text-idle 5s) for that agent.
  */
 /** Callback for session lifecycle events detected via hooks. */
-export interface SessionLifecycleCallbacks {
+interface SessionLifecycleCallbacks {
   /** Called when an external session is detected (unknown session_id in SessionStart).
    *  transcriptPath is undefined for providers without transcripts (OpenCode, Copilot). */
   onExternalSessionDetected?: (

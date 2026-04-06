@@ -9,7 +9,12 @@ import {
   WORKSPACE_KEY_AGENT_SEATS,
   WORKSPACE_KEY_AGENTS,
 } from './constants.js';
-import { ensureProjectScan, readNewLines, startFileWatching } from './fileWatcher.js';
+import {
+  ensureProjectScan,
+  readNewLines,
+  reassignAgentToFile,
+  startFileWatching,
+} from './fileWatcher.js';
 import { migrateAndLoadLayout } from './layoutPersistence.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
 import type { AgentState, PersistedAgent } from './types.js';
@@ -147,6 +152,7 @@ export async function launchNewTerminal(
   );
 
   // Poll for the specific JSONL file to appear
+  const createdAt = Date.now();
   let pollCount = 0;
   console.log(`[Pixel Agents] Terminal: Agent ${id} - waiting for JSONL at ${agent.jsonlFile}`);
   const pollTimer = setInterval(() => {
@@ -190,6 +196,42 @@ export async function launchNewTerminal(
           `[Pixel Agents] Terminal: Agent ${id} - JSONL file not found after 10s. ` +
             `Expected: ${agent.jsonlFile}. ${dirContents}`,
         );
+      } else if (pollCount > 10) {
+        // Possible /resume: terminal started a different session than expected.
+        // Check every tick for a file modified after the agent was created.
+        try {
+          const trackedFiles = new Set([...agents.values()].map((a) => path.resolve(a.jsonlFile)));
+          const candidates = fs
+            .readdirSync(projectDir)
+            .filter((f) => f.endsWith('.jsonl'))
+            .map((f) => {
+              const full = path.join(projectDir, f);
+              return { file: full, mtime: fs.statSync(full).mtimeMs };
+            })
+            .filter((c) => !trackedFiles.has(path.resolve(c.file)) && c.mtime > createdAt)
+            .sort((a, b) => b.mtime - a.mtime); // newest first
+
+          if (candidates.length > 0) {
+            console.log(
+              `[Pixel Agents] Terminal: Agent ${id} - /resume detected, reassigning to ${path.basename(candidates[0].file)}`,
+            );
+            clearInterval(pollTimer);
+            jsonlPollTimers.delete(id);
+            reassignAgentToFile(
+              id,
+              candidates[0].file,
+              agents,
+              fileWatchers,
+              pollingTimers,
+              waitingTimers,
+              permissionTimers,
+              webview,
+              persistAgents,
+            );
+          }
+        } catch {
+          /* ignore scan errors */
+        }
       }
     } catch {
       /* file may not exist yet */
