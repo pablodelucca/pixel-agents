@@ -304,6 +304,21 @@ export class HookEventHandler {
       this.handleNotification(event, agent, agentId, webview);
     } else if (eventName === 'Stop') {
       this.handleStop(agent, agentId, webview);
+    } else if (eventName === 'TeammateIdle') {
+      // Teammate finished work -- mark waiting instantly (no 5s text-idle delay)
+      this.markAgentWaiting(agent, agentId, webview);
+    } else if (eventName === 'TaskCreated') {
+      // Lead created a task for a teammate -- informational only
+      if (debug) {
+        const subject = (event.subject as string) ?? '';
+        console.log(`[Pixel Agents] Hook: Agent ${agentId} - TaskCreated: ${subject}`);
+      }
+    } else if (eventName === 'TaskCompleted') {
+      // Teammate marked its task as done -- informational only
+      if (debug) {
+        const subject = (event.subject as string) ?? '';
+        console.log(`[Pixel Agents] Hook: Agent ${agentId} - TaskCompleted: ${subject}`);
+      }
     }
   }
 

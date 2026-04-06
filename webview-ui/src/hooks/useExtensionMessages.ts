@@ -234,7 +234,11 @@ export function useExtensionMessages(
           os.clearPermissionBubble(id);
         }
         // Create sub-agent character for Task/Agent tool subtasks
-        if (toolName === 'Task' || toolName === 'Agent') {
+        // Skip for team leads -- their Agent/Task calls spawn tmux teammates,
+        // not inline sub-agents. The real teammates appear via external session detection.
+        const parentCh = os.characters.get(id);
+        const isTeamLead = parentCh?.teamName && parentCh?.isTeamLead;
+        if ((toolName === 'Task' || toolName === 'Agent') && !isTeamLead) {
           const label = status.startsWith('Subtask:') ? status.slice('Subtask:'.length).trim() : '';
           const subId = os.addSubagent(id, toolId);
           setSubagentCharacters((prev) => {
