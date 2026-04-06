@@ -17,6 +17,7 @@ import { CharacterState, Direction, TILE_SIZE } from '../types.js';
 /** Tools that show reading animation instead of typing */
 const READING_TOOLS = new Set(['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch']);
 
+/** @internal */
 export function isReadingTool(tool: string | null): boolean {
   if (!tool) return false;
   return READING_TOOLS.has(tool);

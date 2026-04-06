@@ -230,7 +230,8 @@ export function layoutToSeats(furniture: PlacedFurniture[]): Map<string, Seat> {
   return seats;
 }
 
-/** Get the set of tiles occupied by seats (so they can be excluded from blocked tiles) */
+/** Get the set of tiles occupied by seats (so they can be excluded from blocked tiles)
+ * @internal */
 export function getSeatTiles(seats: Map<string, Seat>): Set<string> {
   const tiles = new Set<string>();
   for (const seat of seats.values()) {
@@ -271,7 +272,8 @@ export function createDefaultLayout(): OfficeLayout {
   return { version: 1, cols: DEFAULT_COLS, rows: DEFAULT_ROWS, tiles, tileColors, furniture: [] };
 }
 
-/** Serialize layout to JSON string */
+/** Serialize layout to JSON string
+ * @internal */
 export function serializeLayout(layout: OfficeLayout): string {
   return JSON.stringify(layout);
 }
@@ -307,7 +309,8 @@ function migrateFurnitureTypes(furniture: PlacedFurniture[]): PlacedFurniture[] 
   return migrated;
 }
 
-/** Deserialize layout from JSON string, migrating old tile types if needed */
+/** Deserialize layout from JSON string, migrating old tile types if needed
+ * @internal */
 export function deserializeLayout(json: string): OfficeLayout | null {
   try {
     const obj = JSON.parse(json);

@@ -18,7 +18,7 @@ export interface SubagentCharacter {
   label: string;
 }
 
-export interface FurnitureAsset {
+interface FurnitureAsset {
   id: string;
   name: string;
   label: string;
@@ -46,7 +46,7 @@ export interface WorkspaceFolder {
   path: string;
 }
 
-export interface ExtensionMessageState {
+interface ExtensionMessageState {
   agents: number[];
   selectedAgent: number | null;
   agentTools: Record<number, ToolActivity[]>;

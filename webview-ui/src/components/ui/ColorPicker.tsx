@@ -1,7 +1,5 @@
 import type { ColorValue } from './types.js';
 
-export type { ColorValue } from './types.js';
-
 function ColorSlider({
   label,
   value,
