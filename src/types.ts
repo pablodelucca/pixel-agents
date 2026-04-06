@@ -48,6 +48,8 @@ export interface AgentState {
   agentName?: string;
   isTeamLead?: boolean;
   leadAgentId?: number;
+  /** True when lead spawns teammates via tmux (run_in_background Agent calls) */
+  teamUsesTmux?: boolean;
 }
 
 export interface PersistedAgent {

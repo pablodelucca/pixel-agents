@@ -159,11 +159,30 @@ export function processTranscriptLine(
             if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
               hasNonExemptTool = true;
             }
+            // Detect tmux vs inline team mode from Agent tool's run_in_background flag
+            if (
+              agent.teamName &&
+              toolName === 'Agent' &&
+              block.input?.run_in_background === true &&
+              !agent.teamUsesTmux
+            ) {
+              agent.teamUsesTmux = true;
+              webview?.postMessage({
+                type: 'agentTeamInfo',
+                id: agentId,
+                teamName: agent.teamName,
+                agentName: agent.agentName,
+                isTeamLead: agent.isTeamLead,
+                leadAgentId: agent.leadAgentId,
+                teamUsesTmux: true,
+              });
+            }
             // Skip webview message when hooks handle tool visuals (PreToolUse sent it instantly).
             // Exception: Task/Agent tools always go through JSONL so the sub-agent character
             // is created with the stable JSONL tool ID, matching cleanup messages.
             const isAgentTool = toolName === 'Task' || toolName === 'Agent';
             if (!agent.hookDelivered || isAgentTool) {
+              const runInBackground = isAgentTool && block.input?.run_in_background === true;
               webview?.postMessage({
                 type: 'agentToolStart',
                 id: agentId,
@@ -171,6 +190,7 @@ export function processTranscriptLine(
                 status,
                 toolName,
                 permissionActive: agent.permissionSent,
+                runInBackground,
               });
             }
           }

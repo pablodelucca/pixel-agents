@@ -233,12 +233,12 @@ export function useExtensionMessages(
         if (!permissionActive) {
           os.clearPermissionBubble(id);
         }
-        // Create sub-agent character for Task/Agent tool subtasks
-        // Skip for team leads -- their Agent/Task calls spawn tmux teammates,
-        // not inline sub-agents. The real teammates appear via external session detection.
-        const parentCh = os.characters.get(id);
-        const isTeamLead = parentCh?.teamName && parentCh?.isTeamLead;
-        if ((toolName === 'Task' || toolName === 'Agent') && !isTeamLead) {
+        // Create sub-agent character for Task/Agent tool subtasks.
+        // In tmux mode, Agent tool has run_in_background=true -- these are ghost
+        // placeholders replaced by real external teammates, suppress them.
+        // In inline mode (no run_in_background), sub-agents ARE the teammates.
+        const runInBackground = msg.runInBackground as boolean | undefined;
+        if ((toolName === 'Task' || toolName === 'Agent') && !runInBackground) {
           const label = status.startsWith('Subtask:') ? status.slice('Subtask:'.length).trim() : '';
           const subId = os.addSubagent(id, toolId);
           setSubagentCharacters((prev) => {
@@ -271,9 +271,16 @@ export function useExtensionMessages(
           delete next[id];
           return next;
         });
-        // Remove all sub-agent characters belonging to this agent
-        os.removeAllSubagents(id);
-        setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
+        // Remove all sub-agent characters belonging to this agent.
+        // Exception: team leads with inline teammates -- their sub-agents represent
+        // real teammates and should only be removed by SubagentStop/subagentClear.
+        const clearCh = os.characters.get(id);
+        const hasInlineTeammates =
+          clearCh?.teamName && clearCh?.isTeamLead && !clearCh?.teamUsesTmux;
+        if (!hasInlineTeammates) {
+          os.removeAllSubagents(id);
+          setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
+        }
         os.setAgentTool(id, null);
         os.clearPermissionBubble(id);
       } else if (msg.type === 'agentSelected') {
@@ -459,6 +466,7 @@ export function useExtensionMessages(
           msg.agentName as string | undefined,
           msg.isTeamLead as boolean | undefined,
           msg.leadAgentId as number | undefined,
+          msg.teamUsesTmux as boolean | undefined,
         );
       } else if (msg.type === 'agentTokenUsage') {
         const id = msg.id as number;

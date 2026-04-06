@@ -691,6 +691,7 @@ export class OfficeState {
     agentName?: string,
     isTeamLead?: boolean,
     leadAgentId?: number,
+    teamUsesTmux?: boolean,
   ): void {
     const ch = this.characters.get(id);
     if (!ch) return;
@@ -698,6 +699,9 @@ export class OfficeState {
     ch.agentName = agentName;
     ch.isTeamLead = isTeamLead;
     ch.leadAgentId = leadAgentId;
+    if (teamUsesTmux !== undefined) {
+      ch.teamUsesTmux = teamUsesTmux;
+    }
   }
 
   setAgentTokens(id: number, inputTokens: number, outputTokens: number): void {
