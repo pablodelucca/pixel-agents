@@ -298,6 +298,7 @@ export function persistAgents(
       agentName: agent.agentName,
       isTeamLead: agent.isTeamLead,
       leadAgentId: agent.leadAgentId,
+      teamUsesTmux: agent.teamUsesTmux,
     });
   }
   context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
@@ -380,6 +381,7 @@ export function restoreAgents(
       agentName: p.agentName,
       isTeamLead: p.isTeamLead,
       leadAgentId: p.leadAgentId,
+      teamUsesTmux: p.teamUsesTmux,
     };
 
     agents.set(p.id, agent);
@@ -589,6 +591,7 @@ export function sendCurrentAgentStatuses(
         agentName: agent.agentName,
         isTeamLead: agent.isTeamLead,
         leadAgentId: agent.leadAgentId,
+        teamUsesTmux: agent.teamUsesTmux,
       });
     }
     // Re-send token usage

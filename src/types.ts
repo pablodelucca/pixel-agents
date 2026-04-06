@@ -69,4 +69,5 @@ export interface PersistedAgent {
   agentName?: string;
   isTeamLead?: boolean;
   leadAgentId?: number;
+  teamUsesTmux?: boolean;
 }
