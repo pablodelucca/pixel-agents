@@ -180,4 +180,18 @@ export interface Character {
   matrixEffectSeeds: number[];
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+
+  // -- Agent Teams --
+  /** Team name this agent belongs to */
+  teamName?: string;
+  /** Role name within the team (null for lead) */
+  agentName?: string;
+  /** Whether this agent is the team lead */
+  isTeamLead?: boolean;
+  /** ID of the lead agent (set on teammates) */
+  leadAgentId?: number;
+  /** Cumulative input tokens consumed */
+  inputTokens: number;
+  /** Cumulative output tokens consumed */
+  outputTokens: number;
 }

@@ -83,9 +83,13 @@ export function processTranscriptLine(
     const record = JSON.parse(line);
 
     // -- Agent Teams: extract teamName/agentName from top-level JSONL fields --
-    if (record.teamName && !agent.teamName) {
-      agent.teamName = record.teamName as string;
+    // Update when teamName appears or changes (lead may create multiple teams in one session)
+    const recordTeamName = record.teamName as string | undefined;
+    if (recordTeamName && recordTeamName !== agent.teamName) {
+      agent.teamName = recordTeamName;
       agent.agentName = (record.agentName as string) || undefined;
+      agent.isTeamLead = undefined;
+      agent.leadAgentId = undefined;
       if (debug) {
         console.log(
           `[Pixel Agents] Agent ${agentId} team metadata: team=${agent.teamName}, role=${agent.agentName ?? 'lead'}`,
@@ -526,47 +530,38 @@ function linkTeammates(_agentId: number, agent: AgentState, agents: Map<number, 
     }
   }
 
-  // Determine lead: agent without agentName, or the first agent in the team that has isTeamLead
+  // Determine lead: always prefer the agent WITHOUT agentName (the real lead has agentName=null).
+  // This handles the case where a teammate is detected first and temporarily marked as lead,
+  // then the real lead joins later.
   let lead: AgentState | undefined;
   for (const a of teamAgents) {
-    if (a.isTeamLead) {
+    if (!a.agentName) {
       lead = a;
       break;
     }
   }
   if (!lead) {
-    // No lead found yet -- the agent without agentName is the lead
+    // No agent without agentName -- use existing isTeamLead or first agent
     for (const a of teamAgents) {
-      if (!a.agentName) {
+      if (a.isTeamLead) {
         lead = a;
         break;
       }
     }
   }
   if (!lead) {
-    // Still no lead -- first agent in the team is the lead
     lead = teamAgents[0];
   }
 
-  // Mark lead
-  if (lead && !lead.isTeamLead) {
-    lead.isTeamLead = true;
-    lead.leadAgentId = undefined;
-  }
-
-  // Link teammates to lead
+  // Update all team members: mark lead, clear stale lead flags, link teammates
   for (const a of teamAgents) {
-    if (a.id !== lead.id && !a.isTeamLead) {
+    if (a.id === lead.id) {
+      a.isTeamLead = true;
+      a.leadAgentId = undefined;
+    } else {
+      a.isTeamLead = false;
       a.leadAgentId = lead.id;
     }
-  }
-
-  // Update current agent's fields after linking
-  if (agent.id === lead.id) {
-    agent.isTeamLead = true;
-    agent.leadAgentId = undefined;
-  } else {
-    agent.leadAgentId = lead.id;
   }
 }
 

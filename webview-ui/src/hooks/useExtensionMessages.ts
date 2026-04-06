@@ -447,6 +447,18 @@ export function useExtensionMessages(
         } catch (err) {
           console.error(`❌ Webview: Error processing furnitureAssetsLoaded:`, err);
         }
+      } else if (msg.type === 'agentTeamInfo') {
+        const id = msg.id as number;
+        os.setTeamInfo(
+          id,
+          msg.teamName as string | undefined,
+          msg.agentName as string | undefined,
+          msg.isTeamLead as boolean | undefined,
+          msg.leadAgentId as number | undefined,
+        );
+      } else if (msg.type === 'agentTokenUsage') {
+        const id = msg.id as number;
+        os.setAgentTokens(id, msg.inputTokens as number, msg.outputTokens as number);
       }
     };
     window.addEventListener('message', handler);
