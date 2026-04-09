@@ -27,6 +27,33 @@ function copyAssets() {
 }
 
 /**
+ * Bundle hook scripts (TypeScript) to dist/hooks via esbuild.
+ * Produces a self-contained CJS file with shebang for Claude Code to execute.
+ */
+function buildHooks() {
+  const entry = path.join(
+    __dirname,
+    'server',
+    'src',
+    'providers',
+    'file',
+    'hooks',
+    'claude-hook.ts',
+  );
+  if (!fs.existsSync(entry)) return;
+  require('esbuild').buildSync({
+    entryPoints: [entry],
+    bundle: true,
+    platform: 'node',
+    target: 'node18',
+    format: 'cjs',
+    outdir: path.join(__dirname, 'dist', 'hooks'),
+    banner: { js: '#!/usr/bin/env node' },
+  });
+  console.log('✓ Built hooks/ → dist/hooks/');
+}
+
+/**
  * @type {import('esbuild').Plugin}
  */
 const esbuildProblemMatcherPlugin = {
@@ -68,8 +95,9 @@ async function main() {
   } else {
     await ctx.rebuild();
     await ctx.dispose();
-    // Copy assets after build
+    // Copy assets and hooks after build
     copyAssets();
+    buildHooks();
   }
 }
 

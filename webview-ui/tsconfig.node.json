@@ -20,6 +20,7 @@
 
     /* Linting */
     "strict": true,
+    "allowUnreachableCode": false,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,

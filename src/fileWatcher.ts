@@ -3,7 +3,6 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { removeAgent } from './agentManager.js';
 import {
   CLEAR_IDLE_THRESHOLD_MS,
   DISMISSED_COOLDOWN_MS,
@@ -14,7 +13,9 @@ import {
   GLOBAL_SCAN_ACTIVE_MAX_AGE_MS,
   GLOBAL_SCAN_ACTIVE_MIN_SIZE,
   PROJECT_SCAN_INTERVAL_MS,
-} from './constants.js';
+} from '../server/src/constants.js';
+import { removeAgent } from './agentManager.js';
+import { TERMINAL_NAME_PREFIX } from './constants.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import type { AgentState } from './types.js';
@@ -47,9 +48,9 @@ let clearDetectionDeps: {
 
 export function startFileWatching(
   agentId: number,
-  filePath: string,
+  _filePath: string,
   agents: Map<number, AgentState>,
-  fileWatchers: Map<number, fs.FSWatcher>,
+  _fileWatchers: Map<number, fs.FSWatcher>,
   pollingTimers: Map<number, ReturnType<typeof setInterval>>,
   waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
@@ -172,10 +173,13 @@ export function readNewLines(
 
     const hasLines = lines.some((l) => l.trim());
     if (hasLines) {
-      // New data arriving — cancel timers (data flowing means agent is still active)
+      // New data arriving — cancel timers (data flowing means agent is still active).
+      // When hooks are active, don't clear permission state here — the hook gave us a
+      // definitive signal that permission is needed. Only a new user prompt or tool_result
+      // (processed in transcriptParser) should clear it.
       cancelWaitingTimer(agentId, waitingTimers);
       cancelPermissionTimer(agentId, permissionTimers);
-      if (agent.permissionSent) {
+      if (agent.permissionSent && !agent.hookDelivered) {
         agent.permissionSent = false;
         webview?.postMessage({ type: 'agentToolPermissionClear', id: agentId });
       }
@@ -193,10 +197,13 @@ export function readNewLines(
 // Track all project directories to scan (supports multi-root workspaces)
 const trackedProjectDirs = new Set<string>();
 
-/** Check if a project dir is tracked by the workspace scanner. */
-export function isTrackedProjectDir(dir: string): boolean {
-  return trackedProjectDirs.has(dir);
-}
+/** Check if a project dir is tracked by the workspace scanner.
+ * Used to prevent adoption of files in untracked dirs before hooks implementation.
+ * TODO: use it or remove it when hooks & heuristic approach are implemented in multi-root workspaces.
+ */
+// export function isTrackedProjectDir(dir: string): boolean {
+//   return trackedProjectDirs.has(dir);
+// }
 
 /**
  * Seed a project directory's known files and register it for periodic scanning.
@@ -216,6 +223,7 @@ export function ensureProjectScan(
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  _onAgentCreated?: (agent: AgentState) => void,
 ): void {
   // Set deps for per-agent /clear detection (only on first call)
   if (!clearDetectionDeps) {
@@ -234,7 +242,6 @@ export function ensureProjectScan(
 
   // Always seed this directory's files (supports multi-root workspaces).
   try {
-    const now = Date.now();
     const files = fs
       .readdirSync(projectDir)
       .filter((f) => f.endsWith('.jsonl'))
@@ -290,6 +297,7 @@ function scanForNewJsonlFiles(
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  onAgentCreated?: (agent: AgentState) => void,
 ): void {
   let files: string[];
   try {
@@ -337,9 +345,11 @@ function scanForNewJsonlFiles(
           persistAgents,
         );
       } else {
-        // No active agent -- scan all terminals (not just the focused one)
-        // to find an untracked Claude terminal that may own this JSONL file
+        // Active terminal is owned -- scan for untracked Claude-named terminals.
+        // Only adopt terminals with TERMINAL_NAME_PREFIX to avoid grabbing
+        // pre-existing shells ("zsh", "bash") for /clear files.
         for (const terminal of vscode.window.terminals) {
+          if (!terminal.name.startsWith(TERMINAL_NAME_PREFIX)) continue;
           let owned = false;
           for (const agent of agents.values()) {
             if (agent.terminalRef === terminal) {
@@ -362,6 +372,7 @@ function scanForNewJsonlFiles(
               permissionTimers,
               webview,
               persistAgents,
+              onAgentCreated,
             );
             break;
           }
@@ -405,11 +416,14 @@ function adoptTerminalForFile(
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  onAgentCreated?: (agent: AgentState) => void,
 ): void {
   const id = nextAgentIdRef.current++;
+  const sessionId = path.basename(jsonlFile, '.jsonl');
   const agent: AgentState = {
     id,
     source: 'claude-code',
+    sessionId,
     terminalRef: terminal,
     isExternal: false,
     projectDir,
@@ -428,11 +442,13 @@ function adoptTerminalForFile(
     lastDataAt: 0,
     linesProcessed: 0,
     seenUnknownRecordTypes: new Set(),
+    hookDelivered: false,
   };
 
   agents.set(id, agent);
   activeAgentIdRef.current = id;
   persistAgents();
+  onAgentCreated?.(agent);
 
   console.log(
     `[Pixel Agents] Agent ${id}: adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`,
@@ -478,7 +494,7 @@ function adoptExternalSession(
   }
   const agent: AgentState = {
     id,
-    source: 'claude-code',
+    sessionId: path.basename(jsonlFile, '.jsonl'),
     terminalRef: undefined,
     isExternal: true,
     projectDir,
@@ -494,6 +510,7 @@ function adoptExternalSession(
     isWaiting: false,
     permissionSent: false,
     hadToolsInTurn: false,
+    hookDelivered: false,
     lastDataAt: Date.now(),
     linesProcessed: 0,
     seenUnknownRecordTypes: new Set(),
@@ -526,7 +543,7 @@ function adoptExternalSession(
  * that produce JSONL files without an associated terminal.
  */
 export function startExternalSessionScanning(
-  projectDir: string,
+  _projectDir: string,
   knownJsonlFiles: Set<string>,
   nextAgentIdRef: { current: number },
   agents: Map<number, AgentState>,
@@ -534,7 +551,7 @@ export function startExternalSessionScanning(
   pollingTimers: Map<number, ReturnType<typeof setInterval>>,
   waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-  jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
+  _jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
   watchAllSessionsRef?: { current: boolean },
@@ -803,7 +820,6 @@ export function startStaleExternalAgentCheck(
   persistAgents: () => void,
 ): ReturnType<typeof setInterval> {
   return setInterval(() => {
-    const now = Date.now();
     const toRemove: number[] = [];
 
     for (const [id, agent] of agents) {
@@ -843,7 +859,7 @@ export function startStaleExternalAgentCheck(
   }, EXTERNAL_STALE_CHECK_INTERVAL_MS);
 }
 
-export function reassignAgentToFile(
+function reassignAgentToFile(
   agentId: number,
   newFilePath: string,
   agents: Map<number, AgentState>,
@@ -874,7 +890,9 @@ export function reassignAgentToFile(
   // Permanently dismiss old file so scanners never re-adopt it as external
   clearDismissedFiles.add(agent.jsonlFile);
 
-  // Swap to new file
+  // Swap to new file (update sessionId for hook registration).
+  // Keep hookDelivered — if hooks worked before /clear, they'll work after.
+  agent.sessionId = path.basename(newFilePath, '.jsonl');
   agent.jsonlFile = newFilePath;
   agent.fileOffset = 0;
   agent.lineBuffer = '';

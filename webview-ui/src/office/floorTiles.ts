@@ -6,9 +6,10 @@
  * Caches colorized SpriteData by (pattern, h, s, b, c) key.
  */
 
-import { FALLBACK_FLOOR_COLOR, TILE_SIZE } from '../constants.js';
+import type { ColorValue } from '../components/ui/types.js';
+import { CANVAS_ERROR_TILE_COLOR, FALLBACK_FLOOR_COLOR, TILE_SIZE } from '../constants.js';
 import { clearColorizeCache, getColorizedSprite } from './colorize.js';
-import type { FloorColor, SpriteData } from './types.js';
+import type { SpriteData } from './types.js';
 
 /** Default solid gray 16×16 tile used when floor tile PNGs are not loaded */
 const DEFAULT_FLOOR_SPRITE: SpriteData = Array.from(
@@ -19,8 +20,8 @@ const DEFAULT_FLOOR_SPRITE: SpriteData = Array.from(
 /** Module-level storage for floor tile sprites (set once on load) */
 let floorSprites: SpriteData[] = [];
 
-/** Wall color constant */
-export const WALL_COLOR = '#3A3A5C';
+// Re-export WALL_COLOR from constants for backward compatibility
+export { WALL_COLOR } from '../constants.js';
 
 /** Set floor tile sprites (called once when extension sends floorTilesLoaded) */
 export function setFloorSprites(sprites: SpriteData[]): void {
@@ -30,7 +31,7 @@ export function setFloorSprites(sprites: SpriteData[]): void {
 
 /** Get the raw (grayscale) floor sprite for a pattern index (1-7 -> array index 0-6).
  *  Falls back to the default solid gray tile when floors.png is not loaded. */
-export function getFloorSprite(patternIndex: number): SpriteData | null {
+function getFloorSprite(patternIndex: number): SpriteData | null {
   const idx = patternIndex - 1;
   if (idx < 0) return null;
   if (idx < floorSprites.length) return floorSprites[idx];
@@ -49,23 +50,25 @@ export function getFloorPatternCount(): number {
   return floorSprites.length > 0 ? floorSprites.length : 1;
 }
 
-/** Get all floor sprites (for preview rendering, falls back to default solid tile) */
-export function getAllFloorSprites(): SpriteData[] {
-  return floorSprites.length > 0 ? floorSprites : [DEFAULT_FLOOR_SPRITE];
-}
+/** Get all floor sprites (for preview rendering, falls back to default solid tile) - unused */
+// function getAllFloorSprites(): SpriteData[] {
+//   return floorSprites.length > 0 ? floorSprites : [DEFAULT_FLOOR_SPRITE];
+// }
 
 /**
  * Get a colorized version of a floor sprite.
  * Uses Photoshop-style Colorize: grayscale -> HSL with given hue/saturation,
  * then brightness/contrast adjustment.
  */
-export function getColorizedFloorSprite(patternIndex: number, color: FloorColor): SpriteData {
+export function getColorizedFloorSprite(patternIndex: number, color: ColorValue): SpriteData {
   const key = `floor-${patternIndex}-${color.h}-${color.s}-${color.b}-${color.c}`;
 
   const base = getFloorSprite(patternIndex);
   if (!base) {
     // Return a 16x16 magenta error tile
-    const err: SpriteData = Array.from({ length: 16 }, () => Array(16).fill('#FF00FF'));
+    const err: SpriteData = Array.from({ length: 16 }, () =>
+      Array(16).fill(CANVAS_ERROR_TILE_COLOR),
+    );
     return err;
   }
 

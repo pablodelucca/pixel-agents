@@ -1,15 +1,15 @@
-export interface ChangelogSection {
+interface ChangelogSection {
   title: string;
   items: string[];
 }
 
-export interface ChangelogContributor {
+interface ChangelogContributor {
   name: string;
   url: string;
   description: string;
 }
 
-export interface ChangelogEntry {
+interface ChangelogEntry {
   version: string;
   sections: ChangelogSection[];
   contributors: ChangelogContributor[];

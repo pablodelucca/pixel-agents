@@ -44,6 +44,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             webview-ui/package-lock.json
+            server/package-lock.json
 
       - name: Install Root Dependencies
         id: install_root
@@ -54,24 +55,22 @@ jobs:
         working-directory: webview-ui
         run: npm ci
 
+      - name: Install Server Dependencies
+        id: install_server
+        working-directory: server
+        run: npm ci
+
       # --- Quality Checks (blocking) ---
 
       - name: Type Check
         id: type_check
-        if: always() && steps.install_root.outcome == 'success'
+        if: always() && steps.install_root.outcome == 'success' && steps.install_server.outcome == 'success'
         run: npm run check-types
         continue-on-error: true
 
-      - name: Root Lint
-        id: root_lint
-        if: always() && steps.install_root.outcome == 'success'
-        run: npm run lint
-        continue-on-error: true
-
-      - name: Webview Lint
-        id: webview_lint
-        if: always() && steps.install_webview.outcome == 'success'
-        working-directory: webview-ui
+      - name: Lint
+        id: lint
+        if: always() && steps.install_root.outcome == 'success' && steps.install_webview.outcome == 'success'
         run: npm run lint
         continue-on-error: true
 
@@ -88,6 +87,12 @@ jobs:
         run: npm run format:check
         continue-on-error: true
 
+      - name: Knip (advisory)
+        id: knip
+        if: always() && steps.install_root.outcome == 'success'
+        run: npm run knip
+        continue-on-error: true
+
       # --- Build (blocking) ---
 
       - name: Build
@@ -98,19 +103,35 @@ jobs:
           cd webview-ui && npm run build
         continue-on-error: true
 
-      # --- Advisory Checks (non-blocking) ---
+      # --- Server Tests (require build for hook script) ---
+
+      - name: Server Tests
+        id: server_test
+        if: always() && steps.build.outcome == 'success' && steps.install_server.outcome == 'success'
+        working-directory: server
+        run: npm test
+        continue-on-error: true
+
+      # --- Audit Checks (blocking) ---
 
       - name: Audit Root Dependencies
         id: audit_root
         if: always() && steps.install_root.outcome == 'success'
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
         continue-on-error: true
 
       - name: Audit Webview Dependencies
         id: audit_webview
         if: always() && steps.install_webview.outcome == 'success'
         working-directory: webview-ui
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Audit Server Dependencies
+        id: audit_server
+        if: always() && steps.install_server.outcome == 'success'
+        working-directory: server
+        run: npm audit --audit-level=moderate
         continue-on-error: true
 
       # --- Summary ---
@@ -123,16 +144,21 @@ jobs:
           INSTALL_ROOT: ${{ steps.install_root.outcome }}
           INSTALL_WEBVIEW: ${{ steps.install_webview.outcome }}
           TYPE_CHECK: ${{ steps.type_check.outcome }}
-          ROOT_LINT: ${{ steps.root_lint.outcome }}
-          WEBVIEW_LINT: ${{ steps.webview_lint.outcome }}
+          LINT: ${{ steps.lint.outcome }}
           WEBVIEW_TEST: ${{ steps.webview_test.outcome }}
           FORMAT_CHECK: ${{ steps.format_check.outcome }}
           BUILD: ${{ steps.build.outcome }}
+          SERVER_TEST: ${{ steps.server_test.outcome }}
           AUDIT_ROOT: ${{ steps.audit_root.outcome }}
           AUDIT_WEBVIEW: ${{ steps.audit_webview.outcome }}
+          AUDIT_SERVER: ${{ steps.audit_server.outcome }}
+          KNIP: ${{ steps.knip.outcome }}
         run: |
           status() {
             if [ "$1" = "success" ]; then echo "✅ PASS"; else echo "❌ FAIL"; fi
+          }
+          advisory() {
+            if [ "$1" = "success" ]; then echo "✅ PASS"; else echo "⚠️ WARN"; fi
           }
           {
             echo "## CI Results"
@@ -144,13 +170,15 @@ jobs:
             echo "| Install root deps | $(status "$INSTALL_ROOT") |"
             echo "| Install webview deps | $(status "$INSTALL_WEBVIEW") |"
             echo "| **Type check** | $(status "$TYPE_CHECK") |"
-            echo "| **Root lint** | $(status "$ROOT_LINT") |"
-            echo "| **Webview lint** | $(status "$WEBVIEW_LINT") |"
+            echo "| **Lint** | $(status "$LINT") |"
             echo "| **Webview tests** | $(status "$WEBVIEW_TEST") |"
             echo "| **Format check** | $(status "$FORMAT_CHECK") |"
             echo "| **Build** | $(status "$BUILD") |"
-            echo "| Audit root _(advisory)_ | $(status "$AUDIT_ROOT") |"
-            echo "| Audit webview _(advisory)_ | $(status "$AUDIT_WEBVIEW") |"
+            echo "| **Server tests** | $(status "$SERVER_TEST") |"
+            echo "| Audit root _(advisory)_ | $(advisory "$AUDIT_ROOT") |"
+            echo "| Audit webview _(advisory)_ | $(advisory "$AUDIT_WEBVIEW") |"
+            echo "| Audit server _(advisory)_ | $(advisory "$AUDIT_SERVER") |"
+            echo "| Knip _(advisory)_ | $(advisory "$KNIP") |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # --- Final Gate ---
@@ -163,17 +191,17 @@ jobs:
           INSTALL_ROOT: ${{ steps.install_root.outcome }}
           INSTALL_WEBVIEW: ${{ steps.install_webview.outcome }}
           TYPE_CHECK: ${{ steps.type_check.outcome }}
-          ROOT_LINT: ${{ steps.root_lint.outcome }}
-          WEBVIEW_LINT: ${{ steps.webview_lint.outcome }}
+          LINT: ${{ steps.lint.outcome }}
           WEBVIEW_TEST: ${{ steps.webview_test.outcome }}
           FORMAT_CHECK: ${{ steps.format_check.outcome }}
           BUILD: ${{ steps.build.outcome }}
+          SERVER_TEST: ${{ steps.server_test.outcome }}
         run: |
           failed=0
           for step in CHECKOUT SETUP_NODE INSTALL_ROOT INSTALL_WEBVIEW \
-                      TYPE_CHECK ROOT_LINT WEBVIEW_LINT \
-                      WEBVIEW_TEST FORMAT_CHECK BUILD; do
-            eval "val=\$$step"
+                      TYPE_CHECK LINT \
+                      WEBVIEW_TEST FORMAT_CHECK BUILD SERVER_TEST; do
+            val=$(printenv "$step" 2>/dev/null || echo "skipped")
             if [ "$val" != "success" ]; then
               echo "::error::$step failed"
               failed=1
@@ -206,6 +234,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             webview-ui/package-lock.json
+            server/package-lock.json
 
       - name: Restore VS Code Cache
         id: cache_vscode_restore

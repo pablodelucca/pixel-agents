@@ -10,6 +10,9 @@ import {
   MATRIX_TRAIL_LENGTH,
   MATRIX_TRAIL_MID_THRESHOLD,
   MATRIX_TRAIL_OVERLAY_ALPHA,
+  matrixGreenBright,
+  matrixGreenDim,
+  matrixGreenMid,
 } from '../../constants.js';
 import type { Character, SpriteData } from '../types.js';
 import { MATRIX_EFFECT_DURATION } from '../types.js';
@@ -83,7 +86,7 @@ export function renderMatrixEffect(
             // Green overlay that fades as trail progresses
             const greenAlpha = (1 - trailPos) * MATRIX_TRAIL_OVERLAY_ALPHA;
             if (flickerVisible(col, row, time)) {
-              ctx.fillStyle = `rgba(0, 255, 65, ${greenAlpha})`;
+              ctx.fillStyle = matrixGreenBright(greenAlpha);
               ctx.fillRect(px, py, zoom, zoom);
             }
           } else {
@@ -92,10 +95,10 @@ export function renderMatrixEffect(
               const alpha = (1 - trailPos) * MATRIX_TRAIL_EMPTY_ALPHA;
               ctx.fillStyle =
                 trailPos < MATRIX_TRAIL_MID_THRESHOLD
-                  ? `rgba(0, 255, 65, ${alpha})`
+                  ? matrixGreenBright(alpha)
                   : trailPos < MATRIX_TRAIL_DIM_THRESHOLD
-                    ? `rgba(0, 170, 40, ${alpha})`
-                    : `rgba(0, 85, 20, ${alpha})`;
+                    ? matrixGreenMid(alpha)
+                    : matrixGreenDim(alpha);
               ctx.fillRect(px, py, zoom, zoom);
             }
           }
@@ -125,10 +128,10 @@ export function renderMatrixEffect(
             const alpha = (1 - trailPos) * MATRIX_TRAIL_EMPTY_ALPHA;
             ctx.fillStyle =
               trailPos < MATRIX_TRAIL_MID_THRESHOLD
-                ? `rgba(0, 255, 65, ${alpha})`
+                ? matrixGreenBright(alpha)
                 : trailPos < MATRIX_TRAIL_DIM_THRESHOLD
-                  ? `rgba(0, 170, 40, ${alpha})`
-                  : `rgba(0, 85, 20, ${alpha})`;
+                  ? matrixGreenMid(alpha)
+                  : matrixGreenDim(alpha);
             ctx.fillRect(px, py, zoom, zoom);
           }
         }

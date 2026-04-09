@@ -792,16 +792,7 @@ export function OfficeCanvas({
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        width: '100%',
-        height: '100%',
-        position: 'relative',
-        overflow: 'hidden',
-        background: '#1E1E2E',
-      }}
-    >
+    <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-bg">
       <canvas
         ref={canvasRef}
         onMouseMove={handleMouseMove}
@@ -812,7 +803,7 @@ export function OfficeCanvas({
         onMouseLeave={handleMouseLeave}
         onWheel={handleWheel}
         onContextMenu={handleContextMenu}
-        style={{ display: 'block' }}
+        className="block"
       />
     </div>
   );

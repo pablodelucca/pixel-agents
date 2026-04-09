@@ -6,7 +6,7 @@ import {
   TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
   TEXT_IDLE_DELAY_MS,
   TOOL_DONE_DELAY_MS,
-} from './constants.js';
+} from '../server/src/constants.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,
@@ -16,9 +16,9 @@ import {
 } from './timerManager.js';
 import type { AgentState } from './types.js';
 
-export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
+const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
 
-export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
+function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
   const base = (p: unknown) => (typeof p === 'string' ? path.basename(p) : '');
   switch (toolName) {
     case 'Read':
@@ -107,10 +107,12 @@ export function processTranscriptLine(
               id: agentId,
               toolId: block.id,
               status,
+              toolName,
+              permissionActive: agent.permissionSent,
             });
           }
         }
-        if (hasNonExemptTool) {
+        if (hasNonExemptTool && !agent.hookDelivered) {
           startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
         }
       } else if (blocks.some((b) => b.type === 'text') && !agent.hadToolsInTurn) {
@@ -118,11 +120,14 @@ export function processTranscriptLine(
         // turn_duration handles tool-using turns reliably but is never
         // emitted for text-only turns, so we use a silence-based timer:
         // if no new JSONL data arrives within TEXT_IDLE_DELAY_MS, mark as waiting.
-        startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
+        // Skip when hooks are active — Stop hook handles this exactly.
+        if (!agent.hookDelivered) {
+          startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
+        }
       }
     } else if (record.type === 'assistant' && typeof assistantContent === 'string') {
       // Text-only assistant response (content is a string, not an array)
-      if (!agent.hadToolsInTurn) {
+      if (!agent.hadToolsInTurn && !agent.hookDelivered) {
         startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
       }
     } else if (record.type === 'assistant' && assistantContent === undefined) {
@@ -233,7 +238,9 @@ export function processTranscriptLine(
       cancelWaitingTimer(agentId, waitingTimers);
       cancelPermissionTimer(agentId, permissionTimers);
 
-      // Definitive turn-end: clean up any stale tool state, but preserve background agents
+      // Definitive turn-end: clean up any stale tool state, but preserve background agents.
+      // When hooks are active, the Stop hook already handled the status change,
+      // but we still perform state cleanup here as a safety net.
       const hasForegroundTools = agent.activeToolIds.size > agent.backgroundAgentToolIds.size;
       if (hasForegroundTools) {
         // Remove only non-background tool state
@@ -248,7 +255,9 @@ export function processTranscriptLine(
             agent.activeSubagentToolNames.delete(toolId);
           }
         }
-        webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+        if (!agent.hookDelivered) {
+          webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+        }
         // Re-send background agent tools so webview keeps their sub-agents alive
         for (const toolId of agent.backgroundAgentToolIds) {
           const status = agent.activeToolStatuses.get(toolId);
@@ -267,17 +276,22 @@ export function processTranscriptLine(
         agent.activeToolNames.clear();
         agent.activeSubagentToolIds.clear();
         agent.activeSubagentToolNames.clear();
-        webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+        if (!agent.hookDelivered) {
+          webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+        }
       }
 
       agent.isWaiting = true;
       agent.permissionSent = false;
       agent.hadToolsInTurn = false;
-      webview?.postMessage({
-        type: 'agentStatus',
-        id: agentId,
-        status: 'waiting',
-      });
+      // Skip status post when hooks already handled it
+      if (!agent.hookDelivered) {
+        webview?.postMessage({
+          type: 'agentStatus',
+          id: agentId,
+          status: 'waiting',
+        });
+      }
     } else if (record.type && !agent.seenUnknownRecordTypes.has(record.type)) {
       // Log first occurrence of unrecognized record types to help diagnose issues
       // where Claude Code changes JSONL format. Known types we intentionally skip:
@@ -300,7 +314,7 @@ function processProgressRecord(
   agentId: number,
   record: Record<string, unknown>,
   agents: Map<number, AgentState>,
-  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  _waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   webview: vscode.Webview | undefined,
 ): void {
@@ -315,9 +329,10 @@ function processProgressRecord(
 
   // bash_progress / mcp_progress: tool is actively executing, not stuck on permission.
   // Restart the permission timer to give the running tool another window.
+  // Skip when hooks are active — Notification hook handles permission detection exactly.
   const dataType = data.type as string | undefined;
   if (dataType === 'bash_progress' || dataType === 'mcp_progress') {
-    if (agent.activeToolIds.has(parentToolId)) {
+    if (agent.activeToolIds.has(parentToolId) && !agent.hookDelivered) {
       startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
     }
     return;
@@ -374,7 +389,7 @@ function processProgressRecord(
         });
       }
     }
-    if (hasNonExemptSubTool) {
+    if (hasNonExemptSubTool && !agent.hookDelivered) {
       startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
     }
   } else if (msgType === 'user') {
@@ -417,7 +432,7 @@ function processProgressRecord(
       }
       if (stillHasNonExempt) break;
     }
-    if (stillHasNonExempt) {
+    if (stillHasNonExempt && !agent.hookDelivered) {
       startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
     }
   }

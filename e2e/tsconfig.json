@@ -5,6 +5,8 @@
     "moduleResolution": "node",
     "lib": ["ES2022", "DOM"],
     "strict": true,
+    "allowUnreachableCode": false,
+    "noFallthroughCasesInSwitch": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "esModuleInterop": true,

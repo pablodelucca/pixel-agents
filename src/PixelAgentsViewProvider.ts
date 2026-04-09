@@ -10,16 +10,19 @@ import {
   persistAgents,
   removeAgent,
   restoreAgents,
+  sendCurrentAgentStatuses,
   sendExistingAgents,
   sendLayout,
 } from './agentManager.js';
-import type { LoadedAssets } from './assetLoader.js';
+import type { LoadedAssets, LoadedCharacterSprites } from './assetLoader.js';
 import {
   loadCharacterSprites,
   loadDefaultLayout,
+  loadExternalCharacterSprites,
   loadFloorTiles,
   loadFurnitureAssets,
   loadWallTiles,
+  mergeCharacterSprites,
   mergeLoadedAssets,
   sendAssetsToWebview,
   sendCharacterSpritesToWebview,
@@ -29,6 +32,8 @@ import {
 import { readConfig, writeConfig } from './configPersistence.js';
 import {
   GLOBAL_KEY_ALWAYS_SHOW_LABELS,
+  GLOBAL_KEY_HOOKS_ENABLED,
+  GLOBAL_KEY_HOOKS_INFO_SHOWN,
   GLOBAL_KEY_LAST_SEEN_VERSION,
   GLOBAL_KEY_SOUND_ENABLED,
   GLOBAL_KEY_WATCH_ALL_SESSIONS,
@@ -38,7 +43,6 @@ import {
 import {
   dismissedJsonlFiles,
   ensureProjectScan,
-  isTrackedProjectDir,
   startExternalSessionScanning,
   startStaleExternalAgentCheck,
 } from './fileWatcher.js';
@@ -84,7 +88,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   // Cross-window layout sync
   layoutWatcher: LayoutWatcher | null = null;
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  // Pixel Agents Server (hook event reception)
+  private pixelAgentsServer: PixelAgentsServer | null = null;
+  // ServerConfig is not stored as a field; use this.pixelAgentsServer?.getConfig() if needed.
+  private hookEventHandler: HookEventHandler | null = null;
+
+  constructor(private readonly context: vscode.ExtensionContext) {
+    this.initHooks();
+  }
 
   private get extensionUri(): vscode.Uri {
     return this.context.extensionUri;
@@ -98,6 +109,50 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     persistAgents(this.agents, this.context);
   };
 
+  private initHooks(): void {
+    this.hookEventHandler = new HookEventHandler(
+      this.agents,
+      this.waitingTimers,
+      this.permissionTimers,
+      () => this.webview,
+    );
+
+    this.pixelAgentsServer = new PixelAgentsServer();
+    this.pixelAgentsServer.onHookEvent((providerId, event) => {
+      this.hookEventHandler?.handleEvent(providerId, event as HookEvent);
+    });
+
+    this.pixelAgentsServer
+      .start()
+      .then((config) => {
+        // Server always starts regardless of hooks-enabled state.
+        // It's the foundation for WebSocket transport and health monitoring.
+        // Only hook installation/script-copy is gated by the toggle.
+        const hooksEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_HOOKS_ENABLED, true);
+        if (hooksEnabled) {
+          installHooks();
+          copyHookScript(this.context.extensionPath);
+        }
+        console.log(`[Pixel Agents] Server ready on port ${config.port}`);
+      })
+      .catch((e) => {
+        console.error(`[Pixel Agents] Failed to start server: ${e}`);
+      });
+  }
+
+  /** Register an agent with the hook event handler for session->agent mapping.
+   *  hookDelivered is NOT set here. It is set only in hookEventHandler.handleEvent()
+   *  when an actual hook event arrives, preserving heuristic fallback for agents
+   *  where hooks aren't working (older Claude, hooks not installed, etc.) */
+  registerAgentHook(agent: AgentState): void {
+    this.hookEventHandler?.registerAgent(agent.sessionId, agent.id);
+  }
+
+  /** Unregister an agent from the hook event handler */
+  unregisterAgentHook(agent: AgentState): void {
+    this.hookEventHandler?.unregisterAgent(agent.sessionId);
+  }
+
   resolveWebviewView(webviewView: vscode.WebviewView) {
     this.webviewView = webviewView;
     webviewView.webview.options = { enableScripts: true };
@@ -105,6 +160,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
       if (message.type === 'openClaude') {
+        const prevAgentIds = new Set(this.agents.keys());
         await launchNewTerminal(
           this.nextAgentId,
           this.nextTerminalIndex,
@@ -123,6 +179,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           message.bypassPermissions as boolean | undefined,
           message.agentType as 'claude-code' | 'copilot-cli' | undefined,
         );
+        // Register newly created agent(s) with hook handler
+        for (const [id, agent] of this.agents) {
+          if (!prevAgentIds.has(id)) {
+            this.registerAgentHook(agent);
+          }
+        }
       } else if (message.type === 'focusAgent') {
         const agent = this.agents.get(message.id);
         if (agent) {
@@ -166,6 +228,19 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         this.context.globalState.update(GLOBAL_KEY_LAST_SEEN_VERSION, message.version as string);
       } else if (message.type === 'setAlwaysShowLabels') {
         this.context.globalState.update(GLOBAL_KEY_ALWAYS_SHOW_LABELS, message.enabled);
+      } else if (message.type === 'setHooksEnabled') {
+        const enabled = message.enabled as boolean;
+        this.context.globalState.update(GLOBAL_KEY_HOOKS_ENABLED, enabled);
+        if (enabled) {
+          installHooks();
+          copyHookScript(this.context.extensionPath);
+          console.log('[Pixel Agents] Hooks enabled by user');
+        } else {
+          uninstallHooks();
+          console.log('[Pixel Agents] Hooks disabled by user');
+        }
+      } else if (message.type === 'setHooksInfoShown') {
+        this.context.globalState.update(GLOBAL_KEY_HOOKS_INFO_SHOWN, true);
       } else if (message.type === 'setWatchAllSessions') {
         const enabled = message.enabled as boolean;
         this.context.globalState.update(GLOBAL_KEY_WATCH_ALL_SESSIONS, enabled);
@@ -235,6 +310,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             webview: this.webview,
             persistAgents: this.persistAgents,
           });
+        // Register all restored agents with hook handler
+        for (const agent of this.agents.values()) {
+          this.registerAgentHook(agent);
         }
         // Send persisted settings to webview
         const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
@@ -253,6 +331,11 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           false,
         );
         this.watchAllSessions.current = watchAllSessions;
+        const hooksEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_HOOKS_ENABLED, true);
+        const hooksInfoShown = this.context.globalState.get<boolean>(
+          GLOBAL_KEY_HOOKS_INFO_SHOWN,
+          false,
+        );
         const config = readConfig();
         this.webview?.postMessage({
           type: 'settingsLoaded',
@@ -261,6 +344,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           extensionVersion,
           watchAllSessions,
           alwaysShowLabels,
+          hooksEnabled,
+          hooksInfoShown,
           externalAssetDirectories: config.externalAssetDirectories,
         });
 
@@ -276,6 +361,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         // Ensure project scan runs even with no restored agents (to adopt external terminals)
         const projectDir = getProjectDirPath();
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        console.log(`[Pixel Agents] Platform: ${process.platform}, arch: ${process.arch}`);
         console.log('[Extension] workspaceRoot:', workspaceRoot);
         console.log('[Extension] projectDir:', projectDir);
         ensureProjectScan(
@@ -291,6 +377,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.permissionTimers,
           this.webview,
           this.persistAgents,
+          (agent) => this.registerAgentHook(agent),
         );
 
         // Start external session scanning (detects VS Code extension panel sessions)
@@ -374,6 +461,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
               console.log('[Extension] ⚠️  No assets directory found');
               if (this.webview) {
                 sendLayout(this.context, this.webview, this.defaultLayout);
+                // Send agent statuses AFTER layoutLoaded so characters exist when messages arrive
+                sendCurrentAgentStatuses(this.agents, this.webview);
                 this.startLayoutWatcher();
               }
               return;
@@ -385,10 +474,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             // Load bundled default layout
             this.defaultLayout = loadDefaultLayout(assetsRoot);
 
-            // Load character sprites
-            const charSprites = await loadCharacterSprites(assetsRoot);
+            // Load character sprites (bundled + external)
+            const charSprites = await this.loadAllCharacterSprites();
             if (charSprites && this.webview) {
-              console.log('[Extension] Character sprites loaded, sending to webview');
+              console.log(
+                `[Extension] ${charSprites.characters.length} character sprites loaded, sending to webview`,
+              );
               sendCharacterSpritesToWebview(this.webview, charSprites);
             }
 
@@ -418,6 +509,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           if (this.webview) {
             console.log('[Extension] Sending saved layout');
             sendLayout(this.context, this.webview, this.defaultLayout);
+            // Send agent statuses AFTER layoutLoaded so characters exist when messages arrive
+            sendCurrentAgentStatuses(this.agents, this.webview);
             this.startLayoutWatcher();
           }
         })();
@@ -481,6 +574,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           cfg.externalAssetDirectories.push(newPath);
           writeConfig(cfg);
         }
+        await this.reloadAndSendCharacters();
         await this.reloadAndSendFurniture();
         this.webview?.postMessage({
           type: 'externalAssetDirectoriesUpdated',
@@ -492,6 +586,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           (d) => d !== (message.path as string),
         );
         writeConfig(cfg);
+        await this.reloadAndSendCharacters();
         await this.reloadAndSendFurniture();
         this.webview?.postMessage({
           type: 'externalAssetDirectoriesUpdated',
@@ -540,6 +635,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           }
           // Dismiss JSONL so external scanner doesn't re-adopt it
           dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+          this.unregisterAgentHook(agent);
           removeAgent(
             id,
             this.agents,
@@ -605,6 +701,20 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     return assets;
   }
 
+  private async loadAllCharacterSprites(): Promise<LoadedCharacterSprites | null> {
+    if (!this.assetsRoot) return null;
+    let chars = await loadCharacterSprites(this.assetsRoot);
+    const config = readConfig();
+    for (const extraDir of config.externalAssetDirectories) {
+      console.log('[Extension] Loading external character sprites from:', extraDir);
+      const extra = await loadExternalCharacterSprites(extraDir);
+      if (extra) {
+        chars = chars ? mergeCharacterSprites(chars, extra) : extra;
+      }
+    }
+    return chars;
+  }
+
   private async reloadAndSendFurniture(): Promise<void> {
     if (!this.assetsRoot || !this.webview) return;
     try {
@@ -617,6 +727,18 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async reloadAndSendCharacters(): Promise<void> {
+    if (!this.assetsRoot || !this.webview) return;
+    try {
+      const chars = await this.loadAllCharacterSprites();
+      if (chars) {
+        sendCharacterSpritesToWebview(this.webview, chars);
+      }
+    } catch (err) {
+      console.error('[Extension] Error reloading character sprites:', err);
+    }
+  }
+
   private startLayoutWatcher(): void {
     if (this.layoutWatcher) return;
     this.layoutWatcher = watchLayoutFile((layout) => {
@@ -626,6 +748,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   }
 
   dispose() {
+    this.pixelAgentsServer?.stop();
+    this.pixelAgentsServer = null;
+    this.hookEventHandler?.dispose();
+    this.hookEventHandler = null;
     this.layoutWatcher?.dispose();
     this.layoutWatcher = null;
     for (const id of [...this.agents.keys()]) {
@@ -657,7 +783,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   }
 }
 
-export function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const distPath = vscode.Uri.joinPath(extensionUri, 'dist', 'webview');
   const indexPath = vscode.Uri.joinPath(distPath, 'index.html').fsPath;
 

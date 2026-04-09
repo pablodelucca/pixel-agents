@@ -3,9 +3,8 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+import { JSONL_POLL_INTERVAL_MS } from '../server/src/constants.js';
 import {
-  COPILOT_CLI_TERMINAL_NAME_PREFIX,
-  JSONL_POLL_INTERVAL_MS,
   TERMINAL_NAME_PREFIX,
   WORKSPACE_KEY_AGENT_SEATS,
   WORKSPACE_KEY_AGENTS,
@@ -213,6 +212,7 @@ export async function launchNewTerminal(
   const agent: AgentState = {
     id,
     source: 'copilot-cli',
+    sessionId,
     terminalRef: terminal,
     isExternal: false,
     projectDir: '',
@@ -232,6 +232,7 @@ export async function launchNewTerminal(
     linesProcessed: 0,
     seenUnknownRecordTypes: new Set(),
     folderName,
+    hookDelivered: false,
   };
 
   agents.set(id, agent);
@@ -288,6 +289,7 @@ export function persistAgents(
     persisted.push({
       id: agent.id,
       source: agent.source,
+      sessionId: agent.sessionId,
       terminalName: agent.terminalRef?.name ?? '',
       isExternal: agent.isExternal || undefined,
       jsonlFile: agent.jsonlFile,
@@ -323,6 +325,13 @@ export function restoreAgents(
   let restoredProjectDir: string | null = null;
 
   for (const p of persisted) {
+    // Skip agents already in the map — prevents duplicate file watchers on re-entry
+    // (webviewReady fires on every panel focus, re-calling restoreAgents each time)
+    if (agents.has(p.id)) {
+      knownJsonlFiles.add(p.jsonlFile);
+      continue;
+    }
+
     let terminal: vscode.Terminal | undefined;
     const isExternal = p.isExternal ?? false;
     const source = p.source ?? 'claude-code';
@@ -347,6 +356,7 @@ export function restoreAgents(
     const agent: AgentState = {
       id: p.id,
       source,
+      sessionId: p.sessionId || path.basename(p.jsonlFile, '.jsonl'),
       terminalRef: terminal,
       isExternal,
       projectDir: p.projectDir,
@@ -366,6 +376,7 @@ export function restoreAgents(
       linesProcessed: 0,
       seenUnknownRecordTypes: new Set(),
       folderName: p.folderName,
+      hookDelivered: false,
     };
 
     agents.set(p.id, agent);
@@ -531,8 +542,8 @@ export function sendExistingAgents(
     folderNames,
     externalAgents,
   });
-
-  sendCurrentAgentStatuses(agents, webview);
+  // Note: sendCurrentAgentStatuses is called separately AFTER layoutLoaded
+  // so that agentStatus/agentToolStart messages arrive after characters are created.
 }
 
 export function sendCurrentAgentStatuses(
@@ -543,11 +554,13 @@ export function sendCurrentAgentStatuses(
   for (const [agentId, agent] of agents) {
     // Re-send active tools
     for (const [toolId, status] of agent.activeToolStatuses) {
+      const toolName = agent.activeToolNames.get(toolId) ?? '';
       webview.postMessage({
         type: 'agentToolStart',
         id: agentId,
         toolId,
         status,
+        toolName,
       });
     }
     // Re-send waiting status

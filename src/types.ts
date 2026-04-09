@@ -7,6 +7,7 @@ export interface AgentState {
   id: number;
   /** Identifies the agent's activity source (determines tracking strategy) */
   source: AgentSource;
+  sessionId: string;
   /** Terminal reference — undefined for extension panel sessions */
   terminalRef?: vscode.Terminal;
   /** Whether this agent was detected from an external source (VS Code extension panel, etc.) */
@@ -32,12 +33,15 @@ export interface AgentState {
   linesProcessed: number;
   /** Set of record.type values we've already warned about (prevents log spam) */
   seenUnknownRecordTypes: Set<string>;
+  /** Whether a hook event has been delivered for this agent (suppresses heuristic timers) */
+  hookDelivered: boolean;
 }
 
 export interface PersistedAgent {
   id: number;
   /** Identifies the agent's activity source */
   source?: AgentSource;
+  sessionId?: string;
   /** Terminal name — empty string for extension panel sessions */
   terminalName: string;
   /** Whether this agent was detected from an external source */

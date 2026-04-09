@@ -6,7 +6,8 @@
  * - Adjust (default for furniture): shift original pixel HSL values.
  */
 
-import type { FloorColor, SpriteData } from './types.js';
+import type { ColorValue } from '../components/ui/types.js';
+import type { SpriteData } from './types.js';
 
 /** Generic colorized sprite cache: arbitrary string key → SpriteData */
 const colorizeCache = new Map<string, SpriteData>();
@@ -19,7 +20,7 @@ const colorizeCache = new Map<string, SpriteData>();
 export function getColorizedSprite(
   cacheKey: string,
   sprite: SpriteData,
-  color: FloorColor,
+  color: ColorValue,
 ): SpriteData {
   const cached = colorizeCache.get(cacheKey);
   if (cached) return cached;
@@ -43,7 +44,7 @@ export function clearColorizeCache(): void {
  * 4. Create HSL color with user's hue + saturation
  * 5. Convert HSL -> RGB -> hex
  */
-export function colorizeSprite(sprite: SpriteData, color: FloorColor): SpriteData {
+function colorizeSprite(sprite: SpriteData, color: ColorValue): SpriteData {
   const { h, s, b, c } = color;
   const result: SpriteData = [];
 
@@ -174,7 +175,7 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
  * B slider (-100 to 100): shifts lightness
  * C slider (-100 to 100): adjusts contrast around midpoint
  */
-export function adjustSprite(sprite: SpriteData, color: FloorColor): SpriteData {
+export function adjustSprite(sprite: SpriteData, color: ColorValue): SpriteData {
   const { h: hShift, s: sShift, b, c } = color;
   const result: SpriteData = [];
 
