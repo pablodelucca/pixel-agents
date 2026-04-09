@@ -20,7 +20,14 @@ import {
   layoutToSeats,
   layoutToTileMap,
 } from '../layout/layoutSerializer.js';
-import { buildBgFurnitureTiles, findPath, getPetWalkableTiles, getWalkableTiles, isWalkable } from '../layout/tileMap.js';
+import {
+  buildBgFurnitureTiles,
+  findPath,
+  getPetWalkableTiles,
+  getWalkableTiles,
+  isWalkable,
+} from '../layout/tileMap.js';
+import { getPetCount } from '../sprites/petSpriteData.js';
 import { getLoadedCharacterCount } from '../sprites/spriteData.js';
 import type {
   Character,
@@ -68,7 +75,11 @@ export class OfficeState {
     this.furniture = layoutToFurnitureInstances(this.layout.furniture);
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles);
     this.bgFurnitureTiles = buildBgFurnitureTiles(this.layout.furniture);
-    this.petWalkableTiles = getPetWalkableTiles(this.tileMap, this.blockedTiles, this.layout.furniture);
+    this.petWalkableTiles = getPetWalkableTiles(
+      this.tileMap,
+      this.blockedTiles,
+      this.layout.furniture,
+    );
   }
 
   /** Rebuild all derived state from a new layout. Reassigns existing characters.
@@ -282,6 +293,12 @@ export class OfficeState {
 
   addPet(placedPet: PlacedPet): void {
     if (!placedPet.id || placedPet.id.length > 128) return;
+    if (
+      !Number.isInteger(placedPet.petType) ||
+      placedPet.petType < 0 ||
+      placedPet.petType >= getPetCount()
+    )
+      return;
     if (this.pets.find((p) => p.id === placedPet.id)) return;
     const tiles = this.petWalkableTiles.length > 0 ? this.petWalkableTiles : this.walkableTiles;
     if (tiles.length === 0) return; // no valid spawn point
@@ -309,6 +326,10 @@ export class OfficeState {
 
   getPets(): Pet[] {
     return [...this.pets];
+  }
+
+  getActivePetTypes(): number[] {
+    return [...new Set(this.pets.map((p) => p.petType))];
   }
 
   addAgent(

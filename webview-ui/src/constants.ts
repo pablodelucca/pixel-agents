@@ -72,6 +72,7 @@ export const ROTATE_BUTTON_BG = 'rgba(50, 120, 200, 0.85)';
 export const BUTTON_ICON_COLOR = '#fff';
 export const CANVAS_FALLBACK_TILE_COLOR = '#444';
 export const CANVAS_ERROR_TILE_COLOR = '#FF00FF';
+export const EMPTY_SPRITE_THUMBNAIL_BG = '#333';
 export const WALL_COLOR = '#3A3A5C';
 
 // ── Camera ───────────────────────────────────────────────────

@@ -20,6 +20,7 @@ import { EditorState } from './office/editor/editorState.js';
 import { EditorToolbar } from './office/editor/EditorToolbar.js';
 import { OfficeState } from './office/engine/officeState.js';
 import { isRotatable } from './office/layout/furnitureCatalog.js';
+import { getPetCount } from './office/sprites/petSpriteData.js';
 import { EditTool } from './office/types.js';
 import { isBrowserRuntime } from './runtime.js';
 import { vscode } from './vscodeApi.js';
@@ -234,6 +235,9 @@ function App() {
                   onSelectedFurnitureColorChange={editor.handleSelectedFurnitureColorChange}
                   onFurnitureTypeChange={editor.handleFurnitureTypeChange}
                   loadedAssets={loadedAssets}
+                  activePetTypes={officeState.getActivePetTypes()}
+                  petCount={getPetCount()}
+                  onPetToggle={editor.handlePetToggle}
                 />
               );
             })()}

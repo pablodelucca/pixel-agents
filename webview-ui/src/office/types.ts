@@ -90,6 +90,7 @@ export const EditTool = {
   SELECT: 'select',
   EYEDROPPER: 'eyedropper',
   ERASE: 'erase',
+  PETS: 'pets',
 } as const;
 export type EditTool = (typeof EditTool)[keyof typeof EditTool];
 
