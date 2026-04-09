@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { playDoneSound, setSoundEnabled } from '../notificationSound.js';
+import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
@@ -18,7 +18,7 @@ export interface SubagentCharacter {
   label: string;
 }
 
-export interface FurnitureAsset {
+interface FurnitureAsset {
   id: string;
   name: string;
   label: string;
@@ -46,7 +46,7 @@ export interface WorkspaceFolder {
   path: string;
 }
 
-export interface ExtensionMessageState {
+interface ExtensionMessageState {
   agents: number[];
   selectedAgent: number | null;
   agentTools: Record<number, ToolActivity[]>;
@@ -63,6 +63,9 @@ export interface ExtensionMessageState {
   watchAllSessions: boolean;
   setWatchAllSessions: (v: boolean) => void;
   alwaysShowLabels: boolean;
+  hooksEnabled: boolean;
+  setHooksEnabled: (v: boolean) => void;
+  hooksInfoShown: boolean;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -98,6 +101,8 @@ export function useExtensionMessages(
   const [extensionVersion, setExtensionVersion] = useState('');
   const [watchAllSessions, setWatchAllSessions] = useState(false);
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
+  const [hooksEnabled, setHooksEnabled] = useState(true);
+  const [hooksInfoShown, setHooksInfoShown] = useState(true);
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -209,15 +214,25 @@ export function useExtensionMessages(
         const id = msg.id as number;
         const toolId = msg.toolId as string;
         const status = msg.status as string;
+        const permissionActive = msg.permissionActive as boolean | undefined;
         setAgentTools((prev) => {
           const list = prev[id] || [];
           if (list.some((t) => t.toolId === toolId)) return prev;
-          return { ...prev, [id]: [...list, { toolId, status, done: false }] };
+          return {
+            ...prev,
+            [id]: [
+              ...list,
+              { toolId, status, done: false, permissionWait: permissionActive || false },
+            ],
+          };
         });
         const toolName = (msg.toolName as string | undefined) ?? extractToolName(status);
         os.setAgentTool(id, toolName);
         os.setAgentActive(id, true);
-        os.clearPermissionBubble(id);
+        // Don't clear the permission bubble if the hook already confirmed permission is needed
+        if (!permissionActive) {
+          os.clearPermissionBubble(id);
+        }
         // Create sub-agent character for Task/Agent tool subtasks
         if (toolName === 'Task' || toolName === 'Agent') {
           const label = status.startsWith('Subtask:') ? status.slice('Subtask:'.length).trim() : '';
@@ -288,6 +303,7 @@ export function useExtensionMessages(
           };
         });
         os.showPermissionBubble(id);
+        playPermissionSound();
       } else if (msg.type === 'subagentToolPermission') {
         const id = msg.id as number;
         const parentToolId = msg.parentToolId as string;
@@ -401,6 +417,12 @@ export function useExtensionMessages(
         if (typeof msg.alwaysShowLabels === 'boolean') {
           setAlwaysShowLabels(msg.alwaysShowLabels as boolean);
         }
+        if (typeof msg.hooksEnabled === 'boolean') {
+          setHooksEnabled(msg.hooksEnabled as boolean);
+        }
+        if (typeof msg.hooksInfoShown === 'boolean') {
+          setHooksInfoShown(msg.hooksInfoShown as boolean);
+        }
         if (Array.isArray(msg.externalAssetDirectories)) {
           setExternalAssetDirectories(msg.externalAssetDirectories as string[]);
         }
@@ -430,6 +452,7 @@ export function useExtensionMessages(
     window.addEventListener('message', handler);
     vscode.postMessage({ type: 'webviewReady' });
     return () => window.removeEventListener('message', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getOfficeState]);
 
   return {
@@ -449,5 +472,8 @@ export function useExtensionMessages(
     watchAllSessions,
     setWatchAllSessions,
     alwaysShowLabels,
+    hooksEnabled,
+    setHooksEnabled,
+    hooksInfoShown,
   };
 }

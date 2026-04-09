@@ -1,6 +1,6 @@
+import type { ColorValue } from '../../components/ui/types.js';
 import { getColorizedSprite } from '../colorize.js';
 import type {
-  FloorColor,
   FurnitureInstance,
   OfficeLayout,
   PlacedFurniture,
@@ -230,7 +230,8 @@ export function layoutToSeats(furniture: PlacedFurniture[]): Map<string, Seat> {
   return seats;
 }
 
-/** Get the set of tiles occupied by seats (so they can be excluded from blocked tiles) */
+/** Get the set of tiles occupied by seats (so they can be excluded from blocked tiles)
+ * @internal */
 export function getSeatTiles(seats: Map<string, Seat>): Set<string> {
   const tiles = new Set<string>();
   for (const seat of seats.values()) {
@@ -240,8 +241,8 @@ export function getSeatTiles(seats: Map<string, Seat>): Set<string> {
 }
 
 /** Default floor colors for the two rooms */
-const DEFAULT_LEFT_ROOM_COLOR: FloorColor = { h: 35, s: 30, b: 15, c: 0 }; // warm beige
-const DEFAULT_RIGHT_ROOM_COLOR: FloorColor = { h: 25, s: 45, b: 5, c: 10 }; // warm brown
+const DEFAULT_LEFT_ROOM_COLOR: ColorValue = { h: 35, s: 30, b: 15, c: 0 }; // warm beige
+const DEFAULT_RIGHT_ROOM_COLOR: ColorValue = { h: 25, s: 45, b: 5, c: 10 }; // warm brown
 
 /** Create a minimal fallback layout (used only when no default-layout.json exists) */
 export function createDefaultLayout(): OfficeLayout {
@@ -250,7 +251,7 @@ export function createDefaultLayout(): OfficeLayout {
   const F2 = TileType.FLOOR_2;
 
   const tiles: TileTypeVal[] = [];
-  const tileColors: Array<FloorColor | null> = [];
+  const tileColors: Array<ColorValue | null> = [];
 
   for (let r = 0; r < DEFAULT_ROWS; r++) {
     for (let c = 0; c < DEFAULT_COLS; c++) {
@@ -271,7 +272,8 @@ export function createDefaultLayout(): OfficeLayout {
   return { version: 1, cols: DEFAULT_COLS, rows: DEFAULT_ROWS, tiles, tileColors, furniture: [] };
 }
 
-/** Serialize layout to JSON string */
+/** Serialize layout to JSON string
+ * @internal */
 export function serializeLayout(layout: OfficeLayout): string {
   return JSON.stringify(layout);
 }
@@ -307,7 +309,8 @@ function migrateFurnitureTypes(furniture: PlacedFurniture[]): PlacedFurniture[] 
   return migrated;
 }
 
-/** Deserialize layout from JSON string, migrating old tile types if needed */
+/** Deserialize layout from JSON string, migrating old tile types if needed
+ * @internal */
 export function deserializeLayout(json: string): OfficeLayout | null {
   try {
     const obj = JSON.parse(json);
@@ -351,7 +354,7 @@ function migrateLayout(layout: OfficeLayout): OfficeLayout {
 
   // Check if any tiles use old values (1-4) — these map directly to FLOOR_1-4
   // but need color assignments
-  const tileColors: Array<FloorColor | null> = [];
+  const tileColors: Array<ColorValue | null> = [];
   for (const tile of layout.tiles) {
     switch (tile) {
       case 0: // WALL

@@ -1,3 +1,4 @@
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -99,7 +100,7 @@ function browserMockAssetsPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), browserMockAssetsPlugin()],
+  plugins: [tailwindcss(), react(), browserMockAssetsPlugin()],
   build: {
     outDir: '../dist/webview',
     emptyOutDir: true,

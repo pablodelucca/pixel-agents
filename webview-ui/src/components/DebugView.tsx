@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import type { ToolActivity } from '../office/types.js';
 import { vscode } from '../vscodeApi.js';
+import { Button } from './ui/Button.js';
 
 interface AgentDiagnostics {
   id: number;
@@ -24,25 +25,15 @@ interface DebugViewProps {
   onSelectAgent: (id: number) => void;
 }
 
-/** Z-index just below the floating toolbar (50) so the toolbar stays on top */
-const DEBUG_Z = 40;
-
 function ToolDot({ tool }: { tool: ToolActivity }) {
+  const color = tool.done
+    ? 'bg-status-success'
+    : tool.permissionWait
+      ? 'bg-status-permission'
+      : 'bg-status-active';
   return (
     <span
-      className={tool.done ? undefined : 'pixel-agents-pulse'}
-      style={{
-        width: 6,
-        height: 6,
-        borderRadius: '50%',
-        background: tool.done
-          ? 'var(--vscode-charts-green, #89d185)'
-          : tool.permissionWait
-            ? 'var(--vscode-charts-yellow, #cca700)'
-            : 'var(--vscode-charts-blue, #3794ff)',
-        display: 'inline-block',
-        flexShrink: 0,
-      }}
+      className={`w-6 h-6 rounded-full inline-block shrink-0 ${color} ${tool.done ? '' : 'pixel-pulse'}`}
     />
   );
 }
@@ -50,13 +41,7 @@ function ToolDot({ tool }: { tool: ToolActivity }) {
 function ToolLine({ tool }: { tool: ToolActivity }) {
   return (
     <span
-      style={{
-        fontSize: '22px',
-        opacity: tool.done ? 0.5 : 0.8,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 5,
-      }}
+      className={`text-base flex items-center gap-5 ${tool.done ? 'opacity-50' : 'opacity-80'}`}
     >
       <ToolDot tool={tool} />
       {tool.permissionWait && !tool.done ? 'Needs approval' : tool.status}
@@ -118,69 +103,35 @@ export function DebugView({
     return (
       <div
         key={id}
-        style={{
-          border: `2px solid ${isSelected ? '#5a8cff' : '#4a4a6a'}`,
-          borderRadius: 0,
-          padding: '6px 8px',
-          background: isSelected
-            ? 'var(--vscode-list-activeSelectionBackground, rgba(255,255,255,0.04))'
-            : undefined,
-        }}
+        className={`rounded-none py-6 px-8 border-2 cursor-pointer ${isSelected ? 'border-accent bg-active-bg' : 'border-border'}`}
+        onClick={() => onSelectAgent(id)}
       >
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
-          <button
-            onClick={() => onSelectAgent(id)}
-            style={{
-              borderRadius: 0,
-              padding: '6px 10px',
-              fontSize: '26px',
-              background: isSelected ? 'rgba(90, 140, 255, 0.25)' : undefined,
-              color: isSelected ? '#fff' : undefined,
-              fontWeight: isSelected ? 'bold' : undefined,
-            }}
+        <span className="flex items-center justify-between">
+          <span
+            className={`rounded-none py-6 px-10 text-xl ${isSelected ? 'text-white font-bold' : ''}`}
           >
             Agent #{id}
-          </button>
-          <button
-            onClick={() => vscode.postMessage({ type: 'closeAgent', id })}
-            style={{
-              borderRadius: 0,
-              padding: '6px 8px',
-              fontSize: '26px',
-              opacity: 0.7,
-              background: isSelected ? 'rgba(90, 140, 255, 0.25)' : undefined,
-              color: isSelected ? '#fff' : undefined,
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              vscode.postMessage({ type: 'closeAgent', id });
             }}
+            className={`opacity-70 ${isSelected ? 'text-white' : ''}`}
             title="Close agent"
           >
             ✕
-          </button>
+          </Button>
         </span>
         {(tools.length > 0 || status === 'waiting') && (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 1,
-              marginTop: 4,
-              paddingLeft: 4,
-            }}
-          >
+          <div className="flex flex-col gap-[1px] mt-4 pl-4">
             {tools.map((tool) => (
               <div key={tool.toolId}>
                 <ToolLine tool={tool} />
                 {subs[tool.toolId] && subs[tool.toolId].length > 0 && (
-                  <div
-                    style={{
-                      borderLeft: '2px solid var(--vscode-widget-border, rgba(255,255,255,0.12))',
-                      marginLeft: 3,
-                      paddingLeft: 8,
-                      marginTop: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 1,
-                    }}
-                  >
+                  <div className="ml-3 pl-8 mt-[1px] flex flex-col gap-[1px] border-l-2 border-border">
                     {subs[tool.toolId].map((subTool) => (
                       <ToolLine key={subTool.toolId} tool={subTool} />
                     ))}
@@ -189,25 +140,8 @@ export function DebugView({
               </div>
             ))}
             {status === 'waiting' && !hasActiveTools && (
-              <span
-                style={{
-                  fontSize: '22px',
-                  opacity: 0.85,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: 'var(--vscode-charts-yellow, #cca700)',
-                    display: 'inline-block',
-                    flexShrink: 0,
-                  }}
-                />
+              <span className="text-base opacity-85 flex items-center gap-5">
+                <span className="w-6 h-6 rounded-full inline-block shrink-0 bg-status-permission" />
                 Might be waiting for input
               </span>
             )}
@@ -215,20 +149,9 @@ export function DebugView({
         )}
         {/* Connection diagnostics */}
         {diag && (
-          <div
-            style={{
-              marginTop: 6,
-              padding: '4px 6px',
-              fontSize: '18px',
-              opacity: 0.7,
-              borderTop: '1px solid rgba(255,255,255,0.08)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2,
-            }}
-          >
+          <div className="mt-6 py-4 px-6 text-xs opacity-70 flex flex-col gap-2 border-t border-white/8">
             <span>
-              <span style={{ color: diag.jsonlExists ? '#89d185' : '#f14c4c' }}>
+              <span className={diag.jsonlExists ? 'text-status-success' : 'text-status-error'}>
                 {diag.jsonlExists ? 'JSONL connected' : 'JSONL not found'}
               </span>
               {' | '}
@@ -236,16 +159,14 @@ export function DebugView({
               {' | '}
               Last data: {formatTimeAgo(diag.lastDataAt)}
             </span>
-            <span style={{ opacity: 0.6, fontSize: '16px', wordBreak: 'break-all' }}>
-              {diag.jsonlFile}
-            </span>
+            <span className="opacity-60 text-2xs break-all">{diag.jsonlFile}</span>
             {!diag.projectDirExists && (
-              <span style={{ color: '#f14c4c', fontSize: '16px' }}>
+              <span className="text-2xs text-status-error">
                 Project dir does not exist: {diag.projectDir}
               </span>
             )}
             {diag.jsonlExists && diag.fileSize > 0 && diag.linesProcessed === 0 && (
-              <span style={{ color: '#cca700', fontSize: '16px' }}>
+              <span className="text-2xs text-status-permission">
                 File has data ({diag.fileSize} bytes) but 0 lines parsed. Possible format issue.
               </span>
             )}
@@ -256,23 +177,10 @@ export function DebugView({
   };
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        background: 'var(--vscode-editor-background)',
-        zIndex: DEBUG_Z,
-        overflow: 'auto',
-      }}
-    >
-      {/* Top padding so cards don't overlap the floating toolbar */}
-      <div style={{ padding: '12px 12px 12px', fontSize: '28px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {agents.map(renderAgentCard)}
-        </div>
+    <div className="absolute inset-0 overflow-auto bg-bg z-15">
+      <div className="px-12 py-6 text-2xl">
+        <h2 className="text-3xl font-bold mb-8">Debug View</h2>
+        <div className="flex flex-col gap-6">{agents.map(renderAgentCard)}</div>
       </div>
     </div>
   );

@@ -8,13 +8,13 @@
  * Only imported in browser runtime; tree-shaken from VS Code webview runtime.
  */
 
+import { rgbaToHex } from '../../shared/assets/colorUtils.ts';
 import {
   CHAR_FRAME_H,
   CHAR_FRAME_W,
   CHAR_FRAMES_PER_ROW,
   CHARACTER_DIRECTIONS,
   FLOOR_TILE_SIZE,
-  PNG_ALPHA_THRESHOLD,
   WALL_BITMASK_COUNT,
   WALL_GRID_COLS,
   WALL_PIECE_HEIGHT,
@@ -45,14 +45,6 @@ interface DecodedPng {
   width: number;
   height: number;
   data: Uint8ClampedArray;
-}
-
-function rgbaToHex(r: number, g: number, b: number, a: number): string {
-  if (a < PNG_ALPHA_THRESHOLD) return '';
-  const rgb =
-    `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
-  if (a >= 255) return rgb;
-  return `${rgb}${a.toString(16).padStart(2, '0').toUpperCase()}`;
 }
 
 function getPixel(

@@ -1,0 +1,15 @@
+# Gitleaks configuration
+# https://github.com/gitleaks/gitleaks#configuration
+#
+# Add allowlist entries below to handle false positives.
+# See: https://github.com/gitleaks/gitleaks/wiki/Configuration#allowlists
+
+[allowlist]
+# Example: allow a specific commit
+# commits = ["abc1234"]
+#
+# Example: allow a specific file path
+# paths = ["path/to/file"]
+#
+# Example: allow a regex pattern
+# regexes = ["example-pattern"]

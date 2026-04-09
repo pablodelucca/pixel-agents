@@ -4,7 +4,7 @@ import * as path from 'path';
 
 import { CONFIG_FILE_NAME, LAYOUT_FILE_DIR } from './constants.js';
 
-export interface PixelAgentsConfig {
+interface PixelAgentsConfig {
   externalAssetDirectories: string[];
 }
 
