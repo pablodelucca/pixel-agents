@@ -39,7 +39,7 @@ function sanitizePngBuffer(buf: Buffer): Buffer {
   // IEND chunk type bytes: 0x49 0x45 0x4E 0x44
   // A chunk is: 4-byte length + 4-byte type + data + 4-byte CRC
   // IEND has 0 data bytes, so it's: [00 00 00 00] [49 45 4E 44] [CRC 4 bytes] = 12 bytes total
-  for (let i = buf.length - 12; i >= 8; i--) {
+  for (let i = buf.length - 8; i >= 8; i--) {
     if (buf[i] === 0x49 && buf[i + 1] === 0x45 && buf[i + 2] === 0x4e && buf[i + 3] === 0x44) {
       const endPos = i + 4 + 4; // past type + CRC
       if (buf.length > endPos) {
