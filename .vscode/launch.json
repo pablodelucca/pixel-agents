@@ -15,6 +15,7 @@
 			"outFiles": [
 				"${workspaceFolder}/dist/**/*.js"
 			],
+			"envFile": "${workspaceFolder}/.env",
 			"preLaunchTask": "${defaultBuildTask}"
 		}
 	]

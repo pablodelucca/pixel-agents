@@ -30,6 +30,14 @@ export interface AgentState {
   seenUnknownRecordTypes: Set<string>;
   /** Whether a hook event has been delivered for this agent (suppresses heuristic timers) */
   hookDelivered: boolean;
+  /** True when agent has no transcript file (provider doesn't use JSONL). All state from hooks. */
+  hooksOnly?: boolean;
+  /** Provider that created this agent (defaults to 'claude') */
+  providerId?: string;
+  /** Set when SessionEnd(reason=clear) fires; cleared when SessionStart(source=clear) reassigns */
+  pendingClear?: boolean;
+  /** Hook-generated tool ID for PreToolUse/PostToolUse correlation */
+  currentHookToolId?: string;
 }
 
 export interface PersistedAgent {
