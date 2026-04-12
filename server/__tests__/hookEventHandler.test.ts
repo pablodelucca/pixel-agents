@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentState } from '../../src/types.js';
 import { HookEventHandler } from '../src/hookEventHandler.js';
+import { claudeProvider } from '../src/providers/hook/claude/claude.js';
 
 /** Minimal AgentState for testing. */
 function createTestAgent(overrides: Partial<AgentState> = {}): AgentState {
@@ -59,6 +60,7 @@ describe('HookEventHandler', () => {
       waitingTimers,
       permissionTimers,
       () => mockWebview as unknown as import('vscode').Webview,
+      claudeProvider,
     );
   });
 
@@ -749,5 +751,147 @@ describe('HookEventHandler', () => {
 
     // onSessionResume requires transcript_path to clear dismissals
     expect(onSessionResume).not.toHaveBeenCalled();
+  });
+
+  // ── Basic subagent regression (Agent Teams feature OFF) ─────────────
+  // These tests pin down the behavior that must NOT change for basic subagents.
+  // Basic subagents use Agent or Task tool WITHOUT run_in_background=true.
+
+  it('PreToolUse(Agent, run_in_background=false) does NOT set currentHookIsTeammateSpawn', () => {
+    const agent = createTestAgent({ id: 1 });
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'PreToolUse',
+      session_id: 'sess-1',
+      tool_name: 'Agent',
+      tool_input: { description: 'Code review', run_in_background: false },
+    });
+
+    expect(agent.currentHookIsTeammateSpawn).toBe(false);
+  });
+
+  it('PreToolUse(Agent, no run_in_background) does NOT set currentHookIsTeammateSpawn', () => {
+    const agent = createTestAgent({ id: 1 });
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'PreToolUse',
+      session_id: 'sess-1',
+      tool_name: 'Agent',
+      tool_input: { description: 'Code review' },
+    });
+
+    expect(agent.currentHookIsTeammateSpawn).toBe(false);
+  });
+
+  it('PreToolUse(Agent, run_in_background=true) sets currentHookIsTeammateSpawn', () => {
+    const agent = createTestAgent({ id: 1 });
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'PreToolUse',
+      session_id: 'sess-1',
+      tool_name: 'Agent',
+      tool_input: { name: 'web-researcher', run_in_background: true },
+    });
+
+    expect(agent.currentHookIsTeammateSpawn).toBe(true);
+  });
+
+  it('SubagentStart for basic Agent subagent does NOT call onTeammateDetected', () => {
+    const agent = createTestAgent({ id: 1, currentHookIsTeammateSpawn: false });
+    // Simulate JSONL having caught up: real tool id in activeToolNames
+    agent.activeToolNames.set('toolu_real', 'Agent');
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    const onTeammateDetected = vi.fn();
+    handler.setLifecycleCallbacks({ onTeammateDetected });
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SubagentStart',
+      session_id: 'sess-1',
+      agent_type: 'general-purpose',
+    });
+
+    expect(onTeammateDetected).not.toHaveBeenCalled();
+    // Basic path: sends subagentToolStart with REAL parent tool id
+    const msg = mockWebview.messages.find((m) => m.type === 'subagentToolStart');
+    expect(msg).toBeTruthy();
+    expect(msg?.parentToolId).toBe('toolu_real');
+  });
+
+  it('SubagentStart for teammate (Agent run_in_background=true, team lead) calls onTeammateDetected', () => {
+    // BOTH conditions required: currentHookIsTeammateSpawn=true AND agent.teamName set
+    // (JSONL-confirmed team lead). Without teamName, we treat as basic subagent.
+    const agent = createTestAgent({
+      id: 1,
+      currentHookIsTeammateSpawn: true,
+      teamName: 'research',
+    });
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    const onTeammateDetected = vi.fn();
+    handler.setLifecycleCallbacks({ onTeammateDetected });
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SubagentStart',
+      session_id: 'sess-1',
+      agent_type: 'web-researcher',
+    });
+
+    expect(onTeammateDetected).toHaveBeenCalledWith(1, 'sess-1', 'web-researcher');
+    // Teammate path: does NOT send subagentToolStart (no ghost sub-agent character)
+    const msg = mockWebview.messages.find((m) => m.type === 'subagentToolStart');
+    expect(msg).toBeUndefined();
+  });
+
+  it('SubagentStart with spawn flag but NO teamName does NOT call onTeammateDetected (false positive guard)', () => {
+    // External session firing run_in_background=true for basic parallel subagents
+    // would set currentHookIsTeammateSpawn=true. Without teamName, we must NOT
+    // route to teammate discovery -- those aren't real teammates.
+    const agent = createTestAgent({ id: 1, currentHookIsTeammateSpawn: true });
+    agent.activeToolNames.set('toolu_real', 'Agent');
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    const onTeammateDetected = vi.fn();
+    handler.setLifecycleCallbacks({ onTeammateDetected });
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SubagentStart',
+      session_id: 'sess-1',
+      agent_type: 'general-purpose',
+    });
+
+    expect(onTeammateDetected).not.toHaveBeenCalled();
+    // Falls through to basic subagent path -- sends subagentToolStart with real id
+    const msg = mockWebview.messages.find((m) => m.type === 'subagentToolStart');
+    expect(msg).toBeTruthy();
+    expect(msg?.parentToolId).toBe('toolu_real');
+  });
+
+  it('SubagentStart for basic subagent returns early when activeToolNames lacks parent (JSONL will handle)', () => {
+    const agent = createTestAgent({ id: 1, currentHookIsTeammateSpawn: false });
+    // activeToolNames empty; currentHookToolId set by earlier PreToolUse
+    agent.currentHookToolId = 'hook-XXX';
+    agent.currentHookToolName = 'Agent';
+    agents.set(1, agent);
+    handler.registerAgent('sess-1', 1);
+
+    handler.handleEvent('claude', {
+      hook_event_name: 'SubagentStart',
+      session_id: 'sess-1',
+      agent_type: 'general-purpose',
+    });
+
+    // No sub-agent character sent with synthetic id -- JSONL is the sole source.
+    const msg = mockWebview.messages.find((m) => m.type === 'subagentToolStart');
+    expect(msg).toBeUndefined();
   });
 });

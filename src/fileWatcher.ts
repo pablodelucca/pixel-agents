@@ -36,6 +36,7 @@ import {
   GLOBAL_SCAN_ACTIVE_MIN_SIZE,
   PROJECT_SCAN_INTERVAL_MS,
 } from '../server/src/constants.js';
+import type { TeamProvider } from '../server/src/teamProvider.js';
 import { removeAgent } from './agentManager.js';
 import { TERMINAL_NAME_PREFIX } from './constants.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
@@ -200,7 +201,7 @@ export function readNewLines(
       // (processed in transcriptParser) should clear it.
       cancelWaitingTimer(agentId, waitingTimers);
       cancelPermissionTimer(agentId, permissionTimers);
-      if (agent.permissionSent && !agent.hookDelivered) {
+      if (agent.permissionSent && !agent.hookDelivered && !agent.leadAgentId) {
         agent.permissionSent = false;
         webview?.postMessage({ type: 'agentToolPermissionClear', id: agentId });
       }
@@ -294,6 +295,27 @@ export function ensureProjectScan(
   // Start the shared timer only once
   if (projectScanTimerRef.current) return;
   projectScanTimerRef.current = setInterval(() => {
+    // Teammate scanning runs in BOTH modes (hooks + heuristic).
+    // In hooks mode, SubagentStart triggers immediate scanning, but the periodic
+    // fallback catches teammates that hooks missed (e.g. hook arrived before JSONL).
+    scanAllTeammateFiles(
+      nextAgentIdRef,
+      agents,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
+      webview,
+      persistAgents,
+    );
+
+    // Check team config files to detect dismissed teammates (authoritative source
+    // of truth for team membership). Removes teammates no longer in members list.
+    const toRemove = scanTeamConfigsForRemovals(agents);
+    for (const id of toRemove) {
+      teammateRemovalCallback?.(id);
+    }
+
     // When hooks are active, SessionStart handles new file detection.
     if (hooksEnabledRef?.current) return;
 
@@ -505,6 +527,287 @@ function adoptTerminalForFile(
     webview,
   );
   readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+}
+
+// ── Lead + Teammates support (provider-driven) ──
+
+/** Known teammate JSONL files (prevents re-adoption). */
+const knownTeammateFiles = new Set<string>();
+
+/** Callback to remove a teammate agent when detected as dismissed via team config. */
+let teammateRemovalCallback: ((teammateAgentId: number) => void) | null = null;
+
+/** Team provider: supplies all CLI-specific paths, parsers, and tool names.
+ *  Set once at startup via setTeamProvider(). Module functions assume it's set
+ *  by the time they're called. */
+let teamProvider: TeamProvider | null = null;
+
+/** Register the callback used to remove teammates detected as dismissed via team config polling. */
+export function setTeammateRemovalCallback(cb: (teammateAgentId: number) => void): void {
+  teammateRemovalCallback = cb;
+}
+
+/** Register the TeamProvider that describes the active CLI's Lead+Teammates pattern. */
+export function setTeamProvider(provider: TeamProvider): void {
+  teamProvider = provider;
+}
+
+/** Read teammate name from its sidecar metadata file via the active provider. */
+function readTeammateMeta(jsonlFile: string): string | null {
+  if (!teamProvider) return null;
+  try {
+    const metaFile = teamProvider.resolveTeammateMetadataPath(jsonlFile);
+    if (fs.existsSync(metaFile)) {
+      return teamProvider.parseTeammateMetadata(fs.readFileSync(metaFile, 'utf-8'));
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/**
+ * Scan the provider's teammate JSONL directory for a given lead session.
+ * Each teammate gets its own independent agent (positive ID) with file watching.
+ *
+ * Called from two paths:
+ * 1. Hooks-triggered (immediate): onTeammateDetected callback from SubagentStart
+ * 2. Periodic fallback: ensureProjectScan timer (heuristic mode)
+ */
+export function scanForTeammateFiles(
+  projectDir: string,
+  sessionId: string,
+  parentAgentId: number,
+  nextAgentIdRef: { current: number },
+  agents: Map<number, AgentState>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+  onAgentCreated?: (agent: AgentState) => void,
+): void {
+  if (!teamProvider) return;
+  const teammateDir = teamProvider.resolveTeammateJsonlDir(projectDir, sessionId);
+  let files: string[];
+  try {
+    files = fs
+      .readdirSync(teammateDir)
+      .filter((f) => f.endsWith('.jsonl'))
+      .map((f) => path.join(teammateDir, f));
+  } catch {
+    return; // teammate directory doesn't exist (yet)
+  }
+
+  const parentAgent = agents.get(parentAgentId);
+
+  for (const file of files) {
+    if (knownTeammateFiles.has(file)) continue;
+
+    // Also check if any existing agent already tracks this file
+    let alreadyTracked = false;
+    for (const a of agents.values()) {
+      if (a.jsonlFile === file) {
+        alreadyTracked = true;
+        break;
+      }
+    }
+    if (alreadyTracked) continue;
+
+    const teammateName = readTeammateMeta(file);
+    if (!teammateName) continue; // No metadata sidecar or unparseable
+
+    knownTeammateFiles.add(file);
+
+    // Deduplicate by teammate name per parent: if we already have a live agent
+    // with the same name for this parent, reassign it to the new JSONL file
+    // (Claude may restart a teammate, creating a new .jsonl for the same role).
+    let existingTeammate: AgentState | undefined;
+    for (const a of agents.values()) {
+      if (a.leadAgentId === parentAgentId && a.agentName === teammateName) {
+        existingTeammate = a;
+        break;
+      }
+    }
+    if (existingTeammate) {
+      if (debug)
+        console.log(
+          `[Pixel Agents] Teammate "${teammateName}" already exists (Agent ${existingTeammate.id}), reassigning to ${path.basename(file)}`,
+        );
+      // Reassign to new JSONL file -- stop old polling, start new
+      const oldTimer = pollingTimers.get(existingTeammate.id);
+      if (oldTimer) clearInterval(oldTimer);
+      pollingTimers.delete(existingTeammate.id);
+      existingTeammate.jsonlFile = file;
+      existingTeammate.fileOffset = 0;
+      existingTeammate.lineBuffer = '';
+      existingTeammate.lastDataAt = Date.now();
+      existingTeammate.linesProcessed = 0;
+      existingTeammate.isWaiting = false;
+      startFileWatching(
+        existingTeammate.id,
+        file,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+      );
+      readNewLines(existingTeammate.id, agents, waitingTimers, permissionTimers, webview);
+      continue;
+    }
+
+    const id = nextAgentIdRef.current++;
+    // Read from start -- teammate JSONL is usually small and we want full tool history
+    const agent: AgentState = {
+      id,
+      sessionId,
+      terminalRef: undefined,
+      isExternal: true,
+      projectDir,
+      jsonlFile: file,
+      fileOffset: 0,
+      lineBuffer: '',
+      activeToolIds: new Set(),
+      activeToolStatuses: new Map(),
+      activeToolNames: new Map(),
+      activeSubagentToolIds: new Map(),
+      activeSubagentToolNames: new Map(),
+      backgroundAgentToolIds: new Set(),
+      isWaiting: false,
+      permissionSent: false,
+      hadToolsInTurn: false,
+      // Keep hookDelivered false: teammates need JSONL-based tool tracking
+      // (agentToolStart messages). Permission events are routed from the lead's
+      // hooks via handlePermissionRequest forwarding.
+      hookDelivered: false,
+      lastDataAt: Date.now(),
+      linesProcessed: 0,
+      seenUnknownRecordTypes: new Set(),
+      inputTokens: 0,
+      outputTokens: 0,
+      // Agent Teams fields
+      agentName: teammateName,
+      leadAgentId: parentAgentId,
+      teamName: parentAgent?.teamName,
+    };
+
+    agents.set(id, agent);
+    persistAgents();
+
+    console.log(
+      `[Pixel Agents] Teammate detected: "${teammateName}" (Agent ${id}) for parent Agent ${parentAgentId} (${path.basename(file)})`,
+    );
+
+    webview?.postMessage({
+      type: 'agentCreated',
+      id,
+      isTeammate: true,
+      teammateName,
+      parentAgentId,
+      teamName: parentAgent?.teamName,
+    });
+
+    onAgentCreated?.(agent);
+
+    startFileWatching(
+      id,
+      file,
+      agents,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
+      webview,
+    );
+    readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+  }
+}
+
+/**
+ * Scan team config files (via the active TeamProvider) to detect teammate
+ * dismissals. A teammate is considered dismissed if:
+ *   - The team config no longer lists them in members, OR
+ *   - The team config file is missing/unreadable (team dissolved)
+ *
+ * This is the authoritative source of truth for Agent Teams membership.
+ * Returns the IDs of teammates that should be removed.
+ */
+export function scanTeamConfigsForRemovals(agents: Map<number, AgentState>): number[] {
+  const toRemove: number[] = [];
+  if (!teamProvider) return toRemove;
+  // Group teammates by their teamName for efficient config lookups
+  const teammatesByTeam = new Map<string, Array<{ id: number; agent: AgentState }>>();
+  for (const [id, agent] of agents) {
+    if (agent.leadAgentId === undefined || agent.teamUsesTmux || !agent.teamName) continue;
+    let list = teammatesByTeam.get(agent.teamName);
+    if (!list) {
+      list = [];
+      teammatesByTeam.set(agent.teamName, list);
+    }
+    list.push({ id, agent });
+  }
+
+  for (const [teamName, members] of teammatesByTeam) {
+    // Provider owns both the read and parse -- returns null on any failure (team dissolved)
+    const memberNames = teamProvider.getTeamMembers(teamName);
+
+    for (const { id, agent } of members) {
+      if (memberNames === null) {
+        toRemove.push(id);
+      } else if (agent.agentName && !memberNames.has(agent.agentName)) {
+        toRemove.push(id);
+      }
+    }
+  }
+
+  return toRemove;
+}
+
+/**
+ * Scan all tracked project dirs for teammate JSONL files.
+ * Called periodically as a fallback when hooks are disabled.
+ */
+export function scanAllTeammateFiles(
+  nextAgentIdRef: { current: number },
+  agents: Map<number, AgentState>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+  onAgentCreated?: (agent: AgentState) => void,
+): void {
+  // For each known lead agent, ask the provider to scan for teammate transcripts.
+  // CRITICAL: only scan agents that JSONL has confirmed as team leads (teamName set).
+  // Without this gate we'd pick up basic subagents' JSONL files (which some CLIs also
+  // write to the same teammate directory) and create spurious teammate characters for
+  // them when the Agent Teams feature is OFF.
+  for (const [agentId, agent] of agents) {
+    // Only scan for lead agents (not teammates themselves)
+    if (agent.leadAgentId !== undefined) continue;
+    if (!agent.sessionId || !agent.projectDir) continue;
+    // Gate: basic-mode agents never get teamName set. Real team leads do, via JSONL.
+    if (!agent.teamName) continue;
+
+    scanForTeammateFiles(
+      agent.projectDir,
+      agent.sessionId,
+      agentId,
+      nextAgentIdRef,
+      agents,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
+      webview,
+      persistAgents,
+      onAgentCreated,
+    );
+  }
 }
 
 // ── External session support (VS Code extension panel, etc.) ──

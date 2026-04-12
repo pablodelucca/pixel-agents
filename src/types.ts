@@ -38,6 +38,13 @@ export interface AgentState {
   pendingClear?: boolean;
   /** Hook-generated tool ID for PreToolUse/PostToolUse correlation */
   currentHookToolId?: string;
+  /** Tool name from PreToolUse (e.g. 'Agent', 'Task') for SubagentStart correlation */
+  currentHookToolName?: string;
+  /** True if the CURRENT PreToolUse tool call is a teammate spawn (e.g. Agent with
+   *  run_in_background=true). Authoritative source for teammate vs basic-subagent
+   *  routing in SubagentStart. Set in PreToolUse, NOT cleared in PostToolUse (survives
+   *  the PostToolUse-before-SubagentStart race); overwritten on the next PreToolUse. */
+  currentHookIsTeammateSpawn?: boolean;
 
   // -- Token tracking --
   inputTokens: number;

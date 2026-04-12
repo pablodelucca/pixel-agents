@@ -6,10 +6,10 @@ import * as vscode from 'vscode';
 import type { HookEvent } from '../server/src/hookEventHandler.js';
 import { HookEventHandler } from '../server/src/hookEventHandler.js';
 import {
-  copyHookScript,
   installHooks,
   uninstallHooks,
-} from '../server/src/providers/file/claudeHookInstaller.js';
+} from '../server/src/providers/hook/claude/claudeHookInstaller.js';
+import { claudeProvider, copyHookScript } from '../server/src/providers/index.js';
 import { PixelAgentsServer } from '../server/src/server.js';
 import {
   getProjectDirPath,
@@ -53,12 +53,16 @@ import {
   ensureProjectScan,
   isTrackedProjectDir,
   reassignAgentToFile,
+  scanForTeammateFiles,
   seededMtimes,
+  setTeammateRemovalCallback,
+  setTeamProvider,
   startExternalSessionScanning,
   startStaleExternalAgentCheck,
 } from './fileWatcher.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
+import { setHookProvider } from './transcriptParser.js';
 import type { AgentState } from './types.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
@@ -125,8 +129,17 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       this.waitingTimers,
       this.permissionTimers,
       () => this.webview,
+      claudeProvider,
       this.watchAllSessions,
     );
+
+    // Register Claude's team provider (if present on the hook provider) with the file
+    // watcher module + transcriptParser, plus the teammate removal callback.
+    if (claudeProvider.team) {
+      setTeamProvider(claudeProvider.team);
+    }
+    setHookProvider(claudeProvider);
+    setTeammateRemovalCallback((id) => this.removeTeammate(id, 'team-config'));
 
     this.hookEventHandler.setLifecycleCallbacks({
       onExternalSessionDetected: (sessionId, transcriptPath, cwd) => {
@@ -179,6 +192,27 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         dismissedJsonlFiles.delete(transcriptPath);
         seededMtimes.delete(transcriptPath);
         this.knownJsonlFiles.delete(transcriptPath);
+      },
+      onTeammateDetected: (parentAgentId, sessionId, _agentType) => {
+        const parentAgent = this.agents.get(parentAgentId);
+        if (!parentAgent) return;
+        scanForTeammateFiles(
+          parentAgent.projectDir,
+          sessionId,
+          parentAgentId,
+          this.nextAgentId,
+          this.agents,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.webview,
+          this.persistAgents,
+          (agent) => this.registerAgentHook(agent),
+        );
+      },
+      onTeammateRemoved: (teammateAgentId) => {
+        this.removeTeammate(teammateAgentId, 'hooks');
       },
       onSessionEnd: (agentId) => {
         const agent = this.agents.get(agentId);
@@ -233,6 +267,26 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   }
 
   /** Remove all teammates of a lead agent */
+  /** Remove a single teammate agent (used by both hook callback and team config polling). */
+  private removeTeammate(teammateAgentId: number, source: string): void {
+    const agent = this.agents.get(teammateAgentId);
+    if (!agent) return;
+    console.log(`[Pixel Agents] Removing teammate ${teammateAgentId} (source: ${source})`);
+    dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+    this.unregisterAgentHook(agent);
+    removeAgent(
+      teammateAgentId,
+      this.agents,
+      this.fileWatchers,
+      this.pollingTimers,
+      this.waitingTimers,
+      this.permissionTimers,
+      this.jsonlPollTimers,
+      this.persistAgents,
+    );
+    this.webview?.postMessage({ type: 'agentClosed', id: teammateAgentId });
+  }
+
   private removeTeammates(leadId: number): void {
     const teammates: number[] = [];
     for (const [id, agent] of this.agents) {

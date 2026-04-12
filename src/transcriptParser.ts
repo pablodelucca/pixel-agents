@@ -9,6 +9,7 @@ import {
   TEXT_IDLE_DELAY_MS,
   TOOL_DONE_DELAY_MS,
 } from '../server/src/constants.js';
+import type { HookProvider } from '../server/src/provider.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,
@@ -20,7 +21,25 @@ import type { AgentState } from './types.js';
 
 const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
 
+/** Hook provider: supplies formatToolStatus + team.extractTeamMetadataFromRecord.
+ *  Registered once at startup via setHookProvider(). Functions below assume it's set. */
+let hookProvider: HookProvider | null = null;
+
+/** Register the HookProvider that owns CLI-specific formatting and team metadata extraction. */
+export function setHookProvider(provider: HookProvider): void {
+  hookProvider = provider;
+}
+
+/** Format a tool status line. Delegates to the active HookProvider's formatToolStatus. */
 export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
+  if (hookProvider) return hookProvider.formatToolStatus(toolName, input);
+  // Fallback for bootstrapping / tests without a provider set.
+  return defaultFormatToolStatus(toolName, input);
+}
+
+/** Fallback formatter for edge cases (tests, provider not yet registered).
+ *  Mirrors Claude's formatting; most code paths use the provider's implementation. */
+function defaultFormatToolStatus(toolName: string, input: Record<string, unknown>): string {
   const base = (p: unknown) => (typeof p === 'string' ? path.basename(p) : '');
   switch (toolName) {
     case 'Read':
@@ -82,12 +101,13 @@ export function processTranscriptLine(
   try {
     const record = JSON.parse(line);
 
-    // -- Agent Teams: extract teamName/agentName from top-level JSONL fields --
-    // Update when teamName appears or changes (lead may create multiple teams in one session)
-    const recordTeamName = record.teamName as string | undefined;
-    if (recordTeamName && recordTeamName !== agent.teamName) {
-      agent.teamName = recordTeamName;
-      agent.agentName = (record.agentName as string) || undefined;
+    // -- Agent Teams: extract team metadata via the active provider --
+    // The provider reads its CLI's own field names (Claude: record.teamName + record.agentName).
+    // Other CLIs would implement this differently or not at all.
+    const teamMeta = hookProvider?.team?.extractTeamMetadataFromRecord(record);
+    if (teamMeta?.teamName && teamMeta.teamName !== agent.teamName) {
+      agent.teamName = teamMeta.teamName;
+      agent.agentName = teamMeta.agentName;
       agent.isTeamLead = undefined;
       agent.leadAgentId = undefined;
       if (debug) {
@@ -178,11 +198,12 @@ export function processTranscriptLine(
               });
             }
             // Skip webview message when hooks handle tool visuals (PreToolUse sent it instantly).
-            // Exception: Task/Agent tools always go through JSONL so the sub-agent character
-            // is created with the stable JSONL tool ID, matching cleanup messages.
-            const isAgentTool = toolName === 'Task' || toolName === 'Agent';
-            if (!agent.hookDelivered || isAgentTool) {
-              const runInBackground = isAgentTool && block.input?.run_in_background === true;
+            // EXCEPTION: subagent-spawn tools (Task/Agent) ALWAYS use JSONL so the sub-agent
+            // character is created with the REAL tool id. SubagentStop and subagentClear use
+            // the real id -- a synthetic-id sub-agent from PreToolUse could never be matched.
+            const isSubagentSpawn = toolName === 'Agent' || toolName === 'Task';
+            if (!agent.hookDelivered || isSubagentSpawn) {
+              const runInBackground = isSubagentSpawn && block.input?.run_in_background === true;
               webview?.postMessage({
                 type: 'agentToolStart',
                 id: agentId,
@@ -195,7 +216,11 @@ export function processTranscriptLine(
             }
           }
         }
-        if (hasNonExemptTool && !agent.hookDelivered) {
+        // Skip heuristic timer when hooks are active OR for teammates.
+        // Teammate tools (WebFetch, WebSearch) are naturally slow; the heuristic
+        // produces false positives. Permission on teammates comes from the lead's
+        // routed Notification(permission_prompt) hook — slower but accurate.
+        if (hasNonExemptTool && !agent.hookDelivered && !agent.leadAgentId) {
           startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
         }
       } else if (blocks.some((b) => b.type === 'text') && !agent.hadToolsInTurn) {
@@ -427,7 +452,7 @@ function processProgressRecord(
   // Skip when hooks are active — Notification hook handles permission detection exactly.
   const dataType = data.type as string | undefined;
   if (dataType === 'bash_progress' || dataType === 'mcp_progress') {
-    if (agent.activeToolIds.has(parentToolId) && !agent.hookDelivered) {
+    if (agent.activeToolIds.has(parentToolId) && !agent.hookDelivered && !agent.leadAgentId) {
       startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
     }
     return;

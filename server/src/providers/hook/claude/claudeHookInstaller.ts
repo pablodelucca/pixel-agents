@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { CLAUDE_HOOK_EVENTS, CLAUDE_HOOK_SCRIPT_NAME, HOOK_SCRIPTS_DIR } from '../../constants.js';
+import { HOOK_SCRIPTS_DIR } from '../../../constants.js';
+import { CLAUDE_HOOK_EVENTS, CLAUDE_HOOK_SCRIPT_NAME } from './constants.js';
 
 /** Marker string used to identify Pixel Agents hook entries in Claude's settings. */
 const HOOK_SCRIPT_MARKER = CLAUDE_HOOK_SCRIPT_NAME;
