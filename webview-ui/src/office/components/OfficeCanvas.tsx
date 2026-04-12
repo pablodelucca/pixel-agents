@@ -23,6 +23,7 @@ import type {
 import { renderFrame } from '../engine/renderer.js';
 import { getCatalogEntry, isRotatable } from '../layout/furnitureCatalog.js';
 import { EditTool, TILE_SIZE } from '../types.js';
+import { computeNormalModeCursor } from './officeCanvasCursor.js';
 
 interface OfficeCanvasProps {
   officeState: OfficeState;
@@ -458,28 +459,24 @@ export function OfficeCanvas({
       const pos = screenToWorld(e.clientX, e.clientY);
       if (!pos) return;
       const hitId = officeState.getCharacterAt(pos.worldX, pos.worldY);
+      const petId = hitId === null ? officeState.getPetAt(pos.worldX, pos.worldY) : null;
       const tile = screenToTile(e.clientX, e.clientY);
-      officeState.hoveredTile = tile;
       const canvas = canvasRef.current;
       if (canvas) {
-        let cursor = 'default';
-        if (hitId !== null) {
-          cursor = 'pointer';
-        } else if (officeState.selectedAgentId !== null && tile) {
-          // Check if hovering over a clickable seat (available or own)
-          const seatId = officeState.getSeatAtTile(tile.col, tile.row);
-          if (seatId) {
-            const seat = officeState.seats.get(seatId);
-            if (seat) {
-              const selectedCh = officeState.characters.get(officeState.selectedAgentId);
-              if (!seat.assigned || (selectedCh && selectedCh.seatId === seatId)) {
-                cursor = 'pointer';
-              }
-            }
-          }
-        }
-        canvas.style.cursor = cursor;
+        canvas.style.cursor = computeNormalModeCursor({
+          hitId,
+          petId,
+          selectedAgentId: officeState.selectedAgentId,
+          tile,
+          getSeatAtTile: (col, row) => officeState.getSeatAtTile(col, row),
+          getSeat: (seatId) => officeState.seats.get(seatId),
+          getCharacter: (id) => officeState.characters.get(id),
+        });
       }
+      // Hover state updates grouped after cursor computation (neither
+      // officeState.hoveredTile nor hoveredAgentId is read by computeNormalModeCursor,
+      // which consumes the local `tile` and `hitId` directly).
+      officeState.hoveredTile = tile;
       officeState.hoveredAgentId = hitId;
     },
     [
@@ -754,7 +751,13 @@ export function OfficeCanvas({
     editorState.ghostRow = -1;
     officeState.hoveredAgentId = null;
     officeState.hoveredTile = null;
-  }, [officeState, editorState]);
+    // Reset cursor in normal mode (edit mode keeps its tool-specific cursor,
+    // which will be restored on the next mousemove).
+    if (!isEditMode) {
+      const canvas = canvasRef.current;
+      if (canvas) canvas.style.cursor = 'default';
+    }
+  }, [officeState, editorState, isEditMode]);
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
