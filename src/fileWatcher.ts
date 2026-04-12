@@ -38,6 +38,7 @@ import {
 } from '../server/src/constants.js';
 import { removeAgent } from './agentManager.js';
 import { TERMINAL_NAME_PREFIX } from './constants.js';
+import { DEFAULT_PROVIDER_ID, type ProviderId } from './providers/providerTypes.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import type { AgentState } from './types.js';
@@ -364,6 +365,7 @@ function scanForNewJsonlFiles(
           activeTerminal,
           file,
           projectDir,
+          DEFAULT_PROVIDER_ID,
           nextAgentIdRef,
           agents,
           activeAgentIdRef,
@@ -393,6 +395,7 @@ function scanForNewJsonlFiles(
               terminal,
               file,
               projectDir,
+              DEFAULT_PROVIDER_ID,
               nextAgentIdRef,
               agents,
               activeAgentIdRef,
@@ -437,6 +440,7 @@ function adoptTerminalForFile(
   terminal: vscode.Terminal,
   jsonlFile: string,
   projectDir: string,
+  providerId: ProviderId,
   nextAgentIdRef: { current: number },
   agents: Map<number, AgentState>,
   activeAgentIdRef: { current: number | null },
@@ -463,6 +467,7 @@ function adoptTerminalForFile(
     sessionId,
     terminalRef: terminal,
     isExternal: false,
+    providerId,
     projectDir,
     jsonlFile,
     fileOffset,
@@ -513,6 +518,7 @@ function adoptTerminalForFile(
  * transcript_path and cwd directly, no scanning needed.
  */
 export function adoptExternalSessionFromHook(
+  providerId: ProviderId,
   sessionId: string,
   transcriptPath: string | undefined,
   cwd: string,
@@ -543,6 +549,7 @@ export function adoptExternalSessionFromHook(
     const folderName = folderNameFromProjectDir(path.basename(projectDir));
 
     adoptExternalSession(
+      providerId,
       transcriptPath,
       projectDir,
       nextAgentIdRef,
@@ -576,6 +583,7 @@ export function adoptExternalSessionFromHook(
       sessionId,
       terminalRef: undefined,
       isExternal: true,
+      providerId,
       projectDir: cwd,
       jsonlFile: '',
       fileOffset: 0,
@@ -609,6 +617,7 @@ export function adoptExternalSessionFromHook(
 }
 
 function adoptExternalSession(
+  providerId: ProviderId,
   jsonlFile: string,
   projectDir: string,
   nextAgentIdRef: { current: number },
@@ -635,6 +644,7 @@ function adoptExternalSession(
     sessionId: path.basename(jsonlFile, '.jsonl'),
     terminalRef: undefined,
     isExternal: true,
+    providerId,
     projectDir,
     jsonlFile,
     fileOffset,
@@ -851,6 +861,7 @@ function scanExternalDir(
     knownJsonlFiles.add(file);
     console.log(`[Pixel Agents] Watcher: detected external session ${path.basename(file)}`);
     adoptExternalSession(
+      DEFAULT_PROVIDER_ID,
       file,
       projectDir,
       nextAgentIdRef,
@@ -932,6 +943,7 @@ function scanGlobalProjectDirs(
         `[Pixel Agents] Watcher: detected global session ${path.basename(file)} (${folderName})`,
       );
       adoptExternalSession(
+        DEFAULT_PROVIDER_ID,
         file,
         dirPath,
         nextAgentIdRef,

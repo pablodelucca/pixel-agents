@@ -42,6 +42,7 @@ interface SessionLifecycleCallbacks {
   /** Called when an external session is detected (unknown session_id in SessionStart).
    *  transcriptPath is undefined for providers without transcripts (OpenCode, Copilot). */
   onExternalSessionDetected?: (
+    providerId: string,
     sessionId: string,
     transcriptPath: string | undefined,
     cwd: string,
@@ -60,6 +61,7 @@ interface SessionLifecycleCallbacks {
 
 /** Pending external session info (waiting for confirmation event before creating agent). */
 interface PendingExternalSession {
+  providerId: string;
   sessionId: string;
   /** Transcript file path. Undefined for providers without transcripts (OpenCode, Copilot). */
   transcriptPath: string | undefined;
@@ -202,6 +204,7 @@ export class HookEventHandler {
             `[Pixel Agents] Hook: SessionStart(source=${source}) -> pending external session ${sid}..., awaiting confirmation`,
           );
         this.pendingExternalSessions.set(event.session_id, {
+          providerId: _providerId,
           sessionId: event.session_id,
           transcriptPath: transcriptPath2,
           cwd: cwd ?? '',
@@ -235,6 +238,7 @@ export class HookEventHandler {
           `[Pixel Agents] Hook: ${eventName} confirmed external session ${event.session_id.slice(0, 8)}..., creating agent`,
         );
       this.lifecycleCallbacks.onExternalSessionDetected?.(
+        pending.providerId,
         pending.sessionId,
         pending.transcriptPath,
         pending.cwd,

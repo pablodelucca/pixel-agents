@@ -16,6 +16,7 @@ import {
   startFileWatching,
 } from './fileWatcher.js';
 import { migrateAndLoadLayout } from './layoutPersistence.js';
+import { DEFAULT_PROVIDER_ID, isProviderId, type ProviderId } from './providers/providerTypes.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
 import type { AgentState, PersistedAgent } from './types.js';
 
@@ -74,6 +75,7 @@ export async function launchNewTerminal(
   projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  providerId: ProviderId,
   folderPath?: string,
   bypassPermissions?: boolean,
 ): Promise<void> {
@@ -110,6 +112,7 @@ export async function launchNewTerminal(
     sessionId,
     terminalRef: terminal,
     isExternal: false,
+    providerId,
     projectDir,
     jsonlFile: expectedFile,
     fileOffset: 0,
@@ -292,6 +295,7 @@ export function persistAgents(
       jsonlFile: agent.jsonlFile,
       projectDir: agent.projectDir,
       folderName: agent.folderName,
+      providerId: agent.providerId,
     });
   }
   context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
@@ -350,6 +354,7 @@ export function restoreAgents(
       sessionId: p.sessionId || path.basename(p.jsonlFile, '.jsonl'),
       terminalRef: terminal,
       isExternal,
+      providerId: isProviderId(p.providerId) ? p.providerId : DEFAULT_PROVIDER_ID,
       projectDir: p.projectDir,
       jsonlFile: p.jsonlFile,
       fileOffset: 0,
@@ -391,7 +396,6 @@ export function restoreAgents(
     }
 
     restoredProjectDir = p.projectDir;
-
     // Start file watching if JSONL exists, skipping to end of file
     try {
       if (fs.existsSync(p.jsonlFile)) {

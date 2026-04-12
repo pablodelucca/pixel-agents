@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_PROVIDER_ID } from '../../src/providers/providerTypes.js';
 import type { AgentState } from '../../src/types.js';
 import { HookEventHandler } from '../src/hookEventHandler.js';
 
@@ -10,6 +11,7 @@ function createTestAgent(overrides: Partial<AgentState> = {}): AgentState {
     sessionId: '',
     terminalRef: undefined,
     isExternal: true,
+    providerId: DEFAULT_PROVIDER_ID,
     projectDir: '/test',
     jsonlFile: '/test/session.jsonl',
     fileOffset: 0,
@@ -533,7 +535,7 @@ describe('HookEventHandler', () => {
     handler.setLifecycleCallbacks({ onExternalSessionDetected });
 
     // SessionStart stores as pending
-    handler.handleEvent('claude', {
+    handler.handleEvent('codex', {
       hook_event_name: 'SessionStart',
       session_id: 'ext-sess',
       source: 'startup',
@@ -544,7 +546,8 @@ describe('HookEventHandler', () => {
     expect(onExternalSessionDetected).not.toHaveBeenCalled();
 
     // Simulate the provider creating the agent (callback side effect)
-    onExternalSessionDetected.mockImplementation((sessionId: string) => {
+    onExternalSessionDetected.mockImplementation((providerId: string, sessionId: string) => {
+      expect(providerId).toBe('codex');
       const agent = createTestAgent({
         id: 2,
         sessionId,
@@ -561,6 +564,7 @@ describe('HookEventHandler', () => {
     });
 
     expect(onExternalSessionDetected).toHaveBeenCalledWith(
+      'codex',
       'ext-sess',
       '/projects/test/ext-sess.jsonl',
       '/projects/test',
@@ -706,6 +710,7 @@ describe('HookEventHandler', () => {
     });
 
     expect(onExternalSessionDetected).toHaveBeenCalledWith(
+      'claude',
       'no-transcript-sess',
       undefined,
       '/projects/test',

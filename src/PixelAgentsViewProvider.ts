@@ -46,6 +46,7 @@ import {
   GLOBAL_KEY_WATCH_ALL_SESSIONS,
   LAYOUT_REVISION_KEY,
   WORKSPACE_KEY_AGENT_SEATS,
+  WORKSPACE_KEY_DEFAULT_PROVIDER,
 } from './constants.js';
 import {
   adoptExternalSessionFromHook,
@@ -59,6 +60,7 @@ import {
 } from './fileWatcher.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
+import { DEFAULT_PROVIDER_ID, isProviderId, type ProviderId } from './providers/providerTypes.js';
 import type { AgentState } from './types.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
@@ -87,6 +89,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   watchAllSessions = { current: false };
   // Hooks enabled state (mutable ref for passing to scanners)
   hooksEnabled = { current: true };
+  defaultProviderId: ProviderId = DEFAULT_PROVIDER_ID;
   globalDismissedFiles = new Set<string>();
 
   // Bundled default layout (loaded from assets/default-layout.json)
@@ -129,13 +132,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     );
 
     this.hookEventHandler.setLifecycleCallbacks({
-      onExternalSessionDetected: (sessionId, transcriptPath, cwd) => {
+      onExternalSessionDetected: (providerId, sessionId, transcriptPath, cwd) => {
         // Workspace filtering: only adopt if in a tracked project dir or Watch All Sessions is ON
         const projectDir = transcriptPath ? path.dirname(transcriptPath) : cwd;
         if (!isTrackedProjectDir(projectDir) && !this.watchAllSessions.current) {
           return; // Not our workspace and Watch All is OFF, ignore
         }
         adoptExternalSessionFromHook(
+          this.coerceProviderId(providerId),
           sessionId,
           transcriptPath,
           cwd,
@@ -241,6 +245,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     this.hookEventHandler?.unregisterAgent(agent.sessionId);
   }
 
+  private coerceProviderId(providerId: string | undefined): ProviderId {
+    return isProviderId(providerId) ? providerId : DEFAULT_PROVIDER_ID;
+  }
+
   resolveWebviewView(webviewView: vscode.WebviewView) {
     this.webviewView = webviewView;
     webviewView.webview.options = { enableScripts: true };
@@ -248,6 +256,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
       if (message.type === 'openClaude') {
+        const providerId = this.coerceProviderId(
+          (message.providerId as string | undefined) ?? this.defaultProviderId,
+        );
         const prevAgentIds = new Set(this.agents.keys());
         await launchNewTerminal(
           this.nextAgentId,
@@ -263,6 +274,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.projectScanTimer,
           this.webview,
           this.persistAgents,
+          providerId,
           message.folderPath as string | undefined,
           message.bypassPermissions as boolean | undefined,
         );
@@ -306,6 +318,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         // Store seat assignments in a separate key (never touched by persistAgents)
         console.log(`[Pixel Agents] State: saveAgentSeats:`, JSON.stringify(message.seats));
         this.context.workspaceState.update(WORKSPACE_KEY_AGENT_SEATS, message.seats);
+      } else if (message.type === 'setDefaultProvider') {
+        const providerId = this.coerceProviderId(message.providerId as string | undefined);
+        this.defaultProviderId = providerId;
+        this.context.workspaceState.update(WORKSPACE_KEY_DEFAULT_PROVIDER, providerId);
       } else if (message.type === 'saveLayout') {
         this.layoutWatcher?.markOwnWrite();
         writeLayoutToFile(message.layout as Record<string, unknown>);
@@ -415,6 +431,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           GLOBAL_KEY_HOOKS_INFO_SHOWN,
           false,
         );
+        const defaultProviderRaw = this.context.workspaceState.get<string | undefined>(
+          WORKSPACE_KEY_DEFAULT_PROVIDER,
+          undefined,
+        );
+        const defaultProvider = this.coerceProviderId(defaultProviderRaw);
+        if (defaultProviderRaw !== defaultProvider) {
+          this.context.workspaceState.update(WORKSPACE_KEY_DEFAULT_PROVIDER, defaultProvider);
+        }
+        this.defaultProviderId = defaultProvider;
         const config = readConfig();
         this.webview?.postMessage({
           type: 'settingsLoaded',
@@ -426,6 +451,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           hooksEnabled,
           hooksInfoShown,
           externalAssetDirectories: config.externalAssetDirectories,
+          enabledProviders: config.enabledProviders,
+          defaultProvider,
         });
 
         // Send workspace folders to webview (only when multi-root)

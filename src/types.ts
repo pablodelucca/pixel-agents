@@ -1,5 +1,7 @@
 import type * as vscode from 'vscode';
 
+import type { ProviderId } from './providers/providerTypes.js';
+
 export interface AgentState {
   id: number;
   sessionId: string;
@@ -32,8 +34,8 @@ export interface AgentState {
   hookDelivered: boolean;
   /** True when agent has no transcript file (provider doesn't use JSONL). All state from hooks. */
   hooksOnly?: boolean;
-  /** Provider that created this agent (defaults to 'claude') */
-  providerId?: string;
+  /** Provider that created this agent */
+  providerId: ProviderId;
   /** Set when SessionEnd(reason=clear) fires; cleared when SessionStart(source=clear) reassigns */
   pendingClear?: boolean;
   /** Hook-generated tool ID for PreToolUse/PostToolUse correlation */
@@ -51,4 +53,5 @@ export interface PersistedAgent {
   projectDir: string;
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+  providerId: ProviderId;
 }
