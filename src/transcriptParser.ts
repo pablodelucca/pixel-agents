@@ -1,6 +1,8 @@
 import * as path from 'path';
 import type * as vscode from 'vscode';
 
+const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
+
 import {
   BASH_COMMAND_DISPLAY_MAX_LENGTH,
   TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
@@ -18,7 +20,7 @@ import type { AgentState } from './types.js';
 
 const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
 
-function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
+export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
   const base = (p: unknown) => (typeof p === 'string' ? path.basename(p) : '');
   switch (toolName) {
     case 'Read':
@@ -95,21 +97,26 @@ export function processTranscriptLine(
           if (block.type === 'tool_use' && block.id) {
             const toolName = block.name || '';
             const status = formatToolStatus(toolName, block.input || {});
-            console.log(`[Pixel Agents] Agent ${agentId} tool start: ${block.id} ${status}`);
+            console.log(
+              `[Pixel Agents] JSONL: Agent ${agentId} - tool start: ${block.id} ${status}`,
+            );
             agent.activeToolIds.add(block.id);
             agent.activeToolStatuses.set(block.id, status);
             agent.activeToolNames.set(block.id, toolName);
             if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
               hasNonExemptTool = true;
             }
-            webview?.postMessage({
-              type: 'agentToolStart',
-              id: agentId,
-              toolId: block.id,
-              status,
-              toolName,
-              permissionActive: agent.permissionSent,
-            });
+            // Skip webview message when hooks handle tool visuals (PreToolUse sent it instantly)
+            if (!agent.hookDelivered) {
+              webview?.postMessage({
+                type: 'agentToolStart',
+                id: agentId,
+                toolId: block.id,
+                status,
+                toolName,
+                permissionActive: agent.permissionSent,
+              });
+            }
           }
         }
         if (hasNonExemptTool && !agent.hookDelivered) {
@@ -160,7 +167,9 @@ export function processTranscriptLine(
                 continue; // don't mark as done yet
               }
 
-              console.log(`[Pixel Agents] Agent ${agentId} tool done: ${block.tool_use_id}`);
+              console.log(
+                `[Pixel Agents] JSONL: Agent ${agentId} - tool done: ${block.tool_use_id}`,
+              );
               // If the completed tool was a Task/Agent, clear its subagent tools
               if (completedToolName === 'Task' || completedToolName === 'Agent') {
                 agent.activeSubagentToolIds.delete(completedToolId);
@@ -174,14 +183,16 @@ export function processTranscriptLine(
               agent.activeToolIds.delete(completedToolId);
               agent.activeToolStatuses.delete(completedToolId);
               agent.activeToolNames.delete(completedToolId);
-              const toolId = completedToolId;
-              setTimeout(() => {
-                webview?.postMessage({
-                  type: 'agentToolDone',
-                  id: agentId,
-                  toolId,
-                });
-              }, TOOL_DONE_DELAY_MS);
+              if (!agent.hookDelivered) {
+                const toolId = completedToolId;
+                setTimeout(() => {
+                  webview?.postMessage({
+                    type: 'agentToolDone',
+                    id: agentId,
+                    toolId,
+                  });
+                }, TOOL_DONE_DELAY_MS);
+              }
             }
           }
           // All tools completed — allow text-idle timer as fallback
@@ -223,14 +234,16 @@ export function processTranscriptLine(
             agent.activeToolIds.delete(completedToolId);
             agent.activeToolStatuses.delete(completedToolId);
             agent.activeToolNames.delete(completedToolId);
-            const toolId = completedToolId;
-            setTimeout(() => {
-              webview?.postMessage({
-                type: 'agentToolDone',
-                id: agentId,
-                toolId,
-              });
-            }, TOOL_DONE_DELAY_MS);
+            if (!agent.hookDelivered) {
+              const toolId = completedToolId;
+              setTimeout(() => {
+                webview?.postMessage({
+                  type: 'agentToolDone',
+                  id: agentId,
+                  toolId,
+                });
+              }, TOOL_DONE_DELAY_MS);
+            }
           }
         }
       }
@@ -299,10 +312,12 @@ export function processTranscriptLine(
       const knownSkippableTypes = new Set(['file-history-snapshot', 'system', 'queue-operation']);
       if (!knownSkippableTypes.has(record.type)) {
         agent.seenUnknownRecordTypes.add(record.type);
-        console.log(
-          `[Pixel Agents] Agent ${agentId}: unrecognized record type '${record.type}'. ` +
-            `Keys: ${Object.keys(record).join(', ')}`,
-        );
+        if (debug) {
+          console.log(
+            `[Pixel Agents] JSONL: Agent ${agentId} - unrecognized record type '${record.type}'. ` +
+              `Keys: ${Object.keys(record).join(', ')}`,
+          );
+        }
       }
     }
   } catch {

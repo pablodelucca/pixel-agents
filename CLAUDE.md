@@ -104,7 +104,13 @@ JSONL transcripts at `~/.claude/projects/<project-hash>/<session-id>.jsonl`. Pro
 
 **File watching**: Single polling approach (500ms). Partial line buffering for mid-write reads. Tool done messages delayed 300ms to prevent flicker.
 
-**Hook-based detection**: HTTP server (`server/src/server.ts`) receives hook events from Claude Code via `~/.pixel-agents/hooks/claude-hook.js`. Events: `Stop` (turn complete), `PermissionRequest` (waiting for approval), `Notification` (idle prompt, permission prompt). Hook events suppress heuristic timers when `agent.hookDelivered = true`. Server discovery via `~/.pixel-agents/server.json` (port + PID + auth token). Multi-window safe (second instance reuses existing server).
+**Dual-mode session detection**: Hooks mode (preferred) uses Claude Code Hooks API for instant, reliable detection. Heuristic mode (fallback) uses filesystem polling when hooks are unavailable. The `hookDelivered` flag per agent and `hooksEnabledRef` globally control the switch.
+
+**Hooks mode** (11 events): `SessionStart` (session begin/resume/clear), `SessionEnd` (exit/clear), `Stop` (turn complete), `PermissionRequest`, `Notification` (idle/permission prompt), `UserPromptSubmit` (instant agent spawn confirmation), `PreToolUse` (instant active state), `PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop`. HTTP server (`server/src/server.ts`) receives events via `~/.pixel-agents/hooks/claude-hook.js`. Server discovery via `~/.pixel-agents/server.json` (port + PID + auth token). Multi-window safe. When hooks are active, heuristic scanners (main 1s, external 3s, stale 30s) are skipped entirely.
+
+**Heuristic mode** (fallback): Per-agent 500ms JSONL polling for /clear detection, 1s main scanner for terminal adoption, 3s external scanner, 30s stale check. Content-based /clear detection (`/clear</command-name>` in first 8KB). Multiple dismissal systems (clearDismissedFiles, dismissedJsonlFiles, seededMtimes, pendingClearFiles).
+
+**JSONL polling** (always active): `readNewLines` + `processTranscriptLine` run in both modes for tool content (status text, animations). Only timer logic (permission 7s, text-idle 5s) is suppressed by `hookDelivered`.
 
 **Extension state per agent**: `id, terminalRef, projectDir, jsonlFile, fileOffset, lineBuffer, activeToolIds, activeToolStatuses, activeSubagentToolNames, isWaiting`.
 
