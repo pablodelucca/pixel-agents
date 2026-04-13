@@ -5,7 +5,6 @@ import type { AgentState } from '../../src/types.js';
  *
  * These replace the duplicated filter pattern
  *   `a.leadAgentId === agentId && !a.teamUsesTmux`
- * that previously appeared 8 times across hookEventHandler.ts and fileWatcher.ts.
  *
  * "Inline teammate": a teammate running in-process with the lead (no separate
  * terminal). These share the lead's `session_id` in hook events, so routing

@@ -6,7 +6,7 @@ import {
   BASH_COMMAND_DISPLAY_MAX_LENGTH,
   TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
 } from '../../../constants.js';
-import type { AgentEvent, AgentLifecycleEvent, HookProvider } from '../../../provider.js';
+import type { AgentEvent, HookProvider } from '../../../provider.js';
 import {
   areHooksInstalled as installerAreHooksInstalled,
   installHooks as installerInstallHooks,
@@ -113,7 +113,7 @@ function buildLaunchCommand(
 
 function normalizeHookEvent(
   raw: Record<string, unknown>,
-): { sessionId: string; event: AgentEvent | AgentLifecycleEvent } | null {
+): { sessionId: string; event: AgentEvent } | null {
   const eventName = raw.hook_event_name;
   const sessionId = raw.session_id;
   if (typeof eventName !== 'string' || typeof sessionId !== 'string') return null;

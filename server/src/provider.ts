@@ -1,10 +1,10 @@
 /**
  * Provider abstraction for AI agent tools.
  *
- * Three provider types cover the full taxonomy:
- * - HookProvider: CLIs with hooks APIs (Claude Code, Codex, Gemini, Cursor, etc.)
- * - FileProvider: CLIs without hooks, transcript polling only (Goose, Aider, SWE-agent)
- * - StreamProvider: External services with persistent connections (Discord, LangGraph, OpenClaw)
+ * Only HookProvider ships today (Claude Code). Transcript-polling and push-based
+ * provider types will be added when a real second provider (Codex, Goose,
+ * Discord, etc.) actually lands, derived from that provider's needs rather than
+ * speculation.
  */
 
 import type { TeamProvider } from './teamProvider.js';
@@ -30,11 +30,7 @@ export type AgentEvent =
   | { kind: 'sessionStart'; source?: string }
   | { kind: 'sessionEnd'; reason?: string };
 
-export type AgentLifecycleEvent =
-  | { kind: 'agentJoined'; displayName: string; metadata?: Record<string, unknown> }
-  | { kind: 'agentLeft' };
-
-// ── Hook-based Provider (CLIs with hooks APIs, the default) ──
+// ── Hook-based Provider (CLIs with hooks APIs) ────────────────
 
 export interface HookProvider {
   readonly kind: 'hook';
@@ -47,7 +43,7 @@ export interface HookProvider {
    *  Return null for events we should ignore. */
   normalizeHookEvent(raw: Record<string, unknown>): {
     sessionId: string;
-    event: AgentEvent | AgentLifecycleEvent;
+    event: AgentEvent;
   } | null;
 
   /** Install hook scripts that POST to our server. */
@@ -89,45 +85,5 @@ export interface HookProvider {
   readonly team?: TeamProvider;
 }
 
-// ── File-based Provider (CLIs without hooks, polling only) ──
-
-export interface FileProvider {
-  readonly kind: 'file';
-  readonly id: string;
-  readonly displayName: string;
-
-  getSessionDirs(workspacePath: string): string[];
-  readonly sessionFilePattern: string;
-  buildLaunchCommand(
-    sessionId: string,
-    cwd: string,
-  ): {
-    command: string;
-    args: string[];
-    env?: Record<string, string>;
-  };
-  parseTranscriptLine(line: string): AgentEvent | null;
-  formatToolStatus(toolName: string, input?: unknown): string;
-  readonly permissionExemptTools: ReadonlySet<string>;
-  readonly subagentToolNames: ReadonlySet<string>;
-}
-
-// ── Stream-based Provider (external services that push events) ──
-
-export interface StreamProvider {
-  readonly kind: 'stream';
-  readonly id: string;
-  readonly displayName: string;
-
-  /** Connect to the external service. Calls onEvent for each agent event. */
-  connect(
-    onEvent: (agentKey: string, event: AgentEvent | AgentLifecycleEvent) => void,
-  ): Promise<void>;
-  /** Graceful disconnect */
-  disconnect(): Promise<void>;
-  formatToolStatus(toolName: string, input?: unknown): string;
-}
-
-// ── Discriminated union ──
-
-export type AgentProvider = HookProvider | FileProvider | StreamProvider;
+// TODO(provider type taxonomy): FileProvider (polling-only CLIs) and StreamProvider
+// (push-based external services) will be added alongside the first real second provider

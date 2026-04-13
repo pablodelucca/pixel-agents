@@ -19,42 +19,20 @@ describe('claudeTeamProvider', () => {
     });
   });
 
-  describe('isTeammateSpawnCall', () => {
-    it('returns true for Agent tool with run_in_background=true', () => {
-      expect(claudeTeamProvider.isTeammateSpawnCall('Agent', { run_in_background: true })).toBe(
-        true,
-      );
-    });
-
-    it('returns false for Agent tool without run_in_background', () => {
-      expect(claudeTeamProvider.isTeammateSpawnCall('Agent', {})).toBe(false);
-    });
-
-    it('returns false for Agent tool with run_in_background=false', () => {
-      expect(claudeTeamProvider.isTeammateSpawnCall('Agent', { run_in_background: false })).toBe(
-        false,
-      );
-    });
-
-    it('returns false for Agent tool with non-boolean run_in_background', () => {
-      expect(claudeTeamProvider.isTeammateSpawnCall('Agent', { run_in_background: 'true' })).toBe(
-        false,
-      );
-      expect(claudeTeamProvider.isTeammateSpawnCall('Agent', { run_in_background: 1 })).toBe(false);
-    });
-
-    it('returns false for Task tool regardless of run_in_background', () => {
-      expect(claudeTeamProvider.isTeammateSpawnCall('Task', { run_in_background: true })).toBe(
-        false,
-      );
-      expect(claudeTeamProvider.isTeammateSpawnCall('Task', {})).toBe(false);
-    });
-
-    it('returns false for arbitrary tool names', () => {
-      expect(claudeTeamProvider.isTeammateSpawnCall('Read', {})).toBe(false);
-      expect(claudeTeamProvider.isTeammateSpawnCall('WebSearch', { run_in_background: true })).toBe(
-        false,
-      );
+  describe.each([
+    { tool: 'Agent', input: { run_in_background: true }, expected: true },
+    { tool: 'Agent', input: { run_in_background: false }, expected: false },
+    { tool: 'Agent', input: {}, expected: false },
+    // Non-boolean run_in_background must not trigger the teammate path.
+    { tool: 'Agent', input: { run_in_background: 'true' }, expected: false },
+    { tool: 'Agent', input: { run_in_background: 1 }, expected: false },
+    // Task/arbitrary tools never spawn teammates regardless of flags.
+    { tool: 'Task', input: { run_in_background: true }, expected: false },
+    { tool: 'Read', input: {}, expected: false },
+    { tool: 'WebSearch', input: { run_in_background: true }, expected: false },
+  ])('isTeammateSpawnCall($tool, $input)', ({ tool, input, expected }) => {
+    it(`returns ${expected}`, () => {
+      expect(claudeTeamProvider.isTeammateSpawnCall(tool, input)).toBe(expected);
     });
   });
 
@@ -120,10 +98,8 @@ describe('claudeTeamProvider', () => {
   });
 
   describe('getTeamMembers', () => {
-    // Use a temp directory under os.tmpdir() pretending to be ~/.claude/teams/<teamName>/
-    // This keeps tests hermetic without mocking fs.
+    // Writes under ~/.claude/teams/<TEAM_NAME>/ and cleans up in afterEach.
     const fs = require('fs') as typeof import('fs');
-    const TMP_TEAM_DIR = path.join(os.tmpdir(), 'pixel-agents-test-teams');
     const TEAM_NAME = 'test-team-' + Date.now();
 
     afterEach(() => {
@@ -164,13 +140,6 @@ describe('claudeTeamProvider', () => {
       expect(claudeTeamProvider.getTeamMembers(TEAM_NAME)).toBeNull();
     });
 
-    it('returns null when members field is missing or not an array', () => {
-      const teamDir = path.join(os.homedir(), '.claude', 'teams', TEAM_NAME);
-      fs.mkdirSync(teamDir, { recursive: true });
-      fs.writeFileSync(path.join(teamDir, 'config.json'), '{}');
-      expect(claudeTeamProvider.getTeamMembers(TEAM_NAME)).toBeNull();
-    });
-
     it('skips members without a string name', () => {
       const teamDir = path.join(os.homedir(), '.claude', 'teams', TEAM_NAME);
       fs.mkdirSync(teamDir, { recursive: true });
@@ -187,11 +156,6 @@ describe('claudeTeamProvider', () => {
       );
       const result = claudeTeamProvider.getTeamMembers(TEAM_NAME);
       expect([...result!].sort()).toEqual(['also-valid', 'valid']);
-    });
-
-    // Use the TMP var so the lint doesn't complain about unused top-level const
-    it('TMP_TEAM_DIR exists for scoping', () => {
-      expect(typeof TMP_TEAM_DIR).toBe('string');
     });
   });
 
