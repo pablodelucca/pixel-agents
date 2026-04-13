@@ -16,20 +16,14 @@ import { transactionHistoryRoutes } from './routes/transactionHistory.js';
 import { tripayCallbackRoutes } from './routes/tripayCallback.js';
 
 const app = express();
-const DB_URL = process.env.POCKETBASE_URL || 'http://localhost:8090';
+const FRONTEND_URL = process.env.FRONTEND_URL || '';
+const DB_URL = process.env.SUPABASE_URL || 'not configured';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-    'https://clawmpany.id',
-    'https://www.clawmpany.id',
-  ],
+  origin: FRONTEND_URL ? [FRONTEND_URL] : true,
   credentials: true,
 }));
 app.use(express.json());
@@ -71,7 +65,12 @@ if (IS_PRODUCTION) {
   });
 }
 
-const DEFAULT_PORT = parseInt(process.env.PORT || '3001', 10);
+const DEFAULT_PORT = parseInt(process.env.BACKEND_PORT || '0', 10);
+
+if (!DEFAULT_PORT) {
+  console.error('❌ BACKEND_PORT environment variable is required');
+  process.exit(1);
+}
 const MAX_ATTEMPTS = 10;
 
 function tryListen(port: number, attemptsLeft: number): Promise<number> {
@@ -90,7 +89,7 @@ function tryListen(port: number, attemptsLeft: number): Promise<number> {
       console.log(`   - http://localhost:${port}/api/servers`);
       console.log(`   - http://localhost:${port}/api/history/payment`);
       console.log(`   - http://localhost:${port}/api/history/transaction`);
-      console.log(`📦 Database: ${DB_URL}`);
+      console.log(`📦 Database: Supabase (${DB_URL})`);
       resolve(port);
     });
 

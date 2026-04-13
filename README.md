@@ -13,8 +13,8 @@ clawmpany/
 └── dist/           Build output (gitignored)
 ```
 
-**Dev:** Vite :5173 proxies `/api` → Express :3001
-**Prod:** Express :3001 serves API + built frontend
+**Dev:** Vite proxies `/api` → Express (BACKEND_PORT)
+**Prod:** Express (BACKEND_PORT) serves API + built frontend
 
 ## 🚀 Quick Start
 
@@ -24,8 +24,8 @@ cp .env.example .env   # edit with your values
 npm run dev
 ```
 
-- Frontend: http://localhost:5173
-- API: http://localhost:5173/api/* (proxied to :3001)
+- Frontend: http://localhost:${FRONTEND_PORT}
+- API: http://localhost:${FRONTEND_PORT}/api/* (proxied to BACKEND_PORT)
 
 ### Production (Docker)
 
@@ -35,7 +35,7 @@ npm run build:docker
 npm run start:docker
 ```
 
-Access: http://localhost:3001
+Access: http://localhost:${BACKEND_PORT}
 
 ## 🔧 Scripts
 
@@ -51,7 +51,7 @@ Access: http://localhost:3001
 
 ## 📦 Tech Stack
 
-React 19 · Vite · Express · TypeScript · Privy Auth · PocketBase *(→ Supabase)* · Tripay
+React 19 · Vite · Express · TypeScript · Privy Auth · Supabase · Tripay
 
 ## 📝 License
 
