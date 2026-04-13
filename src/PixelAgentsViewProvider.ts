@@ -34,6 +34,7 @@ import {
 } from './assetLoader.js';
 import { readConfig, writeConfig } from './configPersistence.js';
 import {
+  CONFIG_KEY_AUTO_SPAWN_AGENT,
   GLOBAL_KEY_ALWAYS_SHOW_LABELS,
   GLOBAL_KEY_HOOKS_ENABLED,
   GLOBAL_KEY_HOOKS_INFO_SHOWN,
@@ -103,6 +104,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   private pixelAgentsServer: PixelAgentsServer | null = null;
   // ServerConfig is not stored as a field; use this.pixelAgentsServer?.getConfig() if needed.
   private hookEventHandler: HookEventHandler | null = null;
+
+  // Auto-spawn guard: ensures the startup spawn fires at most once per VS Code
+  // session, even though webviewReady fires on every panel focus.
+  private autoSpawnAttempted = false;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.initHooks();
@@ -495,6 +500,43 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         for (const agent of this.agents.values()) {
           this.registerAgentHook(agent);
         }
+
+        // Auto-spawn: launch one agent on first webviewReady if the setting is
+        // enabled and no agents are currently running.
+        if (
+          !this.autoSpawnAttempted &&
+          vscode.workspace.getConfiguration().get<boolean>(CONFIG_KEY_AUTO_SPAWN_AGENT, false) &&
+          this.agents.size === 0
+        ) {
+          this.autoSpawnAttempted = true;
+          console.log('[Pixel Agents] Auto-spawning agent on startup');
+          const prevAgentIds = new Set(this.agents.keys());
+          await launchNewTerminal(
+            this.nextAgentId,
+            this.nextTerminalIndex,
+            this.agents,
+            this.activeAgentId,
+            this.knownJsonlFiles,
+            this.fileWatchers,
+            this.pollingTimers,
+            this.waitingTimers,
+            this.permissionTimers,
+            this.jsonlPollTimers,
+            this.projectScanTimer,
+            this.webview,
+            this.persistAgents,
+          );
+          for (const [id, agent] of this.agents) {
+            if (!prevAgentIds.has(id)) {
+              this.registerAgentHook(agent);
+            }
+          }
+        } else {
+          // Mark as attempted even when skipping, so subsequent panel focuses
+          // (which retrigger webviewReady) never auto-spawn unexpectedly.
+          this.autoSpawnAttempted = true;
+        }
+
         // Send persisted settings to webview
         const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
         const lastSeenVersion = this.context.globalState.get<string>(
