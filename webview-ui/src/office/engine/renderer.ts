@@ -9,6 +9,7 @@ import {
   BUTTON_LINE_WIDTH_ZOOM_FACTOR,
   BUTTON_MIN_RADIUS,
   BUTTON_RADIUS_ZOOM_FACTOR,
+  CARPET_DEFAULT_ACCENT_COLOR,
   CARPET_DEFAULT_COLOR,
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_Z_SORT_OFFSET,
@@ -148,7 +149,7 @@ export function renderCarpetLayer(
         const tile = carpetTiles[pos.row * cols + pos.col];
         if (!tile) continue;
         const color = tile.color ?? CARPET_DEFAULT_COLOR;
-        const accentColor = tile.accentColor ?? color;
+        const accentColor = tile.accentColor ?? CARPET_DEFAULT_ACCENT_COLOR;
         const paletteKey = getCarpetPaletteKey(color, accentColor);
         const key = `${tile.variant}:${paletteKey}`;
         const order = tile.order ?? 0;

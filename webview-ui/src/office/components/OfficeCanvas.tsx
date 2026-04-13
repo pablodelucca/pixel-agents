@@ -10,6 +10,7 @@ import {
 } from '../../constants.js';
 import { unlockAudio } from '../../notificationSound.js';
 import { vscode } from '../../vscodeApi.js';
+import { getColorizedSprite } from '../colorize.js';
 import { canPlaceFurniture, getWallPlacementRow } from '../editor/editorActions.js';
 import type { EditorState } from '../editor/editorState.js';
 import { startGameLoop } from '../engine/gameLoop.js';
@@ -160,7 +161,14 @@ export function OfficeCanvas({
                 editorState.selectedFurnitureType,
                 editorState.ghostRow,
               );
-              editorRender.ghostSprite = entry.sprite;
+              const pickedColor = editorState.pickedFurnitureColor;
+              editorRender.ghostSprite = pickedColor
+                ? getColorizedSprite(
+                    `ghost-${editorState.selectedFurnitureType}-${pickedColor.h}-${pickedColor.s}-${pickedColor.b}-${pickedColor.c}-${pickedColor.colorize ?? ''}`,
+                    entry.sprite,
+                    pickedColor,
+                  )
+                : entry.sprite;
               editorRender.ghostRow = placementRow;
               editorRender.ghostMirrored =
                 !!entry.mirrorSide && editorState.selectedFurnitureType.endsWith(':left');
@@ -596,6 +604,15 @@ export function OfficeCanvas({
           editorState.clearSelection();
           onEditorSelectionChange();
         }
+      }
+
+      // Pick tools: sample without starting a paint drag
+      if (
+        editorState.activeTool === EditTool.FURNITURE_PICK ||
+        editorState.activeTool === EditTool.CARPET_PICK
+      ) {
+        if (tile) onEditorTileAction(tile.col, tile.row);
+        return;
       }
 
       // Non-select tools: start paint drag

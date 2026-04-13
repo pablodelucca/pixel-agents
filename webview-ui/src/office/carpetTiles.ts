@@ -15,8 +15,8 @@
  */
 
 import type { ColorValue } from '../components/ui/types.js';
-import { CARPET_DEFAULT_COLOR } from '../constants.js';
-import { colorizeSprite, getColorizedSprite } from './colorize.js';
+import { CARPET_DEFAULT_ACCENT_COLOR, CARPET_DEFAULT_COLOR } from '../constants.js';
+import { flatColorizeSprite } from './colorize.js';
 import type { CarpetTile, SpriteData } from './types.js';
 
 /** Carpet sprite sets: indexed [variant][msCase] */
@@ -29,7 +29,7 @@ function getCarpetEffectiveColor(tile: CarpetTile | null | undefined): ColorValu
 }
 
 function getCarpetEffectiveAccentColor(tile: CarpetTile | null | undefined): ColorValue {
-  return tile?.accentColor ?? tile?.color ?? CARPET_DEFAULT_COLOR;
+  return tile?.accentColor ?? CARPET_DEFAULT_ACCENT_COLOR;
 }
 
 export function getCarpetColorKey(color: ColorValue): string {
@@ -96,7 +96,7 @@ export function getCarpetJunctionSprite(
   if (!sprite) return null;
 
   const effectiveColor: ColorValue = color ?? CARPET_DEFAULT_COLOR;
-  const effectiveAccentColor: ColorValue = accentColor ?? effectiveColor;
+  const effectiveAccentColor: ColorValue = accentColor ?? CARPET_DEFAULT_ACCENT_COLOR;
   const cacheKey = `carpet-${variant}-${msCase}-${getCarpetPaletteKey(effectiveColor, effectiveAccentColor)}`;
   return getDualColorizedCarpetSprite(
     cacheKey,
@@ -175,7 +175,7 @@ function getDualColorizedCarpetSprite(
   if (cached) return cached;
 
   if (!palette?.mainRgb || palette.mainRgb === palette.accentRgb) {
-    const single = getColorizedSprite(`${cacheKey}-single`, sprite, color);
+    const single = flatColorizeSprite(sprite, color);
     carpetCache.set(cacheKey, single);
     return single;
   }
@@ -183,8 +183,8 @@ function getDualColorizedCarpetSprite(
   const accentRgb = palette.accentRgb ?? palette.mainRgb;
   const mainMask = maskCarpetSprite(sprite, palette.mainRgb);
   const accentMask = maskCarpetSprite(sprite, accentRgb);
-  const mainSprite = colorizeSprite(mainMask, color);
-  const accentSprite = colorizeSprite(accentMask, accentColor);
+  const mainSprite = flatColorizeSprite(mainMask, color);
+  const accentSprite = flatColorizeSprite(accentMask, accentColor);
   const merged = mergeCarpetLayers(mainSprite, accentSprite);
   carpetCache.set(cacheKey, merged);
   return merged;

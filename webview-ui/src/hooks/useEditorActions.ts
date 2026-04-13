@@ -50,6 +50,7 @@ export interface EditorActions {
   handleWallColorChange: (color: ColorValue) => void;
   handleWallSetChange: (setIndex: number) => void;
   handleSelectedFurnitureColorChange: (color: ColorValue | null) => void;
+  handlePickedFurnitureColorChange: (color: ColorValue | null) => void;
   handleFurnitureTypeChange: (type: string) => void; // FurnitureType enum or asset ID
   handleCarpetColorChange: (color: ColorValue | undefined) => void;
   handleCarpetAccentColorChange: (color: ColorValue | undefined) => void;
@@ -243,6 +244,14 @@ export function useEditorActions(
     [getOfficeState, editorState, saveLayout],
   );
 
+  const handlePickedFurnitureColorChange = useCallback(
+    (color: ColorValue | null) => {
+      editorState.pickedFurnitureColor = color;
+      setEditorTick((n) => n + 1);
+    },
+    [editorState],
+  );
+
   const handleFurnitureTypeChange = useCallback(
     (type: string) => {
       // Clicking the same item deselects it (no ghost), stays in furniture mode
@@ -277,7 +286,12 @@ export function useEditorActions(
 
   const handleCarpetVariantChange = useCallback(
     (variant: number) => {
-      editorState.carpetVariant = variant;
+      // Clicking the same variant deselects it, like furniture type toggle
+      if (editorState.carpetVariant === variant) {
+        editorState.carpetVariant = -1;
+      } else {
+        editorState.carpetVariant = variant;
+      }
       editorState.carpetOrder = undefined;
       setEditorTick((n) => n + 1);
     },
@@ -702,6 +716,7 @@ export function useEditorActions(
     handleWallColorChange,
     handleWallSetChange,
     handleSelectedFurnitureColorChange,
+    handlePickedFurnitureColorChange,
     handleFurnitureTypeChange,
     handleCarpetColorChange,
     handleCarpetAccentColorChange,

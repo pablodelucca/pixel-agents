@@ -38,9 +38,17 @@ interface ColorPickerProps {
   colorize?: boolean;
   /** Show a colorize checkbox that lets the user toggle the mode */
   showColorizeToggle?: boolean;
+  /** Show a Reset button in the bottom row */
+  onReset?: () => void;
 }
 
-export function ColorPicker({ value, onChange, colorize, showColorizeToggle }: ColorPickerProps) {
+export function ColorPicker({
+  value,
+  onChange,
+  colorize,
+  showColorizeToggle,
+  onReset,
+}: ColorPickerProps) {
   const handleChange = (key: keyof ColorValue, v: number) => {
     onChange({ ...value, [key]: v });
   };
@@ -77,16 +85,30 @@ export function ColorPicker({ value, onChange, colorize, showColorizeToggle }: C
         max={100}
         onChange={(v) => handleChange('c', v)}
       />
-      {showColorizeToggle && (
-        <label className="flex items-center gap-4 text-sm text-text-muted cursor-pointer">
-          <input
-            type="checkbox"
-            checked={!!value.colorize}
-            onChange={(e) => onChange({ ...value, colorize: e.target.checked || undefined })}
-            className="accent-accent"
-          />
-          Colorize
-        </label>
+      {(showColorizeToggle || onReset) && (
+        <div className="flex items-center justify-between">
+          {showColorizeToggle ? (
+            <label className="flex items-center gap-4 text-sm text-text-muted cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!value.colorize}
+                onChange={(e) => onChange({ ...value, colorize: e.target.checked || undefined })}
+                className="accent-accent"
+              />
+              Colorize
+            </label>
+          ) : (
+            <div />
+          )}
+          {onReset && (
+            <button
+              className="text-sm text-text-muted hover:text-text cursor-pointer bg-transparent border-0 p-0"
+              onClick={onReset}
+            >
+              Reset
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
