@@ -63,7 +63,7 @@ const OFFICE_PACKAGES: OfficePackage[] = [
 const USDC_CONTRACT = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 
 // API base URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = '';
 
 // Helper to format countdown as MM:SS
 function formatCountdown(seconds: number): string {

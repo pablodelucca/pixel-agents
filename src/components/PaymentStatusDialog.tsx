@@ -53,7 +53,7 @@ export function PaymentStatusDialog({ onClose }: PaymentStatusDialogProps) {
         }
 
         // Call API to check status
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const apiUrl = '';
         const response = await fetch(
           `${apiUrl}/api/credits/topup/status?tripay_ref=${tripayRef}&merchant_ref=${merchantRef}`,
           {

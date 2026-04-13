@@ -39,45 +39,72 @@ tripayCallbackRoutes.post('/callback', async (req: Request, res: Response) => {
 
     console.log('[/api/tripay/callback] Payment status:', { merchant_ref, status, payment_method, total_amount });
 
-    const pb = await getDb();
+    const db = getDb();
 
-    // Find payment record by merchant_ref
-    const payment = await pb.collection('payment').getFirstListItem<PaymentRecord>(
-      `metadata.merchant_ref = "${merchant_ref}"`,
-    ).catch(() => null);
+    // Find payment record by merchant_ref in metadata (JSONB)
+    let payment: PaymentRecord | null = null;
 
-    const paymentFinal = payment || await pb.collection('payment').getFirstListItem<PaymentRecord>(
-      `metadata.data.merchant_ref = "${merchant_ref}"`,
-    ).catch(() => null);
+    // Try metadata->>merchant_ref first
+    const { data: payment1 } = await db
+      .from('payments')
+      .select('*')
+      .filter('metadata->>merchant_ref', 'eq', merchant_ref)
+      .maybeSingle();
+    payment = payment1;
 
-    if (!paymentFinal) {
+    // Fallback: try metadata->data->>merchant_ref
+    if (!payment) {
+      const { data: payment2 } = await db
+        .from('payments')
+        .select('*')
+        .filter('metadata->data->>merchant_ref', 'eq', merchant_ref)
+        .maybeSingle();
+      payment = payment2 || null;
+    }
+
+    if (!payment) {
       console.error('[/api/tripay/callback] Payment not found for merchant_ref:', merchant_ref);
       return res.status(404).json({ success: false, message: 'Payment not found' });
     }
 
-    await pb.collection('payment').update(paymentFinal.id, {
-      status,
-      metadata: {
-        ...paymentFinal.metadata,
-        callback: req.body,
-        callback_at: new Date().toISOString(),
-      },
-    });
+    await db
+      .from('payments')
+      .update({
+        status,
+        metadata: {
+          ...payment.metadata,
+          callback: req.body,
+          callback_at: new Date().toISOString(),
+        },
+      })
+      .eq('id', payment.id);
 
-    console.log('[/api/tripay/callback] Payment updated:', paymentFinal.id, '->', status);
+    console.log('[/api/tripay/callback] Payment updated:', payment.id, '->', status);
 
     if (status === 'PAID') {
-      const userId = paymentFinal.user_id;
-      const amount = paymentFinal.amount;
+      const userId = payment.user_id;
+      const amount = payment.amount;
 
       console.log('[/api/tripay/callback] Adding credits to user:', { userId, amount });
 
-      let credit = await pb.collection('credit').getFirstListItem<CreditRecord>(
-        `user_id="${userId}"`,
-      ).catch(() => null);
+      let { data: credit, error: creditError } = await db
+        .from('credits')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
 
       if (!credit) {
-        credit = await pb.collection('credit').create<CreditRecord>({ user_id: userId, balance: 0 });
+        const { data: newCredit, error: createError } = await db
+          .from('credits')
+          .insert({ user_id: userId, balance: 0 })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('[/api/tripay/callback] Failed to create credit record:', createError);
+          return res.status(500).json({ success: false, message: 'Failed to create credit record' });
+        }
+        credit = newCredit;
       }
 
       if (!credit) {
@@ -88,15 +115,15 @@ tripayCallbackRoutes.post('/callback', async (req: Request, res: Response) => {
       const currentBalance = credit.balance || 0;
       const newBalance = currentBalance + amount;
 
-      await pb.collection('credit').update(credit.id, { balance: newBalance });
+      await db.from('credits').update({ balance: newBalance }).eq('id', credit.id);
 
       console.log('[/api/tripay/callback] Credits added:', { userId, previousBalance: currentBalance, addedAmount: amount, newBalance });
 
-      await pb.collection('transaction').create<TransactionRecord>({
+      await db.from('transactions').insert({
         user_id: userId,
         type: 'DEBIT',
         amount,
-        desc: `Top Up via ${payment_method || 'Tripay'}`,
+        description: `Top Up via ${payment_method || 'Tripay'}`,
         ref: merchant_ref,
       });
     }

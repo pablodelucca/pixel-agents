@@ -16,23 +16,26 @@ transactionHistoryRoutes.get('/', async (req, res) => {
 
     if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized - User ID required' });
 
-    const pb = await getDb();
+    const db = getDb();
 
-    const transactions = await pb.collection('transaction').getFullList<TransactionRecord>({
-      filter: `user_id="${userId}"`,
-      sort: '-created',
-    });
+    const { data: transactions, error } = await db
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
 
     res.json({
       success: true,
-      data: transactions.map((t) => ({
+      data: (transactions || []).map((t: TransactionRecord) => ({
         id: t.id,
         userId: t.user_id,
-        desc: t.desc,
+        desc: t.description,
         type: t.type,
         amount: t.amount,
-        created: t.created,
-        updated: t.updated,
+        created: t.created_at,
+        updated: t.updated_at,
       })),
     });
   } catch (error) {

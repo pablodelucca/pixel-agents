@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 
 // API base URL - backend server
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = '';
 
 export interface TransactionRecord {
   id: string;

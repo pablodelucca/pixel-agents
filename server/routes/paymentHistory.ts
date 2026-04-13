@@ -12,7 +12,7 @@ export const paymentHistoryRoutes = Router();
  * Check payment status from Tripay and update if paid
  */
 async function checkAndUpdatePaymentStatus(
-  pb: any,
+  db: any,
   payment: PaymentRecord,
   userId: string,
 ): Promise<{ updated: boolean; newStatus: string }> {
@@ -44,25 +44,40 @@ async function checkAndUpdatePaymentStatus(
     const tripayStatus = response.data.data?.status;
 
     if (tripayStatus && tripayStatus !== payment.status) {
-      await pb.collection('payment').update(payment.id, {
-        status: tripayStatus,
-        metadata: { ...payment.metadata, status_check: response.data, checked_at: new Date().toISOString() },
-      });
+      await db
+        .from('payments')
+        .update({
+          status: tripayStatus,
+          metadata: { ...payment.metadata, status_check: response.data, checked_at: new Date().toISOString() },
+        })
+        .eq('id', payment.id);
 
       if (tripayStatus === 'PAID') {
-        let credit: any = await pb.collection('credit').getFirstListItem(`user_id="${userId}"`).catch(() => null);
-        if (!credit) credit = await pb.collection('credit').create({ user_id: userId, balance: 0 });
+        let { data: credit } = await db
+          .from('credits')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (!credit) {
+          const { data: newCredit } = await db
+            .from('credits')
+            .insert({ user_id: userId, balance: 0 })
+            .select()
+            .single();
+          credit = newCredit;
+        }
 
         if (credit) {
           const newBalance = (credit.balance || 0) + payment.amount;
-          await pb.collection('credit').update(credit.id, { balance: newBalance });
+          await db.from('credits').update({ balance: newBalance }).eq('id', credit.id);
 
           const paymentMethod = (payment.metadata as any)?.data?.payment_name || 'Tripay';
-          await pb.collection('transaction').create({
+          await db.from('transactions').insert({
             user_id: userId,
             type: 'DEBIT',
             amount: payment.amount,
-            desc: `Top Up via ${paymentMethod}`,
+            description: `Top Up via ${paymentMethod}`,
             ref: (payment as any).ref,
           });
         }
@@ -87,48 +102,58 @@ paymentHistoryRoutes.get('/', async (req, res) => {
 
     if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized - User ID required' });
 
-    const pb = await getDb();
+    const db = getDb();
 
-    const payments = await pb.collection('payment').getFullList<PaymentRecord>({
-      filter: `user_id="${userId}"`,
-      sort: '-created',
-    });
+    const { data: payments, error } = await db
+      .from('payments')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
 
-    const unpaidPayments = payments.filter((p) => p.status === 'UNPAID');
+    if (error) throw new Error(error.message);
+
+    const paymentList = payments || [];
+
+    // Check and update unpaid payments
+    const unpaidPayments = paymentList.filter((p: PaymentRecord) => p.status === 'UNPAID');
     if (unpaidPayments.length > 0) {
-      await Promise.all(unpaidPayments.map((payment) => checkAndUpdatePaymentStatus(pb, payment, userId)));
+      await Promise.all(unpaidPayments.map((payment: PaymentRecord) => checkAndUpdatePaymentStatus(db, payment, userId)));
 
-      const updatedPayments = await pb.collection('payment').getFullList<PaymentRecord>({
-        filter: `user_id="${userId}"`,
-        sort: '-created',
-      });
+      // Re-fetch after updates
+      const { data: updatedPayments, error: refetchError } = await db
+        .from('payments')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (refetchError) throw new Error(refetchError.message);
 
       return res.json({
         success: true,
-        data: updatedPayments.map((p) => ({
+        data: (updatedPayments || []).map((p: PaymentRecord) => ({
           id: p.id,
           userId: p.user_id,
           amount: p.amount,
           status: p.status,
           url: p.url,
           metadata: p.metadata,
-          created: p.created,
-          updated: p.updated,
+          created: p.created_at,
+          updated: p.updated_at,
         })),
       });
     }
 
     res.json({
       success: true,
-      data: payments.map((p) => ({
+      data: paymentList.map((p: PaymentRecord) => ({
         id: p.id,
         userId: p.user_id,
         amount: p.amount,
         status: p.status,
         url: p.url,
         metadata: p.metadata,
-        created: p.created,
-        updated: p.updated,
+        created: p.created_at,
+        updated: p.updated_at,
       })),
     });
   } catch (error) {

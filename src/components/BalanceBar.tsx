@@ -193,7 +193,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
     setTopUpLoading(true);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const apiUrl = '';
       const userId = privyUser?.id;
 
       if (!userId) {

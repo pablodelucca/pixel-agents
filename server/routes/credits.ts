@@ -36,38 +36,41 @@ creditsRoutes.get('/', async (req, res) => {
       });
     }
 
-    const pb = await getDb();
+    const db = getDb();
 
-    try {
-      const credit = await pb.collection('credit').getFirstListItem<CreditRecord>(
-        `user_id="${userId}"`,
-      );
+    const { data: credit, error } = await db
+      .from('credits')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-      console.log('[/api/credits] Found existing credit record:', credit.id);
+    if (error) throw new Error(error.message);
 
-      res.json({
+    if (!credit) {
+      console.log('[/api/credits] No credit record found, creating new one for user:', userId);
+
+      const { data: newCredit, error: createError } = await db
+        .from('credits')
+        .insert({ user_id: userId, balance: 0 })
+        .select()
+        .single();
+
+      if (createError) throw new Error(createError.message);
+
+      console.log('[/api/credits] Created new credit record:', newCredit.id);
+
+      return res.json({
         success: true,
-        balance: credit.balance || 0,
+        balance: newCredit.balance || 0,
       });
-    } catch (pbError: any) {
-      if (pbError.status === 404) {
-        console.log('[/api/credits] No credit record found, creating new one for user:', userId);
-
-        const newCredit = await pb.collection('credit').create<CreditRecord>({
-          user_id: userId,
-          balance: 0,
-        });
-
-        console.log('[/api/credits] Created new credit record:', newCredit.id);
-
-        res.json({
-          success: true,
-          balance: newCredit.balance || 0,
-        });
-      } else {
-        throw pbError;
-      }
     }
+
+    console.log('[/api/credits] Found existing credit record:', credit.id);
+
+    res.json({
+      success: true,
+      balance: credit.balance || 0,
+    });
   } catch (error) {
     console.error('Error fetching credits:', error);
     res.status(500).json({
@@ -93,11 +96,13 @@ creditsRoutes.post('/', async (req, res) => {
       });
     }
 
-    const pb = await getDb();
+    const db = getDb();
 
-    const existingCredit = await pb.collection('credit').getFirstListItem<CreditRecord>(
-      `user_id="${userId}"`,
-    ).catch(() => null);
+    const { data: existingCredit } = await db
+      .from('credits')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
 
     if (existingCredit) {
       return res.status(400).json({
@@ -107,10 +112,13 @@ creditsRoutes.post('/', async (req, res) => {
       });
     }
 
-    const credit = await pb.collection('credit').create<CreditRecord>({
-      user_id: userId,
-      balance: balance,
-    });
+    const { data: credit, error } = await db
+      .from('credits')
+      .insert({ user_id: userId, balance })
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
 
     res.json({
       success: true,
@@ -148,11 +156,15 @@ creditsRoutes.put('/', async (req, res) => {
       });
     }
 
-    const pb = await getDb();
+    const db = getDb();
 
-    const credit = await pb.collection('credit').getFirstListItem<CreditRecord>(
-      `user_id="${userId}"`,
-    ).catch(() => null);
+    const { data: credit, error: findError } = await db
+      .from('credits')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (findError) throw new Error(findError.message);
 
     if (!credit) {
       return res.status(404).json({
@@ -161,13 +173,16 @@ creditsRoutes.put('/', async (req, res) => {
       });
     }
 
-    await pb.collection('credit').update(credit.id, {
-      balance: balance,
-    });
+    const { error: updateError } = await db
+      .from('credits')
+      .update({ balance })
+      .eq('id', credit.id);
+
+    if (updateError) throw new Error(updateError.message);
 
     res.json({
       success: true,
-      balance: balance,
+      balance,
     });
   } catch (error) {
     console.error('Error updating credits:', error);
@@ -201,30 +216,40 @@ creditsRoutes.post('/add', async (req, res) => {
       });
     }
 
-    const pb = await getDb();
+    const db = getDb();
 
-    let credit = await pb.collection('credit').getFirstListItem<CreditRecord>(
-      `user_id="${userId}"`,
-    ).catch(() => null);
+    let { data: credit, error: findError } = await db
+      .from('credits')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (findError) throw new Error(findError.message);
 
     if (!credit) {
-      credit = await pb.collection('credit').create<CreditRecord>({
-        user_id: userId,
-        balance: 0,
-      });
+      const { data: newCredit, error: createError } = await db
+        .from('credits')
+        .insert({ user_id: userId, balance: 0 })
+        .select()
+        .single();
+
+      if (createError) throw new Error(createError.message);
+      credit = newCredit;
     }
 
     if (!credit) {
-      res.status(500).json({ error: 'Failed to create credit record' });
-      return;
+      return res.status(500).json({ error: 'Failed to create credit record' });
     }
 
     const currentBalance = credit.balance || 0;
     const newBalance = currentBalance + amount;
 
-    await pb.collection('credit').update(credit.id, {
-      balance: newBalance,
-    });
+    const { error: updateError } = await db
+      .from('credits')
+      .update({ balance: newBalance })
+      .eq('id', credit.id);
+
+    if (updateError) throw new Error(updateError.message);
 
     res.json({
       success: true,
@@ -285,7 +310,7 @@ creditsRoutes.post('/topup', async (req, res) => {
     const random = Math.floor(Math.random() * 10000);
     const merchantRef = `CLW-${timestamp}-${random}`;
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = process.env.FRONTEND_URL || '';
     const returnUrl = `${frontendUrl}/payment/status`;
 
     const signature = crypto
@@ -348,19 +373,26 @@ creditsRoutes.post('/topup', async (req, res) => {
     const tripayRef = tripayResponse.data.data?.reference;
     const paymentStatus = tripayResponse.data.data?.status || 'PENDING';
 
-    const pb = await getDb();
+    const db = getDb();
 
-    const payment = await pb.collection('payment').create<PaymentRecord>({
-      user_id: userId,
-      amount,
-      status: paymentStatus,
-      url: checkoutUrl,
-      metadata: {
-        ...tripayResponse.data,
-        merchant_ref: merchantRef,
-        tripay_ref: tripayRef,
-      },
-    });
+    const { data: payment, error: paymentError } = await db
+      .from('payments')
+      .insert({
+        user_id: userId,
+        amount,
+        status: paymentStatus,
+        url: checkoutUrl,
+        method,
+        metadata: {
+          ...tripayResponse.data,
+          merchant_ref: merchantRef,
+          tripay_ref: tripayRef,
+        },
+      })
+      .select()
+      .single();
+
+    if (paymentError) throw new Error(paymentError.message);
 
     console.log('[/api/credits/topup] Payment record created:', payment.id);
 
@@ -404,11 +436,16 @@ creditsRoutes.get('/topup/status', async (req, res) => {
       return res.status(400).json({ success: false, error: 'merchant_ref is required' });
     }
 
-    const pb = await getDb();
+    const db = getDb();
 
-    const payment = await pb.collection('payment').getFirstListItem<PaymentRecord>(
-      `url ~ "${tripayRef}"`,
-    ).catch(() => null);
+    // Find payment by tripay reference in URL
+    const { data: payment, error: paymentError } = await db
+      .from('payments')
+      .select('*')
+      .like('url', `%${tripayRef}%`)
+      .maybeSingle();
+
+    if (paymentError) throw new Error(paymentError.message);
 
     if (!payment) {
       console.log('[/api/credits/topup/status] Payment not found for tripay_ref:', tripayRef);
@@ -457,24 +494,36 @@ creditsRoutes.get('/topup/status', async (req, res) => {
     if (tripayStatus === 'PAID') {
       console.log('[/api/credits/topup/status] Payment confirmed! Updating database...');
 
-      await pb.collection('payment').update(payment.id, {
-        status: 'PAID',
-        metadata: {
-          ...payment.metadata,
-          status_check: tripayResponse.data,
-          paid_at: new Date().toISOString(),
-        },
-      });
+      await db
+        .from('payments')
+        .update({
+          status: 'PAID',
+          metadata: {
+            ...payment.metadata,
+            status_check: tripayResponse.data,
+            paid_at: new Date().toISOString(),
+          },
+        })
+        .eq('id', payment.id);
 
-      let credit = await pb.collection('credit').getFirstListItem<CreditRecord>(
-        `user_id="${userId}"`,
-      ).catch(() => null);
+      // Get or create credit record
+      let { data: credit, error: creditError } = await db
+        .from('credits')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (creditError) throw new Error(creditError.message);
 
       if (!credit) {
-        credit = await pb.collection('credit').create<CreditRecord>({
-          user_id: userId,
-          balance: 0,
-        });
+        const { data: newCredit, error: createError } = await db
+          .from('credits')
+          .insert({ user_id: userId, balance: 0 })
+          .select()
+          .single();
+
+        if (createError) throw new Error(createError.message);
+        credit = newCredit;
       }
 
       if (!credit) {
@@ -484,7 +533,7 @@ creditsRoutes.get('/topup/status', async (req, res) => {
       const currentBalance = credit.balance || 0;
       const newBalance = currentBalance + payment.amount;
 
-      await pb.collection('credit').update(credit.id, { balance: newBalance });
+      await db.from('credits').update({ balance: newBalance }).eq('id', credit.id);
 
       console.log('[/api/credits/topup/status] Credits added:', {
         userId,
@@ -493,11 +542,11 @@ creditsRoutes.get('/topup/status', async (req, res) => {
         newBalance,
       });
 
-      await pb.collection('transaction').create<TransactionRecord>({
+      await db.from('transactions').insert({
         user_id: userId,
         type: 'DEBIT',
         amount: payment.amount,
-        desc: `Top Up via Tripay (${payment.method || 'Payment Gateway'})`,
+        description: `Top Up via Tripay (${payment.method || 'Payment Gateway'})`,
         ref: merchantRef,
       });
 

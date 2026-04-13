@@ -31,9 +31,14 @@ sessionsRoutes.get('/', async (req, res) => {
     const { id: serverId } = req.params as SessionParams;
     const agentId = (req.query.agentId as string) || 'main';
 
-    const pb = await getDb();
-    const server = await pb.collection('server').getOne<ServerRecord>(serverId).catch(() => null);
+    const db = getDb();
+    const { data: server, error } = await db
+      .from('servers')
+      .select('*')
+      .eq('id', serverId)
+      .maybeSingle();
 
+    if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
     if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });
@@ -54,9 +59,14 @@ sessionsRoutes.post('/', async (req, res) => {
     const { id: serverId } = req.params as SessionParams;
     const { agentId = 'main', initialMessage = 'Hello' } = req.body;
 
-    const pb = await getDb();
-    const server = await pb.collection('server').getOne<ServerRecord>(serverId).catch(() => null);
+    const db = getDb();
+    const { data: server, error } = await db
+      .from('servers')
+      .select('*')
+      .eq('id', serverId)
+      .maybeSingle();
 
+    if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
     if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });
@@ -80,9 +90,14 @@ sessionsRoutes.get('/workspace', async (req, res) => {
     const { id: serverId } = req.params as SessionParams;
     const agentId = (req.query.agentId as string) || 'main';
 
-    const pb = await getDb();
-    const server = await pb.collection('server').getOne<ServerRecord>(serverId).catch(() => null);
+    const db = getDb();
+    const { data: server, error } = await db
+      .from('servers')
+      .select('*')
+      .eq('id', serverId)
+      .maybeSingle();
 
+    if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
     if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });
@@ -109,9 +124,14 @@ sessionsRoutes.put('/workspace', async (req, res) => {
     if (!filename || typeof filename !== 'string') return res.status(400).json({ success: false, error: 'Filename is required' });
     if (typeof content !== 'string') return res.status(400).json({ success: false, error: 'Content must be a string' });
 
-    const pb = await getDb();
-    const server = await pb.collection('server').getOne<ServerRecord>(serverId).catch(() => null);
+    const db = getDb();
+    const { data: server, error } = await db
+      .from('servers')
+      .select('*')
+      .eq('id', serverId)
+      .maybeSingle();
 
+    if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
     if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });
@@ -135,9 +155,14 @@ sessionsRoutes.get('/:sessionId', async (req, res) => {
     const { id: serverId, sessionId } = req.params as SessionParamsWithId;
     const agentId = (req.query.agentId as string) || 'main';
 
-    const pb = await getDb();
-    const server = await pb.collection('server').getOne<ServerRecord>(serverId).catch(() => null);
+    const db = getDb();
+    const { data: server, error } = await db
+      .from('servers')
+      .select('*')
+      .eq('id', serverId)
+      .maybeSingle();
 
+    if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
     if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });
@@ -160,9 +185,14 @@ sessionsRoutes.post('/:sessionId/messages', async (req, res) => {
 
     if (!content || typeof content !== 'string') return res.status(400).json({ success: false, error: 'Message content is required' });
 
-    const pb = await getDb();
-    const server = await pb.collection('server').getOne<ServerRecord>(serverId).catch(() => null);
+    const db = getDb();
+    const { data: server, error } = await db
+      .from('servers')
+      .select('*')
+      .eq('id', serverId)
+      .maybeSingle();
 
+    if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
     if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });

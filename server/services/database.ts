@@ -1,54 +1,40 @@
 /**
  * Centralized database service.
  *
- * Current implementation: PocketBase SDK.
- * TODO: Replace with Supabase client — only this file needs to change.
+ * Supabase (PostgreSQL) client with service role key.
+ * Service role key bypasses RLS for backend operations.
  */
-import PocketBase from 'pocketbase';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 // ── Config ───────────────────────────────────────────────────
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://localhost:8090';
-const POCKETBASE_ADMIN_EMAIL = process.env.POCKETBASE_ADMIN_EMAIL || 'admin@example.com';
-const POCKETBASE_ADMIN_PASSWORD = process.env.POCKETBASE_ADMIN_PASSWORD || 'admin123';
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-const AUTH_TTL_MS = 50 * 60 * 1000; // re-auth every 50 min
+// ── Singleton client ─────────────────────────────────────────
+let supabaseInstance: SupabaseClient | null = null;
 
-// ── Singleton admin client with auto-refresh ─────────────────
-let pbAdmin: PocketBase | null = null;
-let adminAuthExpiry = 0;
-
-/** Mutex so concurrent first-calls don't trigger multiple auths */
-let authPromise: Promise<PocketBase> | null = null;
-
-export async function getDb(): Promise<PocketBase> {
-  const now = Date.now();
-
-  // Return cached client if still valid
-  if (pbAdmin && adminAuthExpiry > now) {
-    return pbAdmin;
-  }
-
-  // Wait if another call is already authenticating
-  if (authPromise) {
-    return authPromise;
-  }
-
-  authPromise = (async () => {
-    try {
-      console.log('[DB] Authenticating as admin…');
-      const pb = new PocketBase(POCKETBASE_URL);
-      await pb.admins.authWithPassword(POCKETBASE_ADMIN_EMAIL, POCKETBASE_ADMIN_PASSWORD);
-      pbAdmin = pb;
-      adminAuthExpiry = Date.now() + AUTH_TTL_MS;
-      console.log('[DB] Admin authenticated successfully');
-      return pb;
-    } catch (err) {
-      console.error('[DB] Admin authentication failed:', err);
-      throw new Error('Database admin authentication failed');
-    } finally {
-      authPromise = null;
+/**
+ * Get the Supabase client instance (lazy initialization).
+ * Uses service role key to bypass RLS — equivalent to PocketBase admin auth.
+ */
+export function getDb(): SupabaseClient {
+  if (!supabaseInstance) {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error(
+        'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables are required. ' +
+        'Please check your .env file.',
+      );
     }
-  })();
 
-  return authPromise;
+    supabaseInstance = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    console.log('[DB] Supabase client initialized');
+  }
+
+  return supabaseInstance;
 }

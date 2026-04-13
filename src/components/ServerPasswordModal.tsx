@@ -10,7 +10,7 @@ interface ServerPasswordModalProps {
 }
 
 // API base URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = '';
 
 export function ServerPasswordModal({ isOpen, server, onClose, onSuccess }: ServerPasswordModalProps) {
   const [password, setPassword] = useState('');

@@ -11,8 +11,8 @@ export interface ServerRecord {
   storage: number;
   status: ServerStatus;
   is_purchased: boolean;
-  created: string;
-  updated: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface OfficeRecord {
@@ -20,8 +20,8 @@ export interface OfficeRecord {
   user_id: string;
   server_id: string;
   expired_at: string | null;
-  created: string;
-  updated: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export const PACKAGE_SPECS: Record<string, { cpu: number; ram: number; storage: number }> = {
@@ -35,6 +35,8 @@ export interface CreditRecord {
   id: string;
   user_id: string;
   balance: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export type PaymentStatus = 'UNPAID' | 'PAID' | 'EXPIRED' | 'FAILED';
@@ -47,8 +49,8 @@ export interface PaymentRecord {
   url: string;
   method?: string;
   metadata: Record<string, unknown>;
-  created: string;
-  updated: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export type TransactionType = 'DEBIT' | 'CREDIT';
@@ -58,10 +60,10 @@ export interface TransactionRecord {
   user_id: string;
   type: TransactionType;
   amount: number;
-  desc: string;
+  description: string;
   ref?: string;
-  created: string;
-  updated: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // ── Agent / OpenClaw ─────────────────────────────────────────

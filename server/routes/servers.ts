@@ -16,34 +16,44 @@ const RESERVATION_TIMEOUT_MS = 5 * 60 * 1000;
  * Get available server including expired reservations
  */
 async function getAvailableServer(
-  pb: any,
+  db: any,
   spec: { cpu: number; ram: number; storage: number },
 ): Promise<ServerRecord | null> {
   const timeoutDate = new Date(Date.now() - RESERVATION_TIMEOUT_MS).toISOString();
 
-  const baseSpec = `cpu=${spec.cpu} && ram=${spec.ram} && storage=${spec.storage}`;
+  // Try available servers first
+  const { data: availableServers } = await db
+    .from('servers')
+    .select('*')
+    .eq('status', 'available')
+    .eq('cpu', spec.cpu)
+    .eq('ram', spec.ram)
+    .eq('storage', spec.storage)
+    .order('created_at', { ascending: true });
 
-  const availableServers = await pb.collection('server').getFullList({
-    filter: `status="available" && ${baseSpec}`,
-    sort: 'created',
-  });
-
-  if (availableServers.length > 0) {
+  if (availableServers && availableServers.length > 0) {
     console.log(`[getAvailableServer] Found ${availableServers.length} available servers`);
     return availableServers[0];
   }
 
-  const reservedServers = await pb.collection('server').getFullList({
-    filter: `status="reserved" && ${baseSpec}`,
-    sort: 'created',
-  });
+  // Check for expired reservations
+  const { data: reservedServers } = await db
+    .from('servers')
+    .select('*')
+    .eq('status', 'reserved')
+    .eq('cpu', spec.cpu)
+    .eq('ram', spec.ram)
+    .eq('storage', spec.storage)
+    .order('created_at', { ascending: true });
 
-  for (const server of reservedServers) {
-    if (server.updated) {
-      const updatedAt = new Date(server.updated);
-      if (updatedAt <= new Date(timeoutDate)) {
-        console.log(`[getAvailableServer] Found expired reservation: ${server.id}`);
-        return server;
+  if (reservedServers) {
+    for (const server of reservedServers) {
+      if (server.updated_at) {
+        const updatedAt = new Date(server.updated_at);
+        if (updatedAt <= new Date(timeoutDate)) {
+          console.log(`[getAvailableServer] Found expired reservation: ${server.id}`);
+          return server;
+        }
       }
     }
   }
@@ -56,9 +66,15 @@ async function getAvailableServer(
  */
 serverRoutes.get('/', async (_req, res) => {
   try {
-    const pb = await getDb();
-    const servers = await pb.collection('server').getFullList({ sort: '-created' });
-    const safeServers = servers.map(({ password, ...server }: any) => server);
+    const db = getDb();
+    const { data: servers, error } = await db
+      .from('servers')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    const safeServers = (servers || []).map(({ password, ...server }: ServerRecord) => server);
     res.json({ success: true, data: safeServers });
   } catch (error) {
     console.error('Error fetching servers:', error);
@@ -71,15 +87,20 @@ serverRoutes.get('/', async (_req, res) => {
  */
 serverRoutes.get('/availability', async (_req, res) => {
   try {
-    const pb = await getDb();
-
+    const db = getDb();
     const availability: Record<string, { available: number; spec: { cpu: number; ram: number; storage: number } }> = {};
 
     for (const [packageName, spec] of Object.entries(PACKAGE_SPECS)) {
-      const servers = await pb.collection('server').getFullList({
-        filter: `status="available" && cpu=${spec.cpu} && ram=${spec.ram} && storage=${spec.storage}`,
-      });
-      availability[packageName] = { available: servers.length, spec };
+      const { count, error } = await db
+        .from('servers')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'available')
+        .eq('cpu', spec.cpu)
+        .eq('ram', spec.ram)
+        .eq('storage', spec.storage);
+
+      if (error) throw new Error(error.message);
+      availability[packageName] = { available: count || 0, spec };
     }
 
     res.json({
@@ -109,9 +130,9 @@ serverRoutes.post('/reserve', async (req, res) => {
 
     console.log(`[/api/servers/reserve] User ${userId} reserving ${packageType}`);
 
-    const pb = await getDb();
+    const db = getDb();
     const spec = PACKAGE_SPECS[packageType] || PACKAGE_SPECS.business;
-    const server = await getAvailableServer(pb, spec);
+    const server = await getAvailableServer(db, spec);
 
     if (!server) {
       return res.status(400).json({
@@ -121,13 +142,20 @@ serverRoutes.post('/reserve', async (req, res) => {
       });
     }
 
-    const updatedServer = await pb.collection('server').update(server.id, { status: 'reserved' });
+    const { data: updatedServer, error } = await db
+      .from('servers')
+      .update({ status: 'reserved' })
+      .eq('id', server.id)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
 
     res.json({
       success: true,
       data: {
         serverId: updatedServer.id,
-        reservedAt: updatedServer.updated,
+        reservedAt: updatedServer.updated_at,
         packageType: packageType || 'business',
       },
     });
@@ -150,28 +178,40 @@ serverRoutes.post('/confirm-purchase', async (req, res) => {
 
     console.log(`[/api/servers/confirm-purchase] Confirming rental for ${serverId}`);
 
-    const pb = await getDb();
-    const server = await pb.collection('server').getOne<ServerRecord>(serverId).catch(() => null);
+    const db = getDb();
 
+    const { data: server, error: serverError } = await db
+      .from('servers')
+      .select('*')
+      .eq('id', serverId)
+      .maybeSingle();
+
+    if (serverError) throw new Error(serverError.message);
     if (!server) return res.status(404).json({ success: false, error: 'Office not found' });
     if (server.status !== 'reserved') return res.status(400).json({ success: false, error: 'Office is not reserved', code: 'NOT_RESERVED' });
 
     const timeoutDate = new Date(Date.now() - RESERVATION_TIMEOUT_MS);
-    if (new Date(server.updated) <= timeoutDate) {
+    if (new Date(server.updated_at) <= timeoutDate) {
       return res.status(400).json({ success: false, error: 'Reservation has expired. Please try again.', code: 'RESERVATION_EXPIRED' });
     }
 
     const expiredAt = new Date();
     expiredAt.setDate(expiredAt.getDate() + 30);
 
-    await pb.collection('server').update(serverId, { status: 'occupied' });
+    await db.from('servers').update({ status: 'occupied' }).eq('id', serverId);
 
     try {
-      const office = await pb.collection('office').create<OfficeRecord>({
-        user_id: userId,
-        server_id: serverId,
-        expired_at: expiredAt.toISOString(),
-      });
+      const { data: office, error: officeError } = await db
+        .from('offices')
+        .insert({
+          user_id: userId,
+          server_id: serverId,
+          expired_at: expiredAt.toISOString(),
+        })
+        .select()
+        .single();
+
+      if (officeError) throw officeError;
 
       res.json({
         success: true,
@@ -200,16 +240,22 @@ serverRoutes.post('/cancel-reservation', async (req, res) => {
     if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized - User ID required' });
     if (!serverId) return res.status(400).json({ success: false, error: 'Server ID is required' });
 
-    const pb = await getDb();
-    const server = await pb.collection('server').getOne<ServerRecord>(serverId).catch(() => null);
+    const db = getDb();
 
+    const { data: server, error: serverError } = await db
+      .from('servers')
+      .select('*')
+      .eq('id', serverId)
+      .maybeSingle();
+
+    if (serverError) throw new Error(serverError.message);
     if (!server) return res.status(404).json({ success: false, error: 'Office not found' });
 
     if (server.status !== 'reserved') {
       return res.json({ success: true, message: 'Reservation already released' });
     }
 
-    await pb.collection('server').update(serverId, { status: 'available' });
+    await db.from('servers').update({ status: 'available' }).eq('id', serverId);
     res.json({ success: true, message: 'Reservation cancelled' });
   } catch (error) {
     console.error('Error cancelling reservation:', error);
@@ -222,9 +268,14 @@ serverRoutes.post('/cancel-reservation', async (req, res) => {
  */
 serverRoutes.get('/:id', async (req, res) => {
   try {
-    const pb = await getDb();
-    const server = await pb.collection('server').getOne<ServerRecord>(req.params.id).catch(() => null);
+    const db = getDb();
+    const { data: server, error } = await db
+      .from('servers')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle();
 
+    if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
 
     const { password, ...safeServer } = server;
@@ -240,9 +291,14 @@ serverRoutes.get('/:id', async (req, res) => {
  */
 serverRoutes.get('/:id/config', async (req, res) => {
   try {
-    const pb = await getDb();
-    const server = await pb.collection('server').getOne<ServerRecord>(req.params.id).catch(() => null);
+    const db = getDb();
+    const { data: server, error } = await db
+      .from('servers')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle();
 
+    if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
     if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });
@@ -260,9 +316,14 @@ serverRoutes.get('/:id/config', async (req, res) => {
  */
 serverRoutes.get('/:id/test', async (req, res) => {
   try {
-    const pb = await getDb();
-    const server = await pb.collection('server').getOne<ServerRecord>(req.params.id).catch(() => null);
+    const db = getDb();
+    const { data: server, error } = await db
+      .from('servers')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle();
 
+    if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
 
     const isConnected = await checkServerConnection(server.ip, server.password, server.username || 'root');
@@ -282,12 +343,17 @@ serverRoutes.put('/:id/password', async (req, res) => {
     const { password } = req.body;
     if (!password || typeof password !== 'string') return res.status(400).json({ success: false, error: 'Password is required' });
 
-    const pb = await getDb();
-    const server = await pb.collection('server').getOne<ServerRecord>(req.params.id).catch(() => null);
+    const db = getDb();
+    const { data: server, error: serverError } = await db
+      .from('servers')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle();
 
+    if (serverError) throw new Error(serverError.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
 
-    await pb.collection('server').update(server.id, { password });
+    await db.from('servers').update({ password }).eq('id', server.id);
     res.json({ success: true, message: `Password updated for server "${server.username || server.id}"`, data: { id: server.id, password_set: true } });
   } catch (error) {
     console.error('Error updating password:', error);
@@ -309,18 +375,29 @@ serverRoutes.post('/purchase-with-rupiah', async (req, res) => {
 
     console.log(`[/api/servers/purchase-with-rupiah] User ${userId} purchasing ${packageType} server ${serverId} for Rp ${priceRupiah}`);
 
-    const pb = await getDb();
+    const db = getDb();
 
-    const server = await pb.collection('server').getOne<ServerRecord>(serverId).catch(() => null);
+    const { data: server, error: serverError } = await db
+      .from('servers')
+      .select('*')
+      .eq('id', serverId)
+      .maybeSingle();
+
+    if (serverError) throw new Error(serverError.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
     if (server.status !== 'reserved') return res.status(400).json({ success: false, error: 'Server is not reserved', code: 'NOT_RESERVED' });
 
     const timeoutDate = new Date(Date.now() - RESERVATION_TIMEOUT_MS);
-    if (new Date(server.updated) <= timeoutDate) {
+    if (new Date(server.updated_at) <= timeoutDate) {
       return res.status(400).json({ success: false, error: 'Reservation has expired. Please try again.', code: 'RESERVATION_EXPIRED' });
     }
 
-    let credit = await pb.collection('credit').getFirstListItem<CreditRecord>(`user_id="${userId}"`).catch(() => null);
+    // Get user credits
+    const { data: credit } = await db
+      .from('credits')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
 
     if (!credit) {
       return res.status(400).json({ success: false, error: 'Insufficient credits. Please top up first.', code: 'INSUFFICIENT_CREDITS', currentBalance: 0, requiredAmount: priceRupiah });
@@ -338,27 +415,37 @@ serverRoutes.post('/purchase-with-rupiah', async (req, res) => {
       });
     }
 
+    // Deduct credits
     const newBalance = currentBalance - priceRupiah;
-    await pb.collection('credit').update(credit.id, { balance: newBalance });
+    await db.from('credits').update({ balance: newBalance }).eq('id', credit.id);
 
-    await pb.collection('transaction').create<TransactionRecord>({
+    // Create transaction record
+    await db.from('transactions').insert({
       user_id: userId,
       type: 'CREDIT',
       amount: priceRupiah,
-      desc: `Purchase ${packageName || packageType} Server`,
+      description: `Purchase ${packageName || packageType} Server`,
       ref: serverId,
     });
 
-    await pb.collection('server').update(serverId, { status: 'occupied' });
+    // Update server status
+    await db.from('servers').update({ status: 'occupied' }).eq('id', serverId);
 
+    // Create office
     const expiredAt = new Date();
     expiredAt.setDate(expiredAt.getDate() + 30);
 
-    const office = await pb.collection('office').create<OfficeRecord>({
-      user_id: userId,
-      server_id: serverId,
-      expired_at: expiredAt.toISOString(),
-    });
+    const { data: office, error: officeError } = await db
+      .from('offices')
+      .insert({
+        user_id: userId,
+        server_id: serverId,
+        expired_at: expiredAt.toISOString(),
+      })
+      .select()
+      .single();
+
+    if (officeError) throw new Error(officeError.message);
 
     console.log(`[/api/servers/purchase-with-rupiah] Office ${office.id} created for user ${userId}`);
 

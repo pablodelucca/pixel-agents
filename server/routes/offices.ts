@@ -28,88 +28,103 @@ officesRoutes.get('/', async (req, res) => {
       });
     }
 
-    const pb = await getDb();
+    const db = getDb();
 
-    try {
-      const office = await pb.collection('office').getFirstListItem<OfficeRecord>(
-        `user_id="${userId}"`,
-      );
+    const { data: office, error: officeError } = await db
+      .from('offices')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-      console.log('[/api/offices] Found office:', office);
-
-      if (office.expired_at) {
-        const expiredAt = new Date(office.expired_at);
-        if (expiredAt < new Date()) {
-          console.log('[/api/offices] Office expired:', office.expired_at);
-          return res.json({
-            success: true,
-            hasOffice: false,
-            office: null,
-            server: null,
-            config: null,
-            reason: 'expired',
-          });
-        }
-      }
-
-      let server = null;
-      let config = null;
-
-      if (office.server_id) {
-        try {
-          const serverData = await pb.collection('server').getOne<ServerRecord>(office.server_id);
-          console.log('[/api/offices] Found server:', serverData.id);
-
-          server = {
-            id: serverData.id,
-            username: serverData.username || 'root',
-            ip: serverData.ip,
-            cpu: serverData.cpu,
-            ram: serverData.ram,
-            storage: serverData.storage,
-            isPurchased: serverData.is_purchased,
-          };
-
-          if (serverData.ip && serverData.password) {
-            try {
-              console.log('[/api/offices] Fetching OpenClaw config via SSH...');
-              config = await fetchOpenClawConfig(serverData.ip, serverData.password, serverData.username || 'root');
-              console.log('[/api/offices] OpenClaw config fetched, agents:', config.agents?.length || 0);
-            } catch (sshError) {
-              console.error('[/api/offices] SSH error:', sshError);
-              config = { agents: [], error: 'Failed to connect to server' };
-            }
-          } else {
-            config = { agents: [], error: 'Server not configured' };
-          }
-        } catch (serverError: any) {
-          console.error('[/api/offices] Error fetching server:', serverError);
-          server = null;
-          config = { agents: [], error: 'Server not found' };
-        }
-      }
-
-      res.json({
-        success: true,
-        hasOffice: true,
-        office: {
-          id: office.id,
-          userId: office.user_id,
-          serverId: office.server_id,
-          expiredAt: office.expired_at,
-          created: office.created,
-          updated: office.updated,
-        },
-        server,
-        config,
-      });
-    } catch (pbError: any) {
-      console.log('[/api/offices] DB error:', pbError.status, pbError.message);
-      if (pbError.status === 404) {
-        return res.json({ success: true, hasOffice: false, office: null, server: null, config: null });
-      }
-      throw pbError;
+    if (officeError) {
+      console.error('[/api/offices] DB error:', officeError);
+      throw new Error(officeError.message);
     }
+
+    if (!office) {
+      console.log('[/api/offices] No office found for user:', userId);
+      return res.json({
+        success: true,
+        hasOffice: false,
+        office: null,
+        server: null,
+        config: null,
+      });
+    }
+
+    console.log('[/api/offices] Found office:', office.id);
+
+    if (office.expired_at) {
+      const expiredAt = new Date(office.expired_at);
+      if (expiredAt < new Date()) {
+        console.log('[/api/offices] Office expired:', office.expired_at);
+        return res.json({
+          success: true,
+          hasOffice: false,
+          office: null,
+          server: null,
+          config: null,
+          reason: 'expired',
+        });
+      }
+    }
+
+    let server = null;
+    let config = null;
+
+    if (office.server_id) {
+      const { data: serverData, error: serverError } = await db
+        .from('servers')
+        .select('*')
+        .eq('id', office.server_id)
+        .maybeSingle();
+
+      if (serverError || !serverData) {
+        console.error('[/api/offices] Error fetching server:', serverError);
+        server = null;
+        config = { agents: [], error: 'Server not found' };
+      } else {
+        console.log('[/api/offices] Found server:', serverData.id);
+
+        server = {
+          id: serverData.id,
+          username: serverData.username || 'root',
+          ip: serverData.ip,
+          cpu: serverData.cpu,
+          ram: serverData.ram,
+          storage: serverData.storage,
+          isPurchased: serverData.is_purchased,
+        };
+
+        if (serverData.ip && serverData.password) {
+          try {
+            console.log('[/api/offices] Fetching OpenClaw config via SSH...');
+            config = await fetchOpenClawConfig(serverData.ip, serverData.password, serverData.username || 'root');
+            console.log('[/api/offices] OpenClaw config fetched, agents:', config.agents?.length || 0);
+          } catch (sshError) {
+            console.error('[/api/offices] SSH error:', sshError);
+            config = { agents: [], error: 'Failed to connect to server' };
+          }
+        } else {
+          config = { agents: [], error: 'Server not configured' };
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      hasOffice: true,
+      office: {
+        id: office.id,
+        userId: office.user_id,
+        serverId: office.server_id,
+        expiredAt: office.expired_at,
+        created: office.created_at,
+        updated: office.updated_at,
+      },
+      server,
+      config,
+    });
   } catch (error) {
     console.error('Error fetching office:', error);
     res.status(500).json({
@@ -135,23 +150,25 @@ officesRoutes.get('/all', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Unauthorized - User ID required' });
     }
 
-    const pb = await getDb();
+    const db = getDb();
 
-    const offices = await pb.collection('office').getFullList<OfficeRecord>({
-      filter: `user_id="${userId}"`,
-      sort: '-created',
-      expand: 'server_id',
-    });
+    const { data: offices, error } = await db
+      .from('offices')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
 
     res.json({
       success: true,
-      data: offices.map((office) => ({
+      data: (offices || []).map((office) => ({
         id: office.id,
         userId: office.user_id,
         serverId: office.server_id,
         expiredAt: office.expired_at,
-        created: office.created,
-        updated: office.updated,
+        created: office.created_at,
+        updated: office.updated_at,
       })),
     });
   } catch (error) {
@@ -180,13 +197,19 @@ officesRoutes.post('/', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Server ID is required' });
     }
 
-    const pb = await getDb();
+    const db = getDb();
 
-    const office = await pb.collection('office').create<OfficeRecord>({
-      user_id: userId,
-      server_id: serverId,
-      expired_at: expiredAt || null,
-    });
+    const { data: office, error } = await db
+      .from('offices')
+      .insert({
+        user_id: userId,
+        server_id: serverId,
+        expired_at: expiredAt || null,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
 
     res.json({
       success: true,
@@ -195,8 +218,8 @@ officesRoutes.post('/', async (req, res) => {
         userId: office.user_id,
         serverId: office.server_id,
         expiredAt: office.expired_at,
-        created: office.created,
-        updated: office.updated,
+        created: office.created_at,
+        updated: office.updated_at,
       },
     });
   } catch (error) {

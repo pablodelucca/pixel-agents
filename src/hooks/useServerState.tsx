@@ -4,7 +4,7 @@ import type { AgentConfig, Server, ServerConfig } from '../types/database.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 
 // API base URL - backend server
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = '';
 
 // Hash function to convert string ID to numeric ID
 function hashStringToNumber(str: string): number {

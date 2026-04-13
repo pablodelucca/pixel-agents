@@ -4,7 +4,7 @@ import { Activity, Brain, Edit3, Folder, Heart, Save, Sparkles, User, X, Wrench 
 import type { Character } from '../office/types.js';
 
 // API base URL - backend server
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = '';
 
 interface OfficeServer {
   id: string;
