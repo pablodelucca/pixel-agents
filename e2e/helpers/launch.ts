@@ -8,9 +8,22 @@ const REPO_ROOT = path.join(__dirname, '../..');
 const VSCODE_PATH_FILE = path.join(REPO_ROOT, '.vscode-test/vscode-executable.txt');
 const MOCK_CLAUDE_PATH = path.join(REPO_ROOT, 'e2e/fixtures/mock-claude');
 const MOCK_CLAUDE_CMD_PATH = path.join(REPO_ROOT, 'e2e/fixtures/mock-claude.cmd');
+const MOCK_CODEX_PATH = path.join(REPO_ROOT, 'e2e/fixtures/mock-codex');
+const MOCK_CODEX_CMD_PATH = path.join(REPO_ROOT, 'e2e/fixtures/mock-codex.cmd');
+const MOCK_CODEX_JS_PATH = path.join(REPO_ROOT, 'e2e/fixtures/mock-codex.js');
 const ARTIFACTS_DIR = path.join(REPO_ROOT, 'test-results/e2e');
 const IS_WINDOWS = process.platform === 'win32';
 const PATH_SEP = IS_WINDOWS ? ';' : ':';
+
+function getCodexScenario(testTitle: string): string {
+  if (/spawnagent/i.test(testTitle) && /(multi|many|five|six|\b5\b|\b6\b)/i.test(testTitle)) {
+    return 'spawn-agent-many';
+  }
+  if (/spawnagent/i.test(testTitle)) {
+    return 'spawn-agent';
+  }
+  return 'default';
+}
 
 export interface VSCodeSession {
   app: ElectronApplication;
@@ -21,6 +34,8 @@ export interface VSCodeSession {
   workspaceDir: string;
   /** Path to the mock invocations log. */
   mockLogFile: string;
+  /** Path to the mock Codex invocations log. */
+  codexMockLogFile: string;
   cleanup: () => Promise<void>;
 }
 
@@ -74,10 +89,17 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
   if (IS_WINDOWS) {
     // Windows: copy the .cmd batch file as 'claude.cmd'
     fs.copyFileSync(MOCK_CLAUDE_CMD_PATH, path.join(mockBinDir, 'claude.cmd'));
+    fs.copyFileSync(MOCK_CODEX_CMD_PATH, path.join(mockBinDir, 'codex.cmd'));
+    fs.copyFileSync(MOCK_CODEX_JS_PATH, path.join(mockBinDir, 'mock-codex.js'));
   } else {
-    const mockDest = path.join(mockBinDir, 'claude');
-    fs.copyFileSync(MOCK_CLAUDE_PATH, mockDest);
-    fs.chmodSync(mockDest, 0o755);
+    const claudeDest = path.join(mockBinDir, 'claude');
+    fs.copyFileSync(MOCK_CLAUDE_PATH, claudeDest);
+    fs.chmodSync(claudeDest, 0o755);
+
+    const codexDest = path.join(mockBinDir, 'codex');
+    fs.copyFileSync(MOCK_CODEX_PATH, codexDest);
+    fs.copyFileSync(MOCK_CODEX_JS_PATH, path.join(mockBinDir, 'mock-codex.js'));
+    fs.chmodSync(codexDest, 0o755);
   }
 
   // macOS: VS Code's integrated terminal resolves PATH from the login shell,
@@ -112,6 +134,7 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
   }
 
   const mockLogFile = path.join(tmpHome, '.claude-mock', 'invocations.log');
+  const codexMockLogFile = path.join(tmpHome, '.codex-mock', 'invocations.log');
 
   // --- Video output dir ---
   const safeTitle = testTitle.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
@@ -122,10 +145,12 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     HOME: tmpHome,
+    USERPROFILE: tmpHome,
     // Prepend mock bin so 'claude' resolves to our mock
     PATH: `${mockBinDir}${PATH_SEP}${process.env['PATH'] ?? '/usr/local/bin:/usr/bin:/bin'}`,
     // Prevent VS Code from trying to talk to real accounts / telemetry
     VSCODE_TELEMETRY_DISABLED: '1',
+    PIXEL_AGENTS_CODEX_SCENARIO: getCodexScenario(testTitle),
   };
 
   // --- VS Code launch args ---
@@ -214,7 +239,15 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
       await window.waitForTimeout(500);
     }
 
-    return { app, window, tmpHome, workspaceDir: resolvedWorkspaceDir, mockLogFile, cleanup };
+    return {
+      app,
+      window,
+      tmpHome,
+      workspaceDir: resolvedWorkspaceDir,
+      mockLogFile,
+      codexMockLogFile,
+      cleanup,
+    };
   } catch (error) {
     await cleanup();
     throw error;

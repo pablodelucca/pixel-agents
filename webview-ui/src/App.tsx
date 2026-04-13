@@ -21,6 +21,7 @@ import { EditorToolbar } from './office/editor/EditorToolbar.js';
 import { OfficeState } from './office/engine/officeState.js';
 import { isRotatable } from './office/layout/furnitureCatalog.js';
 import { EditTool } from './office/types.js';
+import { type ProviderId, resolveSelectedProvider } from './providers/providerUi.js';
 import { isBrowserRuntime } from './runtime.js';
 import { vscode } from './vscodeApi.js';
 
@@ -63,6 +64,8 @@ function App() {
     loadedAssets,
     workspaceFolders,
     externalAssetDirectories,
+    enabledProviders,
+    defaultProvider,
     lastSeenVersion,
     extensionVersion,
     watchAllSessions,
@@ -83,6 +86,7 @@ function App() {
   const [hooksTooltipDismissed, setHooksTooltipDismissed] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [alwaysShowOverlay, setAlwaysShowOverlay] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<ProviderId>('claude');
 
   const currentMajorMinor = toMajorMinor(extensionVersion);
 
@@ -100,6 +104,10 @@ function App() {
     setAlwaysShowOverlay(alwaysShowLabels);
   }, [alwaysShowLabels]);
 
+  useEffect(() => {
+    setSelectedProvider((prev) => resolveSelectedProvider(enabledProviders, prev, defaultProvider));
+  }, [enabledProviders, defaultProvider]);
+
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), []);
   const handleToggleAlwaysShowOverlay = useCallback(() => {
     setAlwaysShowOverlay((prev) => {
@@ -108,6 +116,24 @@ function App() {
       return newVal;
     });
   }, []);
+
+  const handleSelectProvider = useCallback((providerId: ProviderId) => {
+    setSelectedProvider(providerId);
+    vscode.postMessage({ type: 'setDefaultProvider', providerId });
+  }, []);
+
+  const handleToggleProvider = useCallback(
+    (providerId: ProviderId) => {
+      const nextEnabledProviders = enabledProviders.includes(providerId)
+        ? enabledProviders.filter((id) => id !== providerId)
+        : [...enabledProviders, providerId];
+      vscode.postMessage({
+        type: 'setEnabledProviders',
+        enabledProviders: nextEnabledProviders,
+      });
+    },
+    [enabledProviders],
+  );
 
   const handleSelectAgent = useCallback((id: number) => {
     vscode.postMessage({ type: 'focusAgent', id });
@@ -321,11 +347,13 @@ function App() {
 
       <BottomToolbar
         isEditMode={editor.isEditMode}
-        onOpenClaude={editor.handleOpenClaude}
         onToggleEditMode={editor.handleToggleEditMode}
         isSettingsOpen={isSettingsOpen}
         onToggleSettings={() => setIsSettingsOpen((v) => !v)}
         workspaceFolders={workspaceFolders}
+        enabledProviders={enabledProviders}
+        selectedProvider={selectedProvider}
+        onSelectProvider={handleSelectProvider}
       />
 
       <VersionIndicator
@@ -349,6 +377,9 @@ function App() {
         alwaysShowOverlay={alwaysShowOverlay}
         onToggleAlwaysShowOverlay={handleToggleAlwaysShowOverlay}
         externalAssetDirectories={externalAssetDirectories}
+        enabledProviders={enabledProviders}
+        selectedProvider={selectedProvider}
+        onToggleProvider={handleToggleProvider}
         watchAllSessions={watchAllSessions}
         onToggleWatchAllSessions={() => {
           const newVal = !watchAllSessions;

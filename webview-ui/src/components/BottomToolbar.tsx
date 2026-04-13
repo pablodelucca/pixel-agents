@@ -1,54 +1,69 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { WorkspaceFolder } from '../hooks/useExtensionMessages.js';
+import {
+  buildOpenAgentMessage,
+  getEnabledProviderOptions,
+  type ProviderId,
+} from '../providers/providerUi.js';
 import { vscode } from '../vscodeApi.js';
 import { Button } from './ui/Button.js';
 import { Dropdown, DropdownItem } from './ui/Dropdown.js';
 
 interface BottomToolbarProps {
   isEditMode: boolean;
-  onOpenClaude: () => void;
   onToggleEditMode: () => void;
   isSettingsOpen: boolean;
   onToggleSettings: () => void;
   workspaceFolders: WorkspaceFolder[];
+  enabledProviders: ProviderId[];
+  selectedProvider: ProviderId;
+  onSelectProvider: (providerId: ProviderId) => void;
 }
 
 export function BottomToolbar({
   isEditMode,
-  onOpenClaude,
   onToggleEditMode,
   isSettingsOpen,
   onToggleSettings,
   workspaceFolders,
+  enabledProviders,
+  selectedProvider,
+  onSelectProvider,
 }: BottomToolbarProps) {
+  const [isProviderMenuOpen, setIsProviderMenuOpen] = useState(false);
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
   const [isBypassMenuOpen, setIsBypassMenuOpen] = useState(false);
-  const folderPickerRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const pendingBypassRef = useRef(false);
-  // Close folder picker / bypass menu on outside click
+  const providerOptions = getEnabledProviderOptions(enabledProviders);
+  const selectedProviderLabel =
+    providerOptions.find((provider) => provider.id === selectedProvider)?.label ?? 'Provider';
+
   useEffect(() => {
-    if (!isFolderPickerOpen && !isBypassMenuOpen) return;
+    if (!isProviderMenuOpen && !isFolderPickerOpen && !isBypassMenuOpen) return;
     const handleClick = (e: MouseEvent) => {
-      if (folderPickerRef.current && !folderPickerRef.current.contains(e.target as Node)) {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
+        setIsProviderMenuOpen(false);
         setIsFolderPickerOpen(false);
         setIsBypassMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [isFolderPickerOpen, isBypassMenuOpen]);
+  }, [isProviderMenuOpen, isFolderPickerOpen, isBypassMenuOpen]);
 
   const hasMultipleFolders = workspaceFolders.length > 1;
 
   const handleAgentClick = () => {
+    setIsProviderMenuOpen(false);
     setIsBypassMenuOpen(false);
     pendingBypassRef.current = false;
     if (hasMultipleFolders) {
-      setIsFolderPickerOpen((v) => !v);
-    } else {
-      onOpenClaude();
+      setIsFolderPickerOpen((open) => !open);
+      return;
     }
+    vscode.postMessage(buildOpenAgentMessage({ providerId: selectedProvider }));
   };
 
   const handleAgentHover = () => {
@@ -67,7 +82,13 @@ export function BottomToolbar({
     setIsFolderPickerOpen(false);
     const bypassPermissions = pendingBypassRef.current;
     pendingBypassRef.current = false;
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path, bypassPermissions });
+    vscode.postMessage(
+      buildOpenAgentMessage({
+        providerId: selectedProvider,
+        folderPath: folder.path,
+        bypassPermissions,
+      }),
+    );
   };
 
   const handleBypassSelect = (bypassPermissions: boolean) => {
@@ -75,19 +96,43 @@ export function BottomToolbar({
     if (hasMultipleFolders) {
       pendingBypassRef.current = bypassPermissions;
       setIsFolderPickerOpen(true);
-    } else {
-      vscode.postMessage({ type: 'openClaude', bypassPermissions });
+      return;
     }
+    vscode.postMessage(buildOpenAgentMessage({ providerId: selectedProvider, bypassPermissions }));
   };
 
   return (
-    <div className="absolute bottom-10 left-10 z-20 flex items-center gap-4 pixel-panel p-4">
-      <div
-        ref={folderPickerRef}
-        className="relative"
-        onMouseEnter={handleAgentHover}
-        onMouseLeave={handleAgentLeave}
-      >
+    <div
+      ref={toolbarRef}
+      className="absolute bottom-10 left-10 z-20 flex items-center gap-4 pixel-panel p-4"
+    >
+      <div className="relative">
+        <Button
+          variant={isProviderMenuOpen ? 'active' : 'default'}
+          onClick={() => {
+            setIsProviderMenuOpen((open) => !open);
+            setIsFolderPickerOpen(false);
+            setIsBypassMenuOpen(false);
+          }}
+        >
+          {selectedProviderLabel}
+        </Button>
+        <Dropdown isOpen={isProviderMenuOpen} className="min-w-96">
+          {providerOptions.map((provider) => (
+            <DropdownItem
+              key={provider.id}
+              onClick={() => {
+                onSelectProvider(provider.id);
+                setIsProviderMenuOpen(false);
+              }}
+            >
+              {provider.label}
+              {provider.id === selectedProvider ? ' (Selected)' : ''}
+            </DropdownItem>
+          ))}
+        </Dropdown>
+      </div>
+      <div className="relative" onMouseEnter={handleAgentHover} onMouseLeave={handleAgentLeave}>
         <Button
           variant="accent"
           onClick={handleAgentClick}
@@ -101,7 +146,7 @@ export function BottomToolbar({
         </Button>
         <Dropdown isOpen={isBypassMenuOpen}>
           <DropdownItem onClick={() => handleBypassSelect(true)}>
-            Skip permissions mode <span className="text-2xs text-warning">⚠</span>
+            Skip permissions mode <span className="text-2xs text-warning">!</span>
           </DropdownItem>
         </Dropdown>
         <Dropdown isOpen={isFolderPickerOpen} className="min-w-128">

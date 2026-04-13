@@ -4,11 +4,8 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { JSONL_POLL_INTERVAL_MS } from '../server/src/constants.js';
-import {
-  TERMINAL_NAME_PREFIX,
-  WORKSPACE_KEY_AGENT_SEATS,
-  WORKSPACE_KEY_AGENTS,
-} from './constants.js';
+import type { ServerConfig } from '../server/src/server.js';
+import { WORKSPACE_KEY_AGENT_SEATS, WORKSPACE_KEY_AGENTS } from './constants.js';
 import {
   ensureProjectScan,
   readNewLines,
@@ -16,11 +13,25 @@ import {
   startFileWatching,
 } from './fileWatcher.js';
 import { migrateAndLoadLayout } from './layoutPersistence.js';
+import { getProviderAdapter } from './providers/providerAdapters.js';
 import { DEFAULT_PROVIDER_ID, isProviderId, type ProviderId } from './providers/providerTypes.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
 import type { AgentState, PersistedAgent } from './types.js';
 
-export function getProjectDirPath(cwd?: string): string {
+export function getProjectDirPath(
+  providerId: ProviderId = DEFAULT_PROVIDER_ID,
+  cwd?: string,
+): string {
+  const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || os.homedir();
+  const provider = getProviderAdapter(providerId);
+  if (!provider) {
+    console.warn(
+      `[Pixel Agents] Terminal: Provider "${providerId}" is not implemented, falling back to workspace path`,
+    );
+    return workspacePath;
+  }
+  return provider.getProjectDir(workspacePath);
+  /*
   // Fall back to home directory when no workspace folder is open.
   // This is the common case on Linux/macOS when VS Code is launched without a folder
   // (e.g. `code` with no arguments). Claude Code writes JSONL files to
@@ -59,6 +70,7 @@ export function getProjectDirPath(cwd?: string): string {
     }
   }
   return projectDir;
+  */
 }
 
 export async function launchNewTerminal(
@@ -76,6 +88,8 @@ export async function launchNewTerminal(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
   providerId: ProviderId,
+  extensionPath: string,
+  serverConfig?: ServerConfig | null,
   folderPath?: string,
   bypassPermissions?: boolean,
 ): Promise<void> {
@@ -85,24 +99,36 @@ export async function launchNewTerminal(
   // dir hash Claude Code will use for JSONL transcript files.
   const cwd = folderPath || folders?.[0]?.uri.fsPath || os.homedir();
   const isMultiRoot = !!(folders && folders.length > 1);
+  const provider = getProviderAdapter(providerId);
+  if (!provider) {
+    throw new Error(`Pixel Agents: launch provider "${providerId}" is not implemented yet.`);
+  }
   const idx = nextTerminalIndexRef.current++;
-  const terminal = vscode.window.createTerminal({
-    name: `${TERMINAL_NAME_PREFIX} #${idx}`,
+  const sessionId = crypto.randomUUID();
+  const launchPlan = provider.buildLaunchPlan({
+    sessionId,
+    bypassPermissions,
     cwd,
+    extensionPath,
+    serverPort: serverConfig?.port,
+    serverToken: serverConfig?.token,
+  });
+  const terminal = vscode.window.createTerminal({
+    name: provider.terminalLabel(idx),
+    cwd,
+    env: launchPlan.env,
   });
   terminal.show();
 
-  const sessionId = crypto.randomUUID();
-  const claudeCmd = bypassPermissions
-    ? `claude --session-id ${sessionId} --dangerously-skip-permissions`
-    : `claude --session-id ${sessionId}`;
-  terminal.sendText(claudeCmd);
+  const projectDir = getProjectDirPath(providerId, cwd);
 
-  const projectDir = getProjectDirPath(cwd);
-
-  // Pre-register expected JSONL file so project scan won't treat it as a /clear file
-  const expectedFile = path.join(projectDir, `${sessionId}.jsonl`);
-  knownJsonlFiles.add(expectedFile);
+  // Pre-register expected JSONL file so project scan won't treat it as a /clear file.
+  const expectedFile = provider.usesTranscriptFile
+    ? path.join(projectDir, `${sessionId}.jsonl`)
+    : path.join(projectDir, `.pixel-agents-${provider.id}-${sessionId}`);
+  if (provider.usesTranscriptFile) {
+    knownJsonlFiles.add(expectedFile);
+  }
 
   // Create agent immediately (before JSONL file exists)
   const id = nextAgentIdRef.current++;
@@ -122,6 +148,7 @@ export async function launchNewTerminal(
     activeToolNames: new Map(),
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
+    activeSubagentToolStatuses: new Map(),
     backgroundAgentToolIds: new Set(),
     isWaiting: false,
     permissionSent: false,
@@ -131,6 +158,7 @@ export async function launchNewTerminal(
     seenUnknownRecordTypes: new Set(),
     folderName,
     hookDelivered: false,
+    hooksOnly: !provider.usesTranscriptFile,
   };
 
   agents.set(id, agent);
@@ -138,6 +166,14 @@ export async function launchNewTerminal(
   persistAgents();
   console.log(`[Pixel Agents] Terminal: Agent ${id} - created for terminal ${terminal.name}`);
   webview?.postMessage({ type: 'agentCreated', id, folderName });
+  terminal.sendText(launchPlan.command);
+
+  if (!provider.usesTranscriptFile) {
+    console.log(
+      `[Pixel Agents] Terminal: Agent ${id} - ${provider.id} is using structured events only`,
+    );
+    return;
+  }
 
   ensureProjectScan(
     projectDir,
@@ -326,10 +362,16 @@ export function restoreAgents(
   let restoredProjectDir: string | null = null;
 
   for (const p of persisted) {
+    const providerId = isProviderId(p.providerId) ? p.providerId : DEFAULT_PROVIDER_ID;
+    const provider = getProviderAdapter(providerId);
+    const usesTranscriptFile = provider?.usesTranscriptFile ?? true;
+
     // Skip agents already in the map — prevents duplicate file watchers on re-entry
     // (webviewReady fires on every panel focus, re-calling restoreAgents each time)
     if (agents.has(p.id)) {
-      knownJsonlFiles.add(p.jsonlFile);
+      if (usesTranscriptFile) {
+        knownJsonlFiles.add(p.jsonlFile);
+      }
       continue;
     }
 
@@ -354,7 +396,7 @@ export function restoreAgents(
       sessionId: p.sessionId || path.basename(p.jsonlFile, '.jsonl'),
       terminalRef: terminal,
       isExternal,
-      providerId: isProviderId(p.providerId) ? p.providerId : DEFAULT_PROVIDER_ID,
+      providerId,
       projectDir: p.projectDir,
       jsonlFile: p.jsonlFile,
       fileOffset: 0,
@@ -364,6 +406,7 @@ export function restoreAgents(
       activeToolNames: new Map(),
       activeSubagentToolIds: new Map(),
       activeSubagentToolNames: new Map(),
+      activeSubagentToolStatuses: new Map(),
       backgroundAgentToolIds: new Set(),
       isWaiting: false,
       permissionSent: false,
@@ -373,10 +416,13 @@ export function restoreAgents(
       seenUnknownRecordTypes: new Set(),
       folderName: p.folderName,
       hookDelivered: false,
+      hooksOnly: !usesTranscriptFile,
     };
 
     agents.set(p.id, agent);
-    knownJsonlFiles.add(p.jsonlFile);
+    if (usesTranscriptFile) {
+      knownJsonlFiles.add(p.jsonlFile);
+    }
     if (isExternal) {
       console.log(
         `[Pixel Agents] Terminal: Agent ${p.id} - restored external → ${path.basename(p.jsonlFile)}`,
@@ -388,14 +434,21 @@ export function restoreAgents(
     }
 
     if (p.id > maxId) maxId = p.id;
-    // Extract terminal index from name like "Claude Code #3"
+    // Extract the numeric suffix from labels like "Provider Name #3"
     const match = p.terminalName.match(/#(\d+)$/);
     if (match) {
       const idx = parseInt(match[1], 10);
       if (idx > maxIdx) maxIdx = idx;
     }
 
-    restoredProjectDir = p.projectDir;
+    if (usesTranscriptFile) {
+      restoredProjectDir = p.projectDir;
+    }
+
+    if (!usesTranscriptFile) {
+      continue;
+    }
+
     // Start file watching if JSONL exists, skipping to end of file
     try {
       if (fs.existsSync(p.jsonlFile)) {
@@ -447,7 +500,7 @@ export function restoreAgents(
   // These are dead terminals restored by VS Code (e.g., after /clear or restart)
   // where Claude is no longer running.
   const restoredTerminalIds = [...agents.entries()]
-    .filter(([, a]) => !a.isExternal && a.terminalRef)
+    .filter(([, a]) => !a.isExternal && a.terminalRef && !a.hooksOnly)
     .map(([id]) => id);
   if (restoredTerminalIds.length > 0) {
     setTimeout(() => {
@@ -563,6 +616,22 @@ export function sendCurrentAgentStatuses(
         status,
         toolName,
       });
+    }
+    for (const [parentToolId, subagentIds] of agent.activeSubagentToolIds) {
+      const subagentStatuses = agent.activeSubagentToolStatuses.get(parentToolId);
+      const subagentNames = agent.activeSubagentToolNames.get(parentToolId);
+      for (const subToolId of subagentIds) {
+        const status = subagentStatuses?.get(subToolId);
+        if (!status) continue;
+        webview.postMessage({
+          type: 'subagentToolStart',
+          id: agentId,
+          parentToolId,
+          toolId: subToolId,
+          toolName: subagentNames?.get(subToolId) ?? '',
+          status,
+        });
+      }
     }
     // Re-send waiting status
     if (agent.isWaiting) {

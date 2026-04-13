@@ -18,6 +18,7 @@ export interface AgentState {
   activeToolNames: Map<string, string>;
   activeSubagentToolIds: Map<string, Set<string>>; // parentToolId → active sub-tool IDs
   activeSubagentToolNames: Map<string, Map<string, string>>; // parentToolId → (subToolId → toolName)
+  activeSubagentToolStatuses: Map<string, Map<string, string>>; // parentToolId → (subToolId → status)
   backgroundAgentToolIds: Set<string>; // tool IDs for run_in_background Agent calls (stay alive until queue-operation)
   isWaiting: boolean;
   permissionSent: boolean;
@@ -34,6 +35,10 @@ export interface AgentState {
   hookDelivered: boolean;
   /** True when agent has no transcript file (provider doesn't use JSONL). All state from hooks. */
   hooksOnly?: boolean;
+  /** Root Codex thread ID for structured-event routing. */
+  codexRootThreadId?: string;
+  /** Codex child thread ID -> parent spawn tool ID for subagent visualization. */
+  codexSubagentParentToolIds?: Map<string, string>;
   /** Provider that created this agent */
   providerId: ProviderId;
   /** Set when SessionEnd(reason=clear) fires; cleared when SessionStart(source=clear) reassigns */

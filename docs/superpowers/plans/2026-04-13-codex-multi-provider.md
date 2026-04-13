@@ -92,7 +92,7 @@ git commit -m "refactor: add provider registry and persistence model"
 - Modify: `webview-ui/src/App.tsx`
 - Modify: `src/PixelAgentsViewProvider.ts`
 
-- [ ] **Step 1: Add UI state for enabled providers and default provider**
+- [x] **Step 1: Add UI state for enabled providers and default provider**
 
 Update `settingsLoaded` handling so the webview receives:
 
@@ -103,7 +103,7 @@ Update `settingsLoaded` handling so the webview receives:
 }
 ```
 
-- [ ] **Step 2: Replace the Claude-only toolbar action with a provider-aware launch flow**
+- [x] **Step 2: Replace the Claude-only toolbar action with a provider-aware launch flow**
 
 Change the webview message from:
 
@@ -119,7 +119,7 @@ to:
 { type: 'openAgent', providerId: selectedProvider, bypassPermissions }
 ```
 
-- [ ] **Step 3: Add the visible provider switcher before `+ Agent`**
+- [x] **Step 3: Add the visible provider switcher before `+ Agent`**
 
 The switcher must:
 
@@ -127,11 +127,11 @@ The switcher must:
 - persist the selected value per workspace/project
 - leave `+ Agent` behavior unchanged except for provider selection
 
-- [ ] **Step 4: Add provider management to Settings**
+- [x] **Step 4: Add provider management to Settings**
 
 Expose enabled-provider toggles in `SettingsModal` without forcing the user to re-enter settings to switch between Claude and Codex.
 
-- [ ] **Step 5: Validate manually and with typecheck**
+- [x] **Step 5: Validate manually and with typecheck**
 
 Run:
 
@@ -139,6 +139,8 @@ Run:
 - `npm run lint`
 
 Expected: PASS
+
+Note: automated verification passed on 2026-04-13 via `node --import tsx/esm --test test/providerUi.test.ts`, `npm test -- providerPreferences.test.ts`, `npm run check-types`, and `npm run lint`. Interactive browser validation was attempted through Vite, but the local browser helper was unavailable in this session.
 
 - [ ] **Step 6: Commit**
 
@@ -159,7 +161,7 @@ git commit -m "feat: add provider switcher and generic launch message"
 - Modify: `server/src/providers/file/claudeHookInstaller.ts`
 - Modify: `e2e/tests/agent-spawn.spec.ts`
 
-- [ ] **Step 1: Write an adapter contract test around Claude naming and launch parameters**
+- [x] **Step 1: Write an adapter contract test around Claude naming and launch parameters**
 
 Add or extend the existing spawn coverage so the expected terminal label remains:
 
@@ -167,7 +169,7 @@ Add or extend the existing spawn coverage so the expected terminal label remains
 expect(terminalName).toMatch(/^Claude Code #\d+$/);
 ```
 
-- [ ] **Step 2: Move Claude-specific terminal naming and launch command into the adapter**
+- [x] **Step 2: Move Claude-specific terminal naming and launch command into the adapter**
 
 The adapter should own:
 
@@ -176,15 +178,15 @@ The adapter should own:
 - transcript root discovery
 - hook installer wiring
 
-- [ ] **Step 3: Remove global Claude-only assumptions from extension control flow**
+- [x] **Step 3: Remove global Claude-only assumptions from extension control flow**
 
 Replace broad constants like `TERMINAL_NAME_PREFIX = 'Claude Code'` with adapter lookups.
 
-- [ ] **Step 4: Keep webview messages canonical**
+- [x] **Step 4: Keep webview messages canonical**
 
 Do not create provider-specific UI message names beyond launch/config. Internal runtime messages like `agentToolStart` and `agentStatus` must remain shared.
 
-- [ ] **Step 5: Run regression checks**
+- [x] **Step 5: Run regression checks**
 
 Run:
 
@@ -211,7 +213,7 @@ git commit -m "refactor: extract claude provider adapter"
 - Modify: `src/PixelAgentsViewProvider.ts`
 - Modify: `src/types.ts`
 
-- [ ] **Step 1: Write the failing event-router test**
+- [x] **Step 1: Write the failing event-router test**
 
 Test that provider-native events map to canonical UI actions:
 
@@ -220,7 +222,7 @@ expect(events).toContainEqual({ type: 'permissionRequested', agentId: 1 });
 expect(events).toContainEqual({ type: 'turnCompleted', agentId: 1 });
 ```
 
-- [ ] **Step 2: Introduce a canonical event shape**
+- [x] **Step 2: Introduce a canonical event shape**
 
 Add a provider-neutral event union:
 
@@ -232,11 +234,11 @@ type ProviderLifecycleEvent =
   | { type: 'toolStarted'; agentId: number; toolId: string; toolName: string; status: string };
 ```
 
-- [ ] **Step 3: Route Claude hook events through the new router**
+- [x] **Step 3: Route Claude hook events through the new router**
 
 `HookEventHandler` should emit canonical lifecycle events rather than writing webview messages directly whenever possible.
 
-- [ ] **Step 4: Keep the current webview contract stable**
+- [x] **Step 4: Keep the current webview contract stable**
 
 The router may still translate canonical events into existing messages such as:
 
@@ -245,7 +247,7 @@ The router may still translate canonical events into existing messages such as:
 - `agentToolStart`
 - `subagentToolStart`
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run:
 
@@ -271,7 +273,7 @@ git commit -m "refactor: normalize provider lifecycle events"
 - Create: `e2e/fixtures/mock-codex.cmd`
 - Modify: `e2e/helpers/launch.ts`
 
-- [ ] **Step 1: Write a failing transport test around Codex app-server notifications**
+- [x] **Step 1: Write a failing transport test around Codex app-server notifications**
 
 Model the minimum stream needed for v1:
 
@@ -284,7 +286,7 @@ Model the minimum stream needed for v1:
 ];
 ```
 
-- [ ] **Step 2: Build a small smoke script for local transport validation**
+- [x] **Step 2: Build a small smoke script for local transport validation**
 
 The script should prove that Pixel Agents can:
 
@@ -292,7 +294,7 @@ The script should prove that Pixel Agents can:
 - initialize a session
 - read structured notifications
 
-- [ ] **Step 3: Add Codex mock binaries for e2e**
+- [x] **Step 3: Add Codex mock binaries for e2e**
 
 Mirror the Claude fixture strategy:
 
@@ -300,11 +302,11 @@ Mirror the Claude fixture strategy:
 - create any expected local state needed by the launch test
 - avoid using the real Codex CLI in CI
 
-- [ ] **Step 4: Update the e2e launcher to inject both provider mocks**
+- [x] **Step 4: Update the e2e launcher to inject both provider mocks**
 
 The test harness should be able to resolve either `claude` or `codex` depending on the selected provider.
 
-- [ ] **Step 5: Run validation**
+- [x] **Step 5: Run validation**
 
 Run:
 
@@ -331,7 +333,7 @@ git commit -m "test: add codex transport smoke checks and fixtures"
 - Modify: `src/types.ts`
 - Create: `e2e/tests/codex-agent-spawn.spec.ts`
 
-- [ ] **Step 1: Write the failing Codex spawn e2e**
+- [x] **Step 1: Write the failing Codex spawn e2e**
 
 The test should assert:
 
@@ -339,7 +341,7 @@ The test should assert:
 - a `Codex #1` terminal appears
 - an agent character is created
 
-- [ ] **Step 2: Implement provider-aware terminal creation**
+- [x] **Step 2: Implement provider-aware terminal creation**
 
 Codex launch must own:
 
@@ -347,15 +349,17 @@ Codex launch must own:
 - provider-specific command string
 - session bootstrap metadata
 
-- [ ] **Step 3: Persist provider identity on launch and restore**
+- [x] **Step 3: Persist provider identity on launch and restore**
 
 Ensure restored agents keep `providerId: 'codex'` and never fall back to Claude naming logic.
 
-- [ ] **Step 4: Keep Codex behind a temporary enable flag until lifecycle mapping lands**
+- [x] **Step 4: Keep Codex behind a temporary enable flag until lifecycle mapping lands**
 
 Expose it only when enabled in settings and when transport initialization succeeds.
 
-- [ ] **Step 5: Run validation**
+Note: this landed through provider enablement/settings and is no longer a blocking temporary gate because lifecycle mapping is now implemented.
+
+- [x] **Step 5: Run validation**
 
 Run:
 
@@ -381,7 +385,7 @@ git commit -m "feat: add codex launch provider"
 - Modify: `server/src/providerEventRouter.ts`
 - Modify: `src/PixelAgentsViewProvider.ts`
 
-- [ ] **Step 1: Write failing mapper tests for the v1 quality bar**
+- [x] **Step 1: Write failing mapper tests for the v1 quality bar**
 
 Cover at least:
 
@@ -390,7 +394,7 @@ Cover at least:
 - command/file-change items -> active tool status
 - `subAgent`-sourced items -> subagent start/stop
 
-- [ ] **Step 2: Implement a typed Codex app-server client**
+- [x] **Step 2: Implement a typed Codex app-server client**
 
 Read JSON-RPC notifications and expose typed callbacks for:
 
@@ -399,7 +403,7 @@ Read JSON-RPC notifications and expose typed callbacks for:
 - item lifecycle
 - approval requests
 
-- [ ] **Step 3: Map Codex item types into the existing office semantics**
+- [x] **Step 3: Map Codex item types into the existing office semantics**
 
 Examples:
 
@@ -408,11 +412,11 @@ Examples:
 - tool call -> tool overlay text
 - subagent-related source kinds -> subagent characters
 
-- [ ] **Step 4: Wire the Codex provider into the shared router**
+- [x] **Step 4: Wire the Codex provider into the shared router**
 
 The webview must continue to receive the same canonical runtime messages already used by Claude.
 
-- [ ] **Step 5: Run validation**
+- [x] **Step 5: Run validation**
 
 Run:
 
@@ -438,7 +442,7 @@ git commit -m "feat: map codex events into pixel agents lifecycle"
 - Create: `e2e/tests/provider-switcher.spec.ts`
 - Modify: `e2e/tests/agent-spawn.spec.ts`
 
-- [ ] **Step 1: Add the failing provider-switcher e2e**
+- [x] **Step 1: Add the failing provider-switcher e2e**
 
 Test:
 
@@ -446,7 +450,7 @@ Test:
 - spawn one of each
 - verify terminal names and provider persistence behavior
 
-- [ ] **Step 2: Update README prerequisites and usage**
+- [x] **Step 2: Update README prerequisites and usage**
 
 Document:
 
@@ -454,7 +458,7 @@ Document:
 - provider switcher behavior
 - Codex v1 limitations
 
-- [ ] **Step 3: Update contributor docs**
+- [x] **Step 3: Update contributor docs**
 
 Document:
 
@@ -462,7 +466,7 @@ Document:
 - mock fixtures for both CLIs
 - required regression matrix before merging
 
-- [ ] **Step 4: Run the full validation suite**
+- [x] **Step 4: Run the full validation suite**
 
 Run:
 
@@ -492,3 +496,6 @@ git commit -m "docs: ship codex multi-provider support"
 ## Deferred Follow-Up
 
 After the work above is stable, implement Codex external-session discovery and attach using the existing `isExternal` model as the starting point.
+
+- Add automatic attach/discovery for other active Codex sessions so Pixel Agents can rehydrate and observe them without a manual spawn from the toolbar.
+- Add themeable office avatar packs so the current human sprites can be swapped for alternate icon sets, including sprite themes similar to VS Code icon themes such as `vscode-pokemon`.

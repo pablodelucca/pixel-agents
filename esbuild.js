@@ -54,6 +54,23 @@ function buildHooks() {
 }
 
 /**
+ * Bundle provider launch scripts (TypeScript) to dist/providers.
+ */
+function buildProviderLaunchers() {
+  const codexEntry = path.join(__dirname, 'src', 'providers', 'codex', 'codexLaunch.ts');
+  if (!fs.existsSync(codexEntry)) return;
+  require('esbuild').buildSync({
+    entryPoints: [{ in: codexEntry, out: 'codex-launch' }],
+    bundle: true,
+    platform: 'node',
+    target: 'node18',
+    format: 'cjs',
+    outdir: path.join(__dirname, 'dist', 'providers'),
+  });
+  console.log('Built providers -> dist/providers/');
+}
+
+/**
  * @type {import('esbuild').Plugin}
  */
 const esbuildProblemMatcherPlugin = {
@@ -68,6 +85,11 @@ const esbuildProblemMatcherPlugin = {
         console.error(`✘ [ERROR] ${text}`);
         console.error(`    ${location.file}:${location.line}:${location.column}:`);
       });
+      if (result.errors.length === 0) {
+        copyAssets();
+        buildHooks();
+        buildProviderLaunchers();
+      }
       console.log('[watch] build finished');
     });
   },
@@ -95,9 +117,6 @@ async function main() {
   } else {
     await ctx.rebuild();
     await ctx.dispose();
-    // Copy assets and hooks after build
-    copyAssets();
-    buildHooks();
   }
 }
 

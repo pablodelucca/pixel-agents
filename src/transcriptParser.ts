@@ -174,6 +174,7 @@ export function processTranscriptLine(
               if (completedToolName === 'Task' || completedToolName === 'Agent') {
                 agent.activeSubagentToolIds.delete(completedToolId);
                 agent.activeSubagentToolNames.delete(completedToolId);
+                agent.activeSubagentToolStatuses.delete(completedToolId);
                 webview?.postMessage({
                   type: 'subagentClear',
                   id: agentId,
@@ -226,6 +227,7 @@ export function processTranscriptLine(
             agent.backgroundAgentToolIds.delete(completedToolId);
             agent.activeSubagentToolIds.delete(completedToolId);
             agent.activeSubagentToolNames.delete(completedToolId);
+            agent.activeSubagentToolStatuses.delete(completedToolId);
             webview?.postMessage({
               type: 'subagentClear',
               id: agentId,
@@ -266,6 +268,7 @@ export function processTranscriptLine(
           if (toolName === 'Task' || toolName === 'Agent') {
             agent.activeSubagentToolIds.delete(toolId);
             agent.activeSubagentToolNames.delete(toolId);
+            agent.activeSubagentToolStatuses.delete(toolId);
           }
         }
         if (!agent.hookDelivered) {
@@ -289,6 +292,7 @@ export function processTranscriptLine(
         agent.activeToolNames.clear();
         agent.activeSubagentToolIds.clear();
         agent.activeSubagentToolNames.clear();
+        agent.activeSubagentToolStatuses.clear();
         if (!agent.hookDelivered) {
           webview?.postMessage({ type: 'agentToolsClear', id: agentId });
         }
@@ -391,6 +395,13 @@ function processProgressRecord(
         }
         subNames.set(block.id, toolName);
 
+        let subStatuses = agent.activeSubagentToolStatuses.get(parentToolId);
+        if (!subStatuses) {
+          subStatuses = new Map();
+          agent.activeSubagentToolStatuses.set(parentToolId, subStatuses);
+        }
+        subStatuses.set(block.id, status);
+
         if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
           hasNonExemptSubTool = true;
         }
@@ -422,6 +433,10 @@ function processProgressRecord(
         const subNames = agent.activeSubagentToolNames.get(parentToolId);
         if (subNames) {
           subNames.delete(block.tool_use_id);
+        }
+        const subStatuses = agent.activeSubagentToolStatuses.get(parentToolId);
+        if (subStatuses) {
+          subStatuses.delete(block.tool_use_id);
         }
 
         const toolId = block.tool_use_id;

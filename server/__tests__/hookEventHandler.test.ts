@@ -21,6 +21,7 @@ function createTestAgent(overrides: Partial<AgentState> = {}): AgentState {
     activeToolNames: new Map(),
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
+    activeSubagentToolStatuses: new Map(),
     backgroundAgentToolIds: new Set(),
     isWaiting: false,
     permissionSent: false,

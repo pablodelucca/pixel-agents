@@ -22,6 +22,7 @@ export function clearAgentActivity(
       if (toolName === 'Task' || toolName === 'Agent') {
         agent.activeSubagentToolIds.delete(toolId);
         agent.activeSubagentToolNames.delete(toolId);
+        agent.activeSubagentToolStatuses.delete(toolId);
       }
     }
   } else {
@@ -30,6 +31,7 @@ export function clearAgentActivity(
     agent.activeToolNames.clear();
     agent.activeSubagentToolIds.clear();
     agent.activeSubagentToolNames.clear();
+    agent.activeSubagentToolStatuses.clear();
   }
 
   agent.isWaiting = false;

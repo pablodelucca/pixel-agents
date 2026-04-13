@@ -19,7 +19,6 @@
  * Only their timer logic (permission 7s, text-idle 5s) is suppressed by hookDelivered.
  */
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
@@ -37,7 +36,8 @@ import {
   PROJECT_SCAN_INTERVAL_MS,
 } from '../server/src/constants.js';
 import { removeAgent } from './agentManager.js';
-import { TERMINAL_NAME_PREFIX } from './constants.js';
+import { getExternalDiscoveryAdapters } from './providers/providerAdapters.js';
+import { getProviderIdForTerminalName } from './providers/providerTerminalMatcher.js';
 import { DEFAULT_PROVIDER_ID, type ProviderId } from './providers/providerTypes.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
@@ -349,9 +349,12 @@ function scanForNewJsonlFiles(
     // Non-adopted files stay OUT of knownJsonlFiles so the per-agent /clear
     // check can find them when the idle check passes (up to 5s later).
 
-    // Try to adopt the focused terminal (only if it's a Claude-named terminal)
+    // Try to adopt the focused terminal only when it belongs to a known provider.
     const activeTerminal = vscode.window.activeTerminal;
-    if (activeTerminal && activeTerminal.name.startsWith(TERMINAL_NAME_PREFIX)) {
+    const activeProviderId = activeTerminal
+      ? getProviderIdForTerminalName(activeTerminal.name)
+      : undefined;
+    if (activeTerminal && activeProviderId) {
       let owned = false;
       for (const agent of agents.values()) {
         if (agent.terminalRef === activeTerminal) {
@@ -365,7 +368,7 @@ function scanForNewJsonlFiles(
           activeTerminal,
           file,
           projectDir,
-          DEFAULT_PROVIDER_ID,
+          activeProviderId,
           nextAgentIdRef,
           agents,
           activeAgentIdRef,
@@ -377,11 +380,11 @@ function scanForNewJsonlFiles(
           persistAgents,
         );
       } else {
-        // Active terminal is owned -- scan for untracked Claude-named terminals.
-        // Only adopt terminals with TERMINAL_NAME_PREFIX to avoid grabbing
-        // pre-existing shells ("zsh", "bash") for /clear files.
+        // Active terminal is owned. Scan for other untracked provider terminals
+        // without adopting arbitrary shells ("zsh", "bash") for /clear files.
         for (const terminal of vscode.window.terminals) {
-          if (!terminal.name.startsWith(TERMINAL_NAME_PREFIX)) continue;
+          const terminalProviderId = getProviderIdForTerminalName(terminal.name);
+          if (!terminalProviderId) continue;
           let owned = false;
           for (const agent of agents.values()) {
             if (agent.terminalRef === terminal) {
@@ -395,7 +398,7 @@ function scanForNewJsonlFiles(
               terminal,
               file,
               projectDir,
-              DEFAULT_PROVIDER_ID,
+              terminalProviderId,
               nextAgentIdRef,
               agents,
               activeAgentIdRef,
@@ -477,6 +480,7 @@ function adoptTerminalForFile(
     activeToolNames: new Map(),
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
+    activeSubagentToolStatuses: new Map(),
     backgroundAgentToolIds: new Set(),
     isWaiting: false,
     permissionSent: false,
@@ -593,6 +597,7 @@ export function adoptExternalSessionFromHook(
       activeToolNames: new Map(),
       activeSubagentToolIds: new Map(),
       activeSubagentToolNames: new Map(),
+      activeSubagentToolStatuses: new Map(),
       backgroundAgentToolIds: new Set(),
       isWaiting: false,
       permissionSent: false,
@@ -654,6 +659,7 @@ function adoptExternalSession(
     activeToolNames: new Map(),
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
+    activeSubagentToolStatuses: new Map(),
     backgroundAgentToolIds: new Set(),
     isWaiting: false,
     permissionSent: false,
@@ -876,13 +882,13 @@ function scanExternalDir(
   }
 }
 
-/** Derive a readable folder name from the Claude project dir hash. */
+/** Derive a readable folder name from a provider project dir hash. */
 function folderNameFromProjectDir(dirName: string): string {
   const parts = dirName.replace(/^-+/, '').split('-');
   return parts[parts.length - 1] || dirName;
 }
 
-/** Scan ALL ~/.claude/projects/ directories for active sessions (global discovery). */
+/** Scan provider project roots for active sessions (global discovery). */
 function scanGlobalProjectDirs(
   knownJsonlFiles: Set<string>,
   nextAgentIdRef: { current: number },
@@ -894,68 +900,72 @@ function scanGlobalProjectDirs(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
 ): void {
-  const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
-  let dirs: fs.Dirent[];
-  try {
-    dirs = fs.readdirSync(projectsRoot, { withFileTypes: true }).filter((d) => d.isDirectory());
-  } catch {
-    return;
-  }
-
   const now = Date.now();
-  for (const dir of dirs) {
-    const dirPath = path.join(projectsRoot, dir.name);
-    // Skip directories already tracked by workspace scanning
-    if (trackedProjectDirs.has(dirPath)) continue;
+  for (const provider of getExternalDiscoveryAdapters()) {
+    const projectsRoot = provider.getProjectsRoot?.();
+    if (!projectsRoot) continue;
 
-    let files: string[];
+    let dirs: fs.Dirent[];
     try {
-      files = fs
-        .readdirSync(dirPath)
-        .filter((f) => f.endsWith('.jsonl'))
-        .map((f) => path.join(dirPath, f));
+      dirs = fs.readdirSync(projectsRoot, { withFileTypes: true }).filter((d) => d.isDirectory());
     } catch {
       continue;
     }
 
-    for (const file of files) {
-      if (knownJsonlFiles.has(file)) continue;
-      let tracked = false;
-      for (const agent of agents.values()) {
-        if (agent.jsonlFile === file) {
-          tracked = true;
-          break;
-        }
-      }
-      if (tracked) continue;
-      // Activity filter: >3KB AND modified within 10 minutes
+    for (const dir of dirs) {
+      const dirPath = path.join(projectsRoot, dir.name);
+      // Skip directories already tracked by workspace scanning
+      if (trackedProjectDirs.has(dirPath)) continue;
+
+      let files: string[];
       try {
-        const stat = fs.statSync(file);
-        if (stat.size < GLOBAL_SCAN_ACTIVE_MIN_SIZE) continue;
-        if (now - stat.mtimeMs > GLOBAL_SCAN_ACTIVE_MAX_AGE_MS) continue;
+        files = fs
+          .readdirSync(dirPath)
+          .filter((f) => f.endsWith('.jsonl'))
+          .map((f) => path.join(dirPath, f));
       } catch {
         continue;
       }
 
-      const folderName = folderNameFromProjectDir(dir.name);
-      knownJsonlFiles.add(file);
-      console.log(
-        `[Pixel Agents] Watcher: detected global session ${path.basename(file)} (${folderName})`,
-      );
-      adoptExternalSession(
-        DEFAULT_PROVIDER_ID,
-        file,
-        dirPath,
-        nextAgentIdRef,
-        agents,
-        fileWatchers,
-        pollingTimers,
-        waitingTimers,
-        permissionTimers,
-        webview,
-        persistAgents,
-        folderName,
-      );
+      for (const file of files) {
+        if (knownJsonlFiles.has(file)) continue;
+        let tracked = false;
+        for (const agent of agents.values()) {
+          if (agent.jsonlFile === file) {
+            tracked = true;
+            break;
+          }
+        }
+        if (tracked) continue;
+        // Activity filter: >3KB AND modified within 10 minutes
+        try {
+          const stat = fs.statSync(file);
+          if (stat.size < GLOBAL_SCAN_ACTIVE_MIN_SIZE) continue;
+          if (now - stat.mtimeMs > GLOBAL_SCAN_ACTIVE_MAX_AGE_MS) continue;
+        } catch {
+          continue;
+        }
+
+        const folderName = folderNameFromProjectDir(dir.name);
+        knownJsonlFiles.add(file);
+        console.log(
+          `[Pixel Agents] Watcher: detected global session ${path.basename(file)} (${folderName})`,
+        );
+        adoptExternalSession(
+          provider.id,
+          file,
+          dirPath,
+          nextAgentIdRef,
+          agents,
+          fileWatchers,
+          pollingTimers,
+          waitingTimers,
+          permissionTimers,
+          webview,
+          persistAgents,
+          folderName,
+        );
+      }
     }
   }
 }

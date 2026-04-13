@@ -9,8 +9,16 @@ sprites-export/**
 logs/**
 .github/**
 .claude/**
+.claude-flow/**
+.swarm/**
+.code-review-graph/**
+playwright-report/**
+test-results/**
+e2e/**
+test/**
 .env
 .gitignore
+pixel-agents-dev.code-workspace
 esbuild.js
 **/tsconfig.json
 **/eslint.config.mjs
