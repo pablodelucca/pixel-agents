@@ -3,16 +3,17 @@ export type ServerStatus = 'available' | 'reserved' | 'occupied' | 'offline';
 
 export interface ServerRecord {
   id: string;
-  username: string;
-  ip: string;
-  password: string;
-  cpu: number;
-  ram: number;
-  storage: number;
-  status: ServerStatus;
-  is_purchased: boolean;
+  user_id: string | null;
+  username: string | null;
+  password: string | null;
+  cpu: number | null;
+  ram: number | null;
+  storage: number | null;
+  ip_public: string | null;
+  ip_private: string | null;
+  status: ServerStatus | null;
   created_at: string;
-  updated_at: string;
+  updated_at: string | null;
 }
 
 export interface OfficeRecord {

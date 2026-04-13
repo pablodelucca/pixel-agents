@@ -40,10 +40,10 @@ sessionsRoutes.get('/', async (req, res) => {
 
     if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
-    if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
+    if (!server.ip_public) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });
 
-    const sessions = await listSessions(server.ip, server.password, agentId, server.username ?? 'root', 22);
+    const sessions = await listSessions(server.ip_public, server.password, agentId, server.username ?? 'root', 22);
     res.json({ success: true, data: sessions });
   } catch (error) {
     console.error('Error fetching sessions:', error);
@@ -68,10 +68,10 @@ sessionsRoutes.post('/', async (req, res) => {
 
     if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
-    if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
+    if (!server.ip_public) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });
 
-    const result = await createNewSession(server.ip, server.password, agentId, initialMessage, server.username ?? 'root', 22);
+    const result = await createNewSession(server.ip_public, server.password, agentId, initialMessage, server.username ?? 'root', 22);
 
     if (!result.success) return res.status(500).json({ success: false, error: result.error });
 
@@ -99,10 +99,10 @@ sessionsRoutes.get('/workspace', async (req, res) => {
 
     if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
-    if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
+    if (!server.ip_public) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });
 
-    const result = await fetchAgentWorkspace(server.ip, server.password, agentId, server.username ?? 'root', 22);
+    const result = await fetchAgentWorkspace(server.ip_public, server.password, agentId, server.username ?? 'root', 22);
 
     if (!result.success) return res.status(500).json({ success: false, error: result.error });
 
@@ -133,10 +133,10 @@ sessionsRoutes.put('/workspace', async (req, res) => {
 
     if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
-    if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
+    if (!server.ip_public) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });
 
-    const result = await saveAgentWorkspaceFile(server.ip, server.password, filename, content, agentId, server.username ?? 'root', 22);
+    const result = await saveAgentWorkspaceFile(server.ip_public, server.password, filename, content, agentId, server.username ?? 'root', 22);
 
     if (!result.success) return res.status(500).json({ success: false, error: result.error });
 
@@ -164,10 +164,10 @@ sessionsRoutes.get('/:sessionId', async (req, res) => {
 
     if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
-    if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
+    if (!server.ip_public) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });
 
-    const session = await fetchSessionHistory(server.ip, server.password, sessionId, agentId, server.username ?? 'root', 22);
+    const session = await fetchSessionHistory(server.ip_public, server.password, sessionId, agentId, server.username ?? 'root', 22);
     res.json({ success: true, data: session });
   } catch (error) {
     console.error('Error fetching session history:', error);
@@ -194,10 +194,10 @@ sessionsRoutes.post('/:sessionId/messages', async (req, res) => {
 
     if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
-    if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
+    if (!server.ip_public) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });
 
-    const result = await sendMessageToAgent(server.ip, server.password, sessionId, content, agentId, server.username ?? 'root', 22);
+    const result = await sendMessageToAgent(server.ip_public, server.password, sessionId, content, agentId, server.username ?? 'root', 22);
 
     if (!result.success) return res.status(500).json({ success: false, error: result.error });
 

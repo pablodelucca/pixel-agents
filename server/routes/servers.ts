@@ -300,10 +300,10 @@ serverRoutes.get('/:id/config', async (req, res) => {
 
     if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
-    if (!server.ip) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
+    if (!server.ip_public) return res.status(400).json({ success: false, error: 'Server has no IP configured' });
     if (!server.password) return res.status(400).json({ success: false, error: 'Server has no password configured' });
 
-    const config = await fetchOpenClawConfig(server.ip, server.password, server.username || 'root');
+    const config = await fetchOpenClawConfig(server.ip_public, server.password, server.username || 'root');
     res.json({ success: true, data: config });
   } catch (error) {
     console.error('Error fetching server config:', error);
@@ -326,9 +326,9 @@ serverRoutes.get('/:id/test', async (req, res) => {
     if (error) throw new Error(error.message);
     if (!server) return res.status(404).json({ success: false, error: 'Server not found' });
 
-    const isConnected = await checkServerConnection(server.ip, server.password, server.username || 'root');
+    const isConnected = await checkServerConnection(server.ip_public, server.password, server.username || 'root');
 
-    res.json({ success: true, data: { connected: isConnected, host: server.ip, user: server.username || 'root' } });
+    res.json({ success: true, data: { connected: isConnected, host: server.ip_public, user: server.username || 'root' } });
   } catch (error) {
     console.error('Error testing server connection:', error);
     res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });

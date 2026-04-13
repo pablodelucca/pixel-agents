@@ -14,6 +14,7 @@ import { paymentHistoryRoutes } from './routes/paymentHistory.js';
 import { serverRoutes } from './routes/servers.js';
 import { transactionHistoryRoutes } from './routes/transactionHistory.js';
 import { tripayCallbackRoutes } from './routes/tripayCallback.js';
+import { usersRoutes } from './routes/users.js';
 
 const app = express();
 const FRONTEND_URL = process.env.FRONTEND_URL || '';
@@ -41,6 +42,7 @@ app.use('/api/offices', officesRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/servers', serverRoutes);
 app.use('/api/tripay', tripayCallbackRoutes);
+app.use('/api/users', usersRoutes);
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -71,40 +73,14 @@ if (!DEFAULT_PORT) {
   console.error('❌ BACKEND_PORT environment variable is required');
   process.exit(1);
 }
-const MAX_ATTEMPTS = 10;
-
-function tryListen(port: number, attemptsLeft: number): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = app.listen(port);
-
-    server.on('listening', () => {
-      if (port !== DEFAULT_PORT) {
-        console.log(`⚠️  Port ${DEFAULT_PORT} is in use, switched to ${port}`);
-      }
-      console.log(`🚀 Clawmpany server running on http://localhost:${port}`);
-      console.log(`📡 API endpoints:`);
-      console.log(`   - http://localhost:${port}/api/credits`);
-      console.log(`   - http://localhost:${port}/api/offices`);
-      console.log(`   - http://localhost:${port}/api/payment`);
-      console.log(`   - http://localhost:${port}/api/servers`);
-      console.log(`   - http://localhost:${port}/api/history/payment`);
-      console.log(`   - http://localhost:${port}/api/history/transaction`);
-      console.log(`📦 Database: Supabase (${DB_URL})`);
-      resolve(port);
-    });
-
-    server.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
-        server.close();
-        resolve(tryListen(port + 1, attemptsLeft - 1));
-      } else {
-        reject(err);
-      }
-    });
-  });
-}
-
-tryListen(DEFAULT_PORT, MAX_ATTEMPTS).catch((err) => {
-  console.error('❌ Failed to start server:', err.message);
-  process.exit(1);
+app.listen(DEFAULT_PORT, () => {
+  console.log(`🚀 Clawmpany server running on http://localhost:${DEFAULT_PORT}`);
+  console.log(`📡 API endpoints:`);
+  console.log(`   - http://localhost:${DEFAULT_PORT}/api/credits`);
+  console.log(`   - http://localhost:${DEFAULT_PORT}/api/offices`);
+  console.log(`   - http://localhost:${DEFAULT_PORT}/api/payment`);
+  console.log(`   - http://localhost:${DEFAULT_PORT}/api/servers`);
+  console.log(`   - http://localhost:${DEFAULT_PORT}/api/history/payment`);
+  console.log(`   - http://localhost:${DEFAULT_PORT}/api/history/transaction`);
+  console.log(`📦 Database: Supabase (${DB_URL})`);
 });

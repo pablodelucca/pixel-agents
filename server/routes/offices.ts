@@ -89,17 +89,17 @@ officesRoutes.get('/', async (req, res) => {
         server = {
           id: serverData.id,
           username: serverData.username || 'root',
-          ip: serverData.ip,
+          ip: serverData.ip_public,
+          ipPrivate: serverData.ip_private,
           cpu: serverData.cpu,
           ram: serverData.ram,
           storage: serverData.storage,
-          isPurchased: serverData.is_purchased,
         };
 
-        if (serverData.ip && serverData.password) {
+        if (serverData.ip_public && serverData.password) {
           try {
             console.log('[/api/offices] Fetching OpenClaw config via SSH...');
-            config = await fetchOpenClawConfig(serverData.ip, serverData.password, serverData.username || 'root');
+            config = await fetchOpenClawConfig(serverData.ip_public, serverData.password, serverData.username || 'root');
             console.log('[/api/offices] OpenClaw config fetched, agents:', config.agents?.length || 0);
           } catch (sshError) {
             console.error('[/api/offices] SSH error:', sshError);

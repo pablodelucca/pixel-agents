@@ -12,6 +12,7 @@ import { ServersModal } from './components/ServersModal.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
 import { useAuth } from './hooks/useAuth.js';
+import { useUserSync } from './hooks/useUserSync.js';
 import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
 import { useExtensionMessages } from './hooks/useExtensionMessages.js';
@@ -132,6 +133,8 @@ function App() {
   // Auth state - require authentication if Privy is configured
   const { ready, authenticated, login } = usePrivy();
   const { loading: authLoading } = useAuth();
+  const { profile: userProfile } = useUserSync();
+  void userProfile; // available for future use
   const { hasOffice, loading: officeLoading, config, server, checkOffice } = useOffice();
   const requireAuth = import.meta.env.VITE_PRIVY_APP_ID ? true : false;
 

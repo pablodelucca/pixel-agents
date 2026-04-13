@@ -4,7 +4,8 @@
   "version": "0.4.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"vite\" \"tsx watch server/index.ts\"",
+    "kill:ports": "for port in 3000 3001 3002 3003 3004 3005 4000 4001 4002 4003 4004 4005 5173 5174 5175 5176; do lsof -ti :$port 2>/dev/null | xargs kill -9 2>/dev/null; done; true",
+    "dev": "npm run kill:ports && sleep 0.5 && concurrently \"vite\" \"tsx watch server/index.ts\"",
     "dev:client": "vite",
     "dev:server": "tsx watch server/index.ts",
     "build": "tsc -b && vite build",

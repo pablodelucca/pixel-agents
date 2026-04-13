@@ -20,7 +20,6 @@ interface OfficeServer {
   cpu: number;
   ram: number;
   storage: number;
-  isPurchased: boolean;
 }
 
 // Pixel-style avatar component

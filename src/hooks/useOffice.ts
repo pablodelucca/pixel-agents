@@ -17,10 +17,10 @@ export interface Server {
   id: string;
   username: string;
   ip: string;
+  ipPrivate?: string;
   cpu: number;
   ram: number;
   storage: number;
-  isPurchased: boolean;
 }
 
 export interface AgentConfig {
