@@ -1,5 +1,0 @@
-# PocketBase data directory - contains database and uploads
-pb_data/
-
-# Keep migrations
-!pb_migrations/

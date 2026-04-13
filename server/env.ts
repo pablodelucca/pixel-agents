@@ -9,10 +9,9 @@ const __dirname = path.dirname(__filename);
 
 // Try multiple possible .env locations
 const envPaths = [
-  path.resolve(__dirname, '.env'),           // server/.env
-  path.resolve(__dirname, '../.env'),        // root .env
-  path.resolve(process.cwd(), '.env'),       // cwd/.env
-  path.resolve(process.cwd(), 'server/.env'), // cwd/server/.env
+  path.resolve(__dirname, '.env'),             // server/.env
+  path.resolve(__dirname, '../.env'),          // root .env
+  path.resolve(process.cwd(), '.env'),         // cwd/.env
 ];
 
 for (const envPath of envPaths) {

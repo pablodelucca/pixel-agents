@@ -1,14 +1,19 @@
-// Database types for Clawmpany
+// Re-export shared types for backward compatibility
+// New code should import directly from '@/shared'
+export type {
+  AgentConfig,
+  AgentIdentity,
+  ChatMessage,
+  ServerConfig,
+} from '../shared';
 
-export type ServerStatus = 'pending' | 'creating' | 'online' | 'offline' | 'error';
-export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'expired';
-
+// App-specific types that don't belong in shared
 export interface Server {
   id: string;
   user_id: string;
   instance_id: string | null;
   name: string;
-  status: ServerStatus;
+  status: string;
   public_ip: string | null;
   region: string;
   bundle_id: string | null;
@@ -31,27 +36,10 @@ export interface Payment {
   reference: string | null;
   merchant_ref: string | null;
   amount: number;
-  status: PaymentStatus;
+  status: string;
   payment_method: string | null;
   checkout_url: string | null;
   paid_at: string | null;
   expired_at: string | null;
   created_at: string;
-}
-
-// Agent config from OpenClaw
-export interface AgentIdentity {
-  name?: string;
-  theme?: string;
-  emoji?: string;
-}
-
-export interface AgentConfig {
-  id: string;
-  name: string;
-  identity?: AgentIdentity;
-}
-
-export interface ServerConfig {
-  agents: AgentConfig[];
 }

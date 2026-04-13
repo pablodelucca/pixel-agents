@@ -3,7 +3,7 @@ logs
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
+yarn-debug.log*
 pnpm-debug.log*
 lerna-debug.log*
 
@@ -12,13 +12,12 @@ dist
 dist-ssr
 *.local
 
-# Environment variables (keep .env.example for reference)
+# Environment variables
 .env
 !.env.example
 
-# PocketBase data (contains database and uploaded files)
-pocketbase/pb_data/*
-pocketbase/pb_migrations/*
+# Server build output
+server/dist
 
 # Editor directories and files
 .idea
