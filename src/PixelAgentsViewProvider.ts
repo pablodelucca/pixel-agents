@@ -5,10 +5,6 @@ import * as vscode from 'vscode';
 
 import type { HookEvent } from '../server/src/hookEventHandler.js';
 import { HookEventHandler } from '../server/src/hookEventHandler.js';
-import {
-  installHooks,
-  uninstallHooks,
-} from '../server/src/providers/hook/claude/claudeHookInstaller.js';
 import { claudeProvider, copyHookScript } from '../server/src/providers/index.js';
 import { PixelAgentsServer } from '../server/src/server.js';
 import {
@@ -55,6 +51,7 @@ import {
   reassignAgentToFile,
   scanForTeammateFiles,
   seededMtimes,
+  setHookProvider as setFileWatcherHookProvider,
   setTeammateRemovalCallback,
   setTeamProvider,
   startExternalSessionScanning,
@@ -139,6 +136,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       setTeamProvider(claudeProvider.team);
     }
     setHookProvider(claudeProvider);
+    setFileWatcherHookProvider(claudeProvider);
     setTeammateRemovalCallback((id) => this.removeTeammate(id, 'team-config'));
 
     this.hookEventHandler.setLifecycleCallbacks({
@@ -256,7 +254,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         const hooksEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_HOOKS_ENABLED, true);
         this.hooksEnabled.current = hooksEnabled;
         if (hooksEnabled) {
-          installHooks();
+          void claudeProvider.installHooks(`http://127.0.0.1:${config.port}`, config.token);
           copyHookScript(this.context.extensionPath);
         }
         console.log(`[Pixel Agents] Server: ready on port ${config.port}`);
@@ -412,11 +410,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         this.context.globalState.update(GLOBAL_KEY_HOOKS_ENABLED, enabled);
         this.hooksEnabled.current = enabled;
         if (enabled) {
-          installHooks();
+          const serverConfig = this.pixelAgentsServer?.getConfig();
+          void claudeProvider.installHooks(
+            serverConfig ? `http://127.0.0.1:${serverConfig.port}` : '',
+            serverConfig?.token ?? '',
+          );
           copyHookScript(this.context.extensionPath);
           console.log('[Pixel Agents] Hooks enabled by user');
         } else {
-          uninstallHooks();
+          void claudeProvider.uninstallHooks();
           console.log('[Pixel Agents] Hooks disabled by user');
         }
       } else if (message.type === 'setHooksInfoShown') {
@@ -465,6 +467,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           }
         }
       } else if (message.type === 'webviewReady') {
+        // Provider capabilities: tool taxonomy for webview animation + subagent rendering.
+        // Sent once before restoreAgents so characters render with correct animations
+        // from the first frame.
+        this.webview?.postMessage({
+          type: 'providerCapabilities',
+          readingTools: [...claudeProvider.readingTools],
+          subagentToolNames: [...claudeProvider.subagentToolNames],
+        });
         restoreAgents(
           this.context,
           this.nextAgentId,

@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { JSONL_POLL_INTERVAL_MS } from '../server/src/constants.js';
+import { claudeProvider } from '../server/src/providers/index.js';
 import {
   TERMINAL_NAME_PREFIX,
   WORKSPACE_KEY_AGENT_SEATS,
@@ -20,43 +21,16 @@ import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
 import type { AgentState, PersistedAgent } from './types.js';
 
 export function getProjectDirPath(cwd?: string): string {
-  // Fall back to home directory when no workspace folder is open.
-  // This is the common case on Linux/macOS when VS Code is launched without a folder
-  // (e.g. `code` with no arguments). Claude Code writes JSONL files to
-  // ~/.claude/projects/<hash>/ where <hash> is derived from the process cwd, so we
-  // must use the same directory as the terminal's working directory.
+  // Fall back to home directory when no workspace folder is open (common on Linux/macOS
+  // when VS Code is launched without a folder). The provider's getSessionDirs already
+  // implements the Windows case-insensitive fallback for drive-letter casing.
   const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || os.homedir();
-  const dirName = workspacePath.replace(/[^a-zA-Z0-9-]/g, '-');
-  const projectDir = path.join(os.homedir(), '.claude', 'projects', dirName);
-  console.log(`[Pixel Agents] Terminal: Project dir: ${workspacePath} → ${dirName}`);
-
-  // Verify the directory exists; if not, try fuzzy matching against existing dirs
-  if (!fs.existsSync(projectDir)) {
-    const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
-    try {
-      if (fs.existsSync(projectsRoot)) {
-        const candidates = fs.readdirSync(projectsRoot);
-        // Try case-insensitive match (handles Windows drive letter casing)
-        const lowerDirName = dirName.toLowerCase();
-        const match = candidates.find((c) => c.toLowerCase() === lowerDirName);
-        if (match && match !== dirName) {
-          const matchedDir = path.join(projectsRoot, match);
-          console.log(
-            `[Pixel Agents] Project dir not found, using case-insensitive match: ${dirName} → ${match}`,
-          );
-          return matchedDir;
-        }
-        if (!match) {
-          console.warn(
-            `[Pixel Agents] Project dir does not exist: ${projectDir}. ` +
-              `Available dirs (${candidates.length}): ${candidates.slice(0, 5).join(', ')}${candidates.length > 5 ? '...' : ''}`,
-          );
-        }
-      }
-    } catch {
-      // Ignore scan errors
-    }
+  const dirs = claudeProvider.getSessionDirs?.(workspacePath) ?? [];
+  if (dirs.length === 0) {
+    throw new Error('claudeProvider.getSessionDirs returned no directories');
   }
+  const projectDir = dirs[0];
+  console.log(`[Pixel Agents] Terminal: Project dir: ${workspacePath} → ${projectDir}`);
   return projectDir;
 }
 
@@ -91,10 +65,11 @@ export async function launchNewTerminal(
   terminal.show();
 
   const sessionId = crypto.randomUUID();
-  const claudeCmd = bypassPermissions
-    ? `claude --session-id ${sessionId} --dangerously-skip-permissions`
-    : `claude --session-id ${sessionId}`;
-  terminal.sendText(claudeCmd);
+  const launch = claudeProvider.buildLaunchCommand?.(sessionId, cwd, { bypassPermissions });
+  if (!launch) {
+    throw new Error('claudeProvider.buildLaunchCommand is not implemented');
+  }
+  terminal.sendText([launch.command, ...launch.args].join(' '));
 
   const projectDir = getProjectDirPath(cwd);
 

@@ -35,15 +35,16 @@ export const GLOBAL_SCAN_ACTIVE_MIN_SIZE = 3_072; // 3KB
 /** Only adopt global JSONL files modified within this window */
 export const GLOBAL_SCAN_ACTIVE_MAX_AGE_MS = 600_000; // 10 minutes
 
-// ── Display Truncation ──────────────────────────────────────
-export const BASH_COMMAND_DISPLAY_MAX_LENGTH = 30;
-export const TASK_DESCRIPTION_DISPLAY_MAX_LENGTH = 40;
-
-// ── Pixel Agents Server ─────────────────────────────────────
-export const SERVER_JSON_DIR = '.pixel-agents';
-export const SERVER_JSON_NAME = 'server.json';
-export const HOOK_SCRIPTS_DIR = '.pixel-agents/hooks';
-export const HOOK_API_PREFIX = '/api/hooks';
+// ── Display Truncation + Pixel Agents Server paths ──────────
+// Centralized in core/src/constants.ts; re-exported here for back-compat.
+export {
+  BASH_COMMAND_DISPLAY_MAX_LENGTH,
+  HOOK_API_PREFIX,
+  HOOK_SCRIPTS_DIR,
+  SERVER_JSON_DIR,
+  SERVER_JSON_NAME,
+  TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
+} from '../../core/src/constants.js';
 
 // Claude-specific constants live in providers/hook/claude/constants.ts.
 // Re-exported here for backward-compatibility of existing callers that import

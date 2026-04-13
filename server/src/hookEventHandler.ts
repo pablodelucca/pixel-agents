@@ -3,10 +3,10 @@
 import * as path from 'path';
 import type * as vscode from 'vscode';
 
+import type { AgentEvent, HookProvider } from '../../core/src/provider.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from '../../src/timerManager.js';
 import type { AgentState } from '../../src/types.js';
 import { HOOK_EVENT_BUFFER_MS, SESSION_END_GRACE_MS } from './constants.js';
-import type { AgentEvent, HookProvider } from './provider.js';
 import { getInlineTeammates, hasInlineTeammates } from './teamUtils.js';
 
 const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
@@ -81,6 +81,9 @@ export class HookEventHandler {
   /** Pending external sessions waiting for a confirmation event (Stop, Notification, etc.). */
   private pendingExternalSessions = new Map<string, PendingExternalSession>();
 
+  /** Highest HookProvider.protocolVersion this handler understands. */
+  private static readonly SUPPORTED_PROTOCOL_VERSION = 1;
+
   constructor(
     private agents: Map<number, AgentState>,
     private waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
@@ -88,7 +91,15 @@ export class HookEventHandler {
     private getWebview: () => vscode.Webview | undefined,
     private provider: HookProvider,
     private watchAllSessionsRef?: { current: boolean },
-  ) {}
+  ) {
+    if (provider.protocolVersion !== HookEventHandler.SUPPORTED_PROTOCOL_VERSION) {
+      console.warn(
+        `[Pixel Agents] HookProvider "${provider.id}" reports protocolVersion=${provider.protocolVersion}, ` +
+          `but handler understands ${HookEventHandler.SUPPORTED_PROTOCOL_VERSION}. ` +
+          `Events from this provider will be dropped.`,
+      );
+    }
+  }
 
   /** Merged set of tool names that spawn subagents (teammates + within-turn subagents
    *  when a team provider is attached, or the base HookProvider set otherwise). */
@@ -136,6 +147,9 @@ export class HookEventHandler {
    * @param event - The hook event payload from the CLI tool
    */
   handleEvent(_providerId: string, event: HookEvent): void {
+    if (this.provider.protocolVersion !== HookEventHandler.SUPPORTED_PROTOCOL_VERSION) {
+      return; // version mismatch already logged in constructor
+    }
     // ── Provider normalization boundary ───────────────────────────────────────
     // All raw Claude-specific fields (tool_name, tool_input, agent_type, notification_type,
     // reason, source) are extracted by provider.normalizeHookEvent. Downstream dispatch
@@ -155,10 +169,8 @@ export class HookEventHandler {
     if (normEvent.kind === 'sessionStart') {
       const sid = event.session_id.slice(0, 8);
       const source = normEvent.source ?? 'unknown';
-      // transcript_path and cwd are not yet on the normalized sessionStart event;
-      // provider carries them in the raw payload until they're promoted.
-      const transcriptPath = event.transcript_path as string | undefined;
-      const cwd = event.cwd as string | undefined;
+      const transcriptPath = normEvent.transcriptPath;
+      const cwd = normEvent.cwd;
       const tracked = this.isTrackedSession(transcriptPath, cwd);
       if (debug && tracked)
         console.log(`[Pixel Agents] Hook: SessionStart(source=${source}, session=${sid}...)`);
@@ -338,15 +350,14 @@ export class HookEventHandler {
         // Handles Stop AND Notification(idle_prompt) -- both normalize to turnEnd.
         return this.handleStop(agent, agentId, webview);
       case 'subagentTurnEnd':
-        // Handles TeammateIdle AND TaskCompleted -- both normalize here. The team-
-        // provider's extractTeammateNameFromEvent(raw) routes to the specific teammate.
-        // (TaskCreated would have normalized to null already in the provider.)
+        // Handles TeammateIdle AND TaskCompleted -- both normalize here. The normalized
+        // `reason` field discriminates; the team-provider's extractTeammateNameFromEvent(raw)
+        // still routes to the specific teammate. (TaskCreated normalizes to null in the provider.)
         if (!this.provider.team) return;
-        if (eventName === 'TaskCompleted') {
+        if (normEvent.reason === 'completed') {
           return this.handleTaskCompleted(event, agentId);
         }
         return this.handleTeammateIdle(event, agent, agentId, webview);
-      case 'userTurn':
       case 'progress':
         // Not yet consumed by the office visualization. Silently drop.
         return;

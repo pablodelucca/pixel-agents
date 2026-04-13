@@ -6,7 +6,11 @@ import { setFloorSprites } from '../office/floorTiles.js';
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js';
 import { setCharacterTemplates } from '../office/sprites/spriteData.js';
-import { extractToolName } from '../office/toolUtils.js';
+import {
+  extractToolName,
+  isSubagentToolName,
+  setProviderCapabilities,
+} from '../office/toolUtils.js';
 import type { OfficeLayout, ToolActivity } from '../office/types.js';
 import { setWallSprites } from '../office/wallTiles.js';
 import { vscode } from '../vscodeApi.js';
@@ -120,6 +124,14 @@ export function useExtensionMessages(
     const handler = (e: MessageEvent) => {
       const msg = e.data;
       const os = getOfficeState();
+
+      if (msg.type === 'providerCapabilities') {
+        setProviderCapabilities({
+          readingTools: msg.readingTools,
+          subagentToolNames: msg.subagentToolNames,
+        });
+        return;
+      }
 
       if (msg.type === 'layoutLoaded') {
         // Skip external layout updates while editor has unsaved changes
@@ -257,20 +269,13 @@ export function useExtensionMessages(
           os.clearPermissionBubble(id);
         }
         // Create sub-agent character for Task/Agent tool subtasks.
+        // agentToolStart for Task/Agent is always emitted via JSONL (with the stable
+        // toolu_* id), never from the hook path — handlePreToolUse skips these tools.
         // In tmux / inline teams mode, Agent tool has run_in_background=true -- those
         // are handled via the independent teammate path (onTeammateDetected), not here.
         // runInBackground gates them out so we don't create ghost sub-agents for them.
-        //
-        // Skip creation for synthetic hook-ids. Later SubagentStop/subagentClear use
-        // the REAL tool id from JSONL; creating with a synthetic id would orphan the
-        // sub-agent (mismatched keys). JSONL's agentToolStart (with real id) handles
-        // creation in both hooks and heuristic modes -- ~500ms delay vs instant hook.
         const runInBackground = msg.runInBackground as boolean | undefined;
-        if (
-          (toolName === 'Task' || toolName === 'Agent') &&
-          !runInBackground &&
-          !toolId.startsWith('hook-')
-        ) {
+        if (isSubagentToolName(toolName) && !runInBackground) {
           const label = status.startsWith('Subtask:') ? status.slice('Subtask:'.length).trim() : '';
           const subId = os.addSubagent(id, toolId);
           setSubagentCharacters((prev) => {
@@ -388,10 +393,9 @@ export function useExtensionMessages(
             [id]: { ...agentSubs, [parentToolId]: [...list, { toolId, status, done: false }] },
           };
         });
-        // Update sub-agent character's tool and active state (if already created by
-        // agentToolStart via PreToolUse). The lookup uses the REAL parent tool id from
-        // JSONL, which won't match the synthetic hook-id the sub-agent was created
-        // with -- so this is a best-effort update for the heuristic (JSONL-driven) path.
+        // Update sub-agent character's tool and active state. The sub-agent was
+        // created by an earlier agentToolStart from JSONL using the same (real)
+        // parentToolId, so this lookup resolves.
         const subId = os.getSubagentId(id, parentToolId);
         if (subId !== null) {
           const subToolName = extractToolName(status);

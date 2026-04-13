@@ -8,7 +8,7 @@
  * Only imported in browser runtime; tree-shaken from VS Code webview runtime.
  */
 
-import { rgbaToHex } from '../../shared/assets/colorUtils.ts';
+import { rgbaToHex } from '../../core/src/assets/colorUtils.ts';
 import {
   CHAR_FRAME_H,
   CHAR_FRAME_W,
@@ -19,12 +19,12 @@ import {
   WALL_GRID_COLS,
   WALL_PIECE_HEIGHT,
   WALL_PIECE_WIDTH,
-} from '../../shared/assets/constants.ts';
+} from '../../core/src/assets/constants.ts';
 import type {
   AssetIndex,
   CatalogEntry,
   CharacterDirectionSprites,
-} from '../../shared/assets/types.ts';
+} from '../../core/src/assets/types.ts';
 
 interface MockPayload {
   characters: CharacterDirectionSprites[];

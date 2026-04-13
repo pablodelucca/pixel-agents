@@ -19,12 +19,13 @@
  * Only their timer logic (permission 7s, text-idle 5s) is suppressed by hookDelivered.
  */
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
 const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
+import type { HookProvider } from '../core/src/provider.js';
+import type { TeamProvider } from '../core/src/teamProvider.js';
 import {
   CLEAR_IDLE_THRESHOLD_MS,
   DISMISSED_COOLDOWN_MS,
@@ -36,7 +37,6 @@ import {
   GLOBAL_SCAN_ACTIVE_MIN_SIZE,
   PROJECT_SCAN_INTERVAL_MS,
 } from '../server/src/constants.js';
-import type { TeamProvider } from '../server/src/teamProvider.js';
 import { removeAgent } from './agentManager.js';
 import { TERMINAL_NAME_PREFIX } from './constants.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
@@ -542,6 +542,10 @@ let teammateRemovalCallback: ((teammateAgentId: number) => void) | null = null;
  *  by the time they're called. */
 let teamProvider: TeamProvider | null = null;
 
+/** Hook provider: supplies non-team capabilities fileWatcher needs (all-session
+ *  roots for global discovery, launch command, etc.). Set once at startup. */
+let hookProvider: HookProvider | null = null;
+
 /** Register the callback used to remove teammates detected as dismissed via team config polling. */
 export function setTeammateRemovalCallback(cb: (teammateAgentId: number) => void): void {
   teammateRemovalCallback = cb;
@@ -552,22 +556,13 @@ export function setTeamProvider(provider: TeamProvider): void {
   teamProvider = provider;
 }
 
-/** Read teammate name from its sidecar metadata file via the active provider. */
-function readTeammateMeta(jsonlFile: string): string | null {
-  if (!teamProvider) return null;
-  try {
-    const metaFile = teamProvider.resolveTeammateMetadataPath(jsonlFile);
-    if (fs.existsSync(metaFile)) {
-      return teamProvider.parseTeammateMetadata(fs.readFileSync(metaFile, 'utf-8'));
-    }
-  } catch {
-    /* ignore */
-  }
-  return null;
+/** Register the active HookProvider for non-team capabilities (session roots, etc.). */
+export function setHookProvider(provider: HookProvider): void {
+  hookProvider = provider;
 }
 
 /**
- * Scan the provider's teammate JSONL directory for a given lead session.
+ * Scan the provider's teammate transcripts for a given lead session.
  * Each teammate gets its own independent agent (positive ID) with file watching.
  *
  * Called from two paths:
@@ -589,20 +584,11 @@ export function scanForTeammateFiles(
   onAgentCreated?: (agent: AgentState) => void,
 ): void {
   if (!teamProvider) return;
-  const teammateDir = teamProvider.resolveTeammateJsonlDir(projectDir, sessionId);
-  let files: string[];
-  try {
-    files = fs
-      .readdirSync(teammateDir)
-      .filter((f) => f.endsWith('.jsonl'))
-      .map((f) => path.join(teammateDir, f));
-  } catch {
-    return; // teammate directory doesn't exist (yet)
-  }
+  const teammates = teamProvider.discoverTeammates(projectDir, sessionId);
 
   const parentAgent = agents.get(parentAgentId);
 
-  for (const file of files) {
+  for (const { jsonlPath: file, teammateName } of teammates) {
     if (knownTeammateFiles.has(file)) continue;
 
     // Also check if any existing agent already tracks this file
@@ -614,9 +600,6 @@ export function scanForTeammateFiles(
       }
     }
     if (alreadyTracked) continue;
-
-    const teammateName = readTeammateMeta(file);
-    if (!teammateName) continue; // No metadata sidecar or unparseable
 
     knownTeammateFiles.add(file);
 
@@ -1180,7 +1163,8 @@ function folderNameFromProjectDir(dirName: string): string {
   return parts[parts.length - 1] || dirName;
 }
 
-/** Scan ALL ~/.claude/projects/ directories for active sessions (global discovery). */
+/** Scan every session root the active provider exposes for active sessions
+ *  (global discovery — powers the "Watch All Sessions" toggle). */
 function scanGlobalProjectDirs(
   knownJsonlFiles: Set<string>,
   nextAgentIdRef: { current: number },
@@ -1192,17 +1176,23 @@ function scanGlobalProjectDirs(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
 ): void {
-  const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
-  let dirs: fs.Dirent[];
-  try {
-    dirs = fs.readdirSync(projectsRoot, { withFileTypes: true }).filter((d) => d.isDirectory());
-  } catch {
-    return;
+  const roots = hookProvider?.getAllSessionRoots?.() ?? [];
+  if (roots.length === 0) return;
+
+  const projectDirs: string[] = [];
+  for (const root of roots) {
+    try {
+      const entries = fs.readdirSync(root, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory()) projectDirs.push(path.join(root, entry.name));
+      }
+    } catch {
+      // root missing / unreadable -> skip
+    }
   }
 
   const now = Date.now();
-  for (const dir of dirs) {
-    const dirPath = path.join(projectsRoot, dir.name);
+  for (const dirPath of projectDirs) {
     // Skip directories already tracked by workspace scanning
     if (trackedProjectDirs.has(dirPath)) continue;
 
@@ -1235,7 +1225,7 @@ function scanGlobalProjectDirs(
         continue;
       }
 
-      const folderName = folderNameFromProjectDir(dir.name);
+      const folderName = folderNameFromProjectDir(path.basename(dirPath));
       knownJsonlFiles.add(file);
       console.log(
         `[Pixel Agents] Watcher: detected global session ${path.basename(file)} (${folderName})`,
