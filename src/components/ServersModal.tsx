@@ -30,8 +30,8 @@ const OFFICE_PACKAGES: OfficePackage[] = [
     cpu: 2,
     ram: 2,
     storage: 40,
-    priceUsdc: 8,
-    priceRupiah: 120000,
+    priceUsdc: 20,
+    priceRupiah: 300000,
   },
   {
     id: 'business',
@@ -42,8 +42,8 @@ const OFFICE_PACKAGES: OfficePackage[] = [
     cpu: 2,
     ram: 4,
     storage: 60,
-    priceUsdc: 12,
-    priceRupiah: 180000,
+    priceUsdc: 40,
+    priceRupiah: 600000,
   },
   {
     id: 'enterprise',
@@ -54,8 +54,8 @@ const OFFICE_PACKAGES: OfficePackage[] = [
     cpu: 2,
     ram: 8,
     storage: 80,
-    priceUsdc: 20,
-    priceRupiah: 300000,
+    priceUsdc: 80,
+    priceRupiah: 1200000,
   },
 ];
 
@@ -640,7 +640,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
           borderRadius: 0,
           padding: '4px',
           boxShadow: 'var(--pixel-shadow)',
-          minWidth: 420,
+          minWidth: 520,
           maxWidth: '90vw',
         }}
       >
@@ -727,16 +727,16 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     borderRadius: 4,
                     padding: '12px 14px',
                     textAlign: 'center',
-                    minWidth: 110,
+                    minWidth: 140,
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                     transform: isHovered && !isSelected ? 'scale(1.02)' : 'scale(1)',
                   }}
                 >
-                  <div style={{ fontSize: '24px', marginBottom: '4px' }}>{pkg.emoji}</div>
+                  <div style={{ fontSize: '32px', marginBottom: '4px' }}>{pkg.emoji}</div>
                   <div
                     style={{
-                      fontSize: '13px',
+                      fontSize: '16px',
                       color: isSelected ? '#4ECDC4' : 'rgba(255, 255, 255, 0.7)',
                       fontWeight: 'bold',
                     }}
@@ -745,7 +745,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   </div>
                   <div
                     style={{
-                      fontSize: '12px',
+                      fontSize: '14px',
                       color: 'rgba(255, 255, 255, 0.5)',
                       marginTop: 4,
                     }}
@@ -754,7 +754,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   </div>
                   <div
                     style={{
-                      fontSize: '11px',
+                      fontSize: '13px',
                       color: 'rgba(255, 255, 255, 0.4)',
                       marginTop: 2,
                     }}
@@ -764,9 +764,9 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   {/* Price */}
                   <div
                     style={{
-                      fontSize: '13px',
+                      fontSize: '16px',
                       color: '#4ECDC4',
-                      marginTop: 6,
+                      marginTop: 8,
                       fontWeight: 'bold',
                     }}
                   >
@@ -774,7 +774,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   </div>
                   <div
                     style={{
-                      fontSize: '10px',
+                      fontSize: '13px',
                       color: 'rgba(255, 255, 255, 0.4)',
                       marginTop: 2,
                     }}
@@ -784,7 +784,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   {isSelected && (
                     <div
                       style={{
-                        fontSize: '10px',
+                        fontSize: '13px',
                         color: '#4ECDC4',
                         marginTop: 4,
                         fontWeight: 'bold',
