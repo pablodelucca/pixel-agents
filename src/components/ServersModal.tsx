@@ -383,9 +383,10 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
   };
 
   const handleConfirmPayment = async () => {
-    if (!evmWallet || !selectedPkg || !reservedOffice) return;
+    if (!selectedPkg || !reservedOffice) return;
 
     if (paymentMethod === 'usdc') {
+      if (!evmWallet) return;
       try {
         setPaymentStep('paying');
         setPaymentError(null);
@@ -853,34 +854,48 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
             {/* Step: Checking availability */}
             {paymentStep === 'checking' && (
               <>
-                <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                  <div
-                    style={{
-                      fontSize: '48px',
-                      animation: 'pulse 1.5s ease-in-out infinite',
-                    }}
-                  >
-                    🏢
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ paddingTop: 24 }}>
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        border: '4px solid rgba(255, 255, 255, 0.2)',
+                        borderTop: '4px solid #4ECDC4',
+                        borderRadius: '50%',
+                        animation: 'spin 0.8s linear infinite',
+                        margin: '0 auto 16px',
+                      }}
+                    />
                   </div>
                   <h2
                     style={{
-                      fontSize: '24px',
+                      fontSize: '48px',
                       fontWeight: 'bold',
-                      color: 'var(--pixel-text)',
-                      marginTop: 16,
+                      color: '#fff',
+                      marginBottom: 0,
+                      lineHeight: 1,
                     }}
                   >
                     Finding Your Space...
                   </h2>
-                  <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
+                  <p
+                    style={{
+                      fontSize: '28px',
+                      color: 'rgba(255, 255, 255, 0.5)',
+                      marginTop: 0,
+                      lineHeight: 1,
+                      paddingBottom: 48,
+                    }}
+                  >
                     Checking availability for <span style={{ color: '#4ECDC4', fontWeight: 'bold' }}>{selectedPkg?.name}</span>
                   </p>
                 </div>
 
                 <style>{`
-                  @keyframes pulse {
-                    0%, 100% { transform: scale(1); opacity: 1; }
-                    50% { transform: scale(1.1); opacity: 0.8; }
+                  @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
                   }
                 `}</style>
               </>
@@ -889,47 +904,23 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
             {/* Step: Select Payment Method */}
             {paymentStep === 'select' && reservedOffice && (
               <>
-                <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                  <span style={{ fontSize: '48px' }}>{selectedPkg.emoji}</span>
-                  <h2
-                    style={{
-                      fontSize: '24px',
-                      fontWeight: 'bold',
-                      color: '#4ECDC4',
-                      marginTop: 8,
-                    }}
-                  >
-                    {selectedPkg.name}
-                  </h2>
-                  <p style={{ fontSize: '20px', color: 'var(--pixel-text)', marginTop: 4 }}>
-                    {selectedPkg.size} • Up to {selectedPkg.employees} employees
+                <div style={{ marginBottom: 0, paddingTop: 0, paddingBottom: 0 }}>
+                  <p style={{ fontSize: '48px', fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 2, lineHeight: 1 }}>
+                    How would you like to pay?
                   </p>
-                  
+
                   {/* Countdown timer */}
-                  <div
-                    style={{
-                      marginTop: 12,
-                      padding: '8px 12px',
-                      background: countdown <= 60 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)',
-                      border: `1px solid ${countdown <= 60 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`,
-                      borderRadius: 4,
-                      display: 'inline-block',
-                    }}
-                  >
-                    <span style={{ 
-                      fontSize: '20px', 
-                      color: countdown <= 60 ? '#ef4444' : '#22c55e',
-                      fontWeight: 'bold',
-                    }}>
+                  <div style={{ textAlign: 'center', paddingBottom: 48 }}>
+                    <span
+                      style={{
+                        fontSize: '28px',
+                        color: countdown <= 60 ? '#ef4444' : '#22c55e',
+                        fontWeight: 'bold',
+                      }}
+                    >
                       ⏱️ Reservation expires in {formatCountdown(countdown)}
                     </span>
                   </div>
-                </div>
-
-                <div style={{ marginBottom: 24 }}>
-                  <p style={{ fontSize: '20px', color: 'var(--pixel-text)', textAlign: 'center', marginBottom: 16 }}>
-                    How would you like to pay?
-                  </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {/* USDC Option */}
@@ -944,7 +935,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                         background: evmWallet ? 'rgba(45, 212, 191, 0.1)' : 'rgba(100, 100, 100, 0.1)',
                         border: '2px solid',
                         borderColor: evmWallet ? '#2dd4bf' : 'rgba(100, 100, 100, 0.3)',
-                        borderRadius: 4,
+                        borderRadius: 0,
                         cursor: evmWallet ? 'pointer' : 'not-allowed',
                         opacity: evmWallet ? 1 : 0.5,
                       }}
@@ -970,12 +961,12 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                         <div style={{ fontSize: '28px', fontWeight: 'bold', color: evmWallet ? '#2dd4bf' : 'var(--pixel-text-dim)' }}>
                           Pay with USDC
                         </div>
-                        <div style={{ fontSize: '28px', color: 'var(--pixel-text-dim)' }}>
+                        <div style={{ fontSize: '20px', color: 'rgba(255, 255, 255, 0.5)' }}>
                           ${selectedPkg.priceUsdc} USDC on Base
                         </div>
                       </div>
                       {!evmWallet && (
-                        <span style={{ fontSize: '28px', color: '#ef4444' }}>No wallet</span>
+                        <span style={{ fontSize: '20px', color: '#ef4444' }}>No wallet</span>
                       )}
                     </button>
 
@@ -989,7 +980,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                         padding: '16px',
                         background: 'rgba(249, 115, 22, 0.1)',
                         border: '2px solid #f97316',
-                        borderRadius: 4,
+                        borderRadius: 0,
                         cursor: 'pointer',
                       }}
                     >
@@ -1014,7 +1005,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                         <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#f97316' }}>
                           Pay with Credits
                         </div>
-                        <div style={{ fontSize: '28px', color: 'var(--pixel-text-dim)' }}>
+                        <div style={{ fontSize: '20px', color: 'rgba(255, 255, 255, 0.5)' }}>
                           Rp {formatRupiah(selectedPkg.priceRupiah)}
                         </div>
                       </div>
@@ -1028,6 +1019,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     width: '100%',
                     padding: '10px 16px',
                     fontSize: '28px',
+                    marginTop: 40,
                     background: 'transparent',
                     color: 'var(--pixel-text-dim)',
                     border: '2px solid var(--pixel-border)',
@@ -1042,62 +1034,54 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
             {/* Step: Paying / Confirming */}
             {paymentStep === 'paying' && paymentMethod && (
               <>
-                <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                  <span style={{ fontSize: '48px' }}>
-                    {paymentMethod === 'usdc' ? '💰' : '💵'}
-                  </span>
-                  <h2
-                    style={{
-                      fontSize: '24px',
-                      fontWeight: 'bold',
-                      color: 'var(--pixel-text)',
-                      marginTop: 8,
-                    }}
-                  >
+                <div style={{ marginBottom: 0, paddingTop: 0, paddingBottom: 0 }}>
+                  <p style={{ fontSize: '48px', fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 2, lineHeight: 1 }}>
                     Confirm Payment
-                  </h2>
-                  <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
-                    One month rent for {selectedPkg.name}:
                   </p>
-                  <div
-                    style={{
-                      fontSize: '32px',
-                      fontWeight: 'bold',
-                      color: paymentMethod === 'usdc' ? '#2dd4bf' : '#f97316',
-                      marginTop: 8,
-                    }}
-                  >
-                    {paymentMethod === 'usdc' ? `$${selectedPkg.priceUsdc} USDC` : `Rp ${formatRupiah(selectedPkg.priceRupiah)}`}
-                  </div>
-                  {paymentMethod === 'usdc' && (
-                    <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
-                      Your balance: {isCheckingBalance ? '...' : `${usdcBalance.toFixed(2)} USDC`}
-                    </p>
-                  )}
-                  {paymentMethod === 'rupiah' && (
-                    <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
-                      Your credits: {isCheckingBalance ? '...' : `Rp ${creditsBalance.toLocaleString('id-ID')}`}
-                    </p>
-                  )}
-                  
+
                   {/* Countdown timer */}
-                  <div
-                    style={{
-                      marginTop: 12,
-                      padding: '6px 10px',
-                      background: countdown <= 60 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(251, 191, 36, 0.1)',
-                      border: `1px solid ${countdown <= 60 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(251, 191, 36, 0.3)'}`,
-                      borderRadius: 4,
-                      display: 'inline-block',
-                    }}
-                  >
-                    <span style={{ 
-                      fontSize: '20px', 
-                      color: countdown <= 60 ? '#ef4444' : '#fbbf24',
-                      fontWeight: 'bold',
-                    }}>
+                  <div style={{ textAlign: 'center', paddingBottom: 48 }}>
+                    <span
+                      style={{
+                        fontSize: '28px',
+                        color: countdown <= 60 ? '#ef4444' : '#fbbf24',
+                        fontWeight: 'bold',
+                      }}
+                    >
                       ⏱️ {formatCountdown(countdown)} remaining
                     </span>
+                  </div>
+
+                  <div style={{ textAlign: 'center', paddingTop: 4, paddingBottom: 24 }}>
+                    <div
+                      style={{
+                        display: 'block',
+                        padding: '12px 24px',
+                        background: paymentMethod === 'usdc' ? 'rgba(45, 212, 191, 0.1)' : 'rgba(249, 115, 22, 0.1)',
+                        border: `2px solid ${paymentMethod === 'usdc' ? 'rgba(45, 212, 191, 0.3)' : 'rgba(249, 115, 22, 0.3)'}`,
+                        borderRadius: 0,
+                        marginBottom: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: '48px',
+                          fontWeight: 'bold',
+                          color: paymentMethod === 'usdc' ? '#2dd4bf' : '#f97316',
+                          lineHeight: 1,
+                        }}
+                      >
+                        {paymentMethod === 'usdc' ? `$${selectedPkg.priceUsdc} USDC` : `Rp ${formatRupiah(selectedPkg.priceRupiah)}`}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '20px', color: 'rgba(255, 255, 255, 0.5)', marginTop: 8, lineHeight: 1 }}>
+                      One month rent for {selectedPkg.name}
+                    </p>
+                    {paymentMethod === 'rupiah' && (
+                      <p style={{ fontSize: '20px', color: 'rgba(255, 255, 255, 0.5)', marginTop: 2, lineHeight: 1 }}>
+                        Credits: {isCheckingBalance ? '...' : `Rp ${creditsBalance.toLocaleString('id-ID')}`}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -1219,28 +1203,40 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
             {/* Step: Error */}
             {paymentStep === 'error' && (
               <>
-                <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                  <span style={{ fontSize: '64px' }}>😕</span>
+                <div style={{ textAlign: 'center', paddingTop: 24, paddingBottom: 8 }}>
+                  <div style={{ fontSize: '64px', marginBottom: 2, lineHeight: 1 }}>😕</div>
                   <h2
                     style={{
-                      fontSize: '28px',
+                      fontSize: '48px',
                       fontWeight: 'bold',
                       color: '#ef4444',
-                      marginTop: 16,
+                      marginTop: 0,
+                      marginBottom: 0,
+                      lineHeight: 1,
                     }}
                   >
                     {paymentError?.includes('expired') ? 'Reservation Expired' :
                      paymentError?.includes('No') && paymentError?.includes('available') ? `${selectedPkg?.name} Unavailable` : 
-                     paymentError?.includes('Insufficient') || paymentError?.includes('Not enough') ? 'Insufficient Balance' :
+                     paymentError?.includes('Not enough') ? 'Insufficient Balance' :
+                     paymentError?.includes('Insufficient') ? 'Insufficient Credits' :
                      'Payment Failed'}
                   </h2>
-                  <p style={{ fontSize: '20px', color: 'var(--pixel-text)', marginTop: 8 }}>
+                  <p
+                    style={{
+                      fontSize: '28px',
+                      color: 'rgba(255, 255, 255, 0.5)',
+                      marginTop: 0,
+                      lineHeight: 1,
+                    }}
+                  >
                     {paymentError?.includes('expired')
                       ? 'Your reservation timed out. Please try again to reserve a new office.'
                       : paymentError?.includes('No') && paymentError?.includes('available')
                       ? `No ${selectedPkg?.name} offices available right now. Try another package or check back soon!`
-                      : paymentError?.includes('Insufficient') || paymentError?.includes('Not enough')
+                      : paymentError?.includes('Not enough')
                       ? 'Top up your USDC balance and try again.'
+                      : paymentError?.includes('Insufficient')
+                      ? 'Top up your credits and try again.'
                       : paymentError || 'Something went wrong. Please try again.'}
                   </p>
                 </div>
