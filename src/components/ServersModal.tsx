@@ -736,7 +736,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   <div style={{ fontSize: '32px', marginBottom: '4px' }}>{pkg.emoji}</div>
                   <div
                     style={{
-                      fontSize: '20px',
+                      fontSize: '36px',
                       color: isSelected ? '#4ECDC4' : 'rgba(255, 255, 255, 0.7)',
                       fontWeight: 'bold',
                     }}
