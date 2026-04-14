@@ -209,7 +209,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
         },
         body: JSON.stringify({
           amount: parseInt(topUpAmount),
-          method: paymentMethod,
+          method: 'SHOPEEPAY',
           customerName: privyUser?.google?.name || privyUser?.email?.address?.split('@')[0] || 'Customer',
           customerEmail: privyUser?.email?.address || 'customer@example.com',
           customerPhone: '08123456789', // Default phone, could be added to user profile
@@ -807,7 +807,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                 borderRight: '4px solid var(--pixel-border)',
                 display: 'flex',
                 flexDirection: 'column',
-                padding: '20px 16px',
+                padding: '12px 16px',
                 gap: 16,
               }}
             >
@@ -816,14 +816,15 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                 style={{
                   background: 'var(--pixel-bg)',
                   border: '2px solid var(--pixel-border)',
-                  padding: '16px',
+                  padding: '0px 16px 12px',
                   textAlign: 'center',
                 }}
               >
                 <p
                   style={{
-                    fontSize: '14px',
+                    fontSize: '20px',
                     color: 'var(--pixel-text-dim)',
+                    marginTop: 4,
                     marginBottom: 8,
                     textTransform: 'uppercase',
                     letterSpacing: '1px',
@@ -849,21 +850,22 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '12px',
+                      fontSize: '20px',
                       fontWeight: 'bold',
                       color: '#fff',
                       border: '2px solid #fb923c',
                       flexShrink: 0,
+                      alignSelf: 'center',
                     }}
                   >
                     Rp
                   </div>
                   <span
                     style={{
-                      fontSize: '28px',
+                      fontSize: '40px',
                       fontWeight: 'bold',
                       color: 'var(--pixel-text)',
-                      fontFamily: 'monospace',
+                      lineHeight: 1,
                     }}
                   >
                     {creditsLoading ? '...' : formatRupiah(rupiahBalance)}
@@ -878,7 +880,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                   style={{
                     width: '100%',
                     padding: '14px 16px',
-                    fontSize: '18px',
+                    fontSize: '28px',
                     fontWeight: 'bold',
                     background: activeTab === 'topup' ? 'var(--pixel-accent)' : 'var(--pixel-btn-bg)',
                     color: activeTab === 'topup' ? '#fff' : 'var(--pixel-text)',
@@ -890,7 +892,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                     textAlign: 'left',
                   }}
                 >
-                  <CreditCard size={20} />
+                  <CreditCard size={24} />
                   Top Up Credits
                 </button>
 
@@ -899,7 +901,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                   style={{
                     width: '100%',
                     padding: '14px 16px',
-                    fontSize: '18px',
+                    fontSize: '28px',
                     fontWeight: 'bold',
                     background: activeTab === 'payments' ? 'var(--pixel-accent)' : 'var(--pixel-btn-bg)',
                     color: activeTab === 'payments' ? '#fff' : 'var(--pixel-text)',
@@ -911,7 +913,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                     textAlign: 'left',
                   }}
                 >
-                  <Receipt size={20} />
+                  <Receipt size={24} />
                   Payments
                 </button>
 
@@ -920,7 +922,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                   style={{
                     width: '100%',
                     padding: '14px 16px',
-                    fontSize: '18px',
+                    fontSize: '28px',
                     fontWeight: 'bold',
                     background: activeTab === 'transactions' ? 'var(--pixel-accent)' : 'var(--pixel-btn-bg)',
                     color: activeTab === 'transactions' ? '#fff' : 'var(--pixel-text)',
@@ -932,7 +934,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                     textAlign: 'left',
                   }}
                 >
-                  <ArrowLeftRight size={20} />
+                  <ArrowLeftRight size={24} />
                   Transactions
                 </button>
               </div>
@@ -944,7 +946,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                   style={{
                     width: '100%',
                     padding: '12px 16px',
-                    fontSize: '16px',
+                    fontSize: '28px',
                     background: 'transparent',
                     color: 'var(--pixel-text-dim)',
                     border: '2px solid var(--pixel-border)',
@@ -955,7 +957,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                     gap: 8,
                   }}
                 >
-                  <X size={18} />
+                  <X size={24} />
                   Close
                 </button>
               </div>
@@ -965,7 +967,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
             <div
               style={{
                 flex: 1,
-                padding: '24px',
+                padding: '12px 24px 12px',
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'auto',
@@ -973,21 +975,22 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
             >
               {/* Top Up Tab */}
               {activeTab === 'topup' && (
-                <div>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                   <h2
                     style={{
-                      fontSize: '28px',
+                      fontSize: '32px',
                       fontWeight: 'bold',
                       color: 'var(--pixel-accent)',
-                      marginBottom: 8,
+                      marginTop: 0,
+                      marginBottom: 0,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 12,
+                      gap: 8,
                     }}
                   >
                     <CreditCard size={28} /> Top Up Credits
                   </h2>
-                  <p style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', marginBottom: 24 }}>
+                  <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 0, marginBottom: 36 }}>
                     Add credits to your account using various payment methods.
                   </p>
 
@@ -996,7 +999,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                     <label
                       style={{
                         display: 'block',
-                        fontSize: '16px',
+                        fontSize: '20px',
                         fontWeight: 'bold',
                         color: 'var(--pixel-text)',
                         marginBottom: 8,
@@ -1015,10 +1018,9 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                       placeholder="Enter amount"
                       style={{
                         width: '100%',
-                        padding: '14px 16px',
-                        fontSize: '20px',
+                        padding: '10px 16px',
+                        fontSize: '28px',
                         fontWeight: 'bold',
-                        fontFamily: 'monospace',
                         background: 'var(--pixel-bg)',
                         color: 'var(--pixel-text)',
                         border: '2px solid var(--pixel-border)',
@@ -1034,8 +1036,8 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                       onClick={() => setTopUpAmount('100000')}
                       style={{
                         flex: 1,
-                        padding: '12px 16px',
-                        fontSize: '16px',
+                        padding: '12px 8px',
+                        fontSize: '28px',
                         fontWeight: 'bold',
                         background: topUpAmount === '100000' ? 'var(--pixel-accent)' : 'var(--pixel-btn-bg)',
                         color: topUpAmount === '100000' ? '#fff' : 'var(--pixel-text)',
@@ -1043,14 +1045,14 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                         cursor: 'pointer',
                       }}
                     >
-                      100rb
+                      Rp 100 rb
                     </button>
                     <button
                       onClick={() => setTopUpAmount('200000')}
                       style={{
                         flex: 1,
-                        padding: '12px 16px',
-                        fontSize: '16px',
+                        padding: '12px 8px',
+                        fontSize: '28px',
                         fontWeight: 'bold',
                         background: topUpAmount === '200000' ? 'var(--pixel-accent)' : 'var(--pixel-btn-bg)',
                         color: topUpAmount === '200000' ? '#fff' : 'var(--pixel-text)',
@@ -1058,14 +1060,14 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                         cursor: 'pointer',
                       }}
                     >
-                      200rb
+                      Rp 200 rb
                     </button>
                     <button
                       onClick={() => setTopUpAmount('500000')}
                       style={{
                         flex: 1,
-                        padding: '12px 16px',
-                        fontSize: '16px',
+                        padding: '12px 8px',
+                        fontSize: '28px',
                         fontWeight: 'bold',
                         background: topUpAmount === '500000' ? 'var(--pixel-accent)' : 'var(--pixel-btn-bg)',
                         color: topUpAmount === '500000' ? '#fff' : 'var(--pixel-text)',
@@ -1073,91 +1075,66 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                         cursor: 'pointer',
                       }}
                     >
-                      500rb
+                      Rp 500 rb
+                    </button>
+                    <button
+                      onClick={() => setTopUpAmount('1000000')}
+                      style={{
+                        flex: 1,
+                        padding: '12px 8px',
+                        fontSize: '28px',
+                        fontWeight: 'bold',
+                        background: topUpAmount === '1000000' ? 'var(--pixel-accent)' : 'var(--pixel-btn-bg)',
+                        color: topUpAmount === '1000000' ? '#fff' : 'var(--pixel-text)',
+                        border: '2px solid var(--pixel-border)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Rp 1 jt
                     </button>
                   </div>
 
-                  {/* Payment Method Selection */}
-                  <div style={{ marginBottom: 24 }}>
-                    <label
-                      style={{
-                        display: 'block',
-                        fontSize: '16px',
-                        fontWeight: 'bold',
-                        color: 'var(--pixel-text)',
-                        marginBottom: 8,
-                      }}
-                    >
-                      Payment Method
-                    </label>
-                    <select
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '14px 16px',
-                        fontSize: '16px',
-                        fontWeight: 'bold',
-                        background: 'var(--pixel-bg)',
-                        color: 'var(--pixel-text)',
-                        border: '2px solid var(--pixel-border)',
-                        outline: 'none',
-                        cursor: 'pointer',
-                        boxSizing: 'border-box',
-                      }}
-                    >
-                      <option value="BRIVA">BRI Virtual Account</option>
-                      <option value="BCAVA">BCA Virtual Account</option>
-                      <option value="BNIVA">BNI Virtual Account</option>
-                      <option value="MANDIRIVA">Mandiri Virtual Account</option>
-                      <option value="QRIS">QRIS (All E-Wallet)</option>
-                      <option value="OVO">OVO</option>
-                      <option value="DANA">DANA</option>
-                      <option value="LINKAJA">LinkAja</option>
-                      <option value="SHOPEEPAY">ShopeePay</option>
-                      <option value="ALFAMART">Alfamart</option>
-                      <option value="INDOMARET">Indomaret</option>
-                    </select>
-                  </div>
-
                   {/* Top Up Button */}
+                  <div style={{ marginTop: 'auto' }}>
                   <button
                     onClick={handleTopUp}
                     disabled={!topUpAmount || parseInt(topUpAmount) === 0 || topUpLoading}
                     style={{
                       width: '100%',
-                      padding: '16px 24px',
-                      fontSize: '20px',
+                      padding: '12px 16px',
+                      fontSize: '28px',
                       fontWeight: 'bold',
-                      background: (!topUpAmount || parseInt(topUpAmount) === 0 || topUpLoading) ? 'var(--pixel-btn-bg)' : 'var(--pixel-accent)',
+                      background: (!topUpAmount || parseInt(topUpAmount) === 0 || topUpLoading) ? 'var(--pixel-btn-bg)' : '#4ECDC4',
                       color: (!topUpAmount || parseInt(topUpAmount) === 0 || topUpLoading) ? 'var(--pixel-text-dim)' : '#fff',
-                      border: '2px solid var(--pixel-border)',
+                      border: '2px solid #4ECDC4',
                       cursor: (!topUpAmount || parseInt(topUpAmount) === 0 || topUpLoading) ? 'not-allowed' : 'pointer',
                       opacity: (!topUpAmount || parseInt(topUpAmount) === 0 || topUpLoading) ? 0.6 : 1,
                     }}
                   >
                     {topUpLoading ? 'Processing...' : 'Top Up'}
                   </button>
+                  </div>
                 </div>
               )}
 
               {/* Payments Tab */}
               {activeTab === 'payments' && (
-                <div>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                   <h2
                     style={{
-                      fontSize: '28px',
+                      fontSize: '32px',
                       fontWeight: 'bold',
                       color: 'var(--pixel-accent)',
-                      marginBottom: 8,
+                      marginTop: 0,
+                      marginBottom: 0,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 12,
+                      gap: 8,
                     }}
                   >
                     <Receipt size={28} /> Payment History
                   </h2>
-                  <p style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', marginBottom: 24 }}>
+                  <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 0, marginBottom: 36 }}>
                     View your past transactions and payment history.
                   </p>
 
@@ -1204,10 +1181,10 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                           borderBottom: '2px solid var(--pixel-border)',
                         }}
                       >
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Date</div>
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Amount</div>
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Status</div>
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Action</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Date</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Amount</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Status</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Action</div>
                       </div>
 
                       {/* Table Rows */}
@@ -1222,7 +1199,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                           }}
                         >
                           {/* Date */}
-                          <div style={{ padding: '12px 16px', color: '#fff', fontSize: '14px' }}>
+                          <div style={{ padding: '12px 16px', color: '#fff', fontSize: '20px' }}>
                             {new Date(payment.created).toLocaleDateString('id-ID', {
                               day: '2-digit',
                               month: 'short',
@@ -1231,7 +1208,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                           </div>
 
                           {/* Amount */}
-                          <div style={{ padding: '12px 16px', color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>
+                          <div style={{ padding: '12px 16px', color: '#fff', fontSize: '20px', fontWeight: 'bold' }}>
                             Rp {payment.amount?.toLocaleString('id-ID') || '0'}
                           </div>
 
@@ -1240,7 +1217,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                             <span
                               style={{
                                 padding: '4px 8px',
-                                fontSize: '12px',
+                                fontSize: '20px',
                                 fontWeight: 'bold',
                                 background: payment.status === 'PAID' ? 'rgba(34, 197, 94, 0.2)' : payment.status === 'PENDING' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(239, 68, 68, 0.2)',
                                 color: payment.status === 'PAID' ? '#22c55e' : payment.status === 'PENDING' ? '#eab308' : '#ef4444',
@@ -1270,7 +1247,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                                 <ExternalLink size={12} style={{ color: 'var(--pixel-text)' }} />
                               </button>
                             ) : (
-                              <span style={{ color: 'var(--pixel-text-dim)', fontSize: '12px' }}>-</span>
+                              <span style={{ color: 'var(--pixel-text-dim)', fontSize: '20px' }}>-</span>
                             )}
                           </div>
                         </div>
@@ -1282,21 +1259,22 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
 
               {/* Transactions Tab */}
               {activeTab === 'transactions' && (
-                <div>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                   <h2
                     style={{
-                      fontSize: '28px',
+                      fontSize: '32px',
                       fontWeight: 'bold',
                       color: 'var(--pixel-accent)',
-                      marginBottom: 8,
+                      marginTop: 0,
+                      marginBottom: 0,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 12,
+                      gap: 8,
                     }}
                   >
                     <ArrowLeftRight size={28} /> Transactions
                   </h2>
-                  <p style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', marginBottom: 24 }}>
+                  <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 0, marginBottom: 36 }}>
                     View all your transactions and balance changes.
                   </p>
 
@@ -1343,10 +1321,10 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                           borderBottom: '2px solid var(--pixel-border)',
                         }}
                       >
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Date</div>
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Type</div>
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Description</div>
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '14px' }}>Amount</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Date</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Type</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Description</div>
+                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Amount</div>
                       </div>
 
                       {/* Table Rows */}
@@ -1365,7 +1343,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                             }}
                           >
                             {/* Date */}
-                            <div style={{ padding: '12px 16px', color: '#fff', fontSize: '14px' }}>
+                            <div style={{ padding: '12px 16px', color: '#fff', fontSize: '20px' }}>
                               {new Date(transaction.created).toLocaleDateString('id-ID', {
                                 day: '2-digit',
                                 month: 'short',
@@ -1378,7 +1356,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                               <span
                                 style={{
                                   padding: '4px 8px',
-                                  fontSize: '12px',
+                                  fontSize: '20px',
                                   fontWeight: 'bold',
                                   background: isDebit ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
                                   color: typeColor,
@@ -1390,12 +1368,12 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                             </div>
 
                             {/* Description */}
-                            <div style={{ padding: '12px 16px', color: '#fff', fontSize: '14px' }}>
+                            <div style={{ padding: '12px 16px', color: '#fff', fontSize: '20px' }}>
                               {transaction.desc || '-'}
                             </div>
 
                             {/* Amount */}
-                            <div style={{ padding: '12px 16px', fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>
+                            <div style={{ padding: '12px 16px', fontSize: '20px', fontWeight: 'bold', color: '#fff' }}>
                               {isDebit ? '+' : '-'} Rp {transaction.amount?.toLocaleString('id-ID') || '0'}
                             </div>
                           </div>
