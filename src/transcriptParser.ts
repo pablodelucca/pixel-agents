@@ -106,8 +106,11 @@ export function processTranscriptLine(
             if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
               hasNonExemptTool = true;
             }
-            // Skip webview message when hooks handle tool visuals (PreToolUse sent it instantly)
-            if (!agent.hookDelivered) {
+            // Skip webview message when hooks handle tool visuals (PreToolUse sent it instantly).
+            // Exception: Task/Agent tools always go through JSONL so the sub-agent character
+            // is created with the stable JSONL tool ID, matching cleanup messages.
+            const isAgentTool = toolName === 'Task' || toolName === 'Agent';
+            if (!agent.hookDelivered || isAgentTool) {
               webview?.postMessage({
                 type: 'agentToolStart',
                 id: agentId,
@@ -183,7 +186,11 @@ export function processTranscriptLine(
               agent.activeToolIds.delete(completedToolId);
               agent.activeToolStatuses.delete(completedToolId);
               agent.activeToolNames.delete(completedToolId);
-              if (!agent.hookDelivered) {
+              // Send agentToolDone when hooks are off, or for Task/Agent tools
+              // (which always use JSONL path for consistent sub-agent lifecycle).
+              const isCompletedAgentTool =
+                completedToolName === 'Task' || completedToolName === 'Agent';
+              if (!agent.hookDelivered || isCompletedAgentTool) {
                 const toolId = completedToolId;
                 setTimeout(() => {
                   webview?.postMessage({

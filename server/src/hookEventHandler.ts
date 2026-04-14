@@ -373,14 +373,19 @@ export class HookEventHandler {
     agent.permissionSent = false;
     agent.hadToolsInTurn = true;
 
-    // Send tool start + active state to webview (instant, no 500ms JSONL delay)
-    webview?.postMessage({
-      type: 'agentToolStart',
-      id: agentId,
-      toolId: hookToolId,
-      status,
-      toolName,
-    });
+    // Send tool start + active state to webview (instant, no 500ms JSONL delay).
+    // Skip for Task/Agent tools — their sub-agent characters need the stable JSONL
+    // tool ID (not the transient hook ID) so that SubagentStop/tool_result cleanup
+    // can find and remove them. JSONL handles agentToolStart for these tools.
+    if (toolName !== 'Task' && toolName !== 'Agent') {
+      webview?.postMessage({
+        type: 'agentToolStart',
+        id: agentId,
+        toolId: hookToolId,
+        status,
+        toolName,
+      });
+    }
     webview?.postMessage({
       type: 'agentStatus',
       id: agentId,
@@ -490,12 +495,15 @@ export class HookEventHandler {
     agentId: number,
     webview: vscode.Webview | undefined,
   ): void {
-    // Find parent tool and clear all sub-agent tracking for it.
-    // SubagentStop doesn't give us the specific sub-tool ID, so clear all
-    // sub-agents under the first matching Task/Agent parent.
+    // Find a parent Task/Agent tool that actually has tracked sub-agents.
+    // SubagentStop doesn't identify which specific sub-agent stopped, so we
+    // clear the first parent that still has active sub-agent tracking.
     let parentToolId: string | undefined;
     for (const [toolId, toolName] of agent.activeToolNames) {
-      if (toolName === 'Task' || toolName === 'Agent') {
+      if (
+        (toolName === 'Task' || toolName === 'Agent') &&
+        agent.activeSubagentToolIds.has(toolId)
+      ) {
         parentToolId = toolId;
         break;
       }
@@ -615,6 +623,11 @@ export class HookEventHandler {
       agent.activeToolNames.clear();
       agent.activeSubagentToolIds.clear();
       agent.activeSubagentToolNames.clear();
+      webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+    } else if (agent.activeToolIds.size === 0 && agent.backgroundAgentToolIds.size === 0) {
+      // Hooks mode safety net: JSONL may have already cleared activeToolIds before
+      // the Stop hook fires, but the webview can still have stale tool entries or
+      // sub-agent characters from hook-created tools. Send agentToolsClear to clean up.
       webview?.postMessage({ type: 'agentToolsClear', id: agentId });
     }
 
