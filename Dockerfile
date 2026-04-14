@@ -24,6 +24,8 @@ FROM node:22-alpine AS runner
 
 WORKDIR /app
 
+RUN apk add --no-cache python3 make g++
+
 ENV NODE_ENV=production
 ENV BACKEND_PORT=${BACKEND_PORT}
 

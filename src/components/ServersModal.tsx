@@ -90,7 +90,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
   const [paymentMethod, setPaymentMethod] = useState<'usdc' | 'rupiah' | null>(null);
   const [paymentStep, setPaymentStep] = useState<PaymentStep>('select');
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [usdcBalance, setUsdcBalance] = useState<number>(0);
+  const [_usdcBalance, setUsdcBalance] = useState<number>(0);
   const [creditsBalance, setCreditsBalance] = useState<number>(0);
   const [isCheckingBalance, setIsCheckingBalance] = useState(false);
   const [reservedOffice, setReservedOffice] = useState<ReservedOffice | null>(null);

@@ -95,7 +95,6 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
   const [isRupiahDialogOpen, setIsRupiahDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'topup' | 'payments' | 'transactions'>('topup');
   const [topUpAmount, setTopUpAmount] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<string>('BRIVA'); // Default: BRI Virtual Account
   const [topUpLoading, setTopUpLoading] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);

@@ -22,7 +22,28 @@ const DB_URL = process.env.SUPABASE_URL || 'not configured';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://auth.privy.io"],
+      connectSrc: [
+        "'self'",
+        "https://auth.privy.io",
+        "https://api.privy.io",
+        "wss://relay.walletconnect.com",
+        "wss://walletconnect.com",
+        "https://rpc.walletconnect.com",
+        "https://*.supabase.co",
+        "https://api.tripay.co.id",
+      ],
+      frameSrc: ["'self'", "https://auth.privy.io", "https://embed.privy.io"],
+      imgSrc: ["'self'", "data:", "blob:", "https://"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      fontSrc: ["'self'", "data:"],
+    },
+  },
+}));
 app.use(cors({
   origin: FRONTEND_URL ? [FRONTEND_URL] : true,
   credentials: true,
