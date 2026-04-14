@@ -259,8 +259,10 @@ export function dispatchMockMessages(): void {
   dispatch({
     type: 'settingsLoaded',
     soundEnabled: false,
-    extensionVersion: '1.2.0',
-    lastSeenVersion: '1.1',
+    extensionVersion: '1.3.0-dev.1',
+    lastSeenVersion: '1.2',
+    enabledProviders: ['claude', 'codex'],
+    defaultProvider: 'claude',
   });
 
   console.log('[BrowserMock] Messages dispatched');

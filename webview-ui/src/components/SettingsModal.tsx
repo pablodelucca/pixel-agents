@@ -1,11 +1,17 @@
 import { useState } from 'react';
 
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js';
+import type { ProviderId } from '../providers/providerUi.js';
 import { vscode } from '../vscodeApi.js';
 import { Button } from './ui/Button.js';
 import { Checkbox } from './ui/Checkbox.js';
 import { MenuItem } from './ui/MenuItem.js';
 import { Modal } from './ui/Modal.js';
+
+const SUPPORTED_PROVIDERS: Array<{ id: ProviderId; label: string }> = [
+  { id: 'claude', label: 'Claude Code' },
+  { id: 'codex', label: 'Codex' },
+];
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -15,6 +21,9 @@ interface SettingsModalProps {
   alwaysShowOverlay: boolean;
   onToggleAlwaysShowOverlay: () => void;
   externalAssetDirectories: string[];
+  enabledProviders: ProviderId[];
+  selectedProvider: ProviderId;
+  onToggleProvider: (providerId: ProviderId) => void;
   watchAllSessions: boolean;
   onToggleWatchAllSessions: () => void;
   hooksEnabled: boolean;
@@ -29,6 +38,9 @@ export function SettingsModal({
   alwaysShowOverlay,
   onToggleAlwaysShowOverlay,
   externalAssetDirectories,
+  enabledProviders,
+  selectedProvider,
+  onToggleProvider,
   watchAllSessions,
   onToggleWatchAllSessions,
   hooksEnabled,
@@ -87,6 +99,14 @@ export function SettingsModal({
             x
           </Button>
         </div>
+      ))}
+      {SUPPORTED_PROVIDERS.map((provider) => (
+        <Checkbox
+          key={provider.id}
+          label={provider.id === selectedProvider ? `${provider.label} (Default)` : provider.label}
+          checked={enabledProviders.includes(provider.id)}
+          onChange={() => onToggleProvider(provider.id)}
+        />
       ))}
       <Checkbox
         label="Sound Notifications"

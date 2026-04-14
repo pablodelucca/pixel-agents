@@ -16,6 +16,8 @@ Thumbs.db
 # IDE
 .vscode-test/
 /.idea
+/.vscode/launch.json
+/.vscode/tasks.json
 
 # E2E test artifacts
 test-results/
@@ -31,7 +33,10 @@ playwright-report/
 
 # Project-specific
 .claude/
+/.claude-flow/
+/.swarm/
 /sprites-export
+/pixel-agents-dev.code-workspace
 
 # Local notes (not for commit)
 /notes/

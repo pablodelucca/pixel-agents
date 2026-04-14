@@ -25,6 +25,21 @@ export const CHANGELOG_REPO_URL = 'https://github.com/pablodelucca/pixel-agents'
 
 export const changelogEntries: ChangelogEntry[] = [
   {
+    version: '1.3',
+    sections: [
+      {
+        title: 'Development Preview',
+        items: [
+          'Provider-aware launch flow for Claude Code and Codex',
+          'Codex app-server lifecycle mapping into the existing office states',
+          'Codex spawnAgent parity in the office and debug view',
+          'Mock Codex fixtures, smoke checks, and end-to-end coverage for provider switching and multi-agent activity',
+        ],
+      },
+    ],
+    contributors: [],
+  },
+  {
     version: '1.2',
     sections: [
       {

@@ -9,6 +9,11 @@ import { setCharacterTemplates } from '../office/sprites/spriteData.js';
 import { extractToolName } from '../office/toolUtils.js';
 import type { OfficeLayout, ToolActivity } from '../office/types.js';
 import { setWallSprites } from '../office/wallTiles.js';
+import {
+  getEnabledProviderOptions,
+  type ProviderId,
+  resolveSelectedProvider,
+} from '../providers/providerUi.js';
 import { vscode } from '../vscodeApi.js';
 
 export interface SubagentCharacter {
@@ -58,6 +63,8 @@ interface ExtensionMessageState {
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> };
   workspaceFolders: WorkspaceFolder[];
   externalAssetDirectories: string[];
+  enabledProviders: ProviderId[];
+  defaultProvider: ProviderId;
   lastSeenVersion: string;
   extensionVersion: string;
   watchAllSessions: boolean;
@@ -97,12 +104,16 @@ export function useExtensionMessages(
   >();
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([]);
   const [externalAssetDirectories, setExternalAssetDirectories] = useState<string[]>([]);
+  const [enabledProviders, setEnabledProviders] = useState<ProviderId[]>(['claude']);
+  const [defaultProvider, setDefaultProvider] = useState<ProviderId>('claude');
   const [lastSeenVersion, setLastSeenVersion] = useState('');
   const [extensionVersion, setExtensionVersion] = useState('');
   const [watchAllSessions, setWatchAllSessions] = useState(false);
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
   const [hooksEnabled, setHooksEnabled] = useState(true);
   const [hooksInfoShown, setHooksInfoShown] = useState(true);
+  const enabledProvidersRef = useRef<ProviderId[]>(['claude']);
+  const defaultProviderRef = useRef<ProviderId>('claude');
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -409,8 +420,9 @@ export function useExtensionMessages(
         const folders = msg.folders as WorkspaceFolder[];
         setWorkspaceFolders(folders);
       } else if (msg.type === 'settingsLoaded') {
-        const soundOn = msg.soundEnabled as boolean;
-        setSoundEnabled(soundOn);
+        if (typeof msg.soundEnabled === 'boolean') {
+          setSoundEnabled(msg.soundEnabled as boolean);
+        }
         if (typeof msg.watchAllSessions === 'boolean') {
           setWatchAllSessions(msg.watchAllSessions as boolean);
         }
@@ -425,6 +437,22 @@ export function useExtensionMessages(
         }
         if (Array.isArray(msg.externalAssetDirectories)) {
           setExternalAssetDirectories(msg.externalAssetDirectories as string[]);
+        }
+        const nextEnabledProviders = Array.isArray(msg.enabledProviders)
+          ? getEnabledProviderOptions(msg.enabledProviders).map((provider) => provider.id)
+          : enabledProvidersRef.current;
+        if (Array.isArray(msg.enabledProviders) && nextEnabledProviders.length > 0) {
+          enabledProvidersRef.current = nextEnabledProviders;
+          setEnabledProviders(nextEnabledProviders);
+        }
+        if (Array.isArray(msg.enabledProviders) || typeof msg.defaultProvider === 'string') {
+          const nextDefaultProvider = resolveSelectedProvider(
+            nextEnabledProviders,
+            msg.defaultProvider,
+            defaultProviderRef.current,
+          );
+          defaultProviderRef.current = nextDefaultProvider;
+          setDefaultProvider(nextDefaultProvider);
         }
         if (typeof msg.lastSeenVersion === 'string') {
           setLastSeenVersion(msg.lastSeenVersion as string);
@@ -467,6 +495,8 @@ export function useExtensionMessages(
     loadedAssets,
     workspaceFolders,
     externalAssetDirectories,
+    enabledProviders,
+    defaultProvider,
     lastSeenVersion,
     extensionVersion,
     watchAllSessions,

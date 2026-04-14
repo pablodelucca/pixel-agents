@@ -109,7 +109,7 @@ export function areHooksInstalled(): boolean {
  * Notification, Stop, and PermissionRequest events. Idempotent: removes
  * any existing Pixel Agents entries before adding fresh ones.
  */
-export function installHooks(): void {
+export function installClaudeHooks(): void {
   const settings = readClaudeSettings();
   if (!settings.hooks) {
     settings.hooks = {};
@@ -139,7 +139,7 @@ export function installHooks(): void {
 }
 
 /** Remove all Pixel Agents hook entries from ~/.claude/settings.json. Cleans up empty objects. */
-export function uninstallHooks(): void {
+export function uninstallClaudeHooks(): void {
   const settings = readClaudeSettings();
   if (!settings.hooks) return;
 
@@ -167,7 +167,7 @@ export function uninstallHooks(): void {
 }
 
 /** Copy the shipped hook script from the extension to ~/.pixel-agents/hooks/ */
-export function copyHookScript(extensionPath: string): void {
+export function copyClaudeHookScript(extensionPath: string): void {
   const src = path.join(extensionPath, 'dist', 'hooks', CLAUDE_HOOK_SCRIPT_NAME);
   const dst = getHookScriptPath();
   const dstDir = path.dirname(dst);
@@ -187,3 +187,7 @@ export function copyHookScript(extensionPath: string): void {
     console.error(`[Pixel Agents] Failed to copy hook script: ${e}`);
   }
 }
+
+export const installHooks = installClaudeHooks;
+export const uninstallHooks = uninstallClaudeHooks;
+export const copyHookScript = copyClaudeHookScript;

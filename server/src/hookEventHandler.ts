@@ -42,6 +42,7 @@ interface SessionLifecycleCallbacks {
   /** Called when an external session is detected (unknown session_id in SessionStart).
    *  transcriptPath is undefined for providers without transcripts (OpenCode, Copilot). */
   onExternalSessionDetected?: (
+    providerId: string,
     sessionId: string,
     transcriptPath: string | undefined,
     cwd: string,
@@ -60,6 +61,7 @@ interface SessionLifecycleCallbacks {
 
 /** Pending external session info (waiting for confirmation event before creating agent). */
 interface PendingExternalSession {
+  providerId: string;
   sessionId: string;
   /** Transcript file path. Undefined for providers without transcripts (OpenCode, Copilot). */
   transcriptPath: string | undefined;
@@ -202,6 +204,7 @@ export class HookEventHandler {
             `[Pixel Agents] Hook: SessionStart(source=${source}) -> pending external session ${sid}..., awaiting confirmation`,
           );
         this.pendingExternalSessions.set(event.session_id, {
+          providerId: _providerId,
           sessionId: event.session_id,
           transcriptPath: transcriptPath2,
           cwd: cwd ?? '',
@@ -235,6 +238,7 @@ export class HookEventHandler {
           `[Pixel Agents] Hook: ${eventName} confirmed external session ${event.session_id.slice(0, 8)}..., creating agent`,
         );
       this.lifecycleCallbacks.onExternalSessionDetected?.(
+        pending.providerId,
         pending.sessionId,
         pending.transcriptPath,
         pending.cwd,
@@ -471,6 +475,13 @@ export class HookEventHandler {
     }
     subNames.set(subToolId, agentType);
 
+    let subStatuses = agent.activeSubagentToolStatuses.get(parentToolId);
+    if (!subStatuses) {
+      subStatuses = new Map();
+      agent.activeSubagentToolStatuses.set(parentToolId, subStatuses);
+    }
+    subStatuses.set(subToolId, status);
+
     webview?.postMessage({
       type: 'subagentToolStart',
       id: agentId,
@@ -504,6 +515,7 @@ export class HookEventHandler {
 
     agent.activeSubagentToolIds.delete(parentToolId);
     agent.activeSubagentToolNames.delete(parentToolId);
+    agent.activeSubagentToolStatuses.delete(parentToolId);
     webview?.postMessage({
       type: 'subagentClear',
       id: agentId,
@@ -594,6 +606,7 @@ export class HookEventHandler {
         if (toolName === 'Task' || toolName === 'Agent') {
           agent.activeSubagentToolIds.delete(toolId);
           agent.activeSubagentToolNames.delete(toolId);
+          agent.activeSubagentToolStatuses.delete(toolId);
         }
       }
       webview?.postMessage({ type: 'agentToolsClear', id: agentId });
@@ -615,6 +628,7 @@ export class HookEventHandler {
       agent.activeToolNames.clear();
       agent.activeSubagentToolIds.clear();
       agent.activeSubagentToolNames.clear();
+      agent.activeSubagentToolStatuses.clear();
       webview?.postMessage({ type: 'agentToolsClear', id: agentId });
     }
 
