@@ -44,5 +44,28 @@ export const HOOK_SCRIPTS_DIR = '.pixel-agents/hooks';
 /** Output filename after esbuild compiles claude-hook.ts to CJS (source is .ts, output is .js) */
 export const CLAUDE_HOOK_SCRIPT_NAME = 'claude-hook.js';
 export const HOOK_API_PREFIX = '/api/hooks';
+
+/** Hook events to install in ~/.claude/settings.json.
+ *  SessionStart/SessionEnd handle session lifecycle (start, /clear, resume, exit).
+ *  Stop/PermissionRequest/Notification handle turn completion and permission UI.
+ */
+export const CLAUDE_HOOK_EVENTS = [
+  'SessionStart',
+  'SessionEnd',
+  'Stop',
+  'PermissionRequest',
+  'Notification',
+  'UserPromptSubmit',
+  'PreToolUse',
+  'PostToolUse',
+  'PostToolUseFailure',
+  'SubagentStart',
+  'SubagentStop',
+] as const;
 export const HOOK_EVENT_BUFFER_MS = 5_000;
+/** Grace period after SessionEnd(reason=clear/resume) before triggering onSessionEnd.
+ *  /clear and /resume fire SessionEnd then SessionStart within ms. This timeout is a
+ *  safety net: if SessionStart never arrives (e.g. Claude crashes mid-transition),
+ *  the agent is cleaned up instead of staying as a zombie with pendingClear forever. */
+export const SESSION_END_GRACE_MS = 2000;
 export const MAX_HOOK_BODY_SIZE = 65_536; // 64KB

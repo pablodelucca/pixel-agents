@@ -6,6 +6,7 @@ import { PixelAgentsViewProvider } from './PixelAgentsViewProvider.js';
 let providerInstance: PixelAgentsViewProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
+  console.log(`[Pixel Agents] PIXEL_AGENTS_DEBUG=${process.env.PIXEL_AGENTS_DEBUG ?? 'not set'}`);
   const provider = new PixelAgentsViewProvider(context);
   providerInstance = provider;
 
