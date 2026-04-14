@@ -22,7 +22,7 @@ export function PrivyProvider({ children }: PrivyProviderProps) {
           accentColor: '#007fd4',
           logo: '/logo.png',
         },
-        loginMethods: ['wallet', 'email', 'google'],
+        loginMethods: ['wallet', 'email' /*, 'google'*/],
         embeddedWallets: {
           ethereum: {
             createOnLogin: 'users-without-wallets',
