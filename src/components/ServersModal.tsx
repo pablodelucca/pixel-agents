@@ -642,53 +642,40 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
           boxShadow: 'var(--pixel-shadow)',
           minWidth: 520,
           maxWidth: '90vw',
+          maxHeight: '90vh',
+          overflowY: 'auto',
         }}
       >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '8px 10px',
-            borderBottom: '1px solid var(--pixel-border)',
-            marginBottom: '12px',
-          }}
-        >
-          <span style={{ fontSize: '26px', color: '#4ECDC4', fontWeight: 'bold' }}>
-            🏢 Rent Your Office Space
-          </span>
-        </div>
-
         {/* Content */}
         <div style={{ padding: '16px 16px', textAlign: 'center' }}>
-          <div style={{ fontSize: '64px', marginBottom: '16px' }}>🏗️</div>
+          <div style={{ fontSize: '64px', marginBottom: '16px', paddingTop: '24px' }}>🏗️</div>
           <div
             style={{
-              fontSize: '24px',
+              fontSize: '48px',
               fontWeight: 'bold',
-              color: 'var(--pixel-text)',
-              marginBottom: '12px',
+              color: '#fff',
+              marginBottom: '0',
             }}
           >
             No Active Office
           </div>
           <div
             style={{
-              fontSize: '20px',
+              fontSize: '32px',
               color: 'rgba(255, 255, 255, 0.7)',
-              lineHeight: 1.5,
-              marginBottom: '8px',
+              lineHeight: 1,
+              marginBottom: '0',
             }}
           >
             You don't have an office space yet.
           </div>
           <div
             style={{
-              fontSize: '20px',
+              fontSize: '28px',
               color: 'rgba(255, 255, 255, 0.5)',
-              lineHeight: 1.4,
-              marginBottom: '16px',
+              lineHeight: 1,
+              marginBottom: '0',
+              paddingBottom: '48px',
             }}
           >
             Pick a space that fits your team!
@@ -736,48 +723,45 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   <div style={{ fontSize: '32px', marginBottom: '4px' }}>{pkg.emoji}</div>
                   <div
                     style={{
-                      fontSize: '28px',
+                      fontSize: '32px',
                       color: isSelected ? '#4ECDC4' : 'rgba(255, 255, 255, 0.7)',
                       fontWeight: 'bold',
                     }}
                   >
                     {pkg.name}
                   </div>
-                  <div
-                    style={{
-                      fontSize: '20px',
-                      color: 'rgba(255, 255, 255, 0.5)',
-                      marginTop: 4,
-                    }}
-                  >
-                    from {pkg.size} • Up to {pkg.employees} employees
-                  </div>
                   {/* Price */}
                   <div
                     style={{
-                      fontSize: '20px',
+                      fontSize: '28px',
                       color: '#4ECDC4',
-                      marginTop: 6,
+                      marginTop: 2,
                       fontWeight: 'bold',
                     }}
                   >
                     {pkg.priceRupiah >= 1000000
-                      ? `Rp ${(pkg.priceRupiah / 1000000).toFixed(pkg.priceRupiah % 1000000 === 0 ? 0 : 1)}jt`
-                      : `Rp ${Math.round(pkg.priceRupiah / 1000)}rb`}{' '}
+                      ? `Rp ${(pkg.priceRupiah / 1000000).toFixed(pkg.priceRupiah % 1000000 === 0 ? 0 : 1)} jt`
+                      : `Rp ${Math.round(pkg.priceRupiah / 1000)} rb`}{' '}
                     <span style={{ fontSize: '20px', color: 'rgba(255, 255, 255, 0.4)', fontWeight: 'normal' }}>/mo</span>
                   </div>
-                  {isSelected && (
-                    <div
-                      style={{
-                        fontSize: '20px',
-                        color: '#4ECDC4',
-                        marginTop: 4,
-                        fontWeight: 'bold',
-                      }}
-                    >
-                      ✓ Selected
-                    </div>
-                  )}
+                  <div
+                    style={{
+                      fontSize: '20px',
+                      color: 'rgba(255, 255, 255, 0.5)',
+                      marginTop: 40,
+                    }}
+                  >
+                    from {pkg.size}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '20px',
+                      color: 'rgba(255, 255, 255, 0.4)',
+                      marginTop: 2,
+                    }}
+                  >
+                    Up to {pkg.employees} employees
+                  </div>
                 </div>
               );
             })}
@@ -790,7 +774,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
             display: 'flex',
             gap: '12px',
             justifyContent: 'center',
-            padding: '12px 8px 16px',
+            padding: '12px 8px 48px',
           }}
         >
           {onClose && (
@@ -800,7 +784,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
               onMouseLeave={() => setHovered(null)}
               style={{
                 padding: '10px 24px',
-                fontSize: '20px',
+                fontSize: '28px',
                 color: 'rgba(255, 255, 255, 0.6)',
                 background: hovered === 'later' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
                 border: '2px solid rgba(255, 255, 255, 0.2)',
@@ -817,7 +801,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
             onMouseLeave={() => setHovered(null)}
             style={{
               padding: '10px 28px',
-              fontSize: '20px',
+              fontSize: '28px',
               color: '#fff',
               background: hovered === 'purchase' ? 'rgba(78, 205, 196, 0.4)' : '#4ECDC4',
               border: '2px solid #4ECDC4',
@@ -974,7 +958,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '20px',
+                          fontSize: '28px',
                           fontWeight: 'bold',
                           color: '#fff',
                           flexShrink: 0,
@@ -983,15 +967,15 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                         $
                       </div>
                       <div style={{ flex: 1, textAlign: 'left' }}>
-                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: evmWallet ? '#2dd4bf' : 'var(--pixel-text-dim)' }}>
+                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: evmWallet ? '#2dd4bf' : 'var(--pixel-text-dim)' }}>
                           Pay with USDC
                         </div>
-                        <div style={{ fontSize: '20px', color: 'var(--pixel-text-dim)' }}>
+                        <div style={{ fontSize: '28px', color: 'var(--pixel-text-dim)' }}>
                           ${selectedPkg.priceUsdc} USDC on Base
                         </div>
                       </div>
                       {!evmWallet && (
-                        <span style={{ fontSize: '20px', color: '#ef4444' }}>No wallet</span>
+                        <span style={{ fontSize: '28px', color: '#ef4444' }}>No wallet</span>
                       )}
                     </button>
 
@@ -1018,7 +1002,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '20px',
+                          fontSize: '28px',
                           fontWeight: 'bold',
                           color: '#fff',
                           flexShrink: 0,
@@ -1027,10 +1011,10 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                         Rp
                       </div>
                       <div style={{ flex: 1, textAlign: 'left' }}>
-                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#f97316' }}>
+                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#f97316' }}>
                           Pay with Credits
                         </div>
-                        <div style={{ fontSize: '20px', color: 'var(--pixel-text-dim)' }}>
+                        <div style={{ fontSize: '28px', color: 'var(--pixel-text-dim)' }}>
                           Rp {formatRupiah(selectedPkg.priceRupiah)}
                         </div>
                       </div>
@@ -1043,7 +1027,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   style={{
                     width: '100%',
                     padding: '10px 16px',
-                    fontSize: '20px',
+                    fontSize: '28px',
                     background: 'transparent',
                     color: 'var(--pixel-text-dim)',
                     border: '2px solid var(--pixel-border)',
@@ -1124,7 +1108,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     style={{
                       flex: 1,
                       padding: '12px 16px',
-                      fontSize: '20px',
+                      fontSize: '28px',
                       background: 'transparent',
                       color: 'var(--pixel-text)',
                       border: '2px solid var(--pixel-border)',
@@ -1140,7 +1124,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     style={{
                       flex: 1,
                       padding: '12px 16px',
-                      fontSize: '20px',
+                      fontSize: '28px',
                       fontWeight: 'bold',
                       background: paymentMethod === 'usdc' ? '#2dd4bf' : '#f97316',
                       color: '#fff',
@@ -1219,7 +1203,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   style={{
                     width: '100%',
                     padding: '12px 16px',
-                    fontSize: '20px',
+                    fontSize: '28px',
                     fontWeight: 'bold',
                     background: '#22c55e',
                     color: '#fff',
@@ -1267,7 +1251,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     style={{
                       flex: 1,
                       padding: '12px 16px',
-                      fontSize: '20px',
+                      fontSize: '28px',
                       background: 'transparent',
                       color: 'var(--pixel-text)',
                       border: '2px solid var(--pixel-border)',
@@ -1282,7 +1266,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                       style={{
                         flex: 1,
                         padding: '12px 16px',
-                        fontSize: '20px',
+                        fontSize: '28px',
                         background: '#4ECDC4',
                         color: '#fff',
                         border: '2px solid transparent',
