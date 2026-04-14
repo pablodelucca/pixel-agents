@@ -359,11 +359,11 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 150, maxWidth: 240 }}>
             <span
               style={{
-                fontSize: '22px',
+                fontSize: '32px',
                 fontWeight: 'bold',
                 color: 'var(--pixel-text)',
-                fontFamily: 'monospace',
-                lineHeight: 1.2,
+                
+                lineHeight: 1,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -373,9 +373,9 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
             </span>
             <span
               style={{
-                fontSize: '14px',
+                fontSize: '20px',
                 color: 'var(--pixel-text-dim)',
-                lineHeight: 1.2,
+                lineHeight: 1,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -395,7 +395,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
             background: 'var(--pixel-bg)',
             border: '2px solid var(--pixel-border)',
             borderRadius: 0,
-            padding: '8px 12px',
+            padding: '0px 12px',
             boxShadow: 'var(--pixel-shadow)',
           }}
         >
@@ -421,28 +421,9 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
           </div>
 
           {/* USDC Balance Container */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 80 }}>
-            <span
-              style={{
-                fontSize: '14px',
-                color: 'var(--pixel-text-dim)',
-                fontWeight: 'normal',
-                lineHeight: 1,
-              }}
-            >
-              USDC
-            </span>
-            <span
-              style={{
-                fontSize: '22px',
-                fontWeight: 'bold',
-                color: 'var(--pixel-text)',
-                fontFamily: 'monospace',
-                lineHeight: 1.2,
-              }}
-            >
-              {isLoading ? '...' : usdcBalance}
-            </span>
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 80, lineHeight: 0 }}>
+            <span style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', fontWeight: 'normal', lineHeight: '20px', display: 'block', margin: 0, padding: 0 }}>USDC</span>
+            <span style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--pixel-text)', lineHeight: '32px', display: 'block', margin: '-8px 0 0 0', padding: 0 }}>{isLoading ? '...' : usdcBalance}</span>
           </div>
 
           {/* USDC Add Button */}
@@ -486,7 +467,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
             background: 'var(--pixel-bg)',
             border: '2px solid var(--pixel-border)',
             borderRadius: 0,
-            padding: '8px 12px',
+            padding: '0px 12px',
             boxShadow: 'var(--pixel-shadow)',
           }}
         >
@@ -512,28 +493,9 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
           </div>
 
           {/* Rupiah Balance Container */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 80 }}>
-            <span
-              style={{
-                fontSize: '14px',
-                color: 'var(--pixel-text-dim)',
-                fontWeight: 'normal',
-                lineHeight: 1,
-              }}
-            >
-              RUPIAH
-            </span>
-            <span
-              style={{
-                fontSize: '22px',
-                fontWeight: 'bold',
-                color: 'var(--pixel-text)',
-                fontFamily: 'monospace',
-                lineHeight: 1.2,
-              }}
-            >
-              {creditsLoading ? '...' : formatRupiah(rupiahBalance)}
-            </span>
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 80, lineHeight: 0 }}>
+            <span style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', fontWeight: 'normal', lineHeight: '20px', display: 'block', margin: 0, padding: 0 }}>RUPIAH</span>
+            <span style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--pixel-text)', lineHeight: '32px', display: 'block', margin: '-8px 0 0 0', padding: 0 }}>{creditsLoading ? '...' : formatRupiah(rupiahBalance)}</span>
           </div>
 
           {/* Rupiah Add Button */}
