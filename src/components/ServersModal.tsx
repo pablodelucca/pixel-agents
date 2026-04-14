@@ -736,41 +736,35 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   <div style={{ fontSize: '32px', marginBottom: '4px' }}>{pkg.emoji}</div>
                   <div
                     style={{
-                      fontSize: '36px',
+                      fontSize: '28px',
                       color: isSelected ? '#4ECDC4' : 'rgba(255, 255, 255, 0.7)',
                       fontWeight: 'bold',
                     }}
                   >
                     {pkg.name}
                   </div>
+                  <div
+                    style={{
+                      fontSize: '20px',
+                      color: 'rgba(255, 255, 255, 0.5)',
+                      marginTop: 4,
+                    }}
+                  >
+                    from {pkg.size} • Up to {pkg.employees} employees
+                  </div>
                   {/* Price */}
                   <div
                     style={{
                       fontSize: '20px',
                       color: '#4ECDC4',
-                      marginTop: 4,
+                      marginTop: 6,
                       fontWeight: 'bold',
                     }}
                   >
-                    ${pkg.priceUsdc} / Rp{formatRupiah(pkg.priceRupiah)}<span style={{ fontSize: '20px', color: 'rgba(255, 255, 255, 0.4)', fontWeight: 'normal' }}> /month</span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '20px',
-                      color: 'rgba(255, 255, 255, 0.5)',
-                      marginTop: 8,
-                    }}
-                  >
-                    {pkg.size}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '20px',
-                      color: 'rgba(255, 255, 255, 0.4)',
-                      marginTop: 2,
-                    }}
-                  >
-                    Up to {pkg.employees} employees
+                    {pkg.priceRupiah >= 1000000
+                      ? `Rp ${(pkg.priceRupiah / 1000000).toFixed(pkg.priceRupiah % 1000000 === 0 ? 0 : 1)}jt`
+                      : `Rp ${Math.round(pkg.priceRupiah / 1000)}rb`}{' '}
+                    <span style={{ fontSize: '20px', color: 'rgba(255, 255, 255, 0.4)', fontWeight: 'normal' }}>/mo</span>
                   </div>
                   {isSelected && (
                     <div
