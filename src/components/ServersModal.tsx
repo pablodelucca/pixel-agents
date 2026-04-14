@@ -685,7 +685,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
           </div>
           <div
             style={{
-              fontSize: '18px',
+              fontSize: '20px',
               color: 'rgba(255, 255, 255, 0.5)',
               lineHeight: 1.4,
               marginBottom: '16px',
@@ -736,7 +736,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   <div style={{ fontSize: '32px', marginBottom: '4px' }}>{pkg.emoji}</div>
                   <div
                     style={{
-                      fontSize: '16px',
+                      fontSize: '20px',
                       color: isSelected ? '#4ECDC4' : 'rgba(255, 255, 255, 0.7)',
                       fontWeight: 'bold',
                     }}
@@ -745,7 +745,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   </div>
                   <div
                     style={{
-                      fontSize: '14px',
+                      fontSize: '20px',
                       color: 'rgba(255, 255, 255, 0.5)',
                       marginTop: 4,
                     }}
@@ -754,7 +754,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   </div>
                   <div
                     style={{
-                      fontSize: '13px',
+                      fontSize: '20px',
                       color: 'rgba(255, 255, 255, 0.4)',
                       marginTop: 2,
                     }}
@@ -764,7 +764,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   {/* Price */}
                   <div
                     style={{
-                      fontSize: '16px',
+                      fontSize: '20px',
                       color: '#4ECDC4',
                       marginTop: 8,
                       fontWeight: 'bold',
@@ -774,7 +774,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   </div>
                   <div
                     style={{
-                      fontSize: '13px',
+                      fontSize: '20px',
                       color: 'rgba(255, 255, 255, 0.4)',
                       marginTop: 2,
                     }}
@@ -784,7 +784,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   {isSelected && (
                     <div
                       style={{
-                        fontSize: '13px',
+                        fontSize: '20px',
                         color: '#4ECDC4',
                         marginTop: 4,
                         fontWeight: 'bold',
@@ -903,7 +903,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   >
                     Finding Your Space...
                   </h2>
-                  <p style={{ fontSize: '16px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
+                  <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
                     Checking availability for <span style={{ color: '#4ECDC4', fontWeight: 'bold' }}>{selectedPkg?.name}</span>
                   </p>
                 </div>
@@ -932,7 +932,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   >
                     {selectedPkg.name}
                   </h2>
-                  <p style={{ fontSize: '18px', color: 'var(--pixel-text)', marginTop: 4 }}>
+                  <p style={{ fontSize: '20px', color: 'var(--pixel-text)', marginTop: 4 }}>
                     {selectedPkg.size} • Up to {selectedPkg.employees} employees
                   </p>
                   
@@ -948,7 +948,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     }}
                   >
                     <span style={{ 
-                      fontSize: '14px', 
+                      fontSize: '20px', 
                       color: countdown <= 60 ? '#ef4444' : '#22c55e',
                       fontWeight: 'bold',
                     }}>
@@ -958,7 +958,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                 </div>
 
                 <div style={{ marginBottom: 24 }}>
-                  <p style={{ fontSize: '16px', color: 'var(--pixel-text)', textAlign: 'center', marginBottom: 16 }}>
+                  <p style={{ fontSize: '20px', color: 'var(--pixel-text)', textAlign: 'center', marginBottom: 16 }}>
                     How would you like to pay?
                   </p>
 
@@ -998,15 +998,15 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                         $
                       </div>
                       <div style={{ flex: 1, textAlign: 'left' }}>
-                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: evmWallet ? '#2dd4bf' : 'var(--pixel-text-dim)' }}>
+                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: evmWallet ? '#2dd4bf' : 'var(--pixel-text-dim)' }}>
                           Pay with USDC
                         </div>
-                        <div style={{ fontSize: '14px', color: 'var(--pixel-text-dim)' }}>
+                        <div style={{ fontSize: '20px', color: 'var(--pixel-text-dim)' }}>
                           ${selectedPkg.priceUsdc} USDC on Base
                         </div>
                       </div>
                       {!evmWallet && (
-                        <span style={{ fontSize: '12px', color: '#ef4444' }}>No wallet</span>
+                        <span style={{ fontSize: '20px', color: '#ef4444' }}>No wallet</span>
                       )}
                     </button>
 
@@ -1033,7 +1033,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '14px',
+                          fontSize: '20px',
                           fontWeight: 'bold',
                           color: '#fff',
                           flexShrink: 0,
@@ -1042,10 +1042,10 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                         Rp
                       </div>
                       <div style={{ flex: 1, textAlign: 'left' }}>
-                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#f97316' }}>
+                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#f97316' }}>
                           Pay with Credits
                         </div>
-                        <div style={{ fontSize: '14px', color: 'var(--pixel-text-dim)' }}>
+                        <div style={{ fontSize: '20px', color: 'var(--pixel-text-dim)' }}>
                           Rp {formatRupiah(selectedPkg.priceRupiah)}
                         </div>
                       </div>
@@ -1058,7 +1058,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   style={{
                     width: '100%',
                     padding: '10px 16px',
-                    fontSize: '18px',
+                    fontSize: '20px',
                     background: 'transparent',
                     color: 'var(--pixel-text-dim)',
                     border: '2px solid var(--pixel-border)',
@@ -1087,7 +1087,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   >
                     Confirm Payment
                   </h2>
-                  <p style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
+                  <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
                     One month rent for {selectedPkg.name}:
                   </p>
                   <div
@@ -1101,12 +1101,12 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     {paymentMethod === 'usdc' ? `$${selectedPkg.priceUsdc} USDC` : `Rp ${formatRupiah(selectedPkg.priceRupiah)}`}
                   </div>
                   {paymentMethod === 'usdc' && (
-                    <p style={{ fontSize: '14px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
+                    <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
                       Your balance: {isCheckingBalance ? '...' : `${usdcBalance.toFixed(2)} USDC`}
                     </p>
                   )}
                   {paymentMethod === 'rupiah' && (
-                    <p style={{ fontSize: '14px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
+                    <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
                       Your credits: {isCheckingBalance ? '...' : `Rp ${creditsBalance.toLocaleString('id-ID')}`}
                     </p>
                   )}
@@ -1123,7 +1123,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     }}
                   >
                     <span style={{ 
-                      fontSize: '12px', 
+                      fontSize: '20px', 
                       color: countdown <= 60 ? '#ef4444' : '#fbbf24',
                       fontWeight: 'bold',
                     }}>
@@ -1139,7 +1139,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     style={{
                       flex: 1,
                       padding: '12px 16px',
-                      fontSize: '18px',
+                      fontSize: '20px',
                       background: 'transparent',
                       color: 'var(--pixel-text)',
                       border: '2px solid var(--pixel-border)',
@@ -1155,7 +1155,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     style={{
                       flex: 1,
                       padding: '12px 16px',
-                      fontSize: '18px',
+                      fontSize: '20px',
                       fontWeight: 'bold',
                       background: paymentMethod === 'usdc' ? '#2dd4bf' : '#f97316',
                       color: '#fff',
@@ -1192,7 +1192,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   >
                     Setting Up Your Office...
                   </h2>
-                  <p style={{ fontSize: '14px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
+                  <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
                     Preparing the keys to your new workspace!
                   </p>
                 </div>
@@ -1221,10 +1221,10 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   >
                     You're All Set!
                   </h2>
-                  <p style={{ fontSize: '18px', color: 'var(--pixel-text)', marginTop: 8 }}>
+                  <p style={{ fontSize: '20px', color: 'var(--pixel-text)', marginTop: 8 }}>
                     Your {selectedPkg.name} is ready!
                   </p>
-                  <p style={{ fontSize: '14px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
+                  <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 8 }}>
                     Rent is valid for 30 days. Time to get to work! 💼
                   </p>
                 </div>
@@ -1234,7 +1234,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   style={{
                     width: '100%',
                     padding: '12px 16px',
-                    fontSize: '18px',
+                    fontSize: '20px',
                     fontWeight: 'bold',
                     background: '#22c55e',
                     color: '#fff',
@@ -1265,7 +1265,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                      paymentError?.includes('Insufficient') || paymentError?.includes('Not enough') ? 'Insufficient Balance' :
                      'Payment Failed'}
                   </h2>
-                  <p style={{ fontSize: '16px', color: 'var(--pixel-text)', marginTop: 8 }}>
+                  <p style={{ fontSize: '20px', color: 'var(--pixel-text)', marginTop: 8 }}>
                     {paymentError?.includes('expired')
                       ? 'Your reservation timed out. Please try again to reserve a new office.'
                       : paymentError?.includes('No') && paymentError?.includes('available')
@@ -1282,7 +1282,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     style={{
                       flex: 1,
                       padding: '12px 16px',
-                      fontSize: '18px',
+                      fontSize: '20px',
                       background: 'transparent',
                       color: 'var(--pixel-text)',
                       border: '2px solid var(--pixel-border)',
@@ -1297,7 +1297,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                       style={{
                         flex: 1,
                         padding: '12px 16px',
-                        fontSize: '18px',
+                        fontSize: '20px',
                         background: '#4ECDC4',
                         color: '#fff',
                         border: '2px solid transparent',
