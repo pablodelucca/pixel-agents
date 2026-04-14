@@ -209,7 +209,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
         },
         body: JSON.stringify({
           amount: parseInt(topUpAmount),
-          method: 'SHOPEEPAY',
+          method: 'QRIS',
           customerName: privyUser?.google?.name || privyUser?.email?.address?.split('@')[0] || 'Customer',
           customerEmail: privyUser?.email?.address || 'customer@example.com',
           customerPhone: '08123456789', // Default phone, could be added to user profile
@@ -248,23 +248,15 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
     }
   }, [authenticated, wallets, fetchCredits]);
 
-  // When dialog opens, check all UNPAID payments and refresh credits
+  // When dialog opens, fetch all data
   useEffect(() => {
     if (isRupiahDialogOpen && authenticated) {
-      // Fetch payments (will auto-check UNPAID status to Tripay and update if PAID)
       fetchPayments().then(() => {
-        // Refresh credits in case any payment was updated to PAID
         fetchCredits();
       });
-    }
-  }, [isRupiahDialogOpen, authenticated, fetchPayments, fetchCredits]);
-
-  // Fetch transactions when tab is transactions
-  useEffect(() => {
-    if (isRupiahDialogOpen && activeTab === 'transactions' && authenticated) {
       fetchTransactions();
     }
-  }, [isRupiahDialogOpen, activeTab, authenticated, fetchTransactions]);
+  }, [isRupiahDialogOpen, authenticated, fetchPayments, fetchCredits, fetchTransactions]);
 
   // Generate player avatar from sprite
   useEffect(() => {
@@ -344,7 +336,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '18px',
+                fontSize: '20px',
                 fontWeight: 'bold',
                 color: '#fff',
                 border: '2px solid #00CED1',
@@ -409,7 +401,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '14px',
+              fontSize: '20px',
               fontWeight: 'bold',
               color: '#fff',
               boxShadow: '0 0 8px rgba(45, 212, 191, 0.5)',
@@ -481,7 +473,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '12px',
+              fontSize: '20px',
               fontWeight: 'bold',
               color: '#fff',
               boxShadow: '0 0 8px rgba(249, 115, 22, 0.5)',
@@ -581,7 +573,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
               >
                 Add USDC
               </h2>
-              <p style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', marginTop: 4 }}>
+              <p style={{ fontSize: '20px', color: 'var(--pixel-text-dim)', marginTop: 4 }}>
                 Send USDC to your wallet on Base
               </p>
             </div>
@@ -613,7 +605,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                 >
                   <code
                     style={{
-                      fontSize: '14px',
+                      fontSize: '20px',
                       color: 'var(--pixel-text)',
                       wordBreak: 'break-all',
                       flex: 1,
@@ -708,7 +700,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
               <>
                 <p
                   style={{
-                    fontSize: '18px',
+                    fontSize: '20px',
                     color: 'var(--pixel-text)',
                     textAlign: 'center',
                     marginBottom: 16,
@@ -722,7 +714,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                   style={{
                     width: '100%',
                     padding: '10px 16px',
-                    fontSize: '18px',
+                    fontSize: '20px',
                     fontWeight: 'bold',
                     background: 'var(--pixel-accent)',
                     color: '#fff',
@@ -745,7 +737,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
               style={{
                 width: '100%',
                 padding: '10px 16px',
-                fontSize: '18px',
+                fontSize: '20px',
                 background: 'transparent',
                 color: 'var(--pixel-text-dim)',
                 border: '2px solid var(--pixel-border)',
@@ -1176,15 +1168,15 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                       <div
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                          gridTemplateColumns: '3fr 3fr 2fr 2fr',
                           background: 'rgba(0, 0, 0, 0.4)',
                           borderBottom: '2px solid var(--pixel-border)',
                         }}
                       >
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Date</div>
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Amount</div>
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Status</div>
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Action</div>
+                        <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Date</div>
+                        <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Amount</div>
+                        <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Status</div>
+                        <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Action</div>
                       </div>
 
                       {/* Table Rows */}
@@ -1193,13 +1185,13 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                           key={payment.id}
                           style={{
                             display: 'grid',
-                            gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                            gridTemplateColumns: '3fr 3fr 2fr 2fr',
                             borderBottom: '2px solid var(--pixel-border)',
                             background: 'var(--pixel-bg)',
                           }}
                         >
                           {/* Date */}
-                          <div style={{ padding: '12px 16px', color: '#fff', fontSize: '20px' }}>
+                          <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden', color: '#fff', fontSize: '20px' }}>
                             {new Date(payment.created).toLocaleDateString('id-ID', {
                               day: '2-digit',
                               month: 'short',
@@ -1208,12 +1200,12 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                           </div>
 
                           {/* Amount */}
-                          <div style={{ padding: '12px 16px', color: '#fff', fontSize: '20px', fontWeight: 'bold' }}>
+                          <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden', color: '#fff', fontSize: '20px', fontWeight: 'bold' }}>
                             Rp {payment.amount?.toLocaleString('id-ID') || '0'}
                           </div>
 
                           {/* Status */}
-                          <div style={{ padding: '12px 16px' }}>
+                          <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden' }}>
                             <span
                               style={{
                                 padding: '4px 8px',
@@ -1229,7 +1221,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                           </div>
 
                           {/* Action */}
-                          <div style={{ padding: '8px 16px' }}>
+                          <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden' }}>
                             {payment.url ? (
                               <button
                                 onClick={() => window.open(payment.url, '_blank')}
@@ -1316,15 +1308,15 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                       <div
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                          gridTemplateColumns: '3fr 3fr 2fr 2fr',
                           background: 'rgba(0, 0, 0, 0.4)',
                           borderBottom: '2px solid var(--pixel-border)',
                         }}
                       >
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Date</div>
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Type</div>
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Description</div>
-                        <div style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Amount</div>
+                        <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Date</div>
+                        <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Amount</div>
+                        <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Type</div>
+                        <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden', fontWeight: 'bold', color: 'var(--pixel-text)', fontSize: '20px' }}>Action</div>
                       </div>
 
                       {/* Table Rows */}
@@ -1337,13 +1329,13 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                             key={transaction.id}
                             style={{
                               display: 'grid',
-                              gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                              gridTemplateColumns: '3fr 3fr 2fr 2fr',
                               borderBottom: '2px solid var(--pixel-border)',
                               background: 'var(--pixel-bg)',
                             }}
                           >
                             {/* Date */}
-                            <div style={{ padding: '12px 16px', color: '#fff', fontSize: '20px' }}>
+                            <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden', color: '#fff', fontSize: '20px' }}>
                               {new Date(transaction.created).toLocaleDateString('id-ID', {
                                 day: '2-digit',
                                 month: 'short',
@@ -1351,8 +1343,13 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                               })}
                             </div>
 
+                            {/* Amount */}
+                            <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden', fontSize: '20px', fontWeight: 'bold', color: '#fff' }}>
+                              {isDebit ? '+' : '-'} Rp {transaction.amount?.toLocaleString('id-ID') || '0'}
+                            </div>
+
                             {/* Type */}
-                            <div style={{ padding: '12px 16px' }}>
+                            <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden' }}>
                               <span
                                 style={{
                                   padding: '4px 8px',
@@ -1367,14 +1364,13 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                               </span>
                             </div>
 
-                            {/* Description */}
-                            <div style={{ padding: '12px 16px', color: '#fff', fontSize: '20px' }}>
-                              {transaction.desc || '-'}
-                            </div>
-
-                            {/* Amount */}
-                            <div style={{ padding: '12px 16px', fontSize: '20px', fontWeight: 'bold', color: '#fff' }}>
-                              {isDebit ? '+' : '-'} Rp {transaction.amount?.toLocaleString('id-ID') || '0'}
+                            {/* Action */}
+                            <div style={{ padding: '12px 16px', minWidth: 0, overflow: 'hidden' }}>
+                              {transaction.payment_id ? (
+                                <span style={{ color: '#22c55e', fontSize: '20px' }}>✓ Paid</span>
+                              ) : (
+                                <span style={{ color: 'var(--pixel-text-dim)', fontSize: '20px' }}>-</span>
+                              )}
                             </div>
                           </div>
                         );
@@ -1447,7 +1443,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '36px',
+                    fontSize: '20px',
                     fontWeight: 'bold',
                     color: '#fff',
                     border: '4px solid #00CED1',
@@ -1461,7 +1457,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
 
               <h2
                 style={{
-                  fontSize: '28px',
+                  fontSize: '20px',
                   fontWeight: 'bold',
                   color: 'var(--pixel-text)',
                   marginBottom: 4,
@@ -1471,7 +1467,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
               </h2>
               <p
                 style={{
-                  fontSize: '16px',
+                  fontSize: '20px',
                   color: 'var(--pixel-text-dim)',
                 }}
               >
@@ -1494,7 +1490,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
               >
                 <code
                   style={{
-                    fontSize: '14px',
+                    fontSize: '20px',
                     color: 'var(--pixel-text)',
                     wordBreak: 'break-all',
                     flex: 1,
@@ -1601,7 +1597,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
               style={{
                 width: '100%',
                 padding: '12px 16px',
-                fontSize: '18px',
+                fontSize: '20px',
                 fontWeight: 'bold',
                 background: '#dc2626',
                 color: '#fff',
@@ -1619,7 +1615,7 @@ export function BalanceBar({ rupiahBalance: _rupiahBalanceProp }: BalanceBarProp
               style={{
                 width: '100%',
                 padding: '10px 16px',
-                fontSize: '18px',
+                fontSize: '20px',
                 background: 'transparent',
                 color: 'var(--pixel-text-dim)',
                 border: '2px solid var(--pixel-border)',

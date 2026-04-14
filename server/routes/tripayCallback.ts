@@ -121,10 +121,10 @@ tripayCallbackRoutes.post('/callback', async (req: Request, res: Response) => {
 
       await db.from('transactions').insert({
         user_id: userId,
+        payment_id: payment.id,
         type: 'DEBIT',
         amount,
-        description: `Top Up via ${payment_method || 'Tripay'}`,
-        ref: merchant_ref,
+        desc: `Top Up via ${payment_method || 'Tripay'}`,
       });
     }
 

@@ -382,11 +382,11 @@ creditsRoutes.post('/topup', async (req, res) => {
         amount,
         status: paymentStatus,
         url: checkoutUrl,
-        method,
         metadata: {
           ...tripayResponse.data,
           merchant_ref: merchantRef,
           tripay_ref: tripayRef,
+          method,
         },
       })
       .select()
@@ -544,10 +544,10 @@ creditsRoutes.get('/topup/status', async (req, res) => {
 
       await db.from('transactions').insert({
         user_id: userId,
+        payment_id: payment.id,
         type: 'DEBIT',
         amount: payment.amount,
-        description: `Top Up via Tripay (${payment.method || 'Payment Gateway'})`,
-        ref: merchantRef,
+        desc: `Top Up via Tripay (${payment.metadata?.method || 'Payment Gateway'})`,
       });
 
       return res.json({

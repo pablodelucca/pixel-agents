@@ -7,9 +7,11 @@ const API_BASE_URL = '';
 export interface TransactionRecord {
   id: string;
   userId: string;
-  desc: string;
+  payment_id: string | null;
+  office_id: string | null;
   type: string;
   amount: number;
+  desc: string;
   created: string;
   updated: string;
 }
