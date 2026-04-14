@@ -243,9 +243,25 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
 
     // Use USDC contract from backend config if available, otherwise fallback
     const usdcContract = paymentConfig?.usdcContract || USDC_CONTRACT;
+    const chainId = paymentConfig?.chainId || '0x2105'; // Default to Base
     
     try {
       const provider = await evmWallet.getEthereumProvider();
+
+      // Switch to Base network first
+      try {
+        const currentChainId = await provider.request({ method: 'eth_chainId' });
+        if (currentChainId !== chainId) {
+          await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId }],
+          });
+        }
+      } catch (switchError) {
+        console.error('Failed to switch network:', switchError);
+        return 0;
+      }
+
       const paddedAddress = evmWallet.address.slice(2).padStart(64, '0');
       const data = `0x70a08231${paddedAddress}`;
 
@@ -254,7 +270,9 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
         params: [{ to: usdcContract, data: data }, 'latest'],
       });
 
+      if (!result || result === '0x' || result === '0x0') return 0;
       const balanceInMicroUsdc = parseInt(result, 16);
+      if (isNaN(balanceInMicroUsdc)) return 0;
       return balanceInMicroUsdc / 1e6;
     } catch (error) {
       console.error('Failed to fetch USDC balance:', error);
@@ -424,9 +442,6 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
 
         // ERC-20 transfer function signature
         const transferData = `0xa9059cbb${recipientPadded}${amountPadded}`;
-
-        // Set to confirming BEFORE sending transaction to stop countdown
-        setPaymentStep('confirming');
 
         // Request transaction
         const hash = await provider.request({
@@ -958,12 +973,11 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                         $
                       </div>
                       <div style={{ flex: 1, textAlign: 'left' }}>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: evmWallet ? '#2dd4bf' : 'var(--pixel-text-dim)' }}>
-                          Pay with USDC
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ fontSize: '28px', fontWeight: 'bold', color: evmWallet ? '#2dd4bf' : 'var(--pixel-text-dim)' }}>Pay with USDC</span>
+                          <span style={{ fontSize: '32px', fontWeight: 'bold', color: evmWallet ? '#2dd4bf' : 'var(--pixel-text-dim)' }}>${selectedPkg.priceUsdc} USDC</span>
                         </div>
-                        <div style={{ fontSize: '20px', color: 'rgba(255, 255, 255, 0.5)' }}>
-                          ${selectedPkg.priceUsdc} USDC on Base
-                        </div>
+
                       </div>
                       {!evmWallet && (
                         <span style={{ fontSize: '20px', color: '#ef4444' }}>No wallet</span>
@@ -1002,11 +1016,9 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                         Rp
                       </div>
                       <div style={{ flex: 1, textAlign: 'left' }}>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#f97316' }}>
-                          Pay with Credits
-                        </div>
-                        <div style={{ fontSize: '20px', color: 'rgba(255, 255, 255, 0.5)' }}>
-                          Rp {formatRupiah(selectedPkg.priceRupiah)}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ fontSize: '28px', fontWeight: 'bold', color: '#f97316' }}>Pay with IDR</span>
+                          <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#f97316' }}>Rp {formatRupiah(selectedPkg.priceRupiah)}</span>
                         </div>
                       </div>
                     </button>
@@ -1130,7 +1142,6 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   <div
                     style={{
                       fontSize: '48px',
-                      animation: 'spin 1s linear infinite',
                     }}
                   >
                     🏠
