@@ -743,11 +743,22 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                   >
                     {pkg.name}
                   </div>
+                  {/* Price */}
+                  <div
+                    style={{
+                      fontSize: '20px',
+                      color: '#4ECDC4',
+                      marginTop: 4,
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    ${pkg.priceUsdc} / Rp{formatRupiah(pkg.priceRupiah)}<span style={{ fontSize: '20px', color: 'rgba(255, 255, 255, 0.4)', fontWeight: 'normal' }}> /month</span>
+                  </div>
                   <div
                     style={{
                       fontSize: '20px',
                       color: 'rgba(255, 255, 255, 0.5)',
-                      marginTop: 4,
+                      marginTop: 8,
                     }}
                   >
                     {pkg.size}
@@ -760,26 +771,6 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                     }}
                   >
                     Up to {pkg.employees} employees
-                  </div>
-                  {/* Price */}
-                  <div
-                    style={{
-                      fontSize: '20px',
-                      color: '#4ECDC4',
-                      marginTop: 8,
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    ${pkg.priceUsdc} / Rp{formatRupiah(pkg.priceRupiah)}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '20px',
-                      color: 'rgba(255, 255, 255, 0.4)',
-                      marginTop: 2,
-                    }}
-                  >
-                    /month
                   </div>
                   {isSelected && (
                     <div
