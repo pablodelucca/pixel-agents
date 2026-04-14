@@ -726,7 +726,7 @@ export function ServersModal({ isOpen, onClose, onPurchaseSuccess }: ServersModa
                         : '1px solid rgba(255, 255, 255, 0.1)',
                     borderRadius: 4,
                     padding: '12px 14px',
-                    textAlign: 'center',
+                    textAlign: 'left',
                     minWidth: 140,
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
