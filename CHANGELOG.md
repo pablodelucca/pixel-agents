@@ -1,5 +1,36 @@
 # Changelog
 
+## v1.3.0
+
+### Features
+
+- **Hooks-first session management with dual-mode architecture** ([#214](https://github.com/pablodelucca/pixel-agents/pull/214)) — Splits agent detection into a preferred hooks path and a heuristic fallback. When Claude Code hooks are available, session lifecycle, tool activity, permissions, and sub-agent events are reported instantly via a local HTTP server; when unavailable, the extension transparently falls back to JSONL polling. Builds on [#187](https://github.com/pablodelucca/pixel-agents/pull/187). Closes [#188](https://github.com/pablodelucca/pixel-agents/issues/188), [#201](https://github.com/pablodelucca/pixel-agents/issues/201).
+- **Claude Code hooks for instant agent status detection** ([#187](https://github.com/pablodelucca/pixel-agents/pull/187)) — Adds a standalone HTTP server and hook installer that routes 11 Claude Code hook events (SessionStart, Stop, PreToolUse, PostToolUse, SubagentStart, Notification, and others) to the webview for sub-second status updates, replacing filesystem polling when hooks are installed.
+- **External session support and Agent tool recognition** ([#115](https://github.com/pablodelucca/pixel-agents/pull/115)) — Detects Claude sessions launched outside the extension (external CLIs, other editors) and recognizes the renamed `Agent` sub-agent tool so sub-agent characters spawn correctly with current Claude Code versions. Closes [#184](https://github.com/pablodelucca/pixel-agents/issues/184), [#74](https://github.com/pablodelucca/pixel-agents/issues/74), [#9](https://github.com/pablodelucca/pixel-agents/issues/9), [#8](https://github.com/pablodelucca/pixel-agents/issues/8), [#1](https://github.com/pablodelucca/pixel-agents/issues/1). Supersedes [#2](https://github.com/pablodelucca/pixel-agents/pull/2), [#77](https://github.com/pablodelucca/pixel-agents/pull/77), [#101](https://github.com/pablodelucca/pixel-agents/pull/101), [#141](https://github.com/pablodelucca/pixel-agents/pull/141).
+- **Multi-root workspace agent detection** ([#102](https://github.com/pablodelucca/pixel-agents/pull/102)) — Scans all workspace folders in multi-root workspaces instead of only the first, so agents launched in any folder are discovered and adopted. Closes [#30](https://github.com/pablodelucca/pixel-agents/issues/30). Supersedes [#103](https://github.com/pablodelucca/pixel-agents/pull/103), [#157](https://github.com/pablodelucca/pixel-agents/pull/157).
+- **Load custom characters from external asset directories** ([#208](https://github.com/pablodelucca/pixel-agents/pull/208)) — Users can drop custom character PNGs into an external asset directory and have them loaded alongside the built-in palettes, enabling community-contributed character skins without forking the extension.
+- **Tailwind CSS v4 migration for the webview UI** ([#204](https://github.com/pablodelucca/pixel-agents/pull/204)) — Modernizes the webview styling stack to Tailwind v4, simplifying theming, reducing custom CSS, and improving build times.
+
+### Fixes
+
+- **Prevent duplicate restores, fix tool status reconnect, and improve agent tool detection** ([#197](https://github.com/pablodelucca/pixel-agents/pull/197)) — Stops agents being restored twice on reload, restores tool status correctly after a reconnect, and tightens the tool-name detection heuristics so active tool animations match the running tool.
+
+### Maintenance
+
+- **Add `shared/` to lint, format, and lint-staged** ([#212](https://github.com/pablodelucca/pixel-agents/pull/212)) — Brings the shared package under the project's lint, format, and pre-commit pipeline so cross-package code stays consistent.
+- Dependabot dev-dependency group bumps ([#209](https://github.com/pablodelucca/pixel-agents/pull/209), [#210](https://github.com/pablodelucca/pixel-agents/pull/210))
+
+### Contributors
+
+Thank you to the contributors who made this release possible:
+
+- [@drewf](https://github.com/drewf) — External session support and Agent tool recognition
+- [@Commandershadow9](https://github.com/Commandershadow9) — Multi-root workspace agent detection
+- [@mitre88](https://github.com/mitre88), [@noam971](https://github.com/noam971) — Duplicate restore, tool status reconnect, and tool detection fixes
+- [@itsManeka](https://github.com/itsManeka) — Custom characters from external asset directories
+- [@pablodelucca](https://github.com/pablodelucca), [@NNTin](https://github.com/NNTin) — Claude Code hooks integration, Tailwind v4 migration
+- [@florintimbuc](https://github.com/florintimbuc) — Hooks-first dual-mode architecture, review coordination
+
 ## v1.2.0
 
 ### Features
