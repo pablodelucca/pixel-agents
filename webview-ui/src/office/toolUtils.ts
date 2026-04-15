@@ -1,13 +1,16 @@
 /** Map status prefixes back to tool names for animation selection */
 const STATUS_TO_TOOL: Record<string, string> = {
   Reading: 'Read',
+  'Searching files': 'Glob',
+  'Searching code': 'Grep',
+  'Searching the web': 'WebSearch',
   Searching: 'Grep',
   Globbing: 'Glob',
   Fetching: 'WebFetch',
-  'Searching web': 'WebSearch',
   Writing: 'Write',
   Editing: 'Edit',
   Running: 'Bash',
+  Subtask: 'Task',
   Task: 'Task',
 };
 
