@@ -39,3 +39,11 @@ export interface CatalogEntry {
   animationGroup?: string;
   frame?: number;
 }
+
+export interface PetSpriteFrames {
+  walkDown: string[][][];
+  idleDown: string[][][];
+  walkUp: string[][][];
+  idleUp: string[][][];
+  walkRight: string[][][];
+}

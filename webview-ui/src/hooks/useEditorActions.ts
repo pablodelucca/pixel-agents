@@ -26,6 +26,7 @@ import type {
   EditTool as EditToolType,
   OfficeLayout,
   PlacedFurniture,
+  PlacedPet,
   TileType as TileTypeVal,
 } from '../office/types.js';
 import { EditTool } from '../office/types.js';
@@ -61,6 +62,7 @@ interface EditorActions {
   handleEditorEraseAction: (col: number, row: number) => void;
   handleEditorSelectionChange: () => void;
   handleDragMove: (uid: string, newCol: number, newRow: number) => void;
+  handlePetToggle: (petType: number, active: boolean) => void;
 }
 
 export function useEditorActions(
@@ -587,6 +589,26 @@ export function useEditorActions(
     [getOfficeState, editorState, applyEdit, maybeExpand],
   );
 
+  const handlePetToggle = useCallback(
+    (petType: number, active: boolean) => {
+      const os = getOfficeState();
+      const layout = os.getLayout();
+      const currentPets = layout.pets ?? [];
+
+      let newPets: PlacedPet[];
+      if (active) {
+        if (currentPets.some((p) => p.petType === petType)) return;
+        newPets = [...currentPets, { id: crypto.randomUUID(), petType }];
+      } else {
+        newPets = currentPets.filter((p) => p.petType !== petType);
+      }
+
+      const newLayout: OfficeLayout = { ...layout, pets: newPets };
+      applyEdit(newLayout);
+    },
+    [getOfficeState, applyEdit],
+  );
+
   const handleEditorEraseAction = useCallback(
     (col: number, row: number) => {
       const os = getOfficeState();
@@ -632,5 +654,6 @@ export function useEditorActions(
     handleEditorEraseAction,
     handleEditorSelectionChange,
     handleDragMove,
+    handlePetToggle,
   };
 }

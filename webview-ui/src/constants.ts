@@ -72,6 +72,7 @@ export const ROTATE_BUTTON_BG = 'rgba(50, 120, 200, 0.85)';
 export const BUTTON_ICON_COLOR = '#fff';
 export const CANVAS_FALLBACK_TILE_COLOR = '#444';
 export const CANVAS_ERROR_TILE_COLOR = '#FF00FF';
+export const EMPTY_SPRITE_THUMBNAIL_BG = '#333';
 export const WALL_COLOR = '#3A3A5C';
 
 // ── Camera ───────────────────────────────────────────────────
@@ -111,6 +112,20 @@ export const PERMISSION_NOTE_2_START_SEC = 0.12;
 export const PERMISSION_NOTE_DURATION_SEC = 0.15;
 export const PERMISSION_VOLUME = 0.12;
 
+// ── Pet Animation & Behavior ────────────────────────────────
+export const PET_WALK_SPEED_PX_PER_SEC = 32;
+export const PET_WALK_FRAME_DURATION_SEC = 0.15;
+export const PET_IDLE_FRAME_DURATION_SEC = 0.3;
+export const PET_WALK_SEQUENCE = [0, 1, 0, 2] as const;
+export const PET_IDLE_SEQUENCE = [0, 1, 2, 1] as const;
+export const PET_WANDER_PAUSE_MIN_SEC = 3.0;
+export const PET_WANDER_PAUSE_MAX_SEC = 15.0;
+export const PET_FOLLOW_RECALC_INTERVAL_SEC = 1.0;
+export const PET_FOLLOW_CHANCE = 0.3;
+export const PET_FOLLOW_RADIUS_TILES = 3;
+export const PET_FOLLOW_DURATION_MIN_SEC = 5.0;
+export const PET_FOLLOW_DURATION_MAX_SEC = 15.0;
+
 // ── Furniture Animation ─────────────────────────────────────
 export const FURNITURE_ANIM_INTERVAL_SEC = 0.2;
 
@@ -132,6 +147,8 @@ export const AUTO_ON_FACING_DEPTH = 3;
 export const AUTO_ON_SIDE_DEPTH = 2;
 export const CHARACTER_HIT_HALF_WIDTH = 8;
 export const CHARACTER_HIT_HEIGHT = 24;
+export const PET_HIT_HALF_WIDTH = 8;
+export const PET_HIT_HEIGHT = 16;
 export const TOOL_OVERLAY_VERTICAL_OFFSET = 32;
 
 // ── Agent Teams ─────────────────────────────────────────────

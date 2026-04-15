@@ -348,6 +348,10 @@ function migrateLayout(layout: OfficeLayout): OfficeLayout {
     };
   }
 
+  if (!layout.pets) {
+    layout = { ...layout, pets: [] };
+  }
+
   if (layout.tileColors && layout.tileColors.length === layout.tiles.length) {
     return layout; // Already migrated tile colors
   }
