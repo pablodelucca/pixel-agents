@@ -43,6 +43,8 @@
   /* Non-utility values */
   --vignette: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.6) 100%);
   --btn-disabled-opacity: 0.35;
+  --surface-mission-shell: linear-gradient(180deg, rgba(30, 30, 46, 0.98), rgba(24, 24, 40, 0.98));
+  --surface-mission-hero: linear-gradient(180deg, rgba(116, 111, 255, 0.16), rgba(30, 30, 46, 0.9));
 }
 
 @theme inline {
@@ -114,6 +116,14 @@
   /* Pulsing dot animation (DebugView, ToolOverlay) */
   .pixel-pulse {
     animation: pixel-pulse 1.5s ease-in-out infinite;
+  }
+
+  .mission-control-shell {
+    background: var(--surface-mission-shell);
+  }
+
+  .mission-control-hero {
+    background: var(--surface-mission-hero);
   }
 }
 

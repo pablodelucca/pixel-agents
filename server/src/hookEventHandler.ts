@@ -4,9 +4,52 @@ import * as path from 'path';
 import type * as vscode from 'vscode';
 
 import { cancelPermissionTimer, cancelWaitingTimer } from '../../src/timerManager.js';
-import { formatToolStatus } from '../../src/transcriptParser.js';
 import type { AgentState } from '../../src/types.js';
-import { HOOK_EVENT_BUFFER_MS, SESSION_END_GRACE_MS } from './constants.js';
+import {
+  BASH_COMMAND_DISPLAY_MAX_LENGTH,
+  HOOK_EVENT_BUFFER_MS,
+  SESSION_END_GRACE_MS,
+  TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
+} from './constants.js';
+
+export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
+  const base = (p: unknown) => (typeof p === 'string' ? path.basename(p) : '');
+  switch (toolName) {
+    case 'Read':
+      return `Reading ${base(input.file_path)}`;
+    case 'Edit':
+      return `Editing ${base(input.file_path)}`;
+    case 'Write':
+      return `Writing ${base(input.file_path)}`;
+    case 'Bash': {
+      const cmd = (input.command as string) || '';
+      return `Running: ${cmd.length > BASH_COMMAND_DISPLAY_MAX_LENGTH ? cmd.slice(0, BASH_COMMAND_DISPLAY_MAX_LENGTH) + '\u2026' : cmd}`;
+    }
+    case 'Glob':
+      return 'Searching files';
+    case 'Grep':
+      return 'Searching code';
+    case 'WebFetch':
+      return 'Fetching web content';
+    case 'WebSearch':
+      return 'Searching the web';
+    case 'Task':
+    case 'Agent': {
+      const desc = typeof input.description === 'string' ? input.description : '';
+      return desc
+        ? `Subtask: ${desc.length > TASK_DESCRIPTION_DISPLAY_MAX_LENGTH ? desc.slice(0, TASK_DESCRIPTION_DISPLAY_MAX_LENGTH) + '\u2026' : desc}`
+        : 'Running subtask';
+    }
+    case 'AskUserQuestion':
+      return 'Waiting for your answer';
+    case 'EnterPlanMode':
+      return 'Planning';
+    case 'NotebookEdit':
+      return `Editing notebook`;
+    default:
+      return `Using ${toolName}`;
+  }
+}
 
 const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
@@ -56,6 +99,8 @@ interface SessionLifecycleCallbacks {
   onSessionResume?: (transcriptPath: string) => void;
   /** Called when a session ends (exit/logout). */
   onSessionEnd?: (agentId: number, reason: string) => void;
+  /** Called whenever a hook event has been matched to a concrete agent. */
+  onHookEvent?: (agentId: number, providerId: string, event: HookEvent, agent: AgentState) => void;
 }
 
 /** Pending external session info (waiting for confirmation event before creating agent). */
@@ -144,6 +189,9 @@ export class HookEventHandler {
           console.log(
             `[Pixel Agents] Hook: Agent ${existingAgentId} - SessionStart(source=${source}) known`,
           );
+        if (agent) {
+          this.lifecycleCallbacks.onHookEvent?.(existingAgentId, _providerId, event, agent);
+        }
         return;
       }
       // Check auto-discovery (agent exists but not yet registered for hooks)
@@ -155,9 +203,34 @@ export class HookEventHandler {
             console.log(
               `[Pixel Agents] Hook: Agent ${id} - SessionStart(source=${source}) auto-discovered`,
             );
+          this.lifecycleCallbacks.onHookEvent?.(id, _providerId, event, agent);
           return;
         }
       }
+      // Claim a pending agent: launched by "+Agent" click but not yet assigned a session ID.
+      // These agents are created with sessionId='' and a known cwd. When Codex fires
+      // SessionStart(source=new), match by cwd to avoid creating a duplicate character.
+      const eventCwd = event.cwd as string | undefined;
+      if (event.source !== 'clear' && event.source !== 'resume' && eventCwd) {
+        for (const [id, agent] of this.agents) {
+          if (
+            agent.sessionId === '' &&
+            agent.cwd &&
+            path.resolve(agent.cwd).toLowerCase() === path.resolve(eventCwd).toLowerCase()
+          ) {
+            agent.sessionId = event.session_id;
+            agent.hookDelivered = true;
+            this.registerAgent(event.session_id, id);
+            if (debug)
+              console.log(
+                `[Pixel Agents] Hook: Agent ${id} - SessionStart claimed pending agent (cwd match)`,
+              );
+            this.lifecycleCallbacks.onHookEvent?.(id, _providerId, event, agent);
+            return;
+          }
+        }
+      }
+
       // /clear or /resume: reassign existing agent to new session
       if (event.source === 'clear' || event.source === 'resume') {
         const transcriptPath = event.transcript_path as string | undefined;
@@ -182,6 +255,7 @@ export class HookEventHandler {
               this.sessionToAgentId.delete(agent.sessionId);
               this.registerAgent(event.session_id, id);
               this.lifecycleCallbacks.onSessionClear?.(id, event.session_id, transcriptPath);
+              this.lifecycleCallbacks.onHookEvent?.(id, _providerId, event, agent);
               return;
             }
           }
@@ -283,6 +357,7 @@ export class HookEventHandler {
       console.log(
         `[Pixel Agents] Hook: Agent ${agentId} - ${eventName} (session=${event.session_id.slice(0, 8)}...)`,
       );
+    this.lifecycleCallbacks.onHookEvent?.(agentId, _providerId, event, agent);
 
     const webview = this.getWebview();
 

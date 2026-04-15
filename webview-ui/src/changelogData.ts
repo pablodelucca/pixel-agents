@@ -44,7 +44,7 @@ export const changelogEntries: ChangelogEntry[] = [
       },
       {
         title: 'Testing',
-        items: ['Playwright e2e tests with mock Claude CLI'],
+        items: ['Playwright e2e tests with mock Codex CLI'],
       },
       {
         title: 'Maintenance',

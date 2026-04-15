@@ -10,6 +10,7 @@ import {
   LAYOUT_REVISION_KEY,
   WORKSPACE_KEY_LAYOUT,
 } from './constants.js';
+import { safeUpdateState } from './stateUtils.js';
 
 export interface LayoutWatcher {
   markOwnWrite(): void;
@@ -86,7 +87,7 @@ export function migrateAndLoadLayout(
   if (fromState) {
     console.log('[Pixel Agents] Migrating layout from workspace state to file');
     writeLayoutToFile(fromState);
-    context.workspaceState.update(WORKSPACE_KEY_LAYOUT, undefined);
+    safeUpdateState(context.workspaceState, WORKSPACE_KEY_LAYOUT, undefined);
     return { layout: fromState, wasReset: false };
   }
 

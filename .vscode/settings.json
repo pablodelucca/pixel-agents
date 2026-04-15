@@ -18,5 +18,9 @@
     "[markdown]": {
         "editor.formatOnSave": false
     },
-    "liveServer.settings.port": 5501
+    "liveServer.settings.port": 5501,
+    "workbench.colorCustomizations": {
+        "minimap.background": "#00000000",
+        "scrollbar.shadow": "#00000000"
+    }
 }

@@ -7,20 +7,24 @@ import { Dropdown, DropdownItem } from './ui/Dropdown.js';
 
 interface BottomToolbarProps {
   isEditMode: boolean;
-  onOpenClaude: () => void;
+  onOpenCodex: () => void;
   onToggleEditMode: () => void;
   isSettingsOpen: boolean;
   onToggleSettings: () => void;
   workspaceFolders: WorkspaceFolder[];
+  isMissionControlOpen: boolean;
+  onToggleMissionControl: () => void;
 }
 
 export function BottomToolbar({
   isEditMode,
-  onOpenClaude,
+  onOpenCodex,
   onToggleEditMode,
   isSettingsOpen,
   onToggleSettings,
   workspaceFolders,
+  isMissionControlOpen,
+  onToggleMissionControl,
 }: BottomToolbarProps) {
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
   const [isBypassMenuOpen, setIsBypassMenuOpen] = useState(false);
@@ -46,8 +50,10 @@ export function BottomToolbar({
     pendingBypassRef.current = false;
     if (hasMultipleFolders) {
       setIsFolderPickerOpen((v) => !v);
+    } else if (workspaceFolders.length === 1) {
+      vscode.postMessage({ type: 'openCodex', folderPath: workspaceFolders[0].path });
     } else {
-      onOpenClaude();
+      onOpenCodex();
     }
   };
 
@@ -67,7 +73,7 @@ export function BottomToolbar({
     setIsFolderPickerOpen(false);
     const bypassPermissions = pendingBypassRef.current;
     pendingBypassRef.current = false;
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path, bypassPermissions });
+    vscode.postMessage({ type: 'openCodex', folderPath: folder.path, bypassPermissions });
   };
 
   const handleBypassSelect = (bypassPermissions: boolean) => {
@@ -75,8 +81,14 @@ export function BottomToolbar({
     if (hasMultipleFolders) {
       pendingBypassRef.current = bypassPermissions;
       setIsFolderPickerOpen(true);
+    } else if (workspaceFolders.length === 1) {
+      vscode.postMessage({
+        type: 'openCodex',
+        folderPath: workspaceFolders[0].path,
+        bypassPermissions,
+      });
     } else {
-      vscode.postMessage({ type: 'openClaude', bypassPermissions });
+      vscode.postMessage({ type: 'openCodex', bypassPermissions });
     }
   };
 
@@ -122,6 +134,13 @@ export function BottomToolbar({
         title="Edit office layout"
       >
         Layout
+      </Button>
+      <Button
+        variant={isMissionControlOpen ? 'active' : 'default'}
+        onClick={onToggleMissionControl}
+        title="Open Mission Control"
+      >
+        Mission
       </Button>
       <Button
         variant={isSettingsOpen ? 'active' : 'default'}

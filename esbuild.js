@@ -28,21 +28,17 @@ function copyAssets() {
 
 /**
  * Bundle hook scripts (TypeScript) to dist/hooks via esbuild.
- * Produces a self-contained CJS file with shebang for Claude Code to execute.
+ * Produces self-contained CJS files with shebang for CLI tools to execute.
+ * Both claude-hook.ts and codex-hook.ts are compiled to dist/hooks/.
  */
 function buildHooks() {
-  const entry = path.join(
-    __dirname,
-    'server',
-    'src',
-    'providers',
-    'file',
-    'hooks',
-    'claude-hook.ts',
-  );
-  if (!fs.existsSync(entry)) return;
+  const hooksDir = path.join(__dirname, 'server', 'src', 'providers', 'file', 'hooks');
+  const entries = ['claude-hook.ts', 'codex-hook.ts']
+    .map((name) => path.join(hooksDir, name))
+    .filter((p) => fs.existsSync(p));
+  if (entries.length === 0) return;
   require('esbuild').buildSync({
-    entryPoints: [entry],
+    entryPoints: entries,
     bundle: true,
     platform: 'node',
     target: 'node18',

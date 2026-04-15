@@ -6,6 +6,8 @@ import { ChangelogModal } from './components/ChangelogModal.js';
 import { DebugView } from './components/DebugView.js';
 import { EditActionBar } from './components/EditActionBar.js';
 import { MigrationNotice } from './components/MigrationNotice.js';
+import type { MissionControlView } from './components/MissionControlModal.js';
+import { MissionControlModal } from './components/MissionControlModal.js';
 import { SettingsModal } from './components/SettingsModal.js';
 import { Tooltip } from './components/Tooltip.js';
 import { Modal } from './components/ui/Modal.js';
@@ -71,6 +73,7 @@ function App() {
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
+    missionControl,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -83,6 +86,9 @@ function App() {
   const [hooksTooltipDismissed, setHooksTooltipDismissed] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [alwaysShowOverlay, setAlwaysShowOverlay] = useState(false);
+  const [inspectedAgentId, setInspectedAgentId] = useState<number | null>(null);
+  const [isMissionControlOpen, setIsMissionControlOpen] = useState(false);
+  const [missionControlView, setMissionControlView] = useState<MissionControlView>('overview');
 
   const currentMajorMinor = toMajorMinor(extensionVersion);
 
@@ -100,6 +106,12 @@ function App() {
     setAlwaysShowOverlay(alwaysShowLabels);
   }, [alwaysShowLabels]);
 
+  useEffect(() => {
+    if (selectedAgent !== null) {
+      setInspectedAgentId(selectedAgent);
+    }
+  }, [selectedAgent]);
+
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), []);
   const handleToggleAlwaysShowOverlay = useCallback(() => {
     setAlwaysShowOverlay((prev) => {
@@ -110,7 +122,9 @@ function App() {
   }, []);
 
   const handleSelectAgent = useCallback((id: number) => {
-    vscode.postMessage({ type: 'focusAgent', id });
+    setInspectedAgentId(id);
+    setMissionControlView('agent');
+    setIsMissionControlOpen(true);
   }, []);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -133,11 +147,23 @@ function App() {
   }, []);
 
   const handleClick = useCallback((agentId: number) => {
-    // If clicked agent is a sub-agent, focus the parent's terminal instead
+    // If the user clicks a sub-agent, inspect the parent session that owns it.
     const os = getOfficeState();
     const meta = os.subagentMeta.get(agentId);
-    const focusId = meta ? meta.parentAgentId : agentId;
-    vscode.postMessage({ type: 'focusAgent', id: focusId });
+    const inspectId = meta ? meta.parentAgentId : agentId;
+    setInspectedAgentId(inspectId);
+    setMissionControlView('agent');
+    setIsMissionControlOpen(true);
+  }, []);
+
+  const handleToggleMissionControl = useCallback(() => {
+    setIsMissionControlOpen((value) => {
+      const next = !value;
+      if (next) {
+        setMissionControlView('overview');
+      }
+      return next;
+    });
   }, []);
 
   const officeState = getOfficeState();
@@ -243,11 +269,23 @@ function App() {
             agents={agents}
             agentTools={agentTools}
             subagentCharacters={subagentCharacters}
+            missionControl={missionControl}
+            isMissionControlOpen={isMissionControlOpen}
             containerRef={containerRef}
             zoom={editor.zoom}
             panRef={editor.panRef}
             onCloseAgent={handleCloseAgent}
             alwaysShowOverlay={alwaysShowOverlay}
+          />
+
+          <MissionControlModal
+            isOpen={isMissionControlOpen}
+            onClose={() => setIsMissionControlOpen(false)}
+            agents={agents}
+            selectedAgentId={inspectedAgentId}
+            missionControl={missionControl}
+            onInspectAgent={setInspectedAgentId}
+            initialView={missionControlView}
           />
         </>
       ) : (
@@ -302,8 +340,8 @@ function App() {
             <li className="text-sm mb-2">Sound notifications play immediately</li>
           </ul>
           <p className="mb-12 text-text-muted">
-            This works through Claude Code Hooks, small event listeners that notify Pixel Agents
-            whenever something happens in your Claude sessions.
+            This works through Codex Hooks, small event listeners that notify Pixel Agents whenever
+            something happens in your Codex sessions.
           </p>
           <div className="text-center">
             <button
@@ -321,11 +359,13 @@ function App() {
 
       <BottomToolbar
         isEditMode={editor.isEditMode}
-        onOpenClaude={editor.handleOpenClaude}
+        onOpenCodex={editor.handleOpenCodex}
         onToggleEditMode={editor.handleToggleEditMode}
         isSettingsOpen={isSettingsOpen}
         onToggleSettings={() => setIsSettingsOpen((v) => !v)}
         workspaceFolders={workspaceFolders}
+        isMissionControlOpen={isMissionControlOpen}
+        onToggleMissionControl={handleToggleMissionControl}
       />
 
       <VersionIndicator

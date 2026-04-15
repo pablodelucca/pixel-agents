@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
+import type { MissionControlSnapshot } from '../../../shared/missionControl.ts';
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
@@ -66,6 +67,22 @@ interface ExtensionMessageState {
   hooksEnabled: boolean;
   setHooksEnabled: (v: boolean) => void;
   hooksInfoShown: boolean;
+  missionControl: MissionControlSnapshot;
+}
+
+function createEmptyMissionControlSnapshot(): MissionControlSnapshot {
+  return {
+    schemaVersion: 1,
+    generatedAt: '',
+    sessions: [],
+    tasks: [],
+    approvals: [],
+    events: [],
+    artifacts: [],
+    workspaces: [],
+    briefings: [],
+    activeSessionByAgentId: {},
+  };
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -103,6 +120,9 @@ export function useExtensionMessages(
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
   const [hooksEnabled, setHooksEnabled] = useState(true);
   const [hooksInfoShown, setHooksInfoShown] = useState(true);
+  const [missionControl, setMissionControl] = useState<MissionControlSnapshot>(
+    createEmptyMissionControlSnapshot,
+  );
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -432,6 +452,8 @@ export function useExtensionMessages(
         if (typeof msg.extensionVersion === 'string') {
           setExtensionVersion(msg.extensionVersion as string);
         }
+      } else if (msg.type === 'missionControlSnapshot') {
+        setMissionControl(msg.snapshot as MissionControlSnapshot);
       } else if (msg.type === 'externalAssetDirectoriesUpdated') {
         if (Array.isArray(msg.dirs)) {
           setExternalAssetDirectories(msg.dirs as string[]);
@@ -475,5 +497,6 @@ export function useExtensionMessages(
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
+    missionControl,
   };
 }

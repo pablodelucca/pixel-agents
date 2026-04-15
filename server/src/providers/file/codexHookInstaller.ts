@@ -2,13 +2,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { CLAUDE_HOOK_EVENTS, CLAUDE_HOOK_SCRIPT_NAME, HOOK_SCRIPTS_DIR } from '../../constants.js';
+import { CODEX_HOOK_EVENTS, CODEX_HOOK_SCRIPT_NAME, HOOK_SCRIPTS_DIR } from '../../constants.js';
 
 /** Marker string used to identify Pixel Agents hook entries in Claude's settings. */
-const HOOK_SCRIPT_MARKER = CLAUDE_HOOK_SCRIPT_NAME;
+const HOOK_SCRIPT_MARKER = CODEX_HOOK_SCRIPT_NAME;
 
-/** A single hook entry in Claude Code's ~/.claude/settings.json hooks config. */
-interface ClaudeHookEntry {
+/** A single hook entry in Codex Code's ~/.codex/settings.json hooks config. */
+interface CodexHookEntry {
   matcher: string;
   hooks: Array<{
     type: string;
@@ -17,38 +17,38 @@ interface ClaudeHookEntry {
   }>;
 }
 
-/** Partial shape of ~/.claude/settings.json (only the hooks field is relevant). */
-interface ClaudeSettings {
-  hooks?: Record<string, ClaudeHookEntry[]>;
+/** Partial shape of ~/.codex/settings.json (only the hooks field is relevant). */
+interface CodexSettings {
+  hooks?: Record<string, CodexHookEntry[]>;
   [key: string]: unknown;
 }
 
-/** Returns the absolute path to ~/.claude/settings.json. */
-function getClaudeSettingsPath(): string {
-  return path.join(os.homedir(), '.claude', 'settings.json');
+/** Returns the absolute path to ~/.codex/settings.json. */
+function getCodexSettingsPath(): string {
+  return path.join(os.homedir(), '.codex', 'settings.json');
 }
 
-/** Returns the destination path for the hook script (~/.pixel-agents/hooks/claude-hook.js). */
+/** Returns the destination path for the hook script (~/.pixel-agents/hooks/codex-hook.js). */
 function getHookScriptPath(): string {
-  return path.join(os.homedir(), HOOK_SCRIPTS_DIR, CLAUDE_HOOK_SCRIPT_NAME);
+  return path.join(os.homedir(), HOOK_SCRIPTS_DIR, CODEX_HOOK_SCRIPT_NAME);
 }
 
-/** Read and parse ~/.claude/settings.json. Returns empty object if missing or malformed. */
-function readClaudeSettings(): ClaudeSettings {
-  const settingsPath = getClaudeSettingsPath();
+/** Read and parse ~/.codex/settings.json. Returns empty object if missing or malformed. */
+function readCodexSettings(): CodexSettings {
+  const settingsPath = getCodexSettingsPath();
   try {
     if (fs.existsSync(settingsPath)) {
-      return JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) as ClaudeSettings;
+      return JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) as CodexSettings;
     }
   } catch (e) {
-    console.error(`[Pixel Agents] Failed to read Claude settings: ${e}`);
+    console.error(`[Pixel Agents] Failed to read Codex settings: ${e}`);
   }
   return {};
 }
 
-/** Write settings back to ~/.claude/settings.json via atomic tmp + rename. */
-function writeClaudeSettings(settings: ClaudeSettings): void {
-  const settingsPath = getClaudeSettingsPath();
+/** Write settings back to ~/.codex/settings.json via atomic tmp + rename. */
+function writeCodexSettings(settings: CodexSettings): void {
+  const settingsPath = getCodexSettingsPath();
   const dir = path.dirname(settingsPath);
   try {
     if (!fs.existsSync(dir)) {
@@ -59,28 +59,28 @@ function writeClaudeSettings(settings: ClaudeSettings): void {
     fs.writeFileSync(tmpPath, JSON.stringify(settings, null, 2), 'utf-8');
     fs.renameSync(tmpPath, settingsPath);
   } catch (e) {
-    console.error(`[Pixel Agents] Failed to write Claude settings: ${e}`);
+    console.error(`[Pixel Agents] Failed to write Codex settings: ${e}`);
   }
 }
 
-/** Legacy script name (before rename to claude-hook.js). */
+/** Legacy script name (before rename to codex-hook.js). */
 const LEGACY_HOOK_MARKER = 'pixel-agents-hook.js';
 
 /** Check if a hook entry belongs to Pixel Agents (current or legacy script name). */
-function isOurHookEntry(entry: ClaudeHookEntry): boolean {
+function isOurHookEntry(entry: CodexHookEntry): boolean {
   return entry.hooks.some(
     (h) => h.command.includes(HOOK_SCRIPT_MARKER) || h.command.includes(LEGACY_HOOK_MARKER),
   );
 }
 
-/** Build the shell command that Claude Code will execute for each hook event. */
+/** Build the shell command that Codex Code will execute for each hook event. */
 function makeHookCommand(): string {
   const scriptPath = getHookScriptPath();
   return `node "${scriptPath}"`;
 }
 
-/** Create a hook entry object for Claude's settings.json. Matcher is empty (catch-all). */
-function makeHookEntry(): ClaudeHookEntry {
+/** Create a hook entry object for Codex's settings.json. Matcher is empty (catch-all). */
+function makeHookEntry(): CodexHookEntry {
   return {
     matcher: '',
     hooks: [
@@ -93,11 +93,11 @@ function makeHookEntry(): ClaudeHookEntry {
   };
 }
 
-/** Check if Pixel Agents hooks are already installed in ~/.claude/settings.json. */
+/** Check if Pixel Agents hooks are already installed in ~/.codex/settings.json. */
 export function areHooksInstalled(): boolean {
-  const settings = readClaudeSettings();
+  const settings = readCodexSettings();
   if (!settings.hooks) return false;
-  const events = CLAUDE_HOOK_EVENTS;
+  const events = CODEX_HOOK_EVENTS;
   return events.every((event) => {
     const entries = settings.hooks?.[event];
     return Array.isArray(entries) && entries.some(isOurHookEntry);
@@ -105,17 +105,17 @@ export function areHooksInstalled(): boolean {
 }
 
 /**
- * Install Pixel Agents hook entries into ~/.claude/settings.json for
+ * Install Pixel Agents hook entries into ~/.codex/settings.json for
  * Notification, Stop, and PermissionRequest events. Idempotent: removes
  * any existing Pixel Agents entries before adding fresh ones.
  */
 export function installHooks(): void {
-  const settings = readClaudeSettings();
+  const settings = readCodexSettings();
   if (!settings.hooks) {
     settings.hooks = {};
   }
 
-  const events = CLAUDE_HOOK_EVENTS;
+  const events = CODEX_HOOK_EVENTS;
   let changed = false;
 
   for (const event of events) {
@@ -133,14 +133,14 @@ export function installHooks(): void {
   }
 
   if (changed) {
-    writeClaudeSettings(settings);
-    console.log('[Pixel Agents] Hooks installed in ~/.claude/settings.json');
+    writeCodexSettings(settings);
+    console.log('[Pixel Agents] Hooks installed in ~/.codex/settings.json');
   }
 }
 
-/** Remove all Pixel Agents hook entries from ~/.claude/settings.json. Cleans up empty objects. */
+/** Remove all Pixel Agents hook entries from ~/.codex/settings.json. Cleans up empty objects. */
 export function uninstallHooks(): void {
-  const settings = readClaudeSettings();
+  const settings = readCodexSettings();
   if (!settings.hooks) return;
 
   let changed = false;
@@ -161,14 +161,14 @@ export function uninstallHooks(): void {
   }
 
   if (changed) {
-    writeClaudeSettings(settings);
-    console.log('[Pixel Agents] Hooks removed from ~/.claude/settings.json');
+    writeCodexSettings(settings);
+    console.log('[Pixel Agents] Hooks removed from ~/.codex/settings.json');
   }
 }
 
 /** Copy the shipped hook script from the extension to ~/.pixel-agents/hooks/ */
 export function copyHookScript(extensionPath: string): void {
-  const src = path.join(extensionPath, 'dist', 'hooks', CLAUDE_HOOK_SCRIPT_NAME);
+  const src = path.join(extensionPath, 'dist', 'hooks', CODEX_HOOK_SCRIPT_NAME);
   const dst = getHookScriptPath();
   const dstDir = path.dirname(dst);
 

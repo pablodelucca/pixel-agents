@@ -42,14 +42,14 @@ export const SERVER_JSON_DIR = '.pixel-agents';
 export const SERVER_JSON_NAME = 'server.json';
 export const HOOK_SCRIPTS_DIR = '.pixel-agents/hooks';
 /** Output filename after esbuild compiles claude-hook.ts to CJS (source is .ts, output is .js) */
-export const CLAUDE_HOOK_SCRIPT_NAME = 'claude-hook.js';
+export const CODEX_HOOK_SCRIPT_NAME = 'codex-hook.js';
 export const HOOK_API_PREFIX = '/api/hooks';
 
 /** Hook events to install in ~/.claude/settings.json.
  *  SessionStart/SessionEnd handle session lifecycle (start, /clear, resume, exit).
  *  Stop/PermissionRequest/Notification handle turn completion and permission UI.
  */
-export const CLAUDE_HOOK_EVENTS = [
+export const CODEX_HOOK_EVENTS = [
   'SessionStart',
   'SessionEnd',
   'Stop',
@@ -62,6 +62,9 @@ export const CLAUDE_HOOK_EVENTS = [
   'SubagentStart',
   'SubagentStop',
 ] as const;
+
+/** Output filename after esbuild compiles codex-hook.ts to CJS. */
+
 export const HOOK_EVENT_BUFFER_MS = 5_000;
 /** Grace period after SessionEnd(reason=clear/resume) before triggering onSessionEnd.
  *  /clear and /resume fire SessionEnd then SessionStart within ms. This timeout is a

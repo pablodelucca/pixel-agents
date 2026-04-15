@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react';
 
+import type {
+  MissionControlAgentSession,
+  MissionControlSnapshot,
+  MissionControlTask,
+} from '../../../../shared/missionControl.ts';
+import {
+  formatTokenUsageSummary,
+  getSessionProgressLabel,
+  getSessionTaskLabel,
+  getSessionTone,
+} from '../../components/missionControlUtils.js';
 import { Button } from '../../components/ui/Button.js';
 import { CHARACTER_SITTING_OFFSET_PX, TOOL_OVERLAY_VERTICAL_OFFSET } from '../../constants.js';
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
@@ -12,6 +23,8 @@ interface ToolOverlayProps {
   agents: number[];
   agentTools: Record<number, ToolActivity[]>;
   subagentCharacters: SubagentCharacter[];
+  missionControl: MissionControlSnapshot;
+  isMissionControlOpen: boolean;
   containerRef: React.RefObject<HTMLDivElement | null>;
   zoom: number;
   panRef: React.RefObject<{ x: number; y: number }>;
@@ -19,7 +32,6 @@ interface ToolOverlayProps {
   alwaysShowOverlay: boolean;
 }
 
-/** Derive a short human-readable activity string from tools/status */
 function getActivityText(
   agentId: number,
   agentTools: Record<number, ToolActivity[]>,
@@ -43,11 +55,55 @@ function getActivityText(
   return 'Idle';
 }
 
+function getSessionForAgent(
+  agentId: number,
+  missionControl: MissionControlSnapshot,
+): MissionControlAgentSession | undefined {
+  const activeSessionId = missionControl.activeSessionByAgentId[agentId];
+  const sessions = missionControl.sessions.filter((session) => session.agentId === agentId);
+  return (
+    sessions.find((session) => session.id === activeSessionId) ??
+    [...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
+  );
+}
+
+function getTaskForSession(
+  session: MissionControlAgentSession | undefined,
+  missionControl: MissionControlSnapshot,
+): MissionControlTask | undefined {
+  if (!session?.taskId) return undefined;
+  return missionControl.tasks.find((task) => task.id === session.taskId);
+}
+
+function getOverlayDotColor(
+  session: MissionControlAgentSession | undefined,
+  hasPermission: boolean,
+  hasActiveTools: boolean,
+  isActive: boolean,
+): string | null {
+  if (hasPermission) return 'var(--color-status-permission)';
+  if (
+    session?.status === 'blocked' ||
+    session?.status === 'failed' ||
+    session?.status === 'stopped'
+  ) {
+    return 'var(--color-status-error)';
+  }
+  if (session?.status === 'waiting_approval') return 'var(--color-status-permission)';
+  if (session?.status === 'active' || session?.status === 'starting') {
+    return 'var(--color-status-active)';
+  }
+  if (isActive && hasActiveTools) return 'var(--color-status-active)';
+  return null;
+}
+
 export function ToolOverlay({
   officeState,
   agents,
   agentTools,
   subagentCharacters,
+  missionControl,
+  isMissionControlOpen,
   containerRef,
   zoom,
   panRef,
@@ -66,6 +122,7 @@ export function ToolOverlay({
   }, []);
 
   const el = containerRef.current;
+  if (isMissionControlOpen) return null;
   if (!el) return null;
   const rect = el.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
@@ -92,9 +149,21 @@ export function ToolOverlay({
         const isSelected = selectedId === id;
         const isHovered = hoveredId === id;
         const isSub = ch.isSubagent;
+        const isExpanded = isSelected || isHovered;
+        const session = isSub ? undefined : getSessionForAgent(id, missionControl);
+        const task = getTaskForSession(session, missionControl);
+        const shouldPinOverlay =
+          !isSub &&
+          !!session &&
+          (!!task ||
+            session.status === 'active' ||
+            session.status === 'starting' ||
+            session.status === 'waiting_approval' ||
+            session.status === 'blocked' ||
+            (!!session.lastActionSummary && session.status === 'waiting_input'));
 
-        // Only show for hovered or selected agents (unless always-show is on)
-        if (!alwaysShowOverlay && !isSelected && !isHovered) return null;
+        // Always keep live mission-control context visible for agents with assigned work.
+        if (!alwaysShowOverlay && !isSelected && !isHovered && !shouldPinOverlay) return null;
 
         // Position above character
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
@@ -104,8 +173,10 @@ export function ToolOverlay({
 
         // Get activity text
         const subHasPermission = isSub && ch.bubbleType === 'permission';
+        let titleText: string;
         let activityText: string;
         if (isSub) {
+          titleText = 'Subtask';
           if (subHasPermission) {
             activityText = 'Needs approval';
           } else {
@@ -113,7 +184,26 @@ export function ToolOverlay({
             activityText = sub ? sub.label : 'Subtask';
           }
         } else {
-          activityText = getActivityText(id, agentTools, ch.isActive);
+          const toolActivityText = getActivityText(id, agentTools, ch.isActive);
+          titleText = getSessionTaskLabel(
+            session ?? {
+              id: '',
+              agentId: id,
+              provider: 'codex',
+              status: 'queued',
+              startedAt: '',
+              updatedAt: '',
+              approvalCount: 0,
+              artifactCount: 0,
+            },
+            task,
+          );
+          activityText =
+            toolActivityText !== 'Idle'
+              ? toolActivityText
+              : session
+                ? getSessionProgressLabel(session, task)
+                : 'Idle';
         }
 
         // Determine dot color
@@ -121,13 +211,10 @@ export function ToolOverlay({
         const hasPermission = subHasPermission || tools?.some((t) => t.permissionWait && !t.done);
         const hasActiveTools = tools?.some((t) => !t.done);
         const isActive = ch.isActive;
-
-        let dotColor: string | null = null;
-        if (hasPermission) {
-          dotColor = 'var(--color-status-permission)';
-        } else if (isActive && hasActiveTools) {
-          dotColor = 'var(--color-status-active)';
-        }
+        const dotColor = getOverlayDotColor(session, !!hasPermission, !!hasActiveTools, isActive);
+        const statusTone = session
+          ? getSessionTone(session.status)
+          : 'text-text-muted border-border';
 
         return (
           <div
@@ -135,34 +222,73 @@ export function ToolOverlay({
             className="absolute flex flex-col items-center -translate-x-1/2"
             style={{
               left: screenX,
-              top: screenY - (ch.folderName ? 34 : 28),
+              top: screenY - (ch.folderName ? (isExpanded ? 44 : 36) : isExpanded ? 40 : 32),
               pointerEvents: isSelected ? 'auto' : 'none',
-              opacity: alwaysShowOverlay && !isSelected && !isHovered ? (isSub ? 0.5 : 0.75) : 1,
+              opacity:
+                alwaysShowOverlay && !isSelected && !isHovered && !shouldPinOverlay
+                  ? isSub
+                    ? 0.5
+                    : 0.75
+                  : 1,
               zIndex: isSelected ? 42 : 41,
             }}
           >
-            <div className="flex items-center border-border px-8 pt-2 pb-4 gap-5 pixel-panel whitespace-nowrap max-w-2xs">
-              {dotColor && (
-                <span
-                  className={`w-6 h-6 rounded-full shrink-0 ${isActive && !hasPermission ? 'pixel-pulse' : ''}`}
-                  style={{ background: dotColor }}
-                />
-              )}
-              <div className="flex flex-col gap-0 overflow-hidden">
-                <span
-                  className="overflow-hidden text-ellipsis block leading-none"
-                  style={{
-                    fontSize: isSub ? '20px' : '22px',
-                    fontStyle: isSub ? 'italic' : undefined,
-                  }}
-                >
-                  {activityText}
-                </span>
-                {ch.folderName && (
-                  <span className="text-2xs leading-none overflow-hidden text-ellipsis block">
-                    {ch.folderName}
-                  </span>
+            <div
+              className={`pixel-panel border-border bg-bg/92 ${
+                isExpanded ? 'max-w-[260px] px-8 pb-6 pt-5' : 'max-w-[200px] px-7 pb-4 pt-4'
+              }`}
+            >
+              <div className="flex items-start gap-5 min-w-0 flex-1">
+                {dotColor && (
+                  <span
+                    className={`mt-1 shrink-0 rounded-full ${
+                      isExpanded ? 'h-6 w-6' : 'h-5 w-5'
+                    } ${isActive && !hasPermission ? 'pixel-pulse' : ''}`}
+                    style={{ background: dotColor }}
+                  />
                 )}
+                <div className="flex flex-col gap-2 overflow-hidden min-w-0">
+                  {!isSub && session && isExpanded && (
+                    <span
+                      className={`border px-4 py-1 text-2xs uppercase leading-none w-fit ${statusTone}`}
+                    >
+                      {session.status.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                  <span
+                    className="overflow-hidden text-ellipsis block leading-none text-white"
+                    style={{
+                      fontSize: isSub ? '20px' : isExpanded ? '22px' : '20px',
+                      fontStyle: isSub ? 'italic' : undefined,
+                    }}
+                  >
+                    {isSub ? activityText : titleText}
+                  </span>
+                  {!isSub && isExpanded && (
+                    <span className="text-2xs leading-snug overflow-hidden text-ellipsis block text-text-muted">
+                      {activityText}
+                    </span>
+                  )}
+                  {!isSub && session && isExpanded && (
+                    <div className="flex flex-wrap gap-3 text-2xs text-text-muted">
+                      <span className="border border-border px-4 py-1">
+                        {formatTokenUsageSummary(session.tokenUsage)}
+                      </span>
+                      {ch.folderName && (
+                        <span className="border border-border px-4 py-1">{ch.folderName}</span>
+                      )}
+                    </div>
+                  )}
+                  {ch.folderName && (
+                    <span
+                      className={`leading-none overflow-hidden text-ellipsis block ${
+                        isExpanded ? 'hidden' : 'text-2xs'
+                      }`}
+                    >
+                      {ch.folderName}
+                    </span>
+                  )}
+                </div>
               </div>
               {isSelected && !isSub && (
                 <Button

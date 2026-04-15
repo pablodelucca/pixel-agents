@@ -11,17 +11,17 @@ vi.mock('os', async () => {
 });
 
 const { areHooksInstalled, installHooks, uninstallHooks, copyHookScript } =
-  await import('../src/providers/file/claudeHookInstaller.js');
+  await import('../src/providers/file/codexHookInstaller.js');
 
 function readSettings(): Record<string, unknown> {
-  const p = path.join(tmpBase, '.claude', 'settings.json');
+  const p = path.join(tmpBase, '.codex', 'settings.json');
   return JSON.parse(fs.readFileSync(p, 'utf-8'));
 }
 
-describe('claudeHookInstaller', () => {
+describe('codexHookInstaller', () => {
   beforeEach(() => {
     tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'pxl-hook-test-'));
-    fs.mkdirSync(path.join(tmpBase, '.claude'), { recursive: true });
+    fs.mkdirSync(path.join(tmpBase, '.codex'), { recursive: true });
   });
 
   afterEach(() => {
@@ -88,22 +88,22 @@ describe('claudeHookInstaller', () => {
 
   // 8. Handles malformed settings.json
   it('handles malformed settings.json gracefully', () => {
-    fs.writeFileSync(path.join(tmpBase, '.claude', 'settings.json'), 'not json!!!');
+    fs.writeFileSync(path.join(tmpBase, '.codex', 'settings.json'), 'not json!!!');
     expect(() => areHooksInstalled()).not.toThrow();
     expect(areHooksInstalled()).toBe(false);
   });
 
   // 9. copyHookScript copies file
   it('copyHookScript copies to ~/.pixel-agents/hooks/', () => {
-    // Create a mock extension path with dist/hooks/claude-hook.js
+    // Create a mock extension path with dist/hooks/codex-hook.js
     const mockExtPath = path.join(tmpBase, 'mock-ext');
     const hookSrc = path.join(mockExtPath, 'dist', 'hooks');
     fs.mkdirSync(hookSrc, { recursive: true });
-    fs.writeFileSync(path.join(hookSrc, 'claude-hook.js'), '// mock hook script');
+    fs.writeFileSync(path.join(hookSrc, 'codex-hook.js'), '// mock hook script');
 
     copyHookScript(mockExtPath);
 
-    const dst = path.join(tmpBase, '.pixel-agents', 'hooks', 'claude-hook.js');
+    const dst = path.join(tmpBase, '.pixel-agents', 'hooks', 'codex-hook.js');
     expect(fs.existsSync(dst)).toBe(true);
     expect(fs.readFileSync(dst, 'utf-8')).toBe('// mock hook script');
   });
@@ -115,11 +115,11 @@ describe('claudeHookInstaller', () => {
     const mockExtPath = path.join(tmpBase, 'mock-ext');
     const hookSrc = path.join(mockExtPath, 'dist', 'hooks');
     fs.mkdirSync(hookSrc, { recursive: true });
-    fs.writeFileSync(path.join(hookSrc, 'claude-hook.js'), '// mock');
+    fs.writeFileSync(path.join(hookSrc, 'codex-hook.js'), '// mock');
 
     copyHookScript(mockExtPath);
 
-    const dst = path.join(tmpBase, '.pixel-agents', 'hooks', 'claude-hook.js');
+    const dst = path.join(tmpBase, '.pixel-agents', 'hooks', 'codex-hook.js');
     const stat = fs.statSync(dst);
     // Check owner execute bit
     expect(stat.mode & 0o100).toBeTruthy();

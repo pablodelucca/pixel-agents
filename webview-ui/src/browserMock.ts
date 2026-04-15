@@ -257,10 +257,137 @@ export function dispatchMockMessages(): void {
   dispatch({ type: 'furnitureAssetsLoaded', catalog: furnitureCatalog, sprites: furnitureSprites });
   dispatch({ type: 'layoutLoaded', layout });
   dispatch({
+    type: 'workspaceFolders',
+    folders: [{ name: 'ideal-no', path: '/workspace/project' }],
+  });
+  dispatch({
     type: 'settingsLoaded',
     soundEnabled: false,
     extensionVersion: '1.2.0',
     lastSeenVersion: '1.1',
+  });
+  dispatch({
+    type: 'missionControlSnapshot',
+    snapshot: {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      sessions: [
+        {
+          id: 'session-1',
+          agentId: 1,
+          provider: 'codex',
+          sessionId: 'mock-session-1',
+          status: 'active',
+          cwd: '/workspace/project',
+          projectDir: '/workspace/project',
+          currentTool: 'Edit',
+          lastTool: 'Edit',
+          lastActionSummary: 'Editing App.tsx',
+          startedAt: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
+          updatedAt: new Date().toISOString(),
+          approvalCount: 1,
+          artifactCount: 2,
+          workspaceAssignmentId: 'workspace-1',
+          taskId: 'task-1',
+        },
+      ],
+      tasks: [
+        {
+          id: 'task-1',
+          title: 'Promote Mission Control',
+          goal: 'Turn the office into a usable multi-agent control surface.',
+          status: 'in_progress',
+          priority: 'high',
+          ownerSessionId: 'session-1',
+          ownerAgentId: 1,
+          dependencies: [],
+          expectedArtifacts: ['Board UI', 'Inspector drawer'],
+          acceptanceCriteria: ['Agent clicks inspect instead of focusing terminal'],
+          constraints: ['Keep office canvas ambient'],
+          briefingId: 'briefing-1',
+          createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+          updatedAt: new Date().toISOString(),
+          createdBy: 'operator',
+          latestUpdate: 'Agent is editing the board and drawer',
+        },
+      ],
+      approvals: [
+        {
+          id: 'approval-1',
+          sessionId: 'session-1',
+          taskId: 'task-1',
+          riskType: 'medium',
+          scope: 'network',
+          actionSummary: 'npm install',
+          toolName: 'Bash',
+          command: 'npm install',
+          status: 'pending',
+          requestedAt: new Date(Date.now() - 1000 * 60 * 2).toISOString(),
+        },
+      ],
+      events: [
+        {
+          id: 'event-1',
+          sessionId: 'session-1',
+          taskId: 'task-1',
+          seq: 1,
+          timestamp: new Date(Date.now() - 1000 * 60 * 6).toISOString(),
+          eventType: 'session_start',
+          source: 'hook',
+          summary: 'Session started (new)',
+          artifactRefs: [],
+        },
+        {
+          id: 'event-2',
+          sessionId: 'session-1',
+          taskId: 'task-1',
+          seq: 2,
+          timestamp: new Date(Date.now() - 1000 * 60 * 1).toISOString(),
+          eventType: 'tool_start',
+          source: 'hook',
+          summary: 'Editing App.tsx',
+          artifactRefs: ['artifact-1'],
+        },
+      ],
+      artifacts: [
+        {
+          id: 'artifact-1',
+          type: 'file',
+          title: 'App.tsx',
+          uri: '/workspace/project/webview-ui/src/App.tsx',
+          producedByEventId: 'event-2',
+          createdAt: new Date(Date.now() - 1000 * 60).toISOString(),
+        },
+      ],
+      workspaces: [
+        {
+          id: 'workspace-1',
+          repoRoot: '/workspace/project',
+          branchName: 'feature/mission-control',
+          worktreePath: '/workspace/project',
+          status: 'ready',
+          assignedSessionId: 'session-1',
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+      briefings: [
+        {
+          id: 'briefing-1',
+          scope: 'task',
+          summary: 'Promote debug visibility into a real Mission Control surface.',
+          constraints: ['Keep office canvas ambient'],
+          artifactRefs: [],
+          freshness: 'fresh',
+          taskId: 'task-1',
+          sessionId: 'session-1',
+          createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+      activeSessionByAgentId: {
+        1: 'session-1',
+      },
+    },
   });
 
   console.log('[BrowserMock] Messages dispatched');
