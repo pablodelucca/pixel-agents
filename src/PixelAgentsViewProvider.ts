@@ -34,6 +34,7 @@ import {
 } from './assetLoader.js';
 import { readConfig, writeConfig } from './configPersistence.js';
 import {
+  CONFIG_KEY_AUTO_SHOW_PANEL,
   CONFIG_KEY_AUTO_SPAWN_AGENT,
   GLOBAL_KEY_ALWAYS_SHOW_LABELS,
   GLOBAL_KEY_HOOKS_ENABLED,
@@ -510,6 +511,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         ) {
           this.autoSpawnAttempted = true;
           console.log('[Pixel Agents] Auto-spawning agent on startup');
+          // When the user also opted into autoShowPanel, skip terminal.show()
+          // so the panel view stays on Pixel Agents. The terminal still runs;
+          // clicking the character focuses it via the focusAgent handler.
+          const autoShowPanel = vscode.workspace
+            .getConfiguration()
+            .get<boolean>(CONFIG_KEY_AUTO_SHOW_PANEL, false);
           const prevAgentIds = new Set(this.agents.keys());
           await launchNewTerminal(
             this.nextAgentId,
@@ -525,6 +532,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             this.projectScanTimer,
             this.webview,
             this.persistAgents,
+            undefined,
+            undefined,
+            autoShowPanel,
           );
           for (const [id, agent] of this.agents) {
             if (!prevAgentIds.has(id)) {

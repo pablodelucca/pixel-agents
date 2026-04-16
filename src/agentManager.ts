@@ -50,6 +50,7 @@ export async function launchNewTerminal(
   persistAgents: () => void,
   folderPath?: string,
   bypassPermissions?: boolean,
+  suppressShow?: boolean,
 ): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   // Use home directory as fallback cwd when no workspace is open (common on Linux/macOS).
@@ -62,7 +63,13 @@ export async function launchNewTerminal(
     name: `${TERMINAL_NAME_PREFIX} #${idx}`,
     cwd,
   });
-  terminal.show();
+  // When suppressShow is set (auto-spawn + autoShowPanel), keep the panel view
+  // on Pixel Agents instead of switching to Terminal. Claude Code still runs
+  // via sendText below; user can click the character to focus the terminal via
+  // the existing focusAgent message handler.
+  if (!suppressShow) {
+    terminal.show();
+  }
 
   const sessionId = crypto.randomUUID();
   const launch = claudeProvider.buildLaunchCommand?.(sessionId, cwd, { bypassPermissions });
