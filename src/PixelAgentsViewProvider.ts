@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+import { DismissalTracker } from '../server/src/dismissalTracker.js';
 import type { HookEvent } from '../server/src/hookEventHandler.js';
 import { HookEventHandler } from '../server/src/hookEventHandler.js';
 import { claudeProvider, copyHookScript } from '../server/src/providers/index.js';
@@ -49,12 +50,11 @@ import {
 } from './constants.js';
 import {
   adoptExternalSessionFromHook,
-  dismissedJsonlFiles,
   ensureProjectScan,
   isTrackedProjectDir,
   reassignAgentToFile,
   scanForTeammateFiles,
-  seededMtimes,
+  setDismissalTracker,
   setHookProvider as setFileWatcherHookProvider,
   setTeammateRemovalCallback,
   setTeamProvider,
@@ -106,12 +106,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   private pixelAgentsServer: PixelAgentsServer | null = null;
   // ServerConfig is not stored as a field; use this.pixelAgentsServer?.getConfig() if needed.
   private hookEventHandler: HookEventHandler | null = null;
+  private dismissalTracker: DismissalTracker;
 
   // Auto-spawn guard: ensures the startup spawn fires at most once per VS Code
   // session, even though webviewReady fires on every panel focus.
   private autoSpawnAttempted = false;
 
   constructor(private readonly context: vscode.ExtensionContext) {
+    this.dismissalTracker = new DismissalTracker();
+    setDismissalTracker(this.dismissalTracker);
     this.initHooks();
   }
 
@@ -195,8 +198,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       },
       onSessionResume: (transcriptPath) => {
         // Clear dismissals so --resume can re-adopt the file
-        dismissedJsonlFiles.delete(transcriptPath);
-        seededMtimes.delete(transcriptPath);
+        this.dismissalTracker.clearDismissal(transcriptPath);
+        this.dismissalTracker.clearSeededMtime(transcriptPath);
         this.knownJsonlFiles.delete(transcriptPath);
       },
       onTeammateDetected: (parentAgentId, sessionId, _agentType) => {
@@ -224,8 +227,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         const agent = this.agents.get(agentId);
         if (!agent) return;
         // Dismiss the file so heuristic scanners don't re-adopt it
-        seededMtimes.delete(agent.jsonlFile);
-        dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+        this.dismissalTracker.clearSeededMtime(agent.jsonlFile);
+        this.dismissalTracker.dismiss(agent.jsonlFile);
         // If this is a team lead, remove its teammates
         if (agent.isTeamLead) {
           this.removeTeammates(agentId);
@@ -278,7 +281,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     const agent = this.agents.get(teammateAgentId);
     if (!agent) return;
     console.log(`[Pixel Agents] Removing teammate ${teammateAgentId} (source: ${source})`);
-    dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+    this.dismissalTracker.dismiss(agent.jsonlFile);
     this.unregisterAgentHook(agent);
     removeAgent(
       teammateAgentId,
@@ -304,7 +307,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       const agent = this.agents.get(id);
       if (agent) {
         console.log(`[Pixel Agents] Removing teammate ${id} (lead ${leadId} closed)`);
-        dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+        this.dismissalTracker.dismiss(agent.jsonlFile);
         this.unregisterAgentHook(agent);
         removeAgent(
           id,
@@ -386,7 +389,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           } else {
             // External agent — remove from tracking and dismiss the file
             // so the external scanner doesn't re-adopt it
-            dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+            this.dismissalTracker.dismiss(agent.jsonlFile);
             removeAgent(
               message.id,
               this.agents,
@@ -438,7 +441,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         if (enabled) {
           // Clear only toggle-specific dismissals so global agents can be re-adopted
           for (const file of this.globalDismissedFiles) {
-            dismissedJsonlFiles.delete(file);
+            this.dismissalTracker.clearDismissal(file);
           }
           this.globalDismissedFiles.clear();
         } else {
@@ -457,7 +460,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           for (const id of toRemove) {
             const agent = this.agents.get(id);
             if (agent) {
-              dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+              this.dismissalTracker.dismiss(agent.jsonlFile);
               this.globalDismissedFiles.add(agent.jsonlFile);
               this.knownJsonlFiles.delete(agent.jsonlFile);
             }
@@ -878,7 +881,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             this.removeTeammates(id);
           }
           // Dismiss JSONL so external scanner doesn't re-adopt it
-          dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+          this.dismissalTracker.dismiss(agent.jsonlFile);
           this.unregisterAgentHook(agent);
           removeAgent(
             id,

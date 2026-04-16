@@ -28,7 +28,6 @@ import type { HookProvider } from '../core/src/provider.js';
 import type { TeamProvider } from '../core/src/teamProvider.js';
 import {
   CLEAR_IDLE_THRESHOLD_MS,
-  DISMISSED_COOLDOWN_MS,
   EXTERNAL_ACTIVE_THRESHOLD_MS,
   EXTERNAL_SCAN_INTERVAL_MS,
   EXTERNAL_STALE_CHECK_INTERVAL_MS,
@@ -37,6 +36,7 @@ import {
   GLOBAL_SCAN_ACTIVE_MIN_SIZE,
   PROJECT_SCAN_INTERVAL_MS,
 } from '../server/src/constants.js';
+import type { DismissalTracker } from '../server/src/dismissalTracker.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,
@@ -47,17 +47,20 @@ import { removeAgent } from './agentManager.js';
 import { TERMINAL_NAME_PREFIX } from './constants.js';
 import { processTranscriptLine } from './transcriptParser.js';
 
-/** Files explicitly dismissed by the user (closed via X). Temporarily blocked from re-adoption. */
-export const dismissedJsonlFiles = new Map<string, number>(); // path → dismissal timestamp
+/** Dismissal tracker instance. Set once at startup via setDismissalTracker().
+ *  Replaces the former module-global dismissedJsonlFiles, clearDismissedFiles,
+ *  seededMtimes, and pendingClearFiles Maps/Sets. */
+let dismissalTracker: DismissalTracker | null = null;
 
-/** Files permanently dismissed by /clear reassignment. Never re-adopted in this session. */
-export const clearDismissedFiles = new Set<string>();
+/** Register the DismissalTracker instance. Called from PixelAgentsViewProvider at startup. */
+export function setDismissalTracker(tracker: DismissalTracker): void {
+  dismissalTracker = tracker;
+}
 
-/** Mtime at seeding time. If mtime changes later, file was resumed (--resume). */
-export const seededMtimes = new Map<string, number>();
-
-/** /clear files waiting for second tick (gives per-agent check time to claim first). */
-export const pendingClearFiles = new Map<string, number>();
+/** Get the active DismissalTracker (for PixelAgentsViewProvider direct access). */
+export function getDismissalTracker(): DismissalTracker | null {
+  return dismissalTracker;
+}
 
 /** Dependencies for per-agent /clear detection in readNewLines polling.
  *  Set once by ensureProjectScan; used by startFileWatching's poll loop. */
@@ -123,7 +126,7 @@ export function startFileWatching(
         // so /clear files remain findable here.
         for (const file of dirFiles) {
           if (deps.knownJsonlFiles.has(file)) continue;
-          if (dismissedJsonlFiles.has(file)) continue;
+          if (dismissalTracker!.isDismissed(file)) continue;
           let tracked = false;
           for (const a of agents.values()) {
             if (a.jsonlFile === file) {
@@ -284,7 +287,7 @@ export function ensureProjectScan(
       knownJsonlFiles.add(f);
       try {
         const stat = fs.statSync(f);
-        seededMtimes.set(f, stat.mtimeMs);
+        dismissalTracker!.seedMtime(f, stat.mtimeMs);
       } catch {
         /* ignore */
       }
@@ -827,8 +830,8 @@ export function adoptExternalSessionFromHook(
     }
     // Don't check knownJsonlFiles here -- hooks confirmed this is a real session,
     // and seeded files at startup are in knownJsonlFiles but may become active later.
-    if (dismissedJsonlFiles.has(transcriptPath)) return;
-    if (clearDismissedFiles.has(transcriptPath)) return;
+    if (dismissalTracker!.isDismissed(transcriptPath)) return;
+    if (dismissalTracker!.isPermanentlyDismissed(transcriptPath)) return;
 
     knownJsonlFiles.add(transcriptPath);
     const projectDir = path.dirname(transcriptPath);
@@ -1073,7 +1076,7 @@ export function scanExternalDir(
     // Adopt directly, bypassing content check (old /clear files have
     // /clear content but should still be adoptable when resumed).
     // File stays in knownJsonlFiles (safe from per-agent /clear stealing).
-    const seededMtime = seededMtimes.get(file);
+    const seededMtime = dismissalTracker!.getSeededMtime(file);
     if (seededMtime !== undefined) {
       // Seeded files are pre-existing at extension startup. If mtime changed,
       // it could be --resume or internal agent activity. Don't adopt or reassign
@@ -1082,7 +1085,7 @@ export function scanExternalDir(
       try {
         const stat = fs.statSync(file);
         if (stat.mtimeMs > seededMtime) {
-          seededMtimes.delete(file);
+          dismissalTracker!.clearSeededMtime(file);
           knownJsonlFiles.delete(file);
         }
       } catch {
@@ -1091,17 +1094,15 @@ export function scanExternalDir(
       continue;
     }
 
-    // Skip files already known (seeded or adopted). seededMtimes handles --resume above.
+    // Skip files already known (seeded or adopted).
     if (knownJsonlFiles.has(file)) continue;
 
     // Skip files permanently dismissed by /clear (never re-adopted)
-    if (clearDismissedFiles.has(file)) continue;
+    if (dismissalTracker!.isPermanentlyDismissed(file)) continue;
 
     // Skip files recently dismissed by the user (closed via X).
-    // Dismissal expires after DISMISSED_COOLDOWN_MS so resumed sessions can be re-adopted.
-    const dismissedAt = dismissedJsonlFiles.get(file);
-    if (dismissedAt && now - dismissedAt < DISMISSED_COOLDOWN_MS) continue;
-    if (dismissedAt) dismissedJsonlFiles.delete(file); // Expired, clean up
+    // isDismissed() handles the 3-minute cooldown and auto-expires old entries.
+    if (dismissalTracker!.isDismissed(file)) continue;
 
     // Check if already tracked by an agent (normalize paths for comparison).
     // This prevents the external scanner from adopting /clear files (already
@@ -1133,11 +1134,11 @@ export function scanExternalDir(
       const bytesRead = fs.readSync(fd, buf, 0, 8192, 0);
       fs.closeSync(fd);
       if (buf.toString('utf-8', 0, bytesRead).includes('/clear</command-name>')) {
-        if (!pendingClearFiles.has(file)) {
-          pendingClearFiles.set(file, now);
+        if (!dismissalTracker!.hasPendingClear(file)) {
+          dismissalTracker!.registerPendingClear(file);
           continue; // First tick: skip, give per-agent a chance
         }
-        pendingClearFiles.delete(file);
+        dismissalTracker!.clearPendingClear(file);
         // Second tick: per-agent didn't claim → fall through to adopt
       }
     } catch {
@@ -1338,7 +1339,7 @@ export function reassignAgentToFile(
   clearAgentActivity(agent, agentId, permissionTimers, webview);
 
   // Permanently dismiss old file so scanners never re-adopt it as external
-  clearDismissedFiles.add(agent.jsonlFile);
+  dismissalTracker!.permanentlyDismiss(agent.jsonlFile);
 
   // Swap to new file (update sessionId for hook registration).
   // Keep hookDelivered — if hooks worked before /clear, they'll work after.

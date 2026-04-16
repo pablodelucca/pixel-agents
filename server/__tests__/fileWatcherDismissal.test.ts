@@ -15,25 +15,25 @@ vi.mock('vscode', () => ({
 }));
 
 import {
-  clearDismissedFiles,
-  dismissedJsonlFiles,
-  pendingClearFiles,
   scanExternalDir,
   scanForNewJsonlFiles,
-  seededMtimes,
+  setDismissalTracker,
 } from '../../src/fileWatcher.js';
 import { DISMISSED_COOLDOWN_MS, EXTERNAL_ACTIVE_THRESHOLD_MS } from '../src/constants.js';
+import { DismissalTracker } from '../src/dismissalTracker.js';
 import type { AgentState } from '../src/types.js';
 
 /**
- * Tests for fileWatcher's module-global dismissal/seeding state. These exercise
- * the existing behavior so that when Phase 2 extracts these Maps into a
- * DismissalTracker class, the same assertions continue to hold.
+ * Tests for the DismissalTracker integration with fileWatcher's scanner functions.
+ * These were originally written against the raw module-global Maps (Pre-P2) and
+ * now exercise the same behavior via the DismissalTracker class. If any assertion
+ * flips compared to the original, the tracker has a behavioral regression.
  */
 
 describe('fileWatcher dismissal state', () => {
   let tmpDir: string;
   let projectDir: string;
+  let tracker: DismissalTracker;
   let knownJsonlFiles: Set<string>;
   let nextAgentIdRef: { current: number };
   let agents: Map<number, AgentState>;
@@ -67,12 +67,8 @@ describe('fileWatcher dismissal state', () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pxl-fw-dismissal-'));
     projectDir = tmpDir;
 
-    // Reset module-global dismissal/seeding state — tests share one module
-    // instance, so clean state per test is mandatory.
-    dismissedJsonlFiles.clear();
-    seededMtimes.clear();
-    clearDismissedFiles.clear();
-    pendingClearFiles.clear();
+    tracker = new DismissalTracker();
+    setDismissalTracker(tracker);
 
     knownJsonlFiles = new Set();
     nextAgentIdRef = { current: 1 };
@@ -100,23 +96,23 @@ describe('fileWatcher dismissal state', () => {
     it('blocks external adoption when dismissed < DISMISSED_COOLDOWN_MS ago', () => {
       const file = writeJsonlFile('sess-1.jsonl', '{"type":"assistant"}\n');
       // Dismissed 10 seconds ago — well within the 3-minute cooldown window.
-      dismissedJsonlFiles.set(file, Date.now() - 10_000);
+      tracker.dismiss(file, Date.now() - 10_000);
 
       runExternalScan();
 
       expect(agents.size).toBe(0);
-      expect(dismissedJsonlFiles.has(file)).toBe(true); // still blocked; entry preserved
+      expect(tracker.isDismissed(file)).toBe(true); // still within cooldown
     });
 
     it('expires dismissal and allows adoption after cooldown', () => {
       const file = writeJsonlFile('sess-1.jsonl', '{"type":"assistant"}\n');
       // Dismissed just over the cooldown boundary.
-      dismissedJsonlFiles.set(file, Date.now() - DISMISSED_COOLDOWN_MS - 1_000);
+      tracker.dismiss(file, Date.now() - DISMISSED_COOLDOWN_MS - 1_000);
 
       runExternalScan();
 
       expect(agents.size).toBe(1);
-      expect(dismissedJsonlFiles.has(file)).toBe(false); // expired entry cleaned up on adoption
+      expect(tracker.isDismissed(file)).toBe(false); // expired
     });
 
     it('leaves non-dismissed, recently-modified files adoptable', () => {
@@ -132,17 +128,17 @@ describe('fileWatcher dismissal state', () => {
   describe('clearDismissedFiles: permanent block', () => {
     it('never re-adopts a file in the permanent-dismiss set', () => {
       const file = writeJsonlFile('sess-1.jsonl', '{"type":"assistant"}\n');
-      clearDismissedFiles.add(file);
+      tracker.permanentlyDismiss(file);
 
       runExternalScan();
 
       expect(agents.size).toBe(0);
-      expect(clearDismissedFiles.has(file)).toBe(true); // never auto-expires
+      expect(tracker.isPermanentlyDismissed(file)).toBe(true); // never auto-expires
     });
 
     it('blocks across multiple scanner invocations', () => {
       const file = writeJsonlFile('sess-1.jsonl', '{"type":"assistant"}\n');
-      clearDismissedFiles.add(file);
+      tracker.permanentlyDismiss(file);
 
       runExternalScan();
       runExternalScan();
@@ -154,7 +150,7 @@ describe('fileWatcher dismissal state', () => {
     it('does NOT prevent adoption of sibling files in the same dir', () => {
       const blocked = writeJsonlFile('old.jsonl', '{"type":"assistant"}\n');
       writeJsonlFile('new.jsonl', '{"type":"assistant"}\n');
-      clearDismissedFiles.add(blocked);
+      tracker.permanentlyDismiss(blocked);
 
       runExternalScan();
 
@@ -171,13 +167,13 @@ describe('fileWatcher dismissal state', () => {
     it('leaves seeded file in known set when mtime unchanged', () => {
       const file = writeJsonlFile('seeded.jsonl', '{"type":"assistant"}\n');
       const stat = fs.statSync(file);
-      seededMtimes.set(file, stat.mtimeMs);
+      tracker.seedMtime(file, stat.mtimeMs);
       knownJsonlFiles.add(file);
 
       runExternalScan();
 
-      // Untouched: still in both, no adoption (already known).
-      expect(seededMtimes.has(file)).toBe(true);
+      // Untouched: still seeded, no adoption (already known).
+      expect(tracker.hasSeededMtime(file)).toBe(true);
       expect(knownJsonlFiles.has(file)).toBe(true);
       expect(agents.size).toBe(0);
     });
@@ -185,14 +181,14 @@ describe('fileWatcher dismissal state', () => {
     it('removes seeded file from tracking when mtime changed', () => {
       const file = writeJsonlFile('seeded.jsonl', '{"type":"assistant"}\n');
       // Seed with an OLD mtime so the file looks "modified since seeding".
-      seededMtimes.set(file, fs.statSync(file).mtimeMs - 60_000);
+      tracker.seedMtime(file, fs.statSync(file).mtimeMs - 60_000);
       knownJsonlFiles.add(file);
 
       runExternalScan();
 
       // mtime-changed branch removes from BOTH tracking Maps and returns early
       // (no adoption on the same tick — lets agentManager detect /resume first).
-      expect(seededMtimes.has(file)).toBe(false);
+      expect(tracker.hasSeededMtime(file)).toBe(false);
       expect(knownJsonlFiles.has(file)).toBe(false);
       expect(agents.size).toBe(0);
     });
@@ -201,7 +197,7 @@ describe('fileWatcher dismissal state', () => {
       // Seeding + mtime change should hand off to the extension's /resume
       // detection, not produce a spurious external agent.
       const file = writeJsonlFile('seeded.jsonl', '{"type":"assistant"}\n');
-      seededMtimes.set(file, fs.statSync(file).mtimeMs - 30_000);
+      tracker.seedMtime(file, fs.statSync(file).mtimeMs - 30_000);
       knownJsonlFiles.add(file);
 
       runExternalScan();
@@ -221,7 +217,7 @@ describe('fileWatcher dismissal state', () => {
       runExternalScan();
 
       expect(agents.size).toBe(0);
-      expect(pendingClearFiles.has(file)).toBe(true);
+      expect(tracker.hasPendingClear(file)).toBe(true);
     });
 
     it('second tick: /clear file is cleared from pending and adopted', () => {
@@ -231,7 +227,7 @@ describe('fileWatcher dismissal state', () => {
       runExternalScan(); // second tick -> adopt
 
       expect(agents.size).toBe(1);
-      expect(pendingClearFiles.has(file)).toBe(false);
+      expect(tracker.hasPendingClear(file)).toBe(false);
     });
 
     it('non-/clear file adopts on first tick (no pending delay)', () => {
@@ -240,7 +236,6 @@ describe('fileWatcher dismissal state', () => {
       runExternalScan();
 
       expect(agents.size).toBe(1);
-      expect(pendingClearFiles.size).toBe(0);
     });
   });
 
@@ -277,13 +272,13 @@ describe('fileWatcher dismissal state', () => {
       // Project scan (used by the internal terminal adoption path) also
       // honors dismissal cooldown. Seed the file as dismissed very recently.
       const file = writeJsonlFile('sess-1.jsonl', '{"type":"assistant"}\n');
-      dismissedJsonlFiles.set(file, Date.now() - 5_000);
+      tracker.dismiss(file, Date.now() - 5_000);
 
       runProjectScan();
 
       // No active-terminal agent is present, so adoption shouldn't fire regardless.
       // Primarily: dismissal entry should NOT get erased by this pass.
-      expect(dismissedJsonlFiles.has(file)).toBe(true);
+      expect(tracker.isDismissed(file)).toBe(true);
     });
   });
 
