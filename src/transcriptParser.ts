@@ -10,8 +10,8 @@ import {
   clearAgentActivity,
   startPermissionTimer,
   startWaitingTimer,
-} from './timerManager.js';
-import type { AgentState } from './types.js';
+} from '../server/src/timerManager.js';
+import type { AgentState } from '../server/src/types.js';
 
 /** Empty set used as safe fallback when no HookProvider is registered. */
 const EMPTY_EXEMPT_TOOLS: ReadonlySet<string> = new Set();

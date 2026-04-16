@@ -1,6 +1,6 @@
 import type * as vscode from 'vscode';
 
-import { PERMISSION_TIMER_DELAY_MS } from '../server/src/constants.js';
+import { PERMISSION_TIMER_DELAY_MS } from './constants.js';
 import type { AgentState } from './types.js';
 
 export function clearAgentActivity(

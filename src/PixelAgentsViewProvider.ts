@@ -7,6 +7,8 @@ import type { HookEvent } from '../server/src/hookEventHandler.js';
 import { HookEventHandler } from '../server/src/hookEventHandler.js';
 import { claudeProvider, copyHookScript } from '../server/src/providers/index.js';
 import { PixelAgentsServer } from '../server/src/server.js';
+import { SessionRouter } from '../server/src/sessionRouter.js';
+import type { AgentState } from '../server/src/types.js';
 import {
   getProjectDirPath,
   launchNewTerminal,
@@ -62,7 +64,6 @@ import {
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
 import { setHookProvider } from './transcriptParser.js';
-import type { AgentState } from './types.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   nextAgentId = { current: 1 };
@@ -133,6 +134,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       this.permissionTimers,
       () => this.webview,
       claudeProvider,
+      new SessionRouter(),
       this.watchAllSessions,
     );
 

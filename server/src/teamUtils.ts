@@ -1,4 +1,4 @@
-import type { AgentState } from '../../src/types.js';
+import type { AgentState } from './types.js';
 
 /**
  * Pure helpers for working with Lead + Teammates relationships.

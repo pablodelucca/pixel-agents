@@ -37,23 +37,27 @@ import {
   GLOBAL_SCAN_ACTIVE_MIN_SIZE,
   PROJECT_SCAN_INTERVAL_MS,
 } from '../server/src/constants.js';
+import {
+  cancelPermissionTimer,
+  cancelWaitingTimer,
+  clearAgentActivity,
+} from '../server/src/timerManager.js';
+import type { AgentState } from '../server/src/types.js';
 import { removeAgent } from './agentManager.js';
 import { TERMINAL_NAME_PREFIX } from './constants.js';
-import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
-import type { AgentState } from './types.js';
 
 /** Files explicitly dismissed by the user (closed via X). Temporarily blocked from re-adoption. */
 export const dismissedJsonlFiles = new Map<string, number>(); // path → dismissal timestamp
 
 /** Files permanently dismissed by /clear reassignment. Never re-adopted in this session. */
-const clearDismissedFiles = new Set<string>();
+export const clearDismissedFiles = new Set<string>();
 
 /** Mtime at seeding time. If mtime changes later, file was resumed (--resume). */
 export const seededMtimes = new Map<string, number>();
 
 /** /clear files waiting for second tick (gives per-agent check time to claim first). */
-const pendingClearFiles = new Map<string, number>();
+export const pendingClearFiles = new Map<string, number>();
 
 /** Dependencies for per-agent /clear detection in readNewLines polling.
  *  Set once by ensureProjectScan; used by startFileWatching's poll loop. */
@@ -337,7 +341,7 @@ export function ensureProjectScan(
   }, PROJECT_SCAN_INTERVAL_MS);
 }
 
-function scanForNewJsonlFiles(
+export function scanForNewJsonlFiles(
   projectDir: string,
   knownJsonlFiles: Set<string>,
   activeAgentIdRef: { current: number | null },
@@ -1025,7 +1029,7 @@ export function startExternalSessionScanning(
 }
 
 /** Scan a single project dir for external sessions. */
-function scanExternalDir(
+export function scanExternalDir(
   projectDir: string,
   knownJsonlFiles: Set<string>,
   nextAgentIdRef: { current: number },

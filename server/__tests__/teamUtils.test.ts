@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentState } from '../../src/types.js';
 import { getInlineTeammates, hasInlineTeammates, isInlineTeammateOf } from '../src/teamUtils.js';
+import type { AgentState } from '../src/types.js';
 
 /** Minimal AgentState for testing -- only the fields teamUtils actually reads. */
 function agent(overrides: Partial<AgentState> = {}): AgentState {

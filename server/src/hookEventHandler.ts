@@ -1,13 +1,13 @@
 // TODO(Standalone version): Replace vscode.Webview with MessageSender interface from core/src/messages.ts
-// TODO(Standalone version): Move timerManager and types to server/src/ to eliminate cross-boundary imports
 import * as path from 'path';
 import type * as vscode from 'vscode';
 
 import type { AgentEvent, HookProvider } from '../../core/src/provider.js';
-import { cancelPermissionTimer, cancelWaitingTimer } from '../../src/timerManager.js';
-import type { AgentState } from '../../src/types.js';
-import { HOOK_EVENT_BUFFER_MS, SESSION_END_GRACE_MS } from './constants.js';
+import { SESSION_END_GRACE_MS } from './constants.js';
+import type { SessionRouter } from './sessionRouter.js';
 import { getInlineTeammates, hasInlineTeammates } from './teamUtils.js';
+import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
+import type { AgentState } from './types.js';
 
 const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
@@ -21,19 +21,10 @@ export interface HookEvent {
   [key: string]: unknown;
 }
 
-/** An event waiting to be dispatched once its agent registers. */
-interface BufferedEvent {
-  providerId: string;
-  event: HookEvent;
-  timestamp: number;
-}
-
 /**
- * Routes hook events from the HTTP server to the correct agent.
- *
- * Maps `session_id` from hook events to internal agent IDs. Events that arrive
- * before their agent is registered are buffered for up to HOOK_EVENT_BUFFER_MS
- * and flushed when the agent registers.
+ * Dispatches normalized AgentEvents to agents based on session_id.
+ * Session routing (session→agent mapping, pending sessions, event buffering)
+ * is delegated to an injected SessionRouter instance.
  *
  * When an event is successfully delivered, sets `agent.hookDelivered = true` which
  * suppresses heuristic timers (permission 7s, text-idle 5s) for that agent.
@@ -65,21 +56,8 @@ interface SessionLifecycleCallbacks {
   onTeammateRemoved?: (teammateAgentId: number) => void;
 }
 
-/** Pending external session info (waiting for confirmation event before creating agent). */
-interface PendingExternalSession {
-  sessionId: string;
-  /** Transcript file path. Undefined for providers without transcripts (OpenCode, Copilot). */
-  transcriptPath: string | undefined;
-  cwd: string;
-}
-
 export class HookEventHandler {
-  private sessionToAgentId = new Map<string, number>();
-  private bufferedEvents: BufferedEvent[] = [];
-  private bufferTimer: ReturnType<typeof setInterval> | null = null;
   private lifecycleCallbacks: SessionLifecycleCallbacks = {};
-  /** Pending external sessions waiting for a confirmation event (Stop, Notification, etc.). */
-  private pendingExternalSessions = new Map<string, PendingExternalSession>();
 
   /** Highest HookProvider.protocolVersion this handler understands. */
   private static readonly SUPPORTED_PROTOCOL_VERSION = 1;
@@ -90,6 +68,7 @@ export class HookEventHandler {
     private permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
     private getWebview: () => vscode.Webview | undefined,
     private provider: HookProvider,
+    private sessionRouter: SessionRouter,
     private watchAllSessionsRef?: { current: boolean },
   ) {
     if (provider.protocolVersion !== HookEventHandler.SUPPORTED_PROTOCOL_VERSION) {
@@ -130,14 +109,19 @@ export class HookEventHandler {
 
   /** Register an agent for hook event routing. Flushes any buffered events for this session. */
   registerAgent(sessionId: string, agentId: number): void {
-    this.sessionToAgentId.set(sessionId, agentId);
-    // Flush any buffered events for this session
-    this.flushBufferedEvents(sessionId);
+    const flushed = this.sessionRouter.register(sessionId, agentId);
+    if (debug && flushed.length > 0)
+      console.log(
+        `[Pixel Agents] Hook: flushing ${flushed.length} buffered event(s) for session ${sessionId.slice(0, 8)}...`,
+      );
+    for (const { providerId, event } of flushed) {
+      this.handleEvent(providerId, event as HookEvent);
+    }
   }
 
   /** Remove an agent's session mapping (called on agent removal/terminal close). */
   unregisterAgent(sessionId: string): void {
-    this.sessionToAgentId.delete(sessionId);
+    this.sessionRouter.unregister(sessionId);
   }
 
   /**
@@ -176,7 +160,7 @@ export class HookEventHandler {
         console.log(`[Pixel Agents] Hook: SessionStart(source=${source}, session=${sid}...)`);
 
       // Check registered mapping
-      const existingAgentId = this.sessionToAgentId.get(event.session_id);
+      const existingAgentId = this.sessionRouter.resolve(event.session_id);
       if (existingAgentId !== undefined) {
         const agent = this.agents.get(existingAgentId);
         if (agent) {
@@ -218,7 +202,7 @@ export class HookEventHandler {
               console.log(
                 `[Pixel Agents] Hook: Agent ${id} - /${normEvent.source} detected, reassigning to ${event.session_id}`,
               );
-              this.sessionToAgentId.delete(agent.sessionId);
+              this.sessionRouter.unregister(agent.sessionId);
               this.registerAgent(event.session_id, id);
               this.lifecycleCallbacks.onSessionClear?.(id, event.session_id, transcriptPath);
               return;
@@ -238,7 +222,7 @@ export class HookEventHandler {
           console.log(
             `[Pixel Agents] Hook: SessionStart(source=${source}) -> pending external session ${sid}..., awaiting confirmation`,
           );
-        this.pendingExternalSessions.set(event.session_id, {
+        this.sessionRouter.storePending(event.session_id, {
           sessionId: event.session_id,
           transcriptPath,
           cwd: cwd ?? '',
@@ -254,8 +238,8 @@ export class HookEventHandler {
 
     // --- All other events: standard agent lookup ---
     // If SessionEnd arrives for a pending external session, discard it (transient session)
-    if (normEvent.kind === 'sessionEnd' && this.pendingExternalSessions.has(event.session_id)) {
-      this.pendingExternalSessions.delete(event.session_id);
+    if (normEvent.kind === 'sessionEnd' && this.sessionRouter.hasPending(event.session_id)) {
+      this.sessionRouter.discardPending(event.session_id);
       if (debug)
         console.log(
           `[Pixel Agents] Hook: SessionEnd discarded pending external session ${event.session_id.slice(0, 8)}...`,
@@ -264,9 +248,8 @@ export class HookEventHandler {
     }
 
     // If a confirmation event arrives for a pending external session, create the agent first
-    if (this.pendingExternalSessions.has(event.session_id)) {
-      const pending = this.pendingExternalSessions.get(event.session_id)!;
-      this.pendingExternalSessions.delete(event.session_id);
+    const pending = this.sessionRouter.confirmPending(event.session_id);
+    if (pending) {
       if (debug)
         console.log(
           `[Pixel Agents] Hook: ${eventName} confirmed external session ${event.session_id.slice(0, 8)}..., creating agent`,
@@ -281,7 +264,7 @@ export class HookEventHandler {
       return;
     }
 
-    let agentId = this.sessionToAgentId.get(event.session_id);
+    let agentId = this.sessionRouter.resolve(event.session_id);
     if (agentId === undefined) {
       for (const [id, agent] of this.agents) {
         if (agent.sessionId === event.session_id) {
@@ -297,17 +280,17 @@ export class HookEventHandler {
       // hook event arrives before registerAgent is called after launchNewTerminal).
       // Silently drop events for sessions we have no record of
       // (e.g. other projects with Watch All OFF).
-      const isPending = this.pendingExternalSessions.has(event.session_id);
-      const hasBuffered = this.bufferedEvents.some((b) => b.event.session_id === event.session_id);
+      const isPending = this.sessionRouter.hasPending(event.session_id);
+      const hasBuffered = this.sessionRouter.hasBuffered(event.session_id);
       const hasUnregisteredAgents = [...this.agents.values()].some(
-        (a) => a.sessionId && !this.sessionToAgentId.has(a.sessionId),
+        (a) => a.sessionId && !this.sessionRouter.hasSession(a.sessionId),
       );
       if (isPending || hasBuffered || hasUnregisteredAgents) {
         if (debug)
           console.log(
             `[Pixel Agents] Hook: ${eventName} - unknown session ${event.session_id.slice(0, 8)}..., buffering`,
           );
-        this.bufferEvent(_providerId, event);
+        this.sessionRouter.bufferEvent(_providerId, event);
       }
       return;
     }
@@ -791,55 +774,8 @@ export class HookEventHandler {
     });
   }
 
-  /** Buffer an event for later delivery when the agent registers. */
-  private bufferEvent(providerId: string, event: HookEvent): void {
-    this.bufferedEvents.push({ providerId, event, timestamp: Date.now() });
-    if (!this.bufferTimer) {
-      this.bufferTimer = setInterval(() => {
-        this.pruneExpiredBufferedEvents();
-      }, HOOK_EVENT_BUFFER_MS);
-    }
-  }
-
-  /** Deliver all buffered events for a session that just registered. */
-  private flushBufferedEvents(sessionId: string): void {
-    const toFlush = this.bufferedEvents.filter((b) => b.event.session_id === sessionId);
-    this.bufferedEvents = this.bufferedEvents.filter((b) => b.event.session_id !== sessionId);
-    if (debug && toFlush.length > 0) {
-      if (debug)
-        console.log(
-          `[Pixel Agents] Hook: flushing ${toFlush.length} buffered event(s) for session ${sessionId.slice(0, 8)}...`,
-        );
-    }
-    for (const { providerId, event } of toFlush) {
-      this.handleEvent(providerId, event);
-    }
-    this.cleanupBufferTimer();
-  }
-
-  /** Remove buffered events older than HOOK_EVENT_BUFFER_MS. */
-  private pruneExpiredBufferedEvents(): void {
-    const cutoff = Date.now() - HOOK_EVENT_BUFFER_MS;
-    this.bufferedEvents = this.bufferedEvents.filter((b) => b.timestamp > cutoff);
-    this.cleanupBufferTimer();
-  }
-
-  /** Stop the prune interval when no buffered events remain. */
-  private cleanupBufferTimer(): void {
-    if (this.bufferedEvents.length === 0 && this.bufferTimer) {
-      clearInterval(this.bufferTimer);
-      this.bufferTimer = null;
-    }
-  }
-
   /** Clean up timers and maps. Called when the extension disposes. */
   dispose(): void {
-    if (this.bufferTimer) {
-      clearInterval(this.bufferTimer);
-      this.bufferTimer = null;
-    }
-    this.sessionToAgentId.clear();
-    this.bufferedEvents = [];
-    this.pendingExternalSessions.clear();
+    this.sessionRouter.dispose();
   }
 }

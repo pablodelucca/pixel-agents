@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentState } from '../../src/types.js';
 import { HookEventHandler } from '../src/hookEventHandler.js';
 import { claudeProvider } from '../src/providers/hook/claude/claude.js';
+import { SessionRouter } from '../src/sessionRouter.js';
+import type { AgentState } from '../src/types.js';
 
 /** Minimal AgentState for testing. */
 function createTestAgent(overrides: Partial<AgentState> = {}): AgentState {
@@ -61,6 +62,7 @@ describe('HookEventHandler', () => {
       permissionTimers,
       () => mockWebview as unknown as import('vscode').Webview,
       claudeProvider,
+      new SessionRouter(),
     );
   });
 
