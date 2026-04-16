@@ -1,0 +1,108 @@
+name: "Security Finding Remediation"
+description: "Track remediation of a security finding for infosec compliance."
+title: "[Security]: "
+labels: ["security", "compliance"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Security Finding Remediation
+        This template is for tracking security findings that require remediation for infosec compliance.
+
+  - type: input
+    id: finding-id
+    attributes:
+      label: "Finding ID"
+      description: "Reference ID from the security analysis (e.g., SEC-001)"
+      placeholder: "SEC-XXX"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: "Severity"
+      description: "Risk severity level"
+      options:
+        - Critical
+        - High
+        - Medium
+        - Low
+        - Informational
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: "Category"
+      description: "Security category"
+      options:
+        - Input Validation
+        - Authentication
+        - Authorization
+        - Information Disclosure
+        - Path Traversal
+        - Injection
+        - Configuration
+        - Cryptography
+        - Dependencies
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "Description"
+      description: "Detailed description of the security finding"
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected-files
+    attributes:
+      label: "Affected Files"
+      description: "List of files and line numbers affected"
+      placeholder: |
+        - `src/file.ts:123`
+        - `server/src/other.ts:45-67`
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk
+    attributes:
+      label: "Risk Assessment"
+      description: "Impact and likelihood analysis"
+    validations:
+      required: true
+
+  - type: textarea
+    id: remediation
+    attributes:
+      label: "Remediation Steps"
+      description: "Recommended actions to resolve this finding"
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: "Acceptance Criteria"
+      description: "Conditions that must be met to close this finding"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Priority"
+      description: "Implementation priority"
+      options:
+        - P1 - Immediate (within 7 days)
+        - P2 - Short-term (within 30 days)
+        - P3 - Long-term (within 90 days)
+        - P4 - Backlog
+    validations:
+      required: true
