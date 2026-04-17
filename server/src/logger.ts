@@ -67,13 +67,16 @@ class Logger {
    */
   sanitize(message: string): string {
     if (!this.config.sanitizePaths) return message;
+    if (typeof message !== 'string') return String(message);
 
     let sanitized = message;
 
     // Replace home directory paths (handles both forward and back slashes)
     // Escape special regex characters in the path
-    const escapedHomeDir = this.homeDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    sanitized = sanitized.replace(new RegExp(escapedHomeDir, 'gi'), '~');
+    if (this.homeDir) {
+      const escapedHomeDir = this.homeDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      sanitized = sanitized.replace(new RegExp(escapedHomeDir, 'gi'), '~');
+    }
 
     // Replace session UUIDs (keep first 8 chars for debugging)
     // Matches standard UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx

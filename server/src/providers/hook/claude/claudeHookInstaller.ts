@@ -136,7 +136,7 @@ export function installHooks(): void {
 
   if (changed) {
     writeClaudeSettings(settings);
-    logger.info( Hooks installed in ~/.claude/settings.json');
+    logger.info('Hooks installed in ~/.claude/settings.json');
   }
 }
 
@@ -164,7 +164,7 @@ export function uninstallHooks(): void {
 
   if (changed) {
     writeClaudeSettings(settings);
-    logger.info( Hooks removed from ~/.claude/settings.json');
+    logger.info('Hooks removed from ~/.claude/settings.json');
   }
 }
 

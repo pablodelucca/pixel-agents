@@ -154,20 +154,11 @@ if (!resolvedAsset.startsWith(resolvedDir + path.sep) && resolvedAsset !== resol
 
 ---
 
-### SEC-003: Sensitive Data Exposure in Logs (Medium)
+### SEC-003: Sensitive Data Exposure in Logs (Medium - Resolved)
 
-**Location**: Multiple files throughout codebase
+**Location**: `src/logger.ts`, `server/src/logger.ts`
 
 **Description**: The extension logs detailed diagnostic information including file paths, session IDs, and project directories to the console.
-
-**Code Example**:
-```typescript
-// src/agentManager.ts:31
-console.log(`[Pixel Agents] Terminal: Project dir: ${workspacePath} → ${dirName}`);
-
-// src/agentManager.ts:138
-console.log(`[Pixel Agents] Terminal: Agent ${id} - created for terminal ${terminal.name}`);
-```
 
 **Risk**: In shared or logged environments, these messages could expose:
 - User home directory paths
@@ -175,11 +166,45 @@ console.log(`[Pixel Agents] Terminal: Agent ${id} - created for terminal ${termi
 - Session identifiers
 - File system layout
 
-**Recommendation**:
-- Implement log levels (debug, info, warn, error)
-- Disable verbose logging in production builds
-- Sanitize paths in log messages
-- Add configuration option to disable logging
+**Resolution**:
+- Created structured logging module (`src/logger.ts` and `server/src/logger.ts`)
+- Implemented log levels: DEBUG, INFO, WARN, ERROR, NONE
+- Implemented path sanitization (home directory → `~`)
+- Implemented session ID sanitization (partial redaction: `12345678-****-****-****-************`)
+- Configurable via environment variable `PIXEL_AGENTS_LOG_LEVEL`
+- Production mode defaults to WARN level with sanitization enabled
+- Legacy `PIXEL_AGENTS_DEBUG` environment variable supported for backwards compatibility
+- All console.log calls throughout the codebase have been replaced with logger calls:
+  - Extension backend: `src/extension.ts`, `src/agentManager.ts`, `src/fileWatcher.ts`, etc.
+  - Server: `server/src/server.ts`, `server/src/hookEventHandler.ts`, etc.
+
+**Code Example** (After):
+```typescript
+// src/logger.ts
+export const LogLevel = {
+  DEBUG: 0,
+  INFO: 1,
+  WARN: 2,
+  ERROR: 3,
+  NONE: 4,
+} as const;
+
+class Logger {
+  sanitize(message: string): string {
+    // Replace home directory with ~
+    // Replace UUIDs with partial redaction
+    return sanitized;
+  }
+  
+  debug(message: string, ...args: unknown[]): void {
+    if (this.config.level <= LogLevel.DEBUG) {
+      console.log(this.config.prefix, this.sanitize(message), ...);
+    }
+  }
+}
+```
+
+**Current Status**: RESOLVED
 
 ---
 

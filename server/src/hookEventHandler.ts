@@ -101,7 +101,9 @@ export class HookEventHandler {
     return this.provider.subagentToolNames;
   }
 
-  /** Check if a session is tracked (in workspace project dir, or Watch All Sessions ON). */
+  /** Check if a session is tracked (in workspace project dir, or Watch All Sessions ON).
+   *  Currently unused - kept for potential future conditional logging. */
+  // @ts-expect-error Unused method kept for future use
   private isTrackedSession(transcriptPath?: string, cwd?: string): boolean {
     if (this.watchAllSessionsRef?.current) return true;
     const projectDir = transcriptPath ? path.dirname(transcriptPath) : cwd;
@@ -158,9 +160,7 @@ export class HookEventHandler {
       // provider carries them in the raw payload until they're promoted.
       const transcriptPath = event.transcript_path as string | undefined;
       const cwd = event.cwd as string | undefined;
-      const tracked = this.isTrackedSession(transcriptPath, cwd);
-      logger.debug(
-        logger.debug(`SessionStart(source=${source}, session=${sid}...)`);
+      logger.debug(`Hook: SessionStart(source=${source}, session=${sid}...)`);
 
       // Check registered mapping
       const existingAgentId = this.sessionToAgentId.get(event.session_id);
@@ -169,9 +169,8 @@ export class HookEventHandler {
         if (agent) {
           agent.hookDelivered = true;
         }
-        if (debug)
-          logger.debug(
-            `Agent ${existingAgentId} - SessionStart(source=${source}) known`,
+        logger.debug(
+            `Hook: Agent ${existingAgentId} - SessionStart(source=${source}) known`,
           );
         return;
       }
@@ -180,8 +179,7 @@ export class HookEventHandler {
         if (agent.sessionId === event.session_id) {
           this.registerAgent(agent.sessionId, id);
           agent.hookDelivered = true;
-          if (debug)
-            logger.debug(
+          logger.debug(
               `Agent ${id} - SessionStart(source=${source}) auto-discovered`,
             );
           return;
@@ -203,7 +201,7 @@ export class HookEventHandler {
             if (isMatch) {
               agent.pendingClear = false;
               logger.debug(
-                `Agent ${id} - /${normEvent.source} detected, reassigning to ${event.session_id}`,
+                `Hook: Agent ${id} - /${normEvent.source} detected, reassigning to ${event.session_id}`,
               );
               this.sessionToAgentId.delete(agent.sessionId);
               this.registerAgent(event.session_id, id);
@@ -222,7 +220,6 @@ export class HookEventHandler {
           this.lifecycleCallbacks.onSessionResume?.(transcriptPath);
         }
         logger.debug(
-          logger.debug(
             `SessionStart(source=${source}) -> pending external session ${sid}..., awaiting confirmation`,
           );
         this.pendingExternalSessions.set(event.session_id, {
@@ -232,7 +229,6 @@ export class HookEventHandler {
         });
       } else {
         logger.debug(
-          logger.debug(
             `SessionStart -> unknown session ${sid}..., no transcript_path`,
           );
       }
@@ -243,8 +239,7 @@ export class HookEventHandler {
     // If SessionEnd arrives for a pending external session, discard it (transient session)
     if (normEvent.kind === 'sessionEnd' && this.pendingExternalSessions.has(event.session_id)) {
       this.pendingExternalSessions.delete(event.session_id);
-      if (debug)
-        logger.debug(
+      logger.debug(
           `SessionEnd discarded pending external session ${event.session_id.slice(0, 8)}...`,
         );
       return;
@@ -254,8 +249,7 @@ export class HookEventHandler {
     if (this.pendingExternalSessions.has(event.session_id)) {
       const pending = this.pendingExternalSessions.get(event.session_id)!;
       this.pendingExternalSessions.delete(event.session_id);
-      if (debug)
-        logger.debug(
+      logger.debug(
           `${eventName} confirmed external session ${event.session_id.slice(0, 8)}..., creating agent`,
         );
       this.lifecycleCallbacks.onExternalSessionDetected?.(
@@ -290,8 +284,7 @@ export class HookEventHandler {
         (a) => a.sessionId && !this.sessionToAgentId.has(a.sessionId),
       );
       if (isPending || hasBuffered || hasUnregisteredAgents) {
-        if (debug)
-          logger.debug(
+        logger.debug(
             `${eventName} - unknown session ${event.session_id.slice(0, 8)}..., buffering`,
           );
         this.bufferEvent(_providerId, event);
@@ -303,8 +296,7 @@ export class HookEventHandler {
     if (!agent) return;
 
     agent.hookDelivered = true;
-    if (debug)
-      logger.debug(
+    logger.debug(
         `Agent ${agentId} - ${eventName} (session=${event.session_id.slice(0, 8)}...)`,
       );
 
@@ -363,8 +355,7 @@ export class HookEventHandler {
     webview: vscode.Webview | undefined,
   ): void {
     const reason = normEvent.reason;
-    if (debug)
-      logger.debug(
+    logger.debug(
         `Agent ${agentId} - SessionEnd(reason=${reason ?? 'unknown'})`,
       );
 
@@ -375,8 +366,7 @@ export class HookEventHandler {
     if (expectsFollowUp) {
       agent.pendingClear = true;
       this.markAgentWaiting(agent, agentId, webview);
-      if (debug)
-        logger.debug(
+      logger.debug(
           `Agent ${agentId} - SessionEnd(reason=${reason}), awaiting possible SessionStart`,
         );
       // Safety net: if SessionStart never arrives, clean up the zombie agent
@@ -505,8 +495,7 @@ export class HookEventHandler {
     //      for parallel basic subagents would be mis-routed to teammate discovery.
     // Mirrors the same gate used by the periodic scanAllTeammateFiles fallback.
     if (this.provider.team && agent.currentHookIsTeammateSpawn === true && agent.teamName) {
-      if (debug)
-        logger.debug(
+      logger.debug(
           `Agent ${agentId} - SubagentStart: teammate "${agentType}" detected, triggering discovery`,
         );
       this.lifecycleCallbacks.onTeammateDetected?.(agentId, event.session_id, agentType);
@@ -576,8 +565,7 @@ export class HookEventHandler {
     //   - SessionEnd on lead (removeTeammates in ViewProvider)
     const inlineTeammates = getInlineTeammates(agentId, this.agents);
     if (inlineTeammates.length > 0) {
-      if (debug)
-        logger.debug(
+      logger.debug(
           `Agent ${agentId} - SubagentStop: marking inline teammates as waiting`,
         );
       for (const [id, a] of inlineTeammates) {
@@ -678,16 +666,14 @@ export class HookEventHandler {
       const match = inlineTeammates.find(([, a]) => a.agentName === agentType);
       if (match) {
         const [id, a] = match;
-        if (debug)
-          logger.debug(`TeammateIdle "${agentType}" -> teammate Agent ${id}`);
+        logger.debug(`TeammateIdle "${agentType}" -> teammate Agent ${id}`);
         this.markAgentWaiting(a, id, webview);
         return;
       }
     }
 
     // Fallback: mark all inline teammates as waiting
-    if (debug)
-      logger.debug(
+    logger.debug(
         `TeammateIdle (no agent_type match) -> marking ${inlineTeammates.length} teammate(s) waiting`,
       );
     for (const [id, a] of inlineTeammates) {
@@ -702,8 +688,7 @@ export class HookEventHandler {
   private handleTaskCompleted(event: HookEvent, agentId: number): void {
     const subject = (event.subject as string) ?? '';
     const agentType = this.provider.team?.extractTeammateNameFromEvent(event);
-    if (debug)
-      logger.debug(
+    logger.debug(
         `Agent ${agentId} - TaskCompleted: ${subject}${agentType ? ` (agent_type=${agentType})` : ''}`,
       );
 
@@ -793,10 +778,9 @@ export class HookEventHandler {
   private flushBufferedEvents(sessionId: string): void {
     const toFlush = this.bufferedEvents.filter((b) => b.event.session_id === sessionId);
     this.bufferedEvents = this.bufferedEvents.filter((b) => b.event.session_id !== sessionId);
-    if (debug && toFlush.length > 0) {
-      if (debug)
-        logger.debug(
-          `flushing ${toFlush.length} buffered event(s) for session ${sessionId.slice(0, 8)}...`,
+    if (toFlush.length > 0) {
+      logger.debug(
+          `Hook: flushing ${toFlush.length} buffered event(s) for session ${sessionId.slice(0, 8)}...`,
         );
     }
     for (const { providerId, event } of toFlush) {
