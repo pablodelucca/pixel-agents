@@ -3,15 +3,12 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+import type { StateAdapter } from '../core/src/adapter.js';
 import { JSONL_POLL_INTERVAL_MS } from '../server/src/constants.js';
 import { claudeProvider } from '../server/src/providers/index.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from '../server/src/timerManager.js';
 import type { AgentState, PersistedAgent } from '../server/src/types.js';
-import {
-  TERMINAL_NAME_PREFIX,
-  WORKSPACE_KEY_AGENT_SEATS,
-  WORKSPACE_KEY_AGENTS,
-} from './constants.js';
+import { TERMINAL_NAME_PREFIX } from './constants.js';
 import {
   ensureProjectScan,
   readNewLines,
@@ -262,10 +259,7 @@ export function removeAgent(
   persistAgents();
 }
 
-export function persistAgents(
-  agents: Map<number, AgentState>,
-  context: vscode.ExtensionContext,
-): void {
+export function persistAgents(agents: Map<number, AgentState>, adapter: StateAdapter): void {
   const persisted: PersistedAgent[] = [];
   for (const agent of agents.values()) {
     persisted.push({
@@ -283,11 +277,11 @@ export function persistAgents(
       teamUsesTmux: agent.teamUsesTmux,
     });
   }
-  context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
+  adapter.saveAgents(persisted);
 }
 
 export function restoreAgents(
-  context: vscode.ExtensionContext,
+  adapter: StateAdapter,
   nextAgentIdRef: { current: number },
   nextTerminalIndexRef: { current: number },
   agents: Map<number, AgentState>,
@@ -302,7 +296,7 @@ export function restoreAgents(
   webview: vscode.Webview | undefined,
   doPersist: () => void,
 ): void {
-  const persisted = context.workspaceState.get<PersistedAgent[]>(WORKSPACE_KEY_AGENTS, []);
+  const persisted = adapter.loadAgents();
   if (persisted.length === 0) return;
 
   const liveTerminals = vscode.window.terminals;
@@ -498,7 +492,7 @@ export function restoreAgents(
 
 export function sendExistingAgents(
   agents: Map<number, AgentState>,
-  context: vscode.ExtensionContext,
+  adapter: StateAdapter,
   webview: vscode.Webview | undefined,
 ): void {
   if (!webview) return;
@@ -509,9 +503,7 @@ export function sendExistingAgents(
   agentIds.sort((a, b) => a - b);
 
   // Include persisted palette/seatId from separate key
-  const agentMeta = context.workspaceState.get<
-    Record<string, { palette?: number; seatId?: string }>
-  >(WORKSPACE_KEY_AGENT_SEATS, {});
+  const agentMeta = adapter.loadSeats();
 
   // Include folderName and isExternal per agent
   const folderNames: Record<number, string> = {};
@@ -589,12 +581,12 @@ export function sendCurrentAgentStatuses(
 }
 
 export function sendLayout(
-  context: vscode.ExtensionContext,
+  adapter: StateAdapter,
   webview: vscode.Webview | undefined,
   defaultLayout?: Record<string, unknown> | null,
 ): void {
   if (!webview) return;
-  const result = migrateAndLoadLayout(context, defaultLayout);
+  const result = migrateAndLoadLayout(adapter, defaultLayout);
   webview.postMessage({
     type: 'layoutLoaded',
     layout: result?.layout ?? null,

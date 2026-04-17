@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+import type { StateAdapter } from '../core/src/adapter.js';
 import { DismissalTracker } from '../server/src/dismissalTracker.js';
 import type { HookEvent } from '../server/src/hookEventHandler.js';
 import { HookEventHandler } from '../server/src/hookEventHandler.js';
@@ -46,7 +47,6 @@ import {
   GLOBAL_KEY_SOUND_ENABLED,
   GLOBAL_KEY_WATCH_ALL_SESSIONS,
   LAYOUT_REVISION_KEY,
-  WORKSPACE_KEY_AGENT_SEATS,
 } from './constants.js';
 import {
   adoptExternalSessionFromHook,
@@ -64,6 +64,7 @@ import {
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
 import { setHookProvider } from './transcriptParser.js';
+import { VscodeStateAdapter } from './vscodeStateAdapter.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   nextAgentId = { current: 1 };
@@ -107,12 +108,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   // ServerConfig is not stored as a field; use this.pixelAgentsServer?.getConfig() if needed.
   private hookEventHandler: HookEventHandler | null = null;
   private dismissalTracker: DismissalTracker;
+  private adapter: StateAdapter;
 
   // Auto-spawn guard: ensures the startup spawn fires at most once per VS Code
   // session, even though webviewReady fires on every panel focus.
   private autoSpawnAttempted = false;
 
   constructor(private readonly context: vscode.ExtensionContext) {
+    this.adapter = new VscodeStateAdapter(context);
     this.dismissalTracker = new DismissalTracker();
     setDismissalTracker(this.dismissalTracker);
     this.initHooks();
@@ -127,7 +130,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   }
 
   private persistAgents = (): void => {
-    persistAgents(this.agents, this.context);
+    persistAgents(this.agents, this.adapter);
   };
 
   private initHooks(): void {
@@ -262,7 +265,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         // Server always starts regardless of hooks-enabled state.
         // It's the foundation for WebSocket transport and health monitoring.
         // Only hook installation/script-copy is gated by the toggle.
-        const hooksEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_HOOKS_ENABLED, true);
+        const hooksEnabled = this.adapter.getSetting<boolean>(GLOBAL_KEY_HOOKS_ENABLED, true);
         this.hooksEnabled.current = hooksEnabled;
         if (hooksEnabled) {
           void claudeProvider.installHooks(`http://127.0.0.1:${config.port}`, config.token);
@@ -406,19 +409,19 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       } else if (message.type === 'saveAgentSeats') {
         // Store seat assignments in a separate key (never touched by persistAgents)
         console.log(`[Pixel Agents] State: saveAgentSeats:`, JSON.stringify(message.seats));
-        this.context.workspaceState.update(WORKSPACE_KEY_AGENT_SEATS, message.seats);
+        this.adapter.saveSeats(message.seats);
       } else if (message.type === 'saveLayout') {
         this.layoutWatcher?.markOwnWrite();
         writeLayoutToFile(message.layout as Record<string, unknown>);
       } else if (message.type === 'setSoundEnabled') {
-        this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
+        this.adapter.setSetting(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
       } else if (message.type === 'setLastSeenVersion') {
-        this.context.globalState.update(GLOBAL_KEY_LAST_SEEN_VERSION, message.version as string);
+        this.adapter.setSetting(GLOBAL_KEY_LAST_SEEN_VERSION, message.version as string);
       } else if (message.type === 'setAlwaysShowLabels') {
-        this.context.globalState.update(GLOBAL_KEY_ALWAYS_SHOW_LABELS, message.enabled);
+        this.adapter.setSetting(GLOBAL_KEY_ALWAYS_SHOW_LABELS, message.enabled);
       } else if (message.type === 'setHooksEnabled') {
         const enabled = message.enabled as boolean;
-        this.context.globalState.update(GLOBAL_KEY_HOOKS_ENABLED, enabled);
+        this.adapter.setSetting(GLOBAL_KEY_HOOKS_ENABLED, enabled);
         this.hooksEnabled.current = enabled;
         if (enabled) {
           const serverConfig = this.pixelAgentsServer?.getConfig();
@@ -433,10 +436,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           console.log('[Pixel Agents] Hooks disabled by user');
         }
       } else if (message.type === 'setHooksInfoShown') {
-        this.context.globalState.update(GLOBAL_KEY_HOOKS_INFO_SHOWN, true);
+        this.adapter.setSetting(GLOBAL_KEY_HOOKS_INFO_SHOWN, true);
       } else if (message.type === 'setWatchAllSessions') {
         const enabled = message.enabled as boolean;
-        this.context.globalState.update(GLOBAL_KEY_WATCH_ALL_SESSIONS, enabled);
+        this.adapter.setSetting(GLOBAL_KEY_WATCH_ALL_SESSIONS, enabled);
         this.watchAllSessions.current = enabled;
         if (enabled) {
           // Clear only toggle-specific dismissals so global agents can be re-adopted
@@ -487,7 +490,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           subagentToolNames: [...claudeProvider.subagentToolNames],
         });
         restoreAgents(
-          this.context,
+          this.adapter,
           this.nextAgentId,
           this.nextTerminalIndex,
           this.agents,
@@ -553,27 +556,21 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
 
         // Send persisted settings to webview
-        const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
-        const lastSeenVersion = this.context.globalState.get<string>(
-          GLOBAL_KEY_LAST_SEEN_VERSION,
-          '',
-        );
+        const soundEnabled = this.adapter.getSetting<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
+        const lastSeenVersion = this.adapter.getSetting<string>(GLOBAL_KEY_LAST_SEEN_VERSION, '');
         const extensionVersion =
           (this.context.extension.packageJSON as { version?: string }).version ?? '';
-        const watchAllSessions = this.context.globalState.get<boolean>(
+        const watchAllSessions = this.adapter.getSetting<boolean>(
           GLOBAL_KEY_WATCH_ALL_SESSIONS,
           false,
         );
-        const alwaysShowLabels = this.context.globalState.get<boolean>(
+        const alwaysShowLabels = this.adapter.getSetting<boolean>(
           GLOBAL_KEY_ALWAYS_SHOW_LABELS,
           false,
         );
         this.watchAllSessions.current = watchAllSessions;
-        const hooksEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_HOOKS_ENABLED, true);
-        const hooksInfoShown = this.context.globalState.get<boolean>(
-          GLOBAL_KEY_HOOKS_INFO_SHOWN,
-          false,
-        );
+        const hooksEnabled = this.adapter.getSetting<boolean>(GLOBAL_KEY_HOOKS_ENABLED, true);
+        const hooksInfoShown = this.adapter.getSetting<boolean>(GLOBAL_KEY_HOOKS_INFO_SHOWN, false);
         const config = readConfig();
         this.webview?.postMessage({
           type: 'settingsLoaded',
@@ -703,7 +700,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             if (!assetsRoot) {
               console.log('[Extension] ⚠️  No assets directory found');
               if (this.webview) {
-                sendLayout(this.context, this.webview, this.defaultLayout);
+                sendLayout(this.adapter, this.webview, this.defaultLayout);
                 // Send agent statuses AFTER layoutLoaded so characters exist when messages arrive
                 sendCurrentAgentStatuses(this.agents, this.webview);
                 this.startLayoutWatcher();
@@ -751,13 +748,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           // Always send saved layout (or null for default)
           if (this.webview) {
             console.log('[Extension] Sending saved layout');
-            sendLayout(this.context, this.webview, this.defaultLayout);
+            sendLayout(this.adapter, this.webview, this.defaultLayout);
             // Send agent statuses AFTER layoutLoaded so characters exist when messages arrive
             sendCurrentAgentStatuses(this.agents, this.webview);
             this.startLayoutWatcher();
           }
         })();
-        sendExistingAgents(this.agents, this.context, this.webview);
+        sendExistingAgents(this.agents, this.adapter, this.webview);
       } else if (message.type === 'requestDiagnostics') {
         // Send connection diagnostics for all agents to the Debug View
         const diagnostics: Array<Record<string, unknown>> = [];
