@@ -10,6 +10,7 @@ import {
   TOOL_DONE_DELAY_MS,
 } from '../server/src/constants.js';
 import type { HookProvider } from '../server/src/provider.js';
+import { type TranscriptRecord, validateTranscriptRecord } from './schemas/index.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,
@@ -99,12 +100,20 @@ export function processTranscriptLine(
   agent.lastDataAt = Date.now();
   agent.linesProcessed++;
   try {
-    const record = JSON.parse(line);
+    const parsed = JSON.parse(line);
+    const record = validateTranscriptRecord(parsed);
+    if (!record) {
+      // Schema validation failed - log and skip (graceful handling)
+      if (debug) {
+        console.warn(`[Pixel Agents] Agent ${agentId}: Invalid transcript record, skipping`);
+      }
+      return;
+    }
 
     // -- Agent Teams: extract team metadata via the active provider --
     // The provider reads its CLI's own field names (Claude: record.teamName + record.agentName).
     // Other CLIs would implement this differently or not at all.
-    const teamMeta = hookProvider?.team?.extractTeamMetadataFromRecord(record);
+    const teamMeta = hookProvider?.team?.extractTeamMetadataFromRecord(record as TranscriptRecord);
     if (teamMeta?.teamName && teamMeta.teamName !== agent.teamName) {
       agent.teamName = teamMeta.teamName;
       agent.agentName = teamMeta.agentName;

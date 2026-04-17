@@ -98,5 +98,8 @@
     "webview-ui/src/**/*.{ts,tsx}": "eslint --fix",
     "*.{ts,tsx,js,mjs,css,json,md}": "prettier --write",
     "webview-ui/**/*.{ts,tsx,js,css,json}": "prettier --write"
+  },
+  "dependencies": {
+    "zod": "^3.25.61"
   }
 }

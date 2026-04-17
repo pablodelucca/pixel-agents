@@ -62,6 +62,7 @@ import {
 } from './fileWatcher.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
+import { parseLayout } from './schemas/index.js';
 import { setHookProvider } from './transcriptParser.js';
 import type { AgentState } from './types.js';
 
@@ -776,13 +777,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         if (!uris || uris.length === 0) return;
         try {
           const raw = fs.readFileSync(uris[0].fsPath, 'utf-8');
-          const imported = JSON.parse(raw) as Record<string, unknown>;
-          if (imported.version !== 1 || !Array.isArray(imported.tiles)) {
+          const imported = parseLayout(raw);
+          if (!imported) {
             vscode.window.showErrorMessage('Pixel Agents: Invalid layout file.');
             return;
           }
           this.layoutWatcher?.markOwnWrite();
-          writeLayoutToFile(imported);
+          writeLayoutToFile(imported as Record<string, unknown>);
           this.webview?.postMessage({ type: 'layoutLoaded', layout: imported });
           vscode.window.showInformationMessage('Pixel Agents: Layout imported successfully.');
         } catch {
