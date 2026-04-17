@@ -10,6 +10,7 @@ import {
   LAYOUT_REVISION_KEY,
   WORKSPACE_KEY_LAYOUT,
 } from './constants.js';
+import { parseLayout } from './schemas/index.js';
 
 export interface LayoutWatcher {
   markOwnWrite(): void;
@@ -25,7 +26,12 @@ export function readLayoutFromFile(): Record<string, unknown> | null {
   try {
     if (!fs.existsSync(filePath)) return null;
     const raw = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(raw) as Record<string, unknown>;
+    const layout = parseLayout(raw);
+    if (!layout) {
+      console.warn('[Pixel Agents] Layout file failed schema validation');
+      return null;
+    }
+    return layout;
   } catch (err) {
     console.error('[Pixel Agents] Failed to read layout file:', err);
     return null;
@@ -138,7 +144,11 @@ export function watchLayoutFile(
       }
 
       const raw = fs.readFileSync(filePath, 'utf-8');
-      const layout = JSON.parse(raw) as Record<string, unknown>;
+      const layout = parseLayout(raw);
+      if (!layout) {
+        console.warn('[Pixel Agents] External layout change failed schema validation');
+        return;
+      }
       console.log('[Pixel Agents] External layout change detected');
       onExternalChange(layout);
     } catch (err) {

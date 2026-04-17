@@ -68,7 +68,7 @@ Claude Code CLI → JSONL Files → File Watchers → Extension Backend → Webv
 
 | Finding ID | Severity | Category | CVSS (Est.) | Status |
 |------------|----------|----------|-------------|--------|
-| SEC-001 | Medium | Input Validation | 5.5 | Open |
+| SEC-001 | Medium | Input Validation | 5.5 | Resolved |
 | SEC-002 | Medium | Path Traversal | 5.0 | Mitigated |
 | SEC-003 | Medium | Information Disclosure | 4.5 | Open |
 | SEC-004 | Medium | Insufficient CSP | 4.0 | Open |
@@ -89,7 +89,7 @@ Claude Code CLI → JSONL Files → File Watchers → Extension Backend → Webv
 
 ## Detailed Findings
 
-### SEC-001: JSON Parsing Without Schema Validation (Medium)
+### SEC-001: JSON Parsing Without Schema Validation (Medium - Resolved)
 
 **Location**: Multiple files
 - `src/transcriptParser.ts:102`
@@ -97,20 +97,34 @@ Claude Code CLI → JSONL Files → File Watchers → Extension Backend → Webv
 - `src/configPersistence.ts:24`
 - `src/PixelAgentsViewProvider.ts:779`
 
-**Description**: JSON data is parsed without strict schema validation. While TypeScript provides compile-time type safety, runtime data from external sources (JSONL files, imported layouts) is not validated against a schema.
+**Description**: JSON data is parsed with Zod schema validation. All external JSON sources (JSONL transcript files, layout files, config files, imported layouts) are validated against defined schemas before processing.
 
-**Code Example**:
+**Resolution**:
+- Added Zod dependency for runtime schema validation
+- Created schemas in `src/schemas/`:
+  - `transcript.ts` - TranscriptRecordSchema for JSONL records
+  - `layout.ts` - LayoutSchema for office layout files
+  - `config.ts` - ConfigSchema for configuration files
+- Updated all JSON.parse calls to use schema validation:
+  - `transcriptParser.ts` - Uses `validateTranscriptRecord()`
+  - `layoutPersistence.ts` - Uses `parseLayout()`
+  - `configPersistence.ts` - Uses `parseConfig()`
+  - `PixelAgentsViewProvider.ts` - Uses `parseLayout()` for imports
+- Invalid data is handled gracefully (logged and skipped, no crashes)
+- Added comprehensive unit tests in `server/__tests__/schemas.test.ts`
+
+**Code Example** (After):
 ```typescript
-// src/transcriptParser.ts:102
-const record = JSON.parse(line);
+// src/transcriptParser.ts
+const parsed = JSON.parse(line);
+const record = validateTranscriptRecord(parsed);
+if (!record) {
+  // Schema validation failed - log and skip
+  return;
+}
 ```
 
-**Risk**: Malformed or malicious JSON from Claude Code transcripts could cause unexpected behavior or crashes.
-
-**Recommendation**: 
-- Implement runtime validation using Zod, io-ts, or similar library
-- Add try-catch blocks with specific error handling
-- Validate expected structure before accessing nested properties
+**Current Status**: RESOLVED
 
 ---
 
@@ -381,10 +395,10 @@ const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
 ### Immediate Actions (Priority 1)
 
-1. **Add JSON Schema Validation**
-   - Implement Zod or similar for runtime validation
-   - Validate imported layouts before processing
-   - Validate JSONL records before accessing properties
+1. ~~**Add JSON Schema Validation**~~ ✅ COMPLETED
+   - ~~Implement Zod or similar for runtime validation~~
+   - ~~Validate imported layouts before processing~~
+   - ~~Validate JSONL records before accessing properties~~
 
 2. **Configure Explicit CSP**
    - Add Content-Security-Policy to webview HTML
@@ -421,6 +435,7 @@ const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
 | Control | Location | Effectiveness |
 |---------|----------|---------------|
+| JSON Schema Validation (Zod) | src/schemas/*.ts | ✅ Good |
 | Auth Token for HTTP API | server/src/server.ts | ✅ Good |
 | Timing-Safe Token Comparison | server/src/server.ts:166 | ✅ Good |
 | Localhost-Only HTTP Server | server/src/server.ts:84 | ✅ Good |

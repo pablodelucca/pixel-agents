@@ -8,14 +8,33 @@
 | **Severity** | Medium |
 | **CVSS Score** | 5.5 (estimated) |
 | **Category** | Input Validation |
-| **Status** | Open |
+| **Status** | ✅ Resolved |
 | **Priority** | P1 - Immediate (within 7 days) |
+| **Resolution Date** | 2026-04-17 |
 
 ## Description
 
 JSON data from external sources (JSONL transcript files, imported layouts, configuration files) is parsed using `JSON.parse()` without runtime schema validation. While TypeScript provides compile-time type safety, runtime data from external sources is not validated against a schema before being processed.
 
 This creates a risk where malformed or malicious JSON from Claude Code transcripts, imported layouts, or configuration files could cause unexpected behavior, crashes, or potentially security issues through prototype pollution or property injection.
+
+## Resolution Summary
+
+Implemented Zod schema validation for all JSON parsing from external sources:
+
+1. **Added Zod dependency** (`npm install zod`)
+2. **Created schemas** in `src/schemas/`:
+   - `transcript.ts` - TranscriptRecordSchema for JSONL records
+   - `layout.ts` - LayoutSchema for office layout files
+   - `config.ts` - ConfigSchema for configuration files
+   - `index.ts` - Barrel file exporting all schemas
+3. **Updated parsing code**:
+   - `transcriptParser.ts` - Uses `validateTranscriptRecord()`
+   - `layoutPersistence.ts` - Uses `parseLayout()` for read and watch
+   - `configPersistence.ts` - Uses `parseConfig()`
+   - `PixelAgentsViewProvider.ts` - Uses `parseLayout()` for imports
+4. **Added unit tests** in `server/__tests__/schemas.test.ts` (36 test cases)
+5. **Updated security documentation** in `docs/SECURITY_ANALYSIS.md`
 
 ## Affected Files
 
@@ -152,25 +171,25 @@ function isValidTranscriptRecord(data: unknown): data is TranscriptRecord {
 
 ## Acceptance Criteria
 
-- [ ] Schema validation library (Zod) is added to dependencies
-- [ ] Schemas are defined for all parsed JSON structures:
-  - [ ] Transcript records (JSONL)
-  - [ ] Layout files
-  - [ ] Configuration files
-  - [ ] Imported layouts
-- [ ] All `JSON.parse()` calls are wrapped with schema validation
-- [ ] Invalid data is handled gracefully (logged, not crashed)
-- [ ] Unit tests cover:
-  - [ ] Valid data passes validation
-  - [ ] Malformed data is rejected
-  - [ ] Missing required fields are rejected
-  - [ ] Unknown fields are handled appropriately (passthrough or reject)
-- [ ] No regression in existing functionality
-- [ ] Documentation updated in `docs/SECURITY_ANALYSIS.md` to mark as resolved
+- [x] Schema validation library (Zod) is added to dependencies
+- [x] Schemas are defined for all parsed JSON structures:
+  - [x] Transcript records (JSONL) - `src/schemas/transcript.ts`
+  - [x] Layout files - `src/schemas/layout.ts`
+  - [x] Configuration files - `src/schemas/config.ts`
+  - [x] Imported layouts - Uses same `parseLayout()` from layout schema
+- [x] All `JSON.parse()` calls are wrapped with schema validation
+- [x] Invalid data is handled gracefully (logged, not crashed)
+- [x] Unit tests cover:
+  - [x] Valid data passes validation
+  - [x] Malformed data is rejected
+  - [x] Missing required fields are rejected
+  - [x] Unknown fields are handled appropriately (passthrough)
+- [x] No regression in existing functionality
+- [x] Documentation updated in `docs/SECURITY_ANALYSIS.md` to mark as resolved
 
 ## Testing Requirements
 
-1. **Unit Tests**
+1. **Unit Tests** ✅ Implemented in `server/__tests__/schemas.test.ts`
    - Test each schema with valid data
    - Test each schema with invalid data types
    - Test with missing required fields
