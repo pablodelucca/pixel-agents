@@ -57,3 +57,15 @@ export const HOOK_EVENT_BUFFER_MS = 5_000;
  *  the agent is cleaned up instead of staying as a zombie with pendingClear forever. */
 export const SESSION_END_GRACE_MS = 2000;
 export const MAX_HOOK_BODY_SIZE = 65_536; // 64KB
+
+// ── Rate Limiting (SEC-007) ─────────────────────────────────
+/** Maximum hook requests per second per provider */
+export const RATE_LIMIT_MAX_REQUESTS = 100;
+/** Rate limit window in milliseconds */
+export const RATE_LIMIT_WINDOW_MS = 1000;
+/** Maximum concurrent connections to HTTP server */
+export const MAX_CONCURRENT_CONNECTIONS = 50;
+
+// ── JSONL Line Length (SEC-011) ─────────────────────────────
+/** Maximum allowed JSONL line length in bytes (1MB). Lines exceeding this are skipped. */
+export const MAX_JSONL_LINE_LENGTH = 1_048_576;

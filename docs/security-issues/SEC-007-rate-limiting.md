@@ -8,35 +8,76 @@
 | **Severity** | Low |
 | **CVSS Score** | 3.0 (estimated) |
 | **Category** | Configuration |
-| **Status** | Open |
+| **Status** | ✅ Resolved |
 | **Priority** | P2 - Short-term (within 30 days) |
+| **Resolution Date** | 2026-04-17 |
 
 ## Description
 
-The HTTP server that receives hook events from Claude Code does not implement rate limiting. While the server only listens on localhost (127.0.0.1), a malicious or misbehaving local process could flood it with requests, potentially causing:
+The HTTP server that receives hook events from Claude Code now implements rate limiting to protect against DoS attacks from local processes.
 
-1. CPU exhaustion from processing requests
-2. Memory exhaustion from buffered events
-3. Delayed processing of legitimate hook events
+## Resolution Summary
 
-### Current Implementation
+Implemented rate limiting and connection limiting for the HTTP server:
+
+1. **Created RateLimiter module** (`server/src/rateLimiter.ts`)
+   - Sliding window algorithm with configurable limits
+   - Per-key (provider ID) tracking
+   - Automatic cleanup of expired buckets
+   - Proper resource disposal
+
+2. **Added rate limit constants** to `server/src/constants.ts`:
+   - `RATE_LIMIT_MAX_REQUESTS = 100` - Max requests per second per provider
+   - `RATE_LIMIT_WINDOW_MS = 1000` - 1-second window
+   - `MAX_CONCURRENT_CONNECTIONS = 50` - Global connection limit
+
+3. **Integrated into server** (`server/src/server.ts`):
+   - Connection limit check returns 503 when exceeded
+   - Rate limit check returns 429 with proper headers
+   - `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers on success
+   - `Retry-After` header on rate limit
+
+4. **Added comprehensive tests** (`server/__tests__/rateLimiter.test.ts`):
+   - Tests for allow/block behavior
+   - Window expiration tests
+   - Per-key independence tests
+   - Cleanup and disposal tests
+
+### Code Example (After):
 
 ```typescript
 // server/src/server.ts
-this.server = http.createServer((req, res) => {
-  this.handleRequest(req, res);  // No rate limiting
-});
+private rateLimiter = new RateLimiter(RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
+private activeConnections = 0;
 
-this.server.setTimeout(5000);  // Good: 5-second timeout
-this.server.listen(0, '127.0.0.1', () => { ... });  // Good: localhost only
+private handleRequest(req, res): void {
+  // Connection limit check
+  if (this.activeConnections >= MAX_CONCURRENT_CONNECTIONS) {
+    res.writeHead(503, { 'Retry-After': '1' });
+    res.end('server busy');
+    return;
+  }
+  this.activeConnections++;
+  res.on('close', () => this.activeConnections--);
+  // ...
+}
+
+private handleHookRequest(req, res, url): void {
+  // Rate limit by provider ID
+  if (!this.rateLimiter.isAllowed(providerId)) {
+    res.writeHead(429, {
+      'Retry-After': '1',
+      'X-RateLimit-Limit': limit.toString(),
+      'X-RateLimit-Remaining': '0',
+    });
+    res.end('rate limited');
+    return;
+  }
+  // ...
+}
 ```
 
-### Existing Mitigations
-
-- Server only listens on localhost (reduces attack surface)
-- 5-second request timeout configured
-- 64KB body size limit enforced
-- Auth token required for hook endpoints
+**Current Status**: RESOLVED
 
 ## Affected Files
 

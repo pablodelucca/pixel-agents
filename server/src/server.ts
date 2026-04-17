@@ -6,11 +6,15 @@ import * as path from 'path';
 
 import {
   HOOK_API_PREFIX,
+  MAX_CONCURRENT_CONNECTIONS,
   MAX_HOOK_BODY_SIZE,
+  RATE_LIMIT_MAX_REQUESTS,
+  RATE_LIMIT_WINDOW_MS,
   SERVER_JSON_DIR,
   SERVER_JSON_NAME,
 } from './constants.js';
 import { logger } from './logger.js';
+import { RateLimiter } from './rateLimiter.js';
 
 /** Discovery file written to ~/.pixel-agents/server.json so hook scripts can find the server. */
 export interface ServerConfig {
@@ -46,6 +50,8 @@ export class PixelAgentsServer {
   private ownsServer = false;
   private callback: HookEventCallback | null = null;
   private startTime = Date.now();
+  private rateLimiter = new RateLimiter(RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
+  private activeConnections = 0;
 
   /** Register a callback for incoming hook events from any provider. */
   onHookEvent(callback: HookEventCallback): void {
@@ -113,6 +119,8 @@ export class PixelAgentsServer {
       this.server.close();
       this.server = null;
     }
+    // Clean up rate limiter resources (SEC-007)
+    this.rateLimiter.dispose();
     // Only delete server.json if we own it (our PID)
     if (this.ownsServer) {
       this.deleteServerJson();
@@ -128,6 +136,19 @@ export class PixelAgentsServer {
 
   /** Top-level request router. Dispatches to health or hook handler based on method + path. */
   private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+    // Connection limit check (SEC-007: prevents DoS via connection exhaustion)
+    if (this.activeConnections >= MAX_CONCURRENT_CONNECTIONS) {
+      res.writeHead(503, { 'Retry-After': '1' });
+      res.end('server busy');
+      return;
+    }
+
+    // Track connection lifecycle
+    this.activeConnections++;
+    res.on('close', () => {
+      this.activeConnections--;
+    });
+
     const url = req.url ?? '';
 
     // Health endpoint (no auth required)
@@ -178,6 +199,22 @@ export class PixelAgentsServer {
       return;
     }
 
+    // Rate limit by provider ID (SEC-007: prevents DoS from flooding local processes)
+    if (!this.rateLimiter.isAllowed(providerId)) {
+      const limit = this.rateLimiter.getLimit();
+      res.writeHead(429, {
+        'Retry-After': '1',
+        'X-RateLimit-Limit': limit.toString(),
+        'X-RateLimit-Remaining': '0',
+      });
+      res.end('rate limited');
+      return;
+    }
+
+    // Add rate limit headers to successful responses
+    const remaining = this.rateLimiter.getRemaining(providerId);
+    const limit = this.rateLimiter.getLimit();
+
     // Read body with size limit and response guard
     let body = '';
     let bodySize = 0;
@@ -204,7 +241,10 @@ export class PixelAgentsServer {
         if (event.session_id && event.hook_event_name) {
           this.callback?.(providerId, event);
         }
-        res.writeHead(200);
+        res.writeHead(200, {
+          'X-RateLimit-Limit': limit.toString(),
+          'X-RateLimit-Remaining': remaining.toString(),
+        });
         res.end('ok');
       } catch {
         res.writeHead(400);

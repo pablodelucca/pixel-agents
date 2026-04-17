@@ -32,6 +32,7 @@ import {
   FILE_WATCHER_POLL_INTERVAL_MS,
   GLOBAL_SCAN_ACTIVE_MAX_AGE_MS,
   GLOBAL_SCAN_ACTIVE_MIN_SIZE,
+  MAX_JSONL_LINE_LENGTH,
   PROJECT_SCAN_INTERVAL_MS,
 } from '../server/src/constants.js';
 import type { TeamProvider } from '../server/src/teamProvider.js';
@@ -192,6 +193,19 @@ export function readNewLines(
     const lines = text.split('\n');
     agent.lineBuffer = lines.pop() || '';
 
+    // SEC-011: Truncate line buffer if it's growing too large. This prevents memory
+    // exhaustion from malformed JSONL files with no newlines. A legitimate JSONL line
+    // from Claude should never exceed 1MB.
+    if (agent.lineBuffer.length > MAX_JSONL_LINE_LENGTH) {
+      logger.warn(
+        `Watcher: Agent ${agentId} - line buffer exceeded max length (${agent.lineBuffer.length} bytes), truncating`,
+      );
+      agent.lineBuffer = '';
+      // Skip to end of file to avoid processing partial corrupted line
+      agent.fileOffset = stat.size;
+      return;
+    }
+
     const hasLines = lines.some((l) => l.trim());
     if (hasLines) {
       // New data arriving — cancel timers (data flowing means agent is still active).
@@ -208,6 +222,16 @@ export function readNewLines(
 
     for (const line of lines) {
       if (!line.trim()) continue;
+
+      // SEC-011: Skip lines that exceed maximum length (prevents processing of
+      // potentially malicious or corrupted large records).
+      if (line.length > MAX_JSONL_LINE_LENGTH) {
+        logger.warn(
+          `Watcher: Agent ${agentId} - skipping line exceeding max length (${line.length} bytes)`,
+        );
+        continue;
+      }
+
       processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
     }
   } catch (e) {

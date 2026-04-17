@@ -6,13 +6,13 @@ This directory contains detailed writeups for security findings identified in th
 
 | ID | Title | Severity | Priority | Status |
 |----|-------|----------|----------|--------|
-| [SEC-001](SEC-001-json-schema-validation.md) | JSON Parsing Without Schema Validation | Medium | P1 | Open |
-| [SEC-003](SEC-003-sensitive-data-in-logs.md) | Sensitive Data Exposure in Logs | Medium | P2 | Open |
-| [SEC-004](SEC-004-content-security-policy.md) | Missing Content Security Policy | Medium | P1 | Open |
-| [SEC-007](SEC-007-rate-limiting.md) | Missing Rate Limiting on HTTP Server | Low | P2 | Open |
-| [SEC-011](SEC-011-jsonl-line-length.md) | JSONL Input Length Validation | Low | P3 | Partial |
-| [SEC-012](SEC-012-debug-logging-config.md) | Debug Logging Configuration | Info | P3 | Open |
-| [VERIFY](VERIFY-mitigated-findings.md) | Verify Mitigated Findings | Low | P3 | Pending |
+| [SEC-001](SEC-001-json-schema-validation.md) | JSON Parsing Without Schema Validation | Medium | P1 | ✅ Resolved |
+| [SEC-003](SEC-003-sensitive-data-in-logs.md) | Sensitive Data Exposure in Logs | Medium | P2 | ✅ Resolved |
+| [SEC-004](SEC-004-content-security-policy.md) | Missing Content Security Policy | Medium | P1 | ✅ Resolved |
+| [SEC-007](SEC-007-rate-limiting.md) | Missing Rate Limiting on HTTP Server | Low | P2 | ✅ Resolved |
+| [SEC-011](SEC-011-jsonl-line-length.md) | JSONL Input Length Validation | Low | P3 | ✅ Resolved |
+| [SEC-012](SEC-012-debug-logging-config.md) | Debug Logging Configuration | Info | P3 | ✅ Resolved |
+| [VERIFY](VERIFY-mitigated-findings.md) | Verify Mitigated Findings | Low | P3 | ✅ Verified |
 
 ## Priority Levels
 

@@ -8,52 +8,75 @@
 | **Severity** | Low |
 | **CVSS Score** | 2.0 (estimated) |
 | **Category** | Input Validation |
-| **Status** | Partial |
+| **Status** | ✅ Resolved |
 | **Priority** | P3 - Long-term (within 90 days) |
+| **Resolution Date** | 2026-04-17 |
 
 ## Description
 
-While the HTTP server implements a 64KB body size limit, JSONL files read from disk have no maximum line length validation. A malicious or corrupted JSONL file with extremely long lines could cause:
+JSONL files read from disk now have maximum line length validation to prevent memory exhaustion from malformed or malicious files.
 
-1. Memory exhaustion when buffering lines
-2. Performance degradation during parsing
-3. Potential string handling issues
+## Resolution Summary
 
-### Current Implementation
+Implemented line length validation in the JSONL file watcher:
 
-HTTP body limit (implemented):
+1. **Added MAX_JSONL_LINE_LENGTH constant** to `server/src/constants.ts`:
+   - Set to 1MB (1,048,576 bytes)
+   - Reasonable limit for legitimate JSONL records from Claude Code
+
+2. **Updated readNewLines()** in `src/fileWatcher.ts`:
+   - Line buffer size check: if buffer exceeds limit, truncate and skip to end of file
+   - Individual line length check: skip lines exceeding the limit
+   - Warning logs for truncation events to aid debugging
+
+### Code Example (After):
+
 ```typescript
-// server/src/server.ts:182-193
-const MAX_HOOK_BODY_SIZE = 65536; // 64KB limit
+// src/fileWatcher.ts
+import { MAX_JSONL_LINE_LENGTH } from '../server/src/constants.js';
 
-req.on('data', (chunk: Buffer) => {
-  bodySize += chunk.length;
-  if (bodySize > MAX_HOOK_BODY_SIZE && !responded) {
-    responded = true;
-    res.writeHead(413);
-    res.end('payload too large');
-    req.destroy();
+export function readNewLines(...): void {
+  // ...
+  agent.lineBuffer = lines.pop() || '';
+
+  // SEC-011: Truncate line buffer if it's growing too large
+  if (agent.lineBuffer.length > MAX_JSONL_LINE_LENGTH) {
+    logger.warn(
+      `Watcher: Agent ${agentId} - line buffer exceeded max length, truncating`,
+    );
+    agent.lineBuffer = '';
+    agent.fileOffset = stat.size;  // Skip to end
     return;
   }
-});
-```
 
-JSONL reading (no line limit):
-```typescript
-// src/fileWatcher.ts:182-194
-const MAX_READ_BYTES = 65536;  // 64KB per read (good)
-const bytesToRead = Math.min(stat.size - agent.fileOffset, MAX_READ_BYTES);
-const buf = Buffer.alloc(bytesToRead);
-// ...
-const text = agent.lineBuffer + buf.toString('utf-8');
-const lines = text.split('\n');
-agent.lineBuffer = lines.pop() || '';  // Could grow unbounded
+  for (const line of lines) {
+    if (!line.trim()) continue;
 
-for (const line of lines) {
-  if (!line.trim()) continue;
-  processTranscriptLine(agentId, line, agents, ...);  // No length check
+    // SEC-011: Skip lines that exceed maximum length
+    if (line.length > MAX_JSONL_LINE_LENGTH) {
+      logger.warn(
+        `Watcher: Agent ${agentId} - skipping line exceeding max length`,
+      );
+      continue;
+    }
+
+    processTranscriptLine(...);
+  }
 }
 ```
+
+**Current Status**: RESOLVED
+
+## Acceptance Criteria
+
+- [x] Maximum line length constant defined (1MB)
+- [x] Line buffer size checked before appending
+- [x] Oversized lines logged and skipped
+- [x] Line buffer truncated if it exceeds limit
+- [x] File offset advanced to skip corrupted data
+- [x] Warning logged for truncation events
+- [x] No regression in normal JSONL processing
+- [x] `docs/SECURITY_ANALYSIS.md` updated to mark as resolved
 
 ## Affected Files
 

@@ -200,4 +200,73 @@ describe('PixelAgentsServer', () => {
 
     expect(received).toHaveLength(0);
   });
+
+  // SEC-007: Rate limiting tests
+  describe('SEC-007: Rate Limiting', () => {
+    it('returns rate limit headers on successful hook requests', async () => {
+      const config = await server.start();
+      const res = await postHook(
+        config.port,
+        config.token,
+        JSON.stringify({ session_id: 'test', hook_event_name: 'Stop' }),
+      );
+      expect(res.status).toBe(200);
+      expect(res.headers.get('X-RateLimit-Limit')).toBe('100');
+      expect(res.headers.get('X-RateLimit-Remaining')).toBeTruthy();
+    });
+
+    it('returns 429 when rate limit exceeded', async () => {
+      const config = await server.start();
+
+      // Send 100 requests (at the limit)
+      const promises = [];
+      for (let i = 0; i < 100; i++) {
+        promises.push(
+          postHook(
+            config.port,
+            config.token,
+            JSON.stringify({ session_id: `test-${i}`, hook_event_name: 'Stop' }),
+          ),
+        );
+      }
+      await Promise.all(promises);
+
+      // 101st request should be rate limited
+      const res = await postHook(
+        config.port,
+        config.token,
+        JSON.stringify({ session_id: 'final', hook_event_name: 'Stop' }),
+      );
+      expect(res.status).toBe(429);
+      expect(res.headers.get('Retry-After')).toBe('1');
+      expect(res.headers.get('X-RateLimit-Remaining')).toBe('0');
+    });
+
+    it('rate limits are per-provider', async () => {
+      const config = await server.start();
+
+      // Use up rate limit for 'claude'
+      const claudePromises = [];
+      for (let i = 0; i < 100; i++) {
+        claudePromises.push(
+          postHook(
+            config.port,
+            config.token,
+            JSON.stringify({ session_id: `test-${i}`, hook_event_name: 'Stop' }),
+            'claude',
+          ),
+        );
+      }
+      await Promise.all(claudePromises);
+
+      // 'other-provider' should still work
+      const res = await postHook(
+        config.port,
+        config.token,
+        JSON.stringify({ session_id: 'test', hook_event_name: 'Stop' }),
+        'other-provider',
+      );
+      expect(res.status).toBe(200);
+    });
+  });
 });
