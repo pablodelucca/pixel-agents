@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import type { StateAdapter } from '../core/src/adapter.js';
+import type { StateAdapter } from '../../core/src/adapter.js';
 import {
   LAYOUT_FILE_DIR,
   LAYOUT_FILE_NAME,

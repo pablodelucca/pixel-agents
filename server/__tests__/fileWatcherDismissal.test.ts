@@ -14,13 +14,9 @@ vi.mock('vscode', () => ({
   },
 }));
 
-import {
-  scanExternalDir,
-  scanForNewJsonlFiles,
-  setDismissalTracker,
-} from '../../src/fileWatcher.js';
 import { DISMISSED_COOLDOWN_MS, EXTERNAL_ACTIVE_THRESHOLD_MS } from '../src/constants.js';
 import { DismissalTracker } from '../src/dismissalTracker.js';
+import { scanExternalDir, scanForNewJsonlFiles, setDismissalTracker } from '../src/fileWatcher.js';
 import type { AgentState } from '../src/types.js';
 
 /**

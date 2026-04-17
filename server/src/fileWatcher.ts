@@ -20,12 +20,13 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 
 const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
-import type { HookProvider } from '../core/src/provider.js';
-import type { TeamProvider } from '../core/src/teamProvider.js';
+import type { HookProvider } from '../../core/src/provider.js';
+import type { TeamProvider } from '../../core/src/teamProvider.js';
+import type { ITerminalAdapter } from '../../core/src/terminalAdapter.js';
 import {
   CLEAR_IDLE_THRESHOLD_MS,
   EXTERNAL_ACTIVE_THRESHOLD_MS,
@@ -35,17 +36,11 @@ import {
   GLOBAL_SCAN_ACTIVE_MAX_AGE_MS,
   GLOBAL_SCAN_ACTIVE_MIN_SIZE,
   PROJECT_SCAN_INTERVAL_MS,
-} from '../server/src/constants.js';
-import type { DismissalTracker } from '../server/src/dismissalTracker.js';
-import {
-  cancelPermissionTimer,
-  cancelWaitingTimer,
-  clearAgentActivity,
-} from '../server/src/timerManager.js';
-import type { AgentState } from '../server/src/types.js';
-import { removeAgent } from './agentManager.js';
-import { TERMINAL_NAME_PREFIX } from './constants.js';
+} from './constants.js';
+import type { DismissalTracker } from './dismissalTracker.js';
+import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
+import type { AgentState } from './types.js';
 
 /** Dismissal tracker instance. Set once at startup via setDismissalTracker().
  *  Replaces the former module-global dismissedJsonlFiles, clearDismissedFiles,
@@ -60,6 +55,34 @@ export function setDismissalTracker(tracker: DismissalTracker): void {
 /** Get the active DismissalTracker (for PixelAgentsViewProvider direct access). */
 export function getDismissalTracker(): DismissalTracker | null {
   return dismissalTracker;
+}
+
+/** Terminal adapter for matching terminals to agents. Set once at startup. */
+let terminalAdapter: ITerminalAdapter | null = null;
+
+/** Register the terminal adapter (VS Code terminals, standalone = null). */
+export function setTerminalAdapter(adapter: ITerminalAdapter): void {
+  terminalAdapter = adapter;
+}
+
+/** Agent removal callback. Injected by PixelAgentsViewProvider to avoid a
+ *  server/src/ → src/ back-import on agentManager.ts. */
+let agentRemovalCallback:
+  | ((
+      id: number,
+      agents: Map<number, AgentState>,
+      fileWatchers: Map<number, fs.FSWatcher>,
+      pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+      waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+      permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+      jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
+      persistAgents: () => void,
+    ) => void)
+  | null = null;
+
+/** Register the agent removal callback. Called by PixelAgentsViewProvider. */
+export function setAgentRemovalCallback(cb: typeof agentRemovalCallback): void {
+  agentRemovalCallback = cb;
 }
 
 /** Dependencies for per-agent /clear detection in readNewLines polling.
@@ -377,9 +400,15 @@ export function scanForNewJsonlFiles(
     // Non-adopted files stay OUT of knownJsonlFiles so the per-agent /clear
     // check can find them when the idle check passes (up to 5s later).
 
-    // Try to adopt the focused terminal (only if it's a Claude-named terminal)
-    const activeTerminal = vscode.window.activeTerminal;
-    if (activeTerminal && activeTerminal.name.startsWith(TERMINAL_NAME_PREFIX)) {
+    // Try to adopt the focused terminal (only if it's a Claude-named terminal).
+    // Cast to vscode.Terminal because the adapter returns the real object at runtime;
+    // the TerminalHandle type is the minimal interface for the adapter contract.
+    const activeTerminal = terminalAdapter?.activeTerminal() as vscode.Terminal | undefined;
+    if (
+      activeTerminal &&
+      hookProvider?.terminalNamePrefix &&
+      activeTerminal.name.startsWith(hookProvider.terminalNamePrefix)
+    ) {
       let owned = false;
       for (const agent of agents.values()) {
         if (agent.terminalRef === activeTerminal) {
@@ -407,8 +436,12 @@ export function scanForNewJsonlFiles(
         // Active terminal is owned -- scan for untracked Claude-named terminals.
         // Only adopt terminals with TERMINAL_NAME_PREFIX to avoid grabbing
         // pre-existing shells ("zsh", "bash") for /clear files.
-        for (const terminal of vscode.window.terminals) {
-          if (!terminal.name.startsWith(TERMINAL_NAME_PREFIX)) continue;
+        for (const terminal of (terminalAdapter?.allTerminals() ?? []) as vscode.Terminal[]) {
+          if (
+            !hookProvider?.terminalNamePrefix ||
+            !terminal.name.startsWith(hookProvider.terminalNamePrefix)
+          )
+            continue;
           let owned = false;
           for (const agent of agents.values()) {
             if (agent.terminalRef === terminal) {
@@ -1295,7 +1328,7 @@ export function startStaleExternalAgentCheck(
         knownJsonlFiles.delete(agent.jsonlFile);
       }
       console.log(`[Pixel Agents] Watcher: Agent ${id} - removing stale external agent`);
-      removeAgent(
+      agentRemovalCallback?.(
         id,
         agents,
         fileWatchers,

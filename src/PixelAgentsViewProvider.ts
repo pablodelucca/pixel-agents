@@ -4,24 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import type { StateAdapter } from '../core/src/adapter.js';
-import { DismissalTracker } from '../server/src/dismissalTracker.js';
-import type { HookEvent } from '../server/src/hookEventHandler.js';
-import { HookEventHandler } from '../server/src/hookEventHandler.js';
-import { claudeProvider, copyHookScript } from '../server/src/providers/index.js';
-import { PixelAgentsServer } from '../server/src/server.js';
-import { SessionRouter } from '../server/src/sessionRouter.js';
-import type { AgentState } from '../server/src/types.js';
-import {
-  getProjectDirPath,
-  launchNewTerminal,
-  persistAgents,
-  removeAgent,
-  restoreAgents,
-  sendCurrentAgentStatuses,
-  sendExistingAgents,
-  sendLayout,
-} from './agentManager.js';
-import type { LoadedAssets, LoadedCharacterSprites } from './assetLoader.js';
+import type { LoadedAssets, LoadedCharacterSprites } from '../server/src/assetLoader.js';
 import {
   loadCharacterSprites,
   loadDefaultLayout,
@@ -35,7 +18,46 @@ import {
   sendCharacterSpritesToWebview,
   sendFloorTilesToWebview,
   sendWallTilesToWebview,
-} from './assetLoader.js';
+} from '../server/src/assetLoader.js';
+import { DismissalTracker } from '../server/src/dismissalTracker.js';
+import {
+  adoptExternalSessionFromHook,
+  ensureProjectScan,
+  isTrackedProjectDir,
+  reassignAgentToFile,
+  scanForTeammateFiles,
+  setAgentRemovalCallback,
+  setDismissalTracker,
+  setHookProvider as setFileWatcherHookProvider,
+  setTeammateRemovalCallback,
+  setTeamProvider,
+  setTerminalAdapter,
+  startExternalSessionScanning,
+  startStaleExternalAgentCheck,
+} from '../server/src/fileWatcher.js';
+import type { HookEvent } from '../server/src/hookEventHandler.js';
+import { HookEventHandler } from '../server/src/hookEventHandler.js';
+import type { LayoutWatcher } from '../server/src/layoutPersistence.js';
+import {
+  readLayoutFromFile,
+  watchLayoutFile,
+  writeLayoutToFile,
+} from '../server/src/layoutPersistence.js';
+import { claudeProvider, copyHookScript } from '../server/src/providers/index.js';
+import { PixelAgentsServer } from '../server/src/server.js';
+import { SessionRouter } from '../server/src/sessionRouter.js';
+import { setHookProvider } from '../server/src/transcriptParser.js';
+import type { AgentState } from '../server/src/types.js';
+import {
+  getProjectDirPath,
+  launchNewTerminal,
+  persistAgents,
+  removeAgent,
+  restoreAgents,
+  sendCurrentAgentStatuses,
+  sendExistingAgents,
+  sendLayout,
+} from './agentManager.js';
 import { readConfig, writeConfig } from './configPersistence.js';
 import {
   CONFIG_KEY_AUTO_SHOW_PANEL,
@@ -48,23 +70,8 @@ import {
   GLOBAL_KEY_WATCH_ALL_SESSIONS,
   LAYOUT_REVISION_KEY,
 } from './constants.js';
-import {
-  adoptExternalSessionFromHook,
-  ensureProjectScan,
-  isTrackedProjectDir,
-  reassignAgentToFile,
-  scanForTeammateFiles,
-  setDismissalTracker,
-  setHookProvider as setFileWatcherHookProvider,
-  setTeammateRemovalCallback,
-  setTeamProvider,
-  startExternalSessionScanning,
-  startStaleExternalAgentCheck,
-} from './fileWatcher.js';
-import type { LayoutWatcher } from './layoutPersistence.js';
-import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
-import { setHookProvider } from './transcriptParser.js';
 import { VscodeStateAdapter } from './vscodeStateAdapter.js';
+import { VscodeTerminalAdapter } from './vscodeTerminalAdapter.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   nextAgentId = { current: 1 };
@@ -118,6 +125,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     this.adapter = new VscodeStateAdapter(context);
     this.dismissalTracker = new DismissalTracker();
     setDismissalTracker(this.dismissalTracker);
+    setTerminalAdapter(new VscodeTerminalAdapter());
+    setAgentRemovalCallback((id, agents, fw, pt, wt, pmt, jpt, persist) =>
+      removeAgent(id, agents, fw, pt, wt, pmt, jpt, persist),
+    );
     this.initHooks();
   }
 

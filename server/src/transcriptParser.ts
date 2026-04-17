@@ -2,16 +2,16 @@ import type * as vscode from 'vscode';
 
 const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
-import type { HookProvider } from '../core/src/provider.js';
-import { TEXT_IDLE_DELAY_MS, TOOL_DONE_DELAY_MS } from '../server/src/constants.js';
+import type { HookProvider } from '../../core/src/provider.js';
+import { TEXT_IDLE_DELAY_MS, TOOL_DONE_DELAY_MS } from './constants.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,
   clearAgentActivity,
   startPermissionTimer,
   startWaitingTimer,
-} from '../server/src/timerManager.js';
-import type { AgentState } from '../server/src/types.js';
+} from './timerManager.js';
+import type { AgentState } from './types.js';
 
 /** Empty set used as safe fallback when no HookProvider is registered. */
 const EMPTY_EXEMPT_TOOLS: ReadonlySet<string> = new Set();
