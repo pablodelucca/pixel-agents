@@ -7,7 +7,8 @@ import { PixelAgentsViewProvider } from './PixelAgentsViewProvider.js';
 let providerInstance: PixelAgentsViewProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
-  initializeLogger(context);
+  const isProduction = context.extensionMode === vscode.ExtensionMode.Production;
+  initializeLogger(isProduction);
   logger.info(`Extension activated (log level: ${Object.keys(LogLevel).find((k) => LogLevel[k as keyof typeof LogLevel] === logger.getLevel())})`);
   const provider = new PixelAgentsViewProvider(context);
   providerInstance = provider;

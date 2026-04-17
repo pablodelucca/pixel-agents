@@ -86,7 +86,8 @@ export class HookEventHandler {
     private permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
     private getWebview: () => vscode.Webview | undefined,
     private provider: HookProvider,
-    private watchAllSessionsRef?: { current: boolean },
+    // Parameter kept for API compatibility with callers even though unused internally
+    _watchAllSessionsRef?: { current: boolean },
   ) {}
 
   /** Merged set of tool names that spawn subagents (teammates + within-turn subagents
@@ -99,18 +100,6 @@ export class HookEventHandler {
       ]);
     }
     return this.provider.subagentToolNames;
-  }
-
-  /** Check if a session is tracked (in workspace project dir, or Watch All Sessions ON).
-   *  Currently unused - kept for potential future conditional logging. */
-  // @ts-expect-error Unused method kept for future use
-  private isTrackedSession(transcriptPath?: string, cwd?: string): boolean {
-    if (this.watchAllSessionsRef?.current) return true;
-    const projectDir = transcriptPath ? path.dirname(transcriptPath) : cwd;
-    if (!projectDir) return false;
-    return [...this.agents.values()].some(
-      (a) => path.resolve(a.projectDir).toLowerCase() === path.resolve(projectDir).toLowerCase(),
-    );
   }
 
   /** Set callbacks for session lifecycle events (SessionStart/SessionEnd). */

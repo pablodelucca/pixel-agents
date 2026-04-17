@@ -11,7 +11,6 @@
  * - Production mode defaults to WARN level with sanitization enabled
  */
 import * as os from 'os';
-import type * as vscode from 'vscode';
 
 /** Log level values as const object (no enums per TypeScript constraints). */
 export const LogLevel = {
@@ -123,12 +122,12 @@ class Logger {
 export const logger = new Logger();
 
 /**
- * Initialize logger based on environment and VS Code extension mode.
+ * Initialize logger based on environment and extension mode.
  * Call this from extension.ts activate() function.
  *
- * @param context - VS Code extension context (used to check production mode)
+ * @param isProduction - Whether the extension is running in production mode
  */
-export function initializeLogger(context?: vscode.ExtensionContext): void {
+export function initializeLogger(isProduction?: boolean): void {
   // Check environment variable first (allows override in any mode)
   const envLevel = process.env.PIXEL_AGENTS_LOG_LEVEL?.toUpperCase();
   if (envLevel && envLevel in LogLevel) {
@@ -149,12 +148,8 @@ export function initializeLogger(context?: vscode.ExtensionContext): void {
 
   // In production mode, default to WARN level with sanitization
   // This reduces log verbosity and protects sensitive data
-  if (context) {
-    // Access vscode through dynamic import to avoid circular deps
-    const vscode = require('vscode') as typeof import('vscode');
-    if (context.extensionMode === vscode.ExtensionMode.Production) {
-      logger.setLevel(LogLevel.WARN);
-      logger.setSanitizePaths(true);
-    }
+  if (isProduction) {
+    logger.setLevel(LogLevel.WARN);
+    logger.setSanitizePaths(true);
   }
 }
