@@ -10,6 +10,7 @@ import {
   SERVER_JSON_DIR,
   SERVER_JSON_NAME,
 } from './constants.js';
+import { logger } from './logger.js';
 
 /** Discovery file written to ~/.pixel-agents/server.json so hook scripts can find the server. */
 export interface ServerConfig {
@@ -63,8 +64,8 @@ export class PixelAgentsServer {
       // Another VS Code window owns the server, reuse its config
       this.config = existing;
       this.ownsServer = false;
-      console.log(
-        `[Pixel Agents] Reusing existing server on port ${existing.port} (PID ${existing.pid})`,
+      logger.info(
+        `Reusing existing server on port ${existing.port} (PID ${existing.pid})`,
       );
       return existing;
     }
@@ -95,9 +96,9 @@ export class PixelAgentsServer {
           // Replace startup error handler with runtime error handler
           this.server!.removeListener('error', reject);
           this.server!.on('error', (err) => {
-            console.error(`[Pixel Agents] Server: error: ${err}`);
+            logger.error(`Server: error: ${err}`);
           });
-          console.log(`[Pixel Agents] Server: listening on 127.0.0.1:${addr.port}`);
+          logger.info(`Server: listening on 127.0.0.1:${addr.port}`);
           resolve(this.config);
         } else {
           reject(new Error('Failed to get server address'));
@@ -241,7 +242,7 @@ export class PixelAgentsServer {
       fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2), { mode: 0o600 });
       fs.renameSync(tmpPath, filePath);
     } catch (e) {
-      console.error(`[Pixel Agents] Failed to write server.json: ${e}`);
+      logger.error(`Failed to write server.json: ${e}`);
     }
   }
 

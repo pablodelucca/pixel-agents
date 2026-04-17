@@ -23,8 +23,6 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
-
 import {
   CLEAR_IDLE_THRESHOLD_MS,
   DISMISSED_COOLDOWN_MS,
@@ -39,6 +37,7 @@ import {
 import type { TeamProvider } from '../server/src/teamProvider.js';
 import { removeAgent } from './agentManager.js';
 import { TERMINAL_NAME_PREFIX } from './constants.js';
+import { logger } from './logger.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import type { AgentState } from './types.js';
@@ -142,8 +141,8 @@ export function startFileWatching(
           }
           // Found a /clear file (has last-prompt) → claim it
           deps.knownJsonlFiles.add(file);
-          console.log(
-            `[Pixel Agents] Watcher: Agent ${agentId} - /clear detected, reassigning to ${path.basename(file)}`,
+          logger.debug(
+            `Watcher: Agent ${agentId} - /clear detected, reassigning to ${path.basename(file)}`,
           );
           reassignAgentToFile(
             agentId,
@@ -214,7 +213,7 @@ export function readNewLines(
   } catch (e) {
     // ENOENT is expected for hook-detected agents where the JSONL file hasn't been created yet
     if (e instanceof Error && 'code' in e && (e as NodeJS.ErrnoException).code === 'ENOENT') return;
-    console.log(`[Pixel Agents] Watcher: Agent ${agentId} - read error: ${e}`);
+    logger.warn(`Watcher: Agent ${agentId} - read error: ${e}`);
   }
 }
 
@@ -437,7 +436,7 @@ function scanForNewJsonlFiles(
   for (const [id, agent] of agents) {
     if (agent.isExternal) continue;
     if (agent.terminalRef && agent.terminalRef.exitStatus !== undefined) {
-      console.log(`[Pixel Agents] Watcher: Agent ${id} - terminal closed, cleaning up orphan`);
+      logger.debug(`Watcher: Agent ${id} - terminal closed, cleaning up orphan`);
       // Stop file watching
       fileWatchers.get(id)?.close();
       fileWatchers.delete(id);
@@ -511,8 +510,8 @@ function adoptTerminalForFile(
   persistAgents();
   onAgentCreated?.(agent);
 
-  console.log(
-    `[Pixel Agents] Watcher: Agent ${id} - adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`,
+  logger.info(
+    `Watcher: Agent ${id} - adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`,
   );
   webview?.postMessage({ type: 'agentCreated', id });
 
@@ -631,10 +630,9 @@ export function scanForTeammateFiles(
       }
     }
     if (existingTeammate) {
-      if (debug)
-        console.log(
-          `[Pixel Agents] Teammate "${teammateName}" already exists (Agent ${existingTeammate.id}), reassigning to ${path.basename(file)}`,
-        );
+      logger.debug(
+        `Teammate "${teammateName}" already exists (Agent ${existingTeammate.id}), reassigning to ${path.basename(file)}`,
+      );
       // Reassign to new JSONL file -- stop old polling, start new
       const oldTimer = pollingTimers.get(existingTeammate.id);
       if (oldTimer) clearInterval(oldTimer);
@@ -697,8 +695,8 @@ export function scanForTeammateFiles(
     agents.set(id, agent);
     persistAgents();
 
-    console.log(
-      `[Pixel Agents] Teammate detected: "${teammateName}" (Agent ${id}) for parent Agent ${parentAgentId} (${path.basename(file)})`,
+    logger.info(
+      `Teammate detected: "${teammateName}" (Agent ${id}) for parent Agent ${parentAgentId} (${path.basename(file)})`,
     );
 
     webview?.postMessage({
@@ -862,9 +860,9 @@ export function adoptExternalSessionFromHook(
     );
 
     const adoptedAgent = [...agents.values()].find((a) => a.jsonlFile === transcriptPath);
-    if (adoptedAgent && debug) {
-      console.log(
-        `[Pixel Agents] Hook: Agent ${adoptedAgent.id} - detected external session ${path.basename(transcriptPath)}${adoptedAgent.folderName ? ` (${adoptedAgent.folderName})` : ''}`,
+    if (adoptedAgent) {
+      logger.debug(
+        `Hook: Agent ${adoptedAgent.id} - detected external session ${path.basename(transcriptPath)}${adoptedAgent.folderName ? ` (${adoptedAgent.folderName})` : ''}`,
       );
     }
     if (adoptedAgent) {
@@ -905,11 +903,9 @@ export function adoptExternalSessionFromHook(
     };
     agents.set(id, agent);
     persistAgents();
-    if (debug) {
-      console.log(
-        `[Pixel Agents] Hook: Agent ${id} - detected hooks-only external session${folderName ? ` (${folderName})` : ''}`,
-      );
-    }
+    logger.debug(
+      `Hook: Agent ${id} - detected hooks-only external session${folderName ? ` (${folderName})` : ''}`,
+    );
     webview?.postMessage({ type: 'agentCreated', id, folderName });
     onAgentCreated?.(agent);
   }
@@ -1158,7 +1154,7 @@ function scanExternalDir(
     }
 
     knownJsonlFiles.add(file);
-    console.log(`[Pixel Agents] Watcher: detected external session ${path.basename(file)}`);
+    logger.debug(`Watcher: detected external session ${path.basename(file)}`);
     adoptExternalSession(
       file,
       projectDir,
@@ -1237,8 +1233,8 @@ function scanGlobalProjectDirs(
 
       const folderName = folderNameFromProjectDir(dir.name);
       knownJsonlFiles.add(file);
-      console.log(
-        `[Pixel Agents] Watcher: detected global session ${path.basename(file)} (${folderName})`,
+      logger.debug(
+        `Watcher: detected global session ${path.basename(file)} (${folderName})`,
       );
       adoptExternalSession(
         file,
@@ -1299,7 +1295,7 @@ export function startStaleExternalAgentCheck(
         // Remove from knownJsonlFiles so the file can be re-adopted if it becomes active again
         knownJsonlFiles.delete(agent.jsonlFile);
       }
-      console.log(`[Pixel Agents] Watcher: Agent ${id} - removing stale external agent`);
+      logger.debug(`Watcher: Agent ${id} - removing stale external agent`);
       removeAgent(
         id,
         agents,

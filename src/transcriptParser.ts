@@ -1,8 +1,6 @@
 import * as path from 'path';
 import type * as vscode from 'vscode';
 
-const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
-
 import {
   BASH_COMMAND_DISPLAY_MAX_LENGTH,
   TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
@@ -10,6 +8,7 @@ import {
   TOOL_DONE_DELAY_MS,
 } from '../server/src/constants.js';
 import type { HookProvider } from '../server/src/provider.js';
+import { logger } from './logger.js';
 import { validateTranscriptRecord } from './schemas/index.js';
 import {
   cancelPermissionTimer,
@@ -104,9 +103,7 @@ export function processTranscriptLine(
     const record = validateTranscriptRecord(parsed);
     if (!record) {
       // Schema validation failed - log and skip (graceful handling)
-      if (debug) {
-        console.warn(`[Pixel Agents] Agent ${agentId}: Invalid transcript record, skipping`);
-      }
+      logger.debug(`Agent ${agentId}: Invalid transcript record, skipping`);
       return;
     }
 
@@ -119,11 +116,9 @@ export function processTranscriptLine(
       agent.agentName = teamMeta.agentName;
       agent.isTeamLead = undefined;
       agent.leadAgentId = undefined;
-      if (debug) {
-        console.log(
-          `[Pixel Agents] Agent ${agentId} team metadata: team=${agent.teamName}, role=${agent.agentName ?? 'lead'}`,
-        );
-      }
+      logger.debug(
+        `Agent ${agentId} team metadata: team=${agent.teamName}, role=${agent.agentName ?? 'lead'}`,
+      );
       // Link teammates to leads within the same team
       linkTeammates(agentId, agent, agents);
 
@@ -179,8 +174,8 @@ export function processTranscriptLine(
           if (block.type === 'tool_use' && block.id) {
             const toolName = block.name || '';
             const status = formatToolStatus(toolName, block.input || {});
-            console.log(
-              `[Pixel Agents] JSONL: Agent ${agentId} - tool start: ${block.id} ${status}`,
+            logger.debug(
+              `JSONL: Agent ${agentId} - tool start: ${block.id} ${status}`,
             );
             agent.activeToolIds.add(block.id);
             agent.activeToolStatuses.set(block.id, status);
@@ -249,8 +244,8 @@ export function processTranscriptLine(
       }
     } else if (record.type === 'assistant' && assistantContent === undefined) {
       // Assistant record with no recognizable content structure
-      console.warn(
-        `[Pixel Agents] Agent ${agentId}: assistant record has no content. Keys: ${Object.keys(record).join(', ')}`,
+      logger.debug(
+        `Agent ${agentId}: assistant record has no content. Keys: ${Object.keys(record).join(', ')}`,
       );
     } else if (record.type === 'progress') {
       processProgressRecord(agentId, record, agents, waitingTimers, permissionTimers, webview);
@@ -270,15 +265,15 @@ export function processTranscriptLine(
                 (completedToolName === 'Task' || completedToolName === 'Agent') &&
                 isAsyncAgentResult(block)
               ) {
-                console.log(
-                  `[Pixel Agents] Agent ${agentId} background agent launched: ${completedToolId}`,
+                logger.debug(
+                  `Agent ${agentId} background agent launched: ${completedToolId}`,
                 );
                 agent.backgroundAgentToolIds.add(completedToolId);
                 continue; // don't mark as done yet
               }
 
-              console.log(
-                `[Pixel Agents] JSONL: Agent ${agentId} - tool done: ${block.tool_use_id}`,
+              logger.debug(
+                `JSONL: Agent ${agentId} - tool done: ${block.tool_use_id}`,
               );
               // If the completed tool was a Task/Agent, clear its subagent tools
               if (completedToolName === 'Task' || completedToolName === 'Agent') {
@@ -334,8 +329,8 @@ export function processTranscriptLine(
         if (toolIdMatch) {
           const completedToolId = toolIdMatch[1];
           if (agent.backgroundAgentToolIds.has(completedToolId)) {
-            console.log(
-              `[Pixel Agents] Agent ${agentId} background agent done: ${completedToolId}`,
+            logger.debug(
+              `Agent ${agentId} background agent done: ${completedToolId}`,
             );
             agent.backgroundAgentToolIds.delete(completedToolId);
             agent.activeSubagentToolIds.delete(completedToolId);
@@ -426,12 +421,10 @@ export function processTranscriptLine(
       const knownSkippableTypes = new Set(['file-history-snapshot', 'system', 'queue-operation']);
       if (!knownSkippableTypes.has(record.type)) {
         agent.seenUnknownRecordTypes.add(record.type);
-        if (debug) {
-          console.log(
-            `[Pixel Agents] JSONL: Agent ${agentId} - unrecognized record type '${record.type}'. ` +
-              `Keys: ${Object.keys(record).join(', ')}`,
-          );
-        }
+        logger.debug(
+          `JSONL: Agent ${agentId} - unrecognized record type '${record.type}'. ` +
+            `Keys: ${Object.keys(record).join(', ')}`,
+        );
       }
     }
   } catch {
@@ -485,8 +478,8 @@ function processProgressRecord(
       if (block.type === 'tool_use' && block.id) {
         const toolName = block.name || '';
         const status = formatToolStatus(toolName, block.input || {});
-        console.log(
-          `[Pixel Agents] Agent ${agentId} subagent tool start: ${block.id} ${status} (parent: ${parentToolId})`,
+        logger.debug(
+          `Agent ${agentId} subagent tool start: ${block.id} ${status} (parent: ${parentToolId})`,
         );
 
         // Track sub-tool IDs
@@ -524,8 +517,8 @@ function processProgressRecord(
   } else if (msgType === 'user') {
     for (const block of content) {
       if (block.type === 'tool_result' && block.tool_use_id) {
-        console.log(
-          `[Pixel Agents] Agent ${agentId} subagent tool done: ${block.tool_use_id} (parent: ${parentToolId})`,
+        logger.debug(
+          `Agent ${agentId} subagent tool done: ${block.tool_use_id} (parent: ${parentToolId})`,
         );
 
         // Remove from tracking

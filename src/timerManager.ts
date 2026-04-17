@@ -1,6 +1,7 @@
 import type * as vscode from 'vscode';
 
 import { PERMISSION_TIMER_DELAY_MS } from '../server/src/constants.js';
+import { logger } from './logger.js';
 import type { AgentState } from './types.js';
 
 export function clearAgentActivity(
@@ -133,7 +134,7 @@ export function startPermissionTimer(
 
     if (hasNonExempt) {
       agent.permissionSent = true;
-      console.log(`[Pixel Agents] Timer: Agent ${agentId} - possible permission wait detected`);
+      logger.debug(`Timer: Agent ${agentId} - possible permission wait detected`);
       webview?.postMessage({
         type: 'agentToolPermission',
         id: agentId,

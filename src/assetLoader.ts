@@ -27,6 +27,7 @@ import type { CharacterDirectionSprites } from '../shared/assets/types.js';
 export type { CharacterDirectionSprites } from '../shared/assets/types.js';
 
 import { LAYOUT_REVISION_KEY } from './constants.js';
+import { logger } from './logger.js';
 
 export type { FurnitureAsset };
 
@@ -49,12 +50,12 @@ export function mergeLoadedAssets(a: LoadedAssets, b: LoadedAssets): LoadedAsset
  */
 export async function loadFurnitureAssets(workspaceRoot: string): Promise<LoadedAssets | null> {
   try {
-    console.log(`[AssetLoader] workspaceRoot received: "${workspaceRoot}"`);
+    logger.debug(`AssetLoader: workspaceRoot received: "${workspaceRoot}"`);
     const furnitureDir = path.join(workspaceRoot, 'assets', 'furniture');
-    console.log(`[AssetLoader] Scanning furniture directory: ${furnitureDir}`);
+    logger.debug(`AssetLoader: Scanning furniture directory: ${furnitureDir}`);
 
     if (!fs.existsSync(furnitureDir)) {
-      console.log('ℹ️  No furniture directory found at:', furnitureDir);
+      logger.debug('No furniture directory found at:', furnitureDir);
       return null;
     }
 
@@ -62,11 +63,11 @@ export async function loadFurnitureAssets(workspaceRoot: string): Promise<Loaded
     const dirs = entries.filter((e) => e.isDirectory());
 
     if (dirs.length === 0) {
-      console.log('ℹ️  No furniture subdirectories found');
+      logger.debug('No furniture subdirectories found');
       return null;
     }
 
-    console.log(`📦 Found ${dirs.length} furniture folders`);
+    logger.debug(`Found ${dirs.length} furniture folders`);
 
     const catalog: FurnitureAsset[] = [];
     const sprites = new Map<string, string[][]>();
@@ -76,7 +77,7 @@ export async function loadFurnitureAssets(workspaceRoot: string): Promise<Loaded
       const manifestPath = path.join(itemDir, 'manifest.json');
 
       if (!fs.existsSync(manifestPath)) {
-        console.warn(`  ⚠️  No manifest.json in ${dir.name}`);
+        logger.debug(`No manifest.json in ${dir.name}`);
         continue;
       }
 
@@ -140,13 +141,13 @@ export async function loadFurnitureAssets(workspaceRoot: string): Promise<Loaded
               !resolvedAsset.startsWith(resolvedDir + path.sep) &&
               resolvedAsset !== resolvedDir
             ) {
-              console.warn(
-                `  [AssetLoader] Skipping asset with path outside directory: ${asset.file}`,
+              logger.warn(
+                `Skipping asset with path outside directory: ${asset.file}`,
               );
               continue;
             }
             if (!fs.existsSync(assetPath)) {
-              console.warn(`  ⚠️  Asset file not found: ${asset.file} in ${dir.name}`);
+              logger.debug(`Asset file not found: ${asset.file} in ${dir.name}`);
               continue;
             }
 
@@ -154,27 +155,27 @@ export async function loadFurnitureAssets(workspaceRoot: string): Promise<Loaded
             const spriteData = pngToSpriteData(pngBuffer, asset.width, asset.height);
             sprites.set(asset.id, spriteData);
           } catch (err) {
-            console.warn(
-              `  ⚠️  Error loading ${asset.id}: ${err instanceof Error ? err.message : err}`,
+            logger.warn(
+              `Error loading ${asset.id}: ${err instanceof Error ? err.message : err}`,
             );
           }
         }
 
         catalog.push(...assets);
       } catch (err) {
-        console.warn(
-          `  ⚠️  Error processing ${dir.name}: ${err instanceof Error ? err.message : err}`,
+        logger.warn(
+          `Error processing ${dir.name}: ${err instanceof Error ? err.message : err}`,
         );
       }
     }
 
-    console.log(`  ✓ Loaded ${sprites.size} / ${catalog.length} assets`);
-    console.log(`[AssetLoader] ✅ Successfully loaded ${sprites.size} furniture sprites`);
+    logger.debug(`Loaded ${sprites.size} / ${catalog.length} assets`);
+    logger.info(`AssetLoader: Successfully loaded ${sprites.size} furniture sprites`);
 
     return { catalog, sprites };
   } catch (err) {
-    console.error(
-      `[AssetLoader] ❌ Error loading furniture assets: ${err instanceof Error ? err.message : err}`,
+    logger.error(
+      `AssetLoader: Error loading furniture assets: ${err instanceof Error ? err.message : err}`,
     );
     return null;
   }
@@ -217,7 +218,7 @@ export function loadDefaultLayout(assetsRoot: string): Record<string, unknown> |
     }
 
     if (!bestPath) {
-      console.log('[AssetLoader] No default layout found in:', assetsDir);
+      logger.debug('AssetLoader: No default layout found in:', assetsDir);
       return null;
     }
 
@@ -227,13 +228,13 @@ export function loadDefaultLayout(assetsRoot: string): Record<string, unknown> |
     if (bestRevision > 0 && !layout[LAYOUT_REVISION_KEY]) {
       layout[LAYOUT_REVISION_KEY] = bestRevision;
     }
-    console.log(
-      `[AssetLoader] Loaded default layout (${layout.cols}×${layout.rows}, revision ${layout[LAYOUT_REVISION_KEY] ?? 0}) from ${path.basename(bestPath)}`,
+    logger.debug(
+      `AssetLoader: Loaded default layout (${layout.cols}×${layout.rows}, revision ${layout[LAYOUT_REVISION_KEY] ?? 0}) from ${path.basename(bestPath)}`,
     );
     return layout;
   } catch (err) {
-    console.error(
-      `[AssetLoader] Error loading default layout: ${err instanceof Error ? err.message : err}`,
+    logger.error(
+      `AssetLoader: Error loading default layout: ${err instanceof Error ? err.message : err}`,
     );
     return null;
   }
@@ -255,11 +256,11 @@ export async function loadWallTiles(assetsRoot: string): Promise<LoadedWallTiles
   try {
     const wallsDir = path.join(assetsRoot, 'assets', 'walls');
     if (!fs.existsSync(wallsDir)) {
-      console.log('[AssetLoader] No walls/ directory found at:', wallsDir);
+      logger.debug('AssetLoader: No walls/ directory found at:', wallsDir);
       return null;
     }
 
-    console.log('[AssetLoader] Loading wall tiles from:', wallsDir);
+    logger.debug('AssetLoader: Loading wall tiles from:', wallsDir);
 
     // Find all wall_N.png files and sort by index
     const entries = fs.readdirSync(wallsDir);
@@ -272,7 +273,7 @@ export async function loadWallTiles(assetsRoot: string): Promise<LoadedWallTiles
     }
 
     if (wallFiles.length === 0) {
-      console.log('[AssetLoader] No wall_N.png files found in walls/');
+      logger.debug('AssetLoader: No wall_N.png files found in walls/');
       return null;
     }
 
@@ -286,13 +287,13 @@ export async function loadWallTiles(assetsRoot: string): Promise<LoadedWallTiles
       sets.push(sprites);
     }
 
-    console.log(
-      `[AssetLoader] ✅ Loaded ${sets.length} wall tile set(s) (${sets.length * WALL_BITMASK_COUNT} pieces total)`,
+    logger.debug(
+      `AssetLoader: Loaded ${sets.length} wall tile set(s) (${sets.length * WALL_BITMASK_COUNT} pieces total)`,
     );
     return { sets };
   } catch (err) {
-    console.error(
-      `[AssetLoader] ❌ Error loading wall tiles: ${err instanceof Error ? err.message : err}`,
+    logger.error(
+      `AssetLoader: Error loading wall tiles: ${err instanceof Error ? err.message : err}`,
     );
     return null;
   }
@@ -306,7 +307,7 @@ export function sendWallTilesToWebview(webview: vscode.Webview, wallTiles: Loade
     type: 'wallTilesLoaded',
     sets: wallTiles.sets,
   });
-  console.log(`📤 Sent ${wallTiles.sets.length} wall tile set(s) to webview`);
+  logger.debug(`Sent ${wallTiles.sets.length} wall tile set(s) to webview`);
 }
 
 interface LoadedFloorTiles {
@@ -322,11 +323,11 @@ export async function loadFloorTiles(assetsRoot: string): Promise<LoadedFloorTil
   try {
     const floorsDir = path.join(assetsRoot, 'assets', 'floors');
     if (!fs.existsSync(floorsDir)) {
-      console.log('[AssetLoader] No floors/ directory found at:', floorsDir);
+      logger.debug('AssetLoader: No floors/ directory found at:', floorsDir);
       return null;
     }
 
-    console.log('[AssetLoader] Loading floor tiles from:', floorsDir);
+    logger.debug('AssetLoader: Loading floor tiles from:', floorsDir);
 
     // Find all floor_N.png files and sort by index
     const entries = fs.readdirSync(floorsDir);
@@ -339,7 +340,7 @@ export async function loadFloorTiles(assetsRoot: string): Promise<LoadedFloorTil
     }
 
     if (floorFiles.length === 0) {
-      console.log('[AssetLoader] No floor_N.png files found in floors/');
+      logger.debug('AssetLoader: No floor_N.png files found in floors/');
       return null;
     }
 
@@ -353,11 +354,11 @@ export async function loadFloorTiles(assetsRoot: string): Promise<LoadedFloorTil
       sprites.push(sprite);
     }
 
-    console.log(`[AssetLoader] ✅ Loaded ${sprites.length} floor tile patterns from floors/`);
+    logger.debug(`AssetLoader: Loaded ${sprites.length} floor tile patterns from floors/`);
     return { sprites };
   } catch (err) {
-    console.error(
-      `[AssetLoader] ❌ Error loading floor tiles: ${err instanceof Error ? err.message : err}`,
+    logger.error(
+      `AssetLoader: Error loading floor tiles: ${err instanceof Error ? err.message : err}`,
     );
     return null;
   }
@@ -374,7 +375,7 @@ export function sendFloorTilesToWebview(
     type: 'floorTilesLoaded',
     sprites: floorTiles.sprites,
   });
-  console.log(`📤 Sent ${floorTiles.sprites.length} floor tile patterns to webview`);
+  logger.debug(`Sent ${floorTiles.sprites.length} floor tile patterns to webview`);
 }
 
 // ── Character sprite loading ────────────────────────────────
@@ -405,7 +406,7 @@ export async function loadCharacterSprites(
     for (let ci = 0; ci < CHAR_COUNT; ci++) {
       const filePath = path.join(charDir, `char_${ci}.png`);
       if (!fs.existsSync(filePath)) {
-        console.log(`[AssetLoader] No character sprite found at: ${filePath}`);
+        logger.debug(`AssetLoader: No character sprite found at: ${filePath}`);
         return null;
       }
 
@@ -413,13 +414,13 @@ export async function loadCharacterSprites(
       characters.push(decodeCharacterPng(pngBuffer));
     }
 
-    console.log(
-      `[AssetLoader] ✅ Loaded ${characters.length} character sprites (${CHAR_FRAMES_PER_ROW} frames × 3 directions each)`,
+    logger.debug(
+      `AssetLoader: Loaded ${characters.length} character sprites (${CHAR_FRAMES_PER_ROW} frames × 3 directions each)`,
     );
     return { characters };
   } catch (err) {
-    console.error(
-      `[AssetLoader] ❌ Error loading character sprites: ${err instanceof Error ? err.message : err}`,
+    logger.error(
+      `AssetLoader: Error loading character sprites: ${err instanceof Error ? err.message : err}`,
     );
     return null;
   }
@@ -460,15 +461,15 @@ export async function loadExternalCharacterSprites(
       const resolvedFile = path.resolve(filePath);
       const resolvedDir = path.resolve(charDir);
       if (!resolvedFile.startsWith(resolvedDir + path.sep) && resolvedFile !== resolvedDir) {
-        console.warn(`  [AssetLoader] Skipping character with path outside directory: ${filename}`);
+        logger.warn(`Skipping character with path outside directory: ${filename}`);
         continue;
       }
       try {
         const pngBuffer = fs.readFileSync(filePath);
         characters.push(decodeCharacterPng(pngBuffer));
       } catch (err) {
-        console.warn(
-          `  [AssetLoader] ⚠️  Error loading character ${filename}: ${err instanceof Error ? err.message : err}`,
+        logger.warn(
+          `Error loading character ${filename}: ${err instanceof Error ? err.message : err}`,
         );
       }
     }
@@ -477,13 +478,13 @@ export async function loadExternalCharacterSprites(
       return null;
     }
 
-    console.log(
-      `[AssetLoader] ✅ Loaded ${characters.length} external character sprites from ${externalRoot}`,
+    logger.debug(
+      `AssetLoader: Loaded ${characters.length} external character sprites from ${externalRoot}`,
     );
     return { characters };
   } catch (err) {
-    console.error(
-      `[AssetLoader] ❌ Error loading external character sprites: ${err instanceof Error ? err.message : err}`,
+    logger.error(
+      `AssetLoader: Error loading external character sprites: ${err instanceof Error ? err.message : err}`,
     );
     return null;
   }
@@ -500,7 +501,7 @@ export function sendCharacterSpritesToWebview(
     type: 'characterSpritesLoaded',
     characters: charSprites.characters,
   });
-  console.log(`📤 Sent ${charSprites.characters.length} character sprites to webview`);
+  logger.debug(`Sent ${charSprites.characters.length} character sprites to webview`);
 }
 
 /**
@@ -508,19 +509,19 @@ export function sendCharacterSpritesToWebview(
  */
 export function sendAssetsToWebview(webview: vscode.Webview, assets: LoadedAssets): void {
   if (!assets) {
-    console.log('[AssetLoader] ⚠️  No assets to send');
+    logger.debug('AssetLoader: No assets to send');
     return;
   }
 
-  console.log('[AssetLoader] Converting sprites Map to object...');
+  logger.debug('AssetLoader: Converting sprites Map to object...');
   // Convert sprites Map to plain object for JSON serialization
   const spritesObj: Record<string, string[][]> = {};
   for (const [id, spriteData] of assets.sprites) {
     spritesObj[id] = spriteData;
   }
 
-  console.log(
-    `[AssetLoader] Posting furnitureAssetsLoaded message with ${assets.catalog.length} assets`,
+  logger.debug(
+    `AssetLoader: Posting furnitureAssetsLoaded message with ${assets.catalog.length} assets`,
   );
   webview.postMessage({
     type: 'furnitureAssetsLoaded',
@@ -528,5 +529,5 @@ export function sendAssetsToWebview(webview: vscode.Webview, assets: LoadedAsset
     sprites: spritesObj,
   });
 
-  console.log(`📤 Sent ${assets.catalog.length} furniture assets to webview`);
+  logger.debug(`Sent ${assets.catalog.length} furniture assets to webview`);
 }

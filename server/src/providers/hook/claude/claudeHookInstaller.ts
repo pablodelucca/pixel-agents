@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { HOOK_SCRIPTS_DIR } from '../../../constants.js';
+import { logger } from '../../../logger.js';
 import { CLAUDE_HOOK_EVENTS, CLAUDE_HOOK_SCRIPT_NAME } from './constants.js';
 
 /** Marker string used to identify Pixel Agents hook entries in Claude's settings. */
@@ -42,7 +43,7 @@ function readClaudeSettings(): ClaudeSettings {
       return JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) as ClaudeSettings;
     }
   } catch (e) {
-    console.error(`[Pixel Agents] Failed to read Claude settings: ${e}`);
+    logger.error(` Failed to read Claude settings: ${e}`);
   }
   return {};
 }
@@ -60,7 +61,7 @@ function writeClaudeSettings(settings: ClaudeSettings): void {
     fs.writeFileSync(tmpPath, JSON.stringify(settings, null, 2), 'utf-8');
     fs.renameSync(tmpPath, settingsPath);
   } catch (e) {
-    console.error(`[Pixel Agents] Failed to write Claude settings: ${e}`);
+    logger.error(` Failed to write Claude settings: ${e}`);
   }
 }
 
@@ -135,7 +136,7 @@ export function installHooks(): void {
 
   if (changed) {
     writeClaudeSettings(settings);
-    console.log('[Pixel Agents] Hooks installed in ~/.claude/settings.json');
+    logger.info( Hooks installed in ~/.claude/settings.json');
   }
 }
 
@@ -163,7 +164,7 @@ export function uninstallHooks(): void {
 
   if (changed) {
     writeClaudeSettings(settings);
-    console.log('[Pixel Agents] Hooks removed from ~/.claude/settings.json');
+    logger.info( Hooks removed from ~/.claude/settings.json');
   }
 }
 
@@ -178,13 +179,13 @@ export function copyHookScript(extensionPath: string): void {
       fs.mkdirSync(dstDir, { recursive: true, mode: 0o700 });
     }
     if (!fs.existsSync(src)) {
-      console.warn(`[Pixel Agents] Hook script not found at ${src}`);
+      logger.warn(`Hook script not found at ${src}`);
       return;
     }
     fs.copyFileSync(src, dst);
     fs.chmodSync(dst, 0o700);
-    console.log(`[Pixel Agents] Hook script installed at ${dst}`);
+    logger.info(`Hook script installed at ${dst}`);
   } catch (e) {
-    console.error(`[Pixel Agents] Failed to copy hook script: ${e}`);
+    logger.error(`Failed to copy hook script: ${e}`);
   }
 }

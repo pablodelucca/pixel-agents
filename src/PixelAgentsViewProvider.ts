@@ -62,6 +62,7 @@ import {
 } from './fileWatcher.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
+import { logger } from './logger.js';
 import { parseLayout } from './schemas/index.js';
 import { setHookProvider } from './transcriptParser.js';
 import type { AgentState } from './types.js';
@@ -260,10 +261,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           installHooks();
           copyHookScript(this.context.extensionPath);
         }
-        console.log(`[Pixel Agents] Server: ready on port ${config.port}`);
+        logger.info(`Server: ready on port ${config.port}`);
       })
       .catch((e) => {
-        console.error(`[Pixel Agents] Failed to start server: ${e}`);
+        logger.error(`Failed to start server: ${e}`);
       });
   }
 
@@ -272,7 +273,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   private removeTeammate(teammateAgentId: number, source: string): void {
     const agent = this.agents.get(teammateAgentId);
     if (!agent) return;
-    console.log(`[Pixel Agents] Removing teammate ${teammateAgentId} (source: ${source})`);
+    logger.debug(`Removing teammate ${teammateAgentId} (source: ${source})`);
     dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
     this.unregisterAgentHook(agent);
     removeAgent(
@@ -298,7 +299,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     for (const id of teammates) {
       const agent = this.agents.get(id);
       if (agent) {
-        console.log(`[Pixel Agents] Removing teammate ${id} (lead ${leadId} closed)`);
+        logger.debug(`Removing teammate ${id} (lead ${leadId} closed)`);
         dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
         this.unregisterAgentHook(agent);
         removeAgent(
@@ -397,7 +398,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
       } else if (message.type === 'saveAgentSeats') {
         // Store seat assignments in a separate key (never touched by persistAgents)
-        console.log(`[Pixel Agents] State: saveAgentSeats:`, JSON.stringify(message.seats));
+        logger.debug(`State: saveAgentSeats:`, JSON.stringify(message.seats));
         this.context.workspaceState.update(WORKSPACE_KEY_AGENT_SEATS, message.seats);
       } else if (message.type === 'saveLayout') {
         this.layoutWatcher?.markOwnWrite();
@@ -415,10 +416,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         if (enabled) {
           installHooks();
           copyHookScript(this.context.extensionPath);
-          console.log('[Pixel Agents] Hooks enabled by user');
+          logger.info('Hooks enabled by user');
         } else {
           uninstallHooks();
-          console.log('[Pixel Agents] Hooks disabled by user');
+          logger.info('Hooks disabled by user');
         }
       } else if (message.type === 'setHooksInfoShown') {
         this.context.globalState.update(GLOBAL_KEY_HOOKS_INFO_SHOWN, true);
@@ -533,9 +534,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         // Ensure project scan runs even with no restored agents (to adopt external terminals)
         const projectDir = getProjectDirPath();
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        console.log(`[Pixel Agents] Debug: Platform: ${process.platform}, arch: ${process.arch}`);
-        console.log('[Extension] workspaceRoot:', workspaceRoot);
-        console.log('[Extension] projectDir:', projectDir);
+        logger.debug(`Debug: Platform: ${process.platform}, arch: ${process.arch}`);
+        logger.debug('workspaceRoot:', workspaceRoot);
+        logger.debug('projectDir:', projectDir);
         ensureProjectScan(
           projectDir,
           this.knownJsonlFiles,
@@ -577,8 +578,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             for (const folder of wsFolders) {
               const folderProjectDir = getProjectDirPath(folder.uri.fsPath);
               if (folderProjectDir && folderProjectDir !== projectDir) {
-                console.log(
-                  `[Pixel Agents] Registering additional project dir: ${folderProjectDir}`,
+                logger.debug(
+                  `Registering additional project dir: ${folderProjectDir}`,
                 );
                 ensureProjectScan(
                   folderProjectDir,
@@ -618,24 +619,24 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         // Load furniture assets BEFORE sending layout
         (async () => {
           try {
-            console.log('[Extension] Loading furniture assets...');
+            logger.debug('Loading furniture assets...');
             const extensionPath = this.extensionUri.fsPath;
-            console.log('[Extension] extensionPath:', extensionPath);
+            logger.debug('extensionPath:', extensionPath);
 
             // Check bundled location first: extensionPath/dist/assets/
             const bundledAssetsDir = path.join(extensionPath, 'dist', 'assets');
             let assetsRoot: string | null = null;
             if (fs.existsSync(bundledAssetsDir)) {
-              console.log('[Extension] Found bundled assets at dist/');
+              logger.debug('Found bundled assets at dist/');
               assetsRoot = path.join(extensionPath, 'dist');
             } else if (workspaceRoot) {
               // Fall back to workspace root (development or external assets)
-              console.log('[Extension] Trying workspace for assets...');
+              logger.debug('Trying workspace for assets...');
               assetsRoot = workspaceRoot;
             }
 
             if (!assetsRoot) {
-              console.log('[Extension] ⚠️  No assets directory found');
+              logger.debug('No assets directory found');
               if (this.webview) {
                 sendLayout(this.context, this.webview, this.defaultLayout);
                 // Send agent statuses AFTER layoutLoaded so characters exist when messages arrive
@@ -645,7 +646,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
               return;
             }
 
-            console.log('[Extension] Using assetsRoot:', assetsRoot);
+            logger.debug('Using assetsRoot:', assetsRoot);
             this.assetsRoot = assetsRoot;
 
             // Load bundled default layout
@@ -654,8 +655,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             // Load character sprites (bundled + external)
             const charSprites = await this.loadAllCharacterSprites();
             if (charSprites && this.webview) {
-              console.log(
-                `[Extension] ${charSprites.characters.length} character sprites loaded, sending to webview`,
+              logger.debug(
+                `${charSprites.characters.length} character sprites loaded, sending to webview`,
               );
               sendCharacterSpritesToWebview(this.webview, charSprites);
             }
@@ -663,28 +664,28 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             // Load floor tiles
             const floorTiles = await loadFloorTiles(assetsRoot);
             if (floorTiles && this.webview) {
-              console.log('[Extension] Floor tiles loaded, sending to webview');
+              logger.debug('Floor tiles loaded, sending to webview');
               sendFloorTilesToWebview(this.webview, floorTiles);
             }
 
             // Load wall tiles
             const wallTiles = await loadWallTiles(assetsRoot);
             if (wallTiles && this.webview) {
-              console.log('[Extension] Wall tiles loaded, sending to webview');
+              logger.debug('Wall tiles loaded, sending to webview');
               sendWallTilesToWebview(this.webview, wallTiles);
             }
 
             const assets = await this.loadAllFurnitureAssets();
             if (assets && this.webview) {
-              console.log('[Extension] ✅ Assets loaded, sending to webview');
+              logger.debug('Assets loaded, sending to webview');
               sendAssetsToWebview(this.webview, assets);
             }
           } catch (err) {
-            console.error('[Extension] ❌ Error loading assets:', err);
+            logger.error('Error loading assets:', err);
           }
           // Always send saved layout (or null for default)
           if (this.webview) {
-            console.log('[Extension] Sending saved layout');
+            logger.debug('Sending saved layout');
             sendLayout(this.context, this.webview, this.defaultLayout);
             // Send agent statuses AFTER layoutLoaded so characters exist when messages arrive
             sendCurrentAgentStatuses(this.agents, this.webview);
@@ -873,7 +874,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     let assets = await loadFurnitureAssets(this.assetsRoot);
     const config = readConfig();
     for (const extraDir of config.externalAssetDirectories) {
-      console.log('[Extension] Loading external assets from:', extraDir);
+      logger.debug('Loading external assets from:', extraDir);
       const extra = await loadFurnitureAssets(extraDir);
       if (extra) {
         assets = assets ? mergeLoadedAssets(assets, extra) : extra;
@@ -887,7 +888,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     let chars = await loadCharacterSprites(this.assetsRoot);
     const config = readConfig();
     for (const extraDir of config.externalAssetDirectories) {
-      console.log('[Extension] Loading external character sprites from:', extraDir);
+      logger.debug('Loading external character sprites from:', extraDir);
       const extra = await loadExternalCharacterSprites(extraDir);
       if (extra) {
         chars = chars ? mergeCharacterSprites(chars, extra) : extra;
@@ -904,7 +905,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         sendAssetsToWebview(this.webview, assets);
       }
     } catch (err) {
-      console.error('[Extension] Error reloading furniture assets:', err);
+      logger.error('Error reloading furniture assets:', err);
     }
   }
 
@@ -916,14 +917,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         sendCharacterSpritesToWebview(this.webview, chars);
       }
     } catch (err) {
-      console.error('[Extension] Error reloading character sprites:', err);
+      logger.error('Error reloading character sprites:', err);
     }
   }
 
   private startLayoutWatcher(): void {
     if (this.layoutWatcher) return;
     this.layoutWatcher = watchLayoutFile((layout) => {
-      console.log('[Pixel Agents] External layout change — pushing to webview');
+      logger.debug('External layout change — pushing to webview');
       this.webview?.postMessage({ type: 'layoutLoaded', layout });
     });
   }

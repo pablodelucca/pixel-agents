@@ -10,6 +10,7 @@ import {
   LAYOUT_REVISION_KEY,
   WORKSPACE_KEY_LAYOUT,
 } from './constants.js';
+import { logger } from './logger.js';
 import { parseLayout } from './schemas/index.js';
 
 export interface LayoutWatcher {
@@ -28,12 +29,12 @@ export function readLayoutFromFile(): Record<string, unknown> | null {
     const raw = fs.readFileSync(filePath, 'utf-8');
     const layout = parseLayout(raw);
     if (!layout) {
-      console.warn('[Pixel Agents] Layout file failed schema validation');
+      logger.warn('Layout file failed schema validation');
       return null;
     }
     return layout;
   } catch (err) {
-    console.error('[Pixel Agents] Failed to read layout file:', err);
+    logger.error('Failed to read layout file:', err);
     return null;
   }
 }
@@ -50,7 +51,7 @@ export function writeLayoutToFile(layout: Record<string, unknown>): void {
     fs.writeFileSync(tmpPath, json, 'utf-8');
     fs.renameSync(tmpPath, filePath);
   } catch (err) {
-    console.error('[Pixel Agents] Failed to write layout file:', err);
+    logger.error('Failed to write layout file:', err);
   }
 }
 
@@ -77,20 +78,20 @@ export function migrateAndLoadLayout(
     const fileRevision = (fromFile[LAYOUT_REVISION_KEY] as number) ?? 0;
     const defaultRevision = (defaultLayout?.[LAYOUT_REVISION_KEY] as number) ?? 0;
     if (defaultRevision > fileRevision) {
-      console.log(
-        `[Pixel Agents] Layout revision outdated (${fileRevision} < ${defaultRevision}), resetting to bundled default`,
+      logger.info(
+        `Layout revision outdated (${fileRevision} < ${defaultRevision}), resetting to bundled default`,
       );
       writeLayoutToFile(defaultLayout!);
       return { layout: defaultLayout!, wasReset: true };
     }
-    console.log('[Pixel Agents] Layout loaded from file');
+    logger.debug('Layout loaded from file');
     return { layout: fromFile, wasReset: false };
   }
 
   // 2. Migrate from workspace state
   const fromState = context.workspaceState.get<Record<string, unknown>>(WORKSPACE_KEY_LAYOUT);
   if (fromState) {
-    console.log('[Pixel Agents] Migrating layout from workspace state to file');
+    logger.info('Migrating layout from workspace state to file');
     writeLayoutToFile(fromState);
     context.workspaceState.update(WORKSPACE_KEY_LAYOUT, undefined);
     return { layout: fromState, wasReset: false };
@@ -98,7 +99,7 @@ export function migrateAndLoadLayout(
 
   // 3. Use bundled default
   if (defaultLayout) {
-    console.log('[Pixel Agents] Writing bundled default layout to file');
+    logger.debug('Writing bundled default layout to file');
     writeLayoutToFile(defaultLayout);
     return { layout: defaultLayout, wasReset: false };
   }
@@ -146,13 +147,13 @@ export function watchLayoutFile(
       const raw = fs.readFileSync(filePath, 'utf-8');
       const layout = parseLayout(raw);
       if (!layout) {
-        console.warn('[Pixel Agents] External layout change failed schema validation');
+        logger.warn('External layout change failed schema validation');
         return;
       }
-      console.log('[Pixel Agents] External layout change detected');
+      logger.debug('External layout change detected');
       onExternalChange(layout);
     } catch (err) {
-      console.error('[Pixel Agents] Error checking layout file:', err);
+      logger.error('Error checking layout file:', err);
     }
   }
 
@@ -165,7 +166,7 @@ export function watchLayoutFile(
       });
       fsWatcher.on('error', (err) => {
         // fs.watch can be unreliable on macOS (kqueue) and may hit inotify limits on Linux
-        console.log(`[Pixel Agents] Layout: fs.watch error: ${err.message}`);
+        logger.debug(`Layout: fs.watch error: ${err.message}`);
         fsWatcher?.close();
         fsWatcher = null;
       });
