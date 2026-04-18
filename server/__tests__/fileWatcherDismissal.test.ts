@@ -14,10 +14,10 @@ vi.mock('vscode', () => ({
   },
 }));
 
+import { AgentStateStore } from '../src/agentStateStore.js';
 import { DISMISSED_COOLDOWN_MS, EXTERNAL_ACTIVE_THRESHOLD_MS } from '../src/constants.js';
 import { DismissalTracker } from '../src/dismissalTracker.js';
 import { scanExternalDir, scanForNewJsonlFiles, setDismissalTracker } from '../src/fileWatcher.js';
-import type { AgentState } from '../src/types.js';
 
 /**
  * Tests for the DismissalTracker integration with fileWatcher's scanner functions.
@@ -32,7 +32,7 @@ describe('fileWatcher dismissal state', () => {
   let tracker: DismissalTracker;
   let knownJsonlFiles: Set<string>;
   let nextAgentIdRef: { current: number };
-  let agents: Map<number, AgentState>;
+  let agents: AgentStateStore;
   let fileWatchers: Map<number, fs.FSWatcher>;
   let pollingTimers: Map<number, ReturnType<typeof setInterval>>;
   let waitingTimers: Map<number, ReturnType<typeof setTimeout>>;
@@ -54,7 +54,6 @@ describe('fileWatcher dismissal state', () => {
       pollingTimers,
       waitingTimers,
       permissionTimers,
-      undefined,
       () => {},
     );
   }
@@ -68,7 +67,7 @@ describe('fileWatcher dismissal state', () => {
 
     knownJsonlFiles = new Set();
     nextAgentIdRef = { current: 1 };
-    agents = new Map();
+    agents = new AgentStateStore();
     fileWatchers = new Map();
     pollingTimers = new Map();
     waitingTimers = new Map();
@@ -249,7 +248,6 @@ describe('fileWatcher dismissal state', () => {
         pollingTimers,
         waitingTimers,
         permissionTimers,
-        undefined,
         () => {},
       );
     }

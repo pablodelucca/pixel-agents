@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AgentStateStore } from '../src/agentStateStore.js';
 import { HookEventHandler } from '../src/hookEventHandler.js';
 import { claudeProvider } from '../src/providers/hook/claude/claude.js';
 import { SessionRouter } from '../src/sessionRouter.js';
@@ -45,22 +46,25 @@ function createMockWebview() {
 }
 
 describe('HookEventHandler', () => {
-  let agents: Map<number, AgentState>;
+  let agents: AgentStateStore;
   let waitingTimers: Map<number, ReturnType<typeof setTimeout>>;
   let permissionTimers: Map<number, ReturnType<typeof setTimeout>>;
   let mockWebview: ReturnType<typeof createMockWebview>;
   let handler: HookEventHandler;
 
   beforeEach(() => {
-    agents = new Map();
+    agents = new AgentStateStore();
     waitingTimers = new Map();
     permissionTimers = new Map();
     mockWebview = createMockWebview();
+    // Wire broadcast subscriber so mockWebview captures store broadcasts
+    agents.on('broadcast', (msg) => {
+      mockWebview.postMessage(msg);
+    });
     handler = new HookEventHandler(
       agents,
       waitingTimers,
       permissionTimers,
-      () => mockWebview as unknown as import('vscode').Webview,
       claudeProvider,
       new SessionRouter(),
     );

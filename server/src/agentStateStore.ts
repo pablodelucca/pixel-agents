@@ -8,6 +8,7 @@ export interface StoreEvents {
   agentAdded: (id: number, agent: AgentState) => void;
   agentRemoved: (id: number) => void;
   agentUpdated: (id: number, agent: AgentState, field: string) => void;
+  broadcast: (message: Record<string, unknown>) => void;
 }
 
 /**
@@ -104,10 +105,10 @@ export class AgentStateStore {
     this.agents.clear();
   }
 
-  // ── Escape hatch for Phase 5a (removed in 5c) ──────────────
+  // ── Broadcast (replaces direct webview.postMessage in server/) ─
 
-  toMap(): Map<number, AgentState> {
-    return this.agents;
+  broadcast(message: Record<string, unknown>): void {
+    this.emitter.emit('broadcast', message);
   }
 
   // ── Lifecycle ───────────────────────────────────────────────

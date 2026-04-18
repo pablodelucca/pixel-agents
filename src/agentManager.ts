@@ -35,7 +35,7 @@ export function getProjectDirPath(cwd?: string): string {
 export async function launchNewTerminal(
   nextAgentIdRef: { current: number },
   nextTerminalIndexRef: { current: number },
-  agents: Map<number, AgentState>,
+  agents: AgentStateStore,
   activeAgentIdRef: { current: number | null },
   knownJsonlFiles: Set<string>,
   fileWatchers: Map<number, fs.FSWatcher>,
@@ -44,7 +44,6 @@ export async function launchNewTerminal(
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
   projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
-  webview: vscode.Webview | undefined,
   persistAgents: () => void,
   folderPath?: string,
   bypassPermissions?: boolean,
@@ -116,7 +115,6 @@ export async function launchNewTerminal(
   activeAgentIdRef.current = id;
   persistAgents();
   console.log(`[Pixel Agents] Terminal: Agent ${id} - created for terminal ${terminal.name}`);
-  webview?.postMessage({ type: 'agentCreated', id, folderName });
 
   ensureProjectScan(
     projectDir,
@@ -129,7 +127,6 @@ export async function launchNewTerminal(
     pollingTimers,
     waitingTimers,
     permissionTimers,
-    webview,
     persistAgents,
   );
 
@@ -154,9 +151,8 @@ export async function launchNewTerminal(
           pollingTimers,
           waitingTimers,
           permissionTimers,
-          webview,
         );
-        readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+        readNewLines(id, agents, waitingTimers, permissionTimers);
       } else if (pollCount === 10) {
         // After 10s of polling, warn with path details to help diagnose path encoding mismatches
         const dirExists = fs.existsSync(projectDir);
@@ -207,7 +203,6 @@ export async function launchNewTerminal(
               pollingTimers,
               waitingTimers,
               permissionTimers,
-              webview,
               persistAgents,
             );
           }
@@ -259,7 +254,7 @@ export function removeAgent(
   store.persist();
 }
 
-export function persistAgents(agents: Map<number, AgentState>, adapter: StateAdapter): void {
+export function persistAgents(agents: AgentStateStore, adapter: StateAdapter): void {
   const persisted: PersistedAgent[] = [];
   for (const agent of agents.values()) {
     persisted.push({
@@ -293,7 +288,6 @@ export function restoreAgents(
   jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
   projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
   activeAgentIdRef: { current: number | null },
-  webview: vscode.Webview | undefined,
 ): void {
   const persisted = adapter.loadAgents();
   if (persisted.length === 0) return;
@@ -389,12 +383,11 @@ export function restoreAgents(
         startFileWatching(
           p.id,
           p.jsonlFile,
-          store.toMap(),
+          store,
           fileWatchers,
           pollingTimers,
           waitingTimers,
           permissionTimers,
-          webview,
         );
       } else {
         // Poll for the file to appear
@@ -409,12 +402,11 @@ export function restoreAgents(
               startFileWatching(
                 p.id,
                 agent.jsonlFile,
-                store.toMap(),
+                store,
                 fileWatchers,
                 pollingTimers,
                 waitingTimers,
                 permissionTimers,
-                webview,
               );
             }
           } catch {
@@ -476,19 +468,18 @@ export function restoreAgents(
       projectScanTimerRef,
       activeAgentIdRef,
       nextAgentIdRef,
-      store.toMap(),
+      store,
       fileWatchers,
       pollingTimers,
       waitingTimers,
       permissionTimers,
-      webview,
       () => store.persist(),
     );
   }
 }
 
 export function sendExistingAgents(
-  agents: Map<number, AgentState>,
+  agents: AgentStateStore,
   adapter: StateAdapter,
   webview: vscode.Webview | undefined,
 ): void {
@@ -529,7 +520,7 @@ export function sendExistingAgents(
 }
 
 export function sendCurrentAgentStatuses(
-  agents: Map<number, AgentState>,
+  agents: AgentStateStore,
   webview: vscode.Webview | undefined,
 ): void {
   if (!webview) return;

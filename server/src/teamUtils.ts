@@ -1,3 +1,4 @@
+import type { AgentStateStore } from './agentStateStore.js';
 import type { AgentState } from './types.js';
 
 /**
@@ -22,7 +23,7 @@ export function isInlineTeammateOf(agent: AgentState, leadId: number): boolean {
 /** All inline teammates of a lead. Returns [id, agent] pairs for convenience. */
 export function getInlineTeammates(
   leadId: number,
-  agents: Map<number, AgentState>,
+  agents: AgentStateStore,
 ): Array<[number, AgentState]> {
   const out: Array<[number, AgentState]> = [];
   for (const [id, a] of agents) {
@@ -32,7 +33,7 @@ export function getInlineTeammates(
 }
 
 /** Does this lead have any active inline teammates? */
-export function hasInlineTeammates(leadId: number, agents: Map<number, AgentState>): boolean {
+export function hasInlineTeammates(leadId: number, agents: AgentStateStore): boolean {
   for (const a of agents.values()) {
     if (isInlineTeammateOf(a, leadId)) return true;
   }

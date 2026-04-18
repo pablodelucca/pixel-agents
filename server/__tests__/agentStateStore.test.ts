@@ -138,26 +138,6 @@ describe('AgentStateStore', () => {
     });
   });
 
-  describe('toMap', () => {
-    it('returns the inner Map reference', () => {
-      const map = store.toMap();
-      expect(map).toBeInstanceOf(Map);
-
-      // Mutations through Map reflect in store
-      map.set(1, createTestAgent({ id: 1 }));
-      expect(store.has(1)).toBe(true);
-      expect(store.size).toBe(1);
-
-      // Mutations through store reflect in Map
-      store.set(2, createTestAgent({ id: 2 }));
-      expect(map.has(2)).toBe(true);
-    });
-
-    it('returns same reference on repeated calls', () => {
-      expect(store.toMap()).toBe(store.toMap());
-    });
-  });
-
   describe('persistence', () => {
     it('persist calls adapter.saveAgents with correct shape', () => {
       const adapter = createMockAdapter();
@@ -302,18 +282,6 @@ describe('AgentStateStore', () => {
       store.set(1, createTestAgent({ id: 1 }));
       expect(cb1).toHaveBeenCalledOnce();
       expect(cb2).toHaveBeenCalledOnce();
-    });
-
-    it('toMap() mutations do NOT fire events', () => {
-      const addCb = vi.fn();
-      const removeCb = vi.fn();
-      store.on('agentAdded', addCb);
-      store.on('agentRemoved', removeCb);
-      const map = store.toMap();
-      map.set(1, createTestAgent({ id: 1 }));
-      map.delete(1);
-      expect(addCb).not.toHaveBeenCalled();
-      expect(removeCb).not.toHaveBeenCalled();
     });
   });
 });
