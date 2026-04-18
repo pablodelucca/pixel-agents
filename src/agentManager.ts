@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import type { StateAdapter } from '../core/src/adapter.js';
+import { AgentStateStore } from '../server/src/agentStateStore.js';
 import { JSONL_POLL_INTERVAL_MS } from '../server/src/constants.js';
 import {
   ensureProjectScan,
@@ -223,15 +224,14 @@ export async function launchNewTerminal(
 
 export function removeAgent(
   agentId: number,
-  agents: Map<number, AgentState>,
+  store: AgentStateStore,
   fileWatchers: Map<number, fs.FSWatcher>,
   pollingTimers: Map<number, ReturnType<typeof setInterval>>,
   waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
   jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
-  persistAgents: () => void,
 ): void {
-  const agent = agents.get(agentId);
+  const agent = store.get(agentId);
   if (!agent) return;
 
   // Stop JSONL poll timer
@@ -254,9 +254,9 @@ export function removeAgent(
   cancelWaitingTimer(agentId, waitingTimers);
   cancelPermissionTimer(agentId, permissionTimers);
 
-  // Remove from maps
-  agents.delete(agentId);
-  persistAgents();
+  // Remove from store (fires agentRemoved event) and persist
+  store.delete(agentId);
+  store.persist();
 }
 
 export function persistAgents(agents: Map<number, AgentState>, adapter: StateAdapter): void {
@@ -284,7 +284,7 @@ export function restoreAgents(
   adapter: StateAdapter,
   nextAgentIdRef: { current: number },
   nextTerminalIndexRef: { current: number },
-  agents: Map<number, AgentState>,
+  store: AgentStateStore,
   knownJsonlFiles: Set<string>,
   fileWatchers: Map<number, fs.FSWatcher>,
   pollingTimers: Map<number, ReturnType<typeof setInterval>>,
@@ -294,7 +294,6 @@ export function restoreAgents(
   projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
   activeAgentIdRef: { current: number | null },
   webview: vscode.Webview | undefined,
-  doPersist: () => void,
 ): void {
   const persisted = adapter.loadAgents();
   if (persisted.length === 0) return;
@@ -307,7 +306,7 @@ export function restoreAgents(
   for (const p of persisted) {
     // Skip agents already in the map — prevents duplicate file watchers on re-entry
     // (webviewReady fires on every panel focus, re-calling restoreAgents each time)
-    if (agents.has(p.id)) {
+    if (store.has(p.id)) {
       knownJsonlFiles.add(p.jsonlFile);
       continue;
     }
@@ -360,7 +359,7 @@ export function restoreAgents(
       teamUsesTmux: p.teamUsesTmux,
     };
 
-    agents.set(p.id, agent);
+    store.set(p.id, agent);
     knownJsonlFiles.add(p.jsonlFile);
     if (isExternal) {
       console.log(
@@ -390,7 +389,7 @@ export function restoreAgents(
         startFileWatching(
           p.id,
           p.jsonlFile,
-          agents,
+          store.toMap(),
           fileWatchers,
           pollingTimers,
           waitingTimers,
@@ -410,7 +409,7 @@ export function restoreAgents(
               startFileWatching(
                 p.id,
                 agent.jsonlFile,
-                agents,
+                store.toMap(),
                 fileWatchers,
                 pollingTimers,
                 waitingTimers,
@@ -432,13 +431,13 @@ export function restoreAgents(
   // After a short delay, remove restored terminal agents that never received data.
   // These are dead terminals restored by VS Code (e.g., after /clear or restart)
   // where Claude is no longer running.
-  const restoredTerminalIds = [...agents.entries()]
+  const restoredTerminalIds = [...store.entries()]
     .filter(([, a]) => !a.isExternal && a.terminalRef)
     .map(([id]) => id);
   if (restoredTerminalIds.length > 0) {
     setTimeout(() => {
       for (const id of restoredTerminalIds) {
-        const agent = agents.get(id);
+        const agent = store.get(id);
         if (agent && !agent.isExternal && agent.linesProcessed === 0) {
           console.log(
             `[Pixel Agents] Terminal: Agent ${id} - removing restored agent, no data received`,
@@ -446,15 +445,13 @@ export function restoreAgents(
           agent.terminalRef?.dispose();
           removeAgent(
             id,
-            agents,
+            store,
             fileWatchers,
             pollingTimers,
             waitingTimers,
             permissionTimers,
             jsonlPollTimers,
-            doPersist,
           );
-          webview?.postMessage({ type: 'agentClosed', id });
         }
       }
     }, 10_000); // 10 seconds grace period
@@ -469,7 +466,7 @@ export function restoreAgents(
   }
 
   // Re-persist cleaned-up list (removes entries whose terminals are gone)
-  doPersist();
+  store.persist();
 
   // Start project scan for /clear detection
   if (restoredProjectDir) {
@@ -479,13 +476,13 @@ export function restoreAgents(
       projectScanTimerRef,
       activeAgentIdRef,
       nextAgentIdRef,
-      agents,
+      store.toMap(),
       fileWatchers,
       pollingTimers,
       waitingTimers,
       permissionTimers,
       webview,
-      doPersist,
+      () => store.persist(),
     );
   }
 }

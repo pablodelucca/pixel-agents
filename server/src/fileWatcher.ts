@@ -66,19 +66,9 @@ export function setTerminalAdapter(adapter: ITerminalAdapter): void {
 }
 
 /** Agent removal callback. Injected by PixelAgentsViewProvider to avoid a
- *  server/src/ → src/ back-import on agentManager.ts. */
-let agentRemovalCallback:
-  | ((
-      id: number,
-      agents: Map<number, AgentState>,
-      fileWatchers: Map<number, fs.FSWatcher>,
-      pollingTimers: Map<number, ReturnType<typeof setInterval>>,
-      waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
-      permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-      jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
-      persistAgents: () => void,
-    ) => void)
-  | null = null;
+ *  server/src/ → src/ back-import on agentManager.ts. The ViewProvider closure
+ *  captures the store and timer Maps, so only the agent ID is needed. */
+let agentRemovalCallback: ((id: number) => void) | null = null;
 
 /** Register the agent removal callback. Called by PixelAgentsViewProvider. */
 export function setAgentRemovalCallback(cb: typeof agentRemovalCallback): void {
@@ -478,19 +468,7 @@ export function scanForNewJsonlFiles(
     if (agent.isExternal) continue;
     if (agent.terminalRef && agent.terminalRef.exitStatus !== undefined) {
       console.log(`[Pixel Agents] Watcher: Agent ${id} - terminal closed, cleaning up orphan`);
-      // Stop file watching
-      fileWatchers.get(id)?.close();
-      fileWatchers.delete(id);
-      const pt = pollingTimers.get(id);
-      if (pt) {
-        clearInterval(pt);
-      }
-      pollingTimers.delete(id);
-      cancelWaitingTimer(id, waitingTimers);
-      cancelPermissionTimer(id, permissionTimers);
-      agents.delete(id);
-      persistAgents();
-      webview?.postMessage({ type: 'agentClosed', id });
+      agentRemovalCallback?.(id);
     }
   }
 }
@@ -1292,13 +1270,6 @@ function scanGlobalProjectDirs(
 export function startStaleExternalAgentCheck(
   agents: Map<number, AgentState>,
   knownJsonlFiles: Set<string>,
-  fileWatchers: Map<number, fs.FSWatcher>,
-  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
-  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
-  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-  jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
-  webview: vscode.Webview | undefined,
-  persistAgents: () => void,
   hooksEnabledRef?: { current: boolean },
 ): ReturnType<typeof setInterval> {
   return setInterval(() => {
@@ -1328,17 +1299,7 @@ export function startStaleExternalAgentCheck(
         knownJsonlFiles.delete(agent.jsonlFile);
       }
       console.log(`[Pixel Agents] Watcher: Agent ${id} - removing stale external agent`);
-      agentRemovalCallback?.(
-        id,
-        agents,
-        fileWatchers,
-        pollingTimers,
-        waitingTimers,
-        permissionTimers,
-        jsonlPollTimers,
-        persistAgents,
-      );
-      webview?.postMessage({ type: 'agentClosed', id });
+      agentRemovalCallback?.(id);
     }
   }, EXTERNAL_STALE_CHECK_INTERVAL_MS);
 }
