@@ -13,7 +13,7 @@ import {
 } from '../office/toolUtils.js';
 import type { OfficeLayout, ToolActivity } from '../office/types.js';
 import { setWallSprites } from '../office/wallTiles.js';
-import { vscode } from '../vscodeApi.js';
+import { transport } from '../transport/index.js';
 
 export interface SubagentCharacter {
   id: number;
@@ -78,7 +78,7 @@ function saveAgentSeats(os: OfficeState): void {
     if (ch.isSubagent) continue;
     seats[ch.id] = { palette: ch.palette, hueShift: ch.hueShift, seatId: ch.seatId };
   }
-  vscode.postMessage({ type: 'saveAgentSeats', seats });
+  transport.send({ type: 'saveAgentSeats', seats });
 }
 
 export function useExtensionMessages(
@@ -121,8 +121,8 @@ export function useExtensionMessages(
       folderName?: string;
     }> = [];
 
-    const handler = (e: MessageEvent) => {
-      const msg = e.data;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = (msg: any) => {
       const os = getOfficeState();
 
       if (msg.type === 'providerCapabilities') {
@@ -512,9 +512,9 @@ export function useExtensionMessages(
         os.setAgentTokens(id, msg.inputTokens as number, msg.outputTokens as number);
       }
     };
-    window.addEventListener('message', handler);
-    vscode.postMessage({ type: 'webviewReady' });
-    return () => window.removeEventListener('message', handler);
+    const unsubscribe = transport.onMessage(handler);
+    transport.send({ type: 'webviewReady' });
+    return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getOfficeState]);
 

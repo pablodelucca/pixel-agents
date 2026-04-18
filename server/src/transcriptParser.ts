@@ -1,9 +1,8 @@
-import type * as vscode from 'vscode';
-
 const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
-import type { HookProvider } from '../core/src/provider.js';
-import { TEXT_IDLE_DELAY_MS, TOOL_DONE_DELAY_MS } from '../server/src/constants.js';
+import type { HookProvider } from '../../core/src/provider.js';
+import type { AgentStateStore } from './agentStateStore.js';
+import { TEXT_IDLE_DELAY_MS, TOOL_DONE_DELAY_MS } from './constants.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,
@@ -45,10 +44,9 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
 export function processTranscriptLine(
   agentId: number,
   line: string,
-  agents: Map<number, AgentState>,
+  agents: AgentStateStore,
   waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-  webview: vscode.Webview | undefined,
 ): void {
   const agent = agents.get(agentId);
   if (!agent) return;
@@ -74,7 +72,7 @@ export function processTranscriptLine(
       // Link teammates to leads within the same team
       linkTeammates(agentId, agent, agents);
 
-      webview?.postMessage({
+      agents.broadcast({
         type: 'agentTeamInfo',
         id: agentId,
         teamName: agent.teamName,
@@ -95,7 +93,7 @@ export function processTranscriptLine(
       if (typeof usage.output_tokens === 'number') {
         agent.outputTokens += usage.output_tokens;
       }
-      webview?.postMessage({
+      agents.broadcast({
         type: 'agentTokenUsage',
         id: agentId,
         inputTokens: agent.inputTokens,
@@ -120,7 +118,7 @@ export function processTranscriptLine(
         cancelWaitingTimer(agentId, waitingTimers);
         agent.isWaiting = false;
         agent.hadToolsInTurn = true;
-        webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+        agents.broadcast({ type: 'agentStatus', id: agentId, status: 'active' });
         let hasNonExemptTool = false;
         for (const block of blocks) {
           if (block.type === 'tool_use' && block.id) {
@@ -142,7 +140,7 @@ export function processTranscriptLine(
               !agent.teamUsesTmux
             ) {
               agent.teamUsesTmux = true;
-              webview?.postMessage({
+              agents.broadcast({
                 type: 'agentTeamInfo',
                 id: agentId,
                 teamName: agent.teamName,
@@ -159,7 +157,7 @@ export function processTranscriptLine(
             const isSubagentSpawn = isSubagentTool(toolName);
             if (!agent.hookDelivered || isSubagentSpawn) {
               const runInBackground = isSubagentSpawn && block.input?.run_in_background === true;
-              webview?.postMessage({
+              agents.broadcast({
                 type: 'agentToolStart',
                 id: agentId,
                 toolId: block.id,
@@ -176,7 +174,7 @@ export function processTranscriptLine(
         // produces false positives. Permission on teammates comes from the lead's
         // routed Notification(permission_prompt) hook — slower but accurate.
         if (hasNonExemptTool && !agent.hookDelivered && !agent.leadAgentId) {
-          startPermissionTimer(agentId, agents, permissionTimers, exemptTools(), webview);
+          startPermissionTimer(agentId, agents, permissionTimers, exemptTools());
         }
       } else if (blocks.some((b) => b.type === 'text') && !agent.hadToolsInTurn) {
         // Text-only response in a turn that hasn't used any tools.
@@ -185,13 +183,13 @@ export function processTranscriptLine(
         // if no new JSONL data arrives within TEXT_IDLE_DELAY_MS, mark as waiting.
         // Skip when hooks are active — Stop hook handles this exactly.
         if (!agent.hookDelivered) {
-          startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
+          startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers);
         }
       }
     } else if (record.type === 'assistant' && typeof assistantContent === 'string') {
       // Text-only assistant response (content is a string, not an array)
       if (!agent.hadToolsInTurn && !agent.hookDelivered) {
-        startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers, webview);
+        startWaitingTimer(agentId, TEXT_IDLE_DELAY_MS, agents, waitingTimers);
       }
     } else if (record.type === 'assistant' && assistantContent === undefined) {
       // Assistant record with no recognizable content structure
@@ -199,7 +197,7 @@ export function processTranscriptLine(
         `[Pixel Agents] Agent ${agentId}: assistant record has no content. Keys: ${Object.keys(record).join(', ')}`,
       );
     } else if (record.type === 'progress') {
-      processProgressRecord(agentId, record, agents, waitingTimers, permissionTimers, webview);
+      processProgressRecord(agentId, record, agents, waitingTimers, permissionTimers);
     } else if (record.type === 'user') {
       const content = record.message?.content ?? record.content;
       if (Array.isArray(content)) {
@@ -227,7 +225,7 @@ export function processTranscriptLine(
               if (isSubagentTool(completedToolName)) {
                 agent.activeSubagentToolIds.delete(completedToolId);
                 agent.activeSubagentToolNames.delete(completedToolId);
-                webview?.postMessage({
+                agents.broadcast({
                   type: 'subagentClear',
                   id: agentId,
                   parentToolId: completedToolId,
@@ -243,7 +241,7 @@ export function processTranscriptLine(
               if (!agent.hookDelivered || isCompletedAgentTool) {
                 const toolId = completedToolId;
                 setTimeout(() => {
-                  webview?.postMessage({
+                  agents.broadcast({
                     type: 'agentToolDone',
                     id: agentId,
                     toolId,
@@ -260,13 +258,13 @@ export function processTranscriptLine(
         } else {
           // New user text prompt — new turn starting
           cancelWaitingTimer(agentId, waitingTimers);
-          clearAgentActivity(agent, agentId, permissionTimers, webview);
+          clearAgentActivity(agent, agentId, agents, permissionTimers);
           agent.hadToolsInTurn = false;
         }
       } else if (typeof content === 'string' && content.trim()) {
         // New user text prompt — new turn starting
         cancelWaitingTimer(agentId, waitingTimers);
-        clearAgentActivity(agent, agentId, permissionTimers, webview);
+        clearAgentActivity(agent, agentId, agents, permissionTimers);
         agent.hadToolsInTurn = false;
       }
     } else if (record.type === 'queue-operation' && record.operation === 'enqueue') {
@@ -283,7 +281,7 @@ export function processTranscriptLine(
             agent.backgroundAgentToolIds.delete(completedToolId);
             agent.activeSubagentToolIds.delete(completedToolId);
             agent.activeSubagentToolNames.delete(completedToolId);
-            webview?.postMessage({
+            agents.broadcast({
               type: 'subagentClear',
               id: agentId,
               parentToolId: completedToolId,
@@ -294,7 +292,7 @@ export function processTranscriptLine(
             if (!agent.hookDelivered) {
               const toolId = completedToolId;
               setTimeout(() => {
-                webview?.postMessage({
+                agents.broadcast({
                   type: 'agentToolDone',
                   id: agentId,
                   toolId,
@@ -326,13 +324,13 @@ export function processTranscriptLine(
           }
         }
         if (!agent.hookDelivered) {
-          webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+          agents.broadcast({ type: 'agentToolsClear', id: agentId });
         }
         // Re-send background agent tools so webview keeps their sub-agents alive
         for (const toolId of agent.backgroundAgentToolIds) {
           const status = agent.activeToolStatuses.get(toolId);
           if (status) {
-            webview?.postMessage({
+            agents.broadcast({
               type: 'agentToolStart',
               id: agentId,
               toolId,
@@ -347,7 +345,7 @@ export function processTranscriptLine(
         agent.activeSubagentToolIds.clear();
         agent.activeSubagentToolNames.clear();
         if (!agent.hookDelivered) {
-          webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+          agents.broadcast({ type: 'agentToolsClear', id: agentId });
         }
       }
 
@@ -356,7 +354,7 @@ export function processTranscriptLine(
       agent.hadToolsInTurn = false;
       // Skip status post when hooks already handled it
       if (!agent.hookDelivered) {
-        webview?.postMessage({
+        agents.broadcast({
           type: 'agentStatus',
           id: agentId,
           status: 'waiting',
@@ -385,10 +383,9 @@ export function processTranscriptLine(
 function processProgressRecord(
   agentId: number,
   record: Record<string, unknown>,
-  agents: Map<number, AgentState>,
+  agents: AgentStateStore,
   _waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-  webview: vscode.Webview | undefined,
 ): void {
   const agent = agents.get(agentId);
   if (!agent) return;
@@ -405,7 +402,7 @@ function processProgressRecord(
   const dataType = data.type as string | undefined;
   if (dataType === 'bash_progress' || dataType === 'mcp_progress') {
     if (agent.activeToolIds.has(parentToolId) && !agent.hookDelivered && !agent.leadAgentId) {
-      startPermissionTimer(agentId, agents, permissionTimers, exemptTools(), webview);
+      startPermissionTimer(agentId, agents, permissionTimers, exemptTools());
     }
     return;
   }
@@ -452,7 +449,7 @@ function processProgressRecord(
           hasNonExemptSubTool = true;
         }
 
-        webview?.postMessage({
+        agents.broadcast({
           type: 'subagentToolStart',
           id: agentId,
           parentToolId,
@@ -462,7 +459,7 @@ function processProgressRecord(
       }
     }
     if (hasNonExemptSubTool && !agent.hookDelivered) {
-      startPermissionTimer(agentId, agents, permissionTimers, exemptTools(), webview);
+      startPermissionTimer(agentId, agents, permissionTimers, exemptTools());
     }
   } else if (msgType === 'user') {
     for (const block of content) {
@@ -483,7 +480,7 @@ function processProgressRecord(
 
         const toolId = block.tool_use_id;
         setTimeout(() => {
-          webview?.postMessage({
+          agents.broadcast({
             type: 'subagentToolDone',
             id: agentId,
             parentToolId,
@@ -505,7 +502,7 @@ function processProgressRecord(
       if (stillHasNonExempt) break;
     }
     if (stillHasNonExempt && !agent.hookDelivered) {
-      startPermissionTimer(agentId, agents, permissionTimers, exemptTools(), webview);
+      startPermissionTimer(agentId, agents, permissionTimers, exemptTools());
     }
   }
 }
@@ -515,7 +512,7 @@ function processProgressRecord(
  * The lead is the agent with no agentName (or the first one detected in the team).
  * Teammates get leadAgentId pointing to the lead.
  */
-function linkTeammates(_agentId: number, agent: AgentState, agents: Map<number, AgentState>): void {
+function linkTeammates(_agentId: number, agent: AgentState, agents: AgentStateStore): void {
   const teamName = agent.teamName;
   if (!teamName) return;
 

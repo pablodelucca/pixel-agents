@@ -13,6 +13,7 @@ import {
   uninstallHooks as installerUninstallHooks,
 } from './claudeHookInstaller.js';
 import { claudeTeamProvider } from './claudeTeamProvider.js';
+import { CLAUDE_TERMINAL_NAME_PREFIX } from './constants.js';
 
 // ── formatToolStatus: moved from src/transcriptParser.ts ──
 
@@ -268,6 +269,7 @@ export const claudeProvider: HookProvider = {
   permissionExemptTools: new Set(['Task', 'Agent', 'AskUserQuestion']),
   subagentToolNames: new Set(['Task', 'Agent']),
   readingTools: new Set(['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch']),
+  terminalNamePrefix: CLAUDE_TERMINAL_NAME_PREFIX,
 
   getSessionDirs,
   getAllSessionRoots,
