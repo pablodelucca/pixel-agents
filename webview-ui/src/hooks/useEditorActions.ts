@@ -30,7 +30,7 @@ import type {
 } from '../office/types.js';
 import { EditTool } from '../office/types.js';
 import { TileType } from '../office/types.js';
-import { vscode } from '../vscodeApi.js';
+import { transport } from '../transport/index.js';
 
 interface EditorActions {
   isEditMode: boolean;
@@ -84,7 +84,7 @@ export function useEditorActions(
   const saveLayout = useCallback((layout: OfficeLayout) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      vscode.postMessage({ type: 'saveLayout', layout });
+      transport.send({ type: 'saveLayout', layout: layout as unknown as Record<string, unknown> });
     }, LAYOUT_SAVE_DEBOUNCE_MS);
   }, []);
 
@@ -104,7 +104,7 @@ export function useEditorActions(
   );
 
   const handleOpenClaude = useCallback(() => {
-    vscode.postMessage({ type: 'openClaude' });
+    transport.send({ type: 'launchAgent' });
   }, []);
 
   const handleToggleEditMode = useCallback(() => {
@@ -354,7 +354,7 @@ export function useEditorActions(
     const os = getOfficeState();
     const layout = os.getLayout();
     lastSavedLayoutRef.current = structuredClone(layout);
-    vscode.postMessage({ type: 'saveLayout', layout });
+    transport.send({ type: 'saveLayout', layout: layout as unknown as Record<string, unknown> });
     editorState.isDirty = false;
     setIsDirty(false);
   }, [getOfficeState, editorState]);

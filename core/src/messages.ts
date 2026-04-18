@@ -114,7 +114,7 @@ export type ServerMessage =
 export type ClientMessage =
   // Agent actions
   | { type: 'webviewReady' }
-  | { type: 'openClaude'; folderPath?: string; bypassPermissions?: boolean }
+  | { type: 'launchAgent'; folderPath?: string; bypassPermissions?: boolean }
   | { type: 'focusAgent'; id: number }
   | { type: 'closeAgent'; id: number }
 

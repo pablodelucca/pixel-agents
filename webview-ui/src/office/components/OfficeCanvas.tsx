@@ -9,7 +9,7 @@ import {
   ZOOM_SCROLL_THRESHOLD,
 } from '../../constants.js';
 import { unlockAudio } from '../../notificationSound.js';
-import { vscode } from '../../vscodeApi.js';
+import { transport } from '../../transport/index.js';
 import { canPlaceFurniture, getWallPlacementRow } from '../editor/editorActions.js';
 import type { EditorState } from '../editor/editorState.js';
 import { startGameLoop } from '../engine/gameLoop.js';
@@ -711,12 +711,19 @@ export function OfficeCanvas({
                   officeState.selectedAgentId = null;
                   officeState.cameraFollowId = null;
                   // Persist seat assignments (exclude sub-agents)
-                  const seats: Record<number, { palette: number; seatId: string | null }> = {};
+                  const seats: Record<
+                    number,
+                    { palette: number; hueShift: number; seatId: string | null }
+                  > = {};
                   for (const ch of officeState.characters.values()) {
                     if (ch.isSubagent) continue;
-                    seats[ch.id] = { palette: ch.palette, seatId: ch.seatId };
+                    seats[ch.id] = {
+                      palette: ch.palette,
+                      hueShift: ch.hueShift,
+                      seatId: ch.seatId,
+                    };
                   }
-                  vscode.postMessage({ type: 'saveAgentSeats', seats });
+                  transport.send({ type: 'saveAgentSeats', seats });
                   return;
                 }
               }
