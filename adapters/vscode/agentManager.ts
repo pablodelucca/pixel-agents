@@ -3,20 +3,20 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import type { StateAdapter } from '../core/src/adapter.js';
-import { AgentStateStore } from '../server/src/agentStateStore.js';
-import { JSONL_POLL_INTERVAL_MS } from '../server/src/constants.js';
+import type { StateAdapter } from '../../core/src/adapter.js';
+import { AgentStateStore } from '../../server/src/agentStateStore.js';
+import { JSONL_POLL_INTERVAL_MS } from '../../server/src/constants.js';
 import {
   ensureProjectScan,
   readNewLines,
   reassignAgentToFile,
   startFileWatching,
-} from '../server/src/fileWatcher.js';
-import { migrateAndLoadLayout } from '../server/src/layoutPersistence.js';
-import { CLAUDE_TERMINAL_NAME_PREFIX } from '../server/src/providers/hook/claude/constants.js';
-import { claudeProvider } from '../server/src/providers/index.js';
-import { cancelPermissionTimer, cancelWaitingTimer } from '../server/src/timerManager.js';
-import type { AgentState, PersistedAgent } from '../server/src/types.js';
+} from '../../server/src/fileWatcher.js';
+import { migrateAndLoadLayout } from '../../server/src/layoutPersistence.js';
+import { CLAUDE_TERMINAL_NAME_PREFIX } from '../../server/src/providers/hook/claude/constants.js';
+import { claudeProvider } from '../../server/src/providers/index.js';
+import { cancelPermissionTimer, cancelWaitingTimer } from '../../server/src/timerManager.js';
+import type { AgentState, PersistedAgent } from '../../server/src/types.js';
 
 export function getProjectDirPath(cwd?: string): string {
   // Fall back to home directory when no workspace folder is open (common on Linux/macOS

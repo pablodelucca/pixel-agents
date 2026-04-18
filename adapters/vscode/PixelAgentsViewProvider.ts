@@ -3,9 +3,9 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import type { StateAdapter } from '../core/src/adapter.js';
-import { AgentStateStore } from '../server/src/agentStateStore.js';
-import type { LoadedAssets, LoadedCharacterSprites } from '../server/src/assetLoader.js';
+import type { StateAdapter } from '../../core/src/adapter.js';
+import { AgentStateStore } from '../../server/src/agentStateStore.js';
+import type { LoadedAssets, LoadedCharacterSprites } from '../../server/src/assetLoader.js';
 import {
   loadCharacterSprites,
   loadDefaultLayout,
@@ -19,8 +19,8 @@ import {
   sendCharacterSpritesToWebview,
   sendFloorTilesToWebview,
   sendWallTilesToWebview,
-} from '../server/src/assetLoader.js';
-import { DismissalTracker } from '../server/src/dismissalTracker.js';
+} from '../../server/src/assetLoader.js';
+import { DismissalTracker } from '../../server/src/dismissalTracker.js';
 import {
   adoptExternalSessionFromHook,
   ensureProjectScan,
@@ -35,20 +35,20 @@ import {
   setTerminalAdapter,
   startExternalSessionScanning,
   startStaleExternalAgentCheck,
-} from '../server/src/fileWatcher.js';
-import type { HookEvent } from '../server/src/hookEventHandler.js';
-import { HookEventHandler } from '../server/src/hookEventHandler.js';
-import type { LayoutWatcher } from '../server/src/layoutPersistence.js';
+} from '../../server/src/fileWatcher.js';
+import type { HookEvent } from '../../server/src/hookEventHandler.js';
+import { HookEventHandler } from '../../server/src/hookEventHandler.js';
+import type { LayoutWatcher } from '../../server/src/layoutPersistence.js';
 import {
   readLayoutFromFile,
   watchLayoutFile,
   writeLayoutToFile,
-} from '../server/src/layoutPersistence.js';
-import { claudeProvider, copyHookScript } from '../server/src/providers/index.js';
-import { PixelAgentsServer } from '../server/src/server.js';
-import { SessionRouter } from '../server/src/sessionRouter.js';
-import { setHookProvider } from '../server/src/transcriptParser.js';
-import type { AgentState } from '../server/src/types.js';
+} from '../../server/src/layoutPersistence.js';
+import { claudeProvider, copyHookScript } from '../../server/src/providers/index.js';
+import { PixelAgentsServer } from '../../server/src/server.js';
+import { SessionRouter } from '../../server/src/sessionRouter.js';
+import { setHookProvider } from '../../server/src/transcriptParser.js';
+import type { AgentState } from '../../server/src/types.js';
 import {
   getProjectDirPath,
   launchNewTerminal,

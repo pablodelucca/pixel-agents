@@ -1,7 +1,7 @@
 import type * as vscode from 'vscode';
 
-import type { StateAdapter } from '../core/src/adapter.js';
-import type { PersistedAgent } from '../core/src/schemas.js';
+import type { StateAdapter } from '../../core/src/adapter.js';
+import type { PersistedAgent } from '../../core/src/schemas.js';
 import {
   WORKSPACE_KEY_AGENT_SEATS,
   WORKSPACE_KEY_AGENTS,

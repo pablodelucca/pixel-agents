@@ -4,7 +4,7 @@ export {
   LAYOUT_FILE_NAME,
   LAYOUT_FILE_POLL_INTERVAL_MS,
   LAYOUT_REVISION_KEY,
-} from '../server/src/constants.js';
+} from '../../server/src/constants.js';
 export const CONFIG_FILE_NAME = 'config.json';
 
 // ── Settings Persistence (VS Code globalState keys) ─────────
