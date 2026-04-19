@@ -207,6 +207,8 @@ export interface Character {
   isWaitingForRadar?: boolean;
   /** Active verdict overlay type */
   radarVerdict?: 'PROCEED' | 'HOLD' | 'DENY';
+  /** Assessment tier: 1 = rules engine, 2 = LLM (affects stamp visual) */
+  radarTier?: number;
   /** Countdown timer for verdict overlay display (seconds, counts down to 0) */
   radarVerdictTimer?: number;
   /** Vela stamp animation phase */
