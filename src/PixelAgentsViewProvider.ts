@@ -28,6 +28,7 @@ import {
   loadExternalCharacterSprites,
   loadFloorTiles,
   loadFurnitureAssets,
+  loadVelaSprite,
   loadWallTiles,
   mergeCharacterSprites,
   mergeLoadedAssets,
@@ -657,6 +658,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
                 `[Extension] ${charSprites.characters.length} character sprites loaded, sending to webview`,
               );
               sendCharacterSpritesToWebview(this.webview, charSprites);
+            }
+
+            // Load Vela NPC sprite
+            const velaSprite = await loadVelaSprite(assetsRoot);
+            if (velaSprite && this.webview) {
+              this.webview.postMessage({ type: 'npcSpritesLoaded', vela: velaSprite });
+              console.log('[Extension] Vela NPC sprite loaded, sending to webview');
             }
 
             // Load floor tiles

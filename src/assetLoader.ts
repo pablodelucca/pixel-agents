@@ -490,6 +490,31 @@ export async function loadExternalCharacterSprites(
 }
 
 /**
+ * Load Vela NPC sprite from vela.png (same format as char_N.png).
+ * Returns null if file not found — caller should use fallback.
+ */
+export async function loadVelaSprite(
+  assetsRoot: string,
+): Promise<CharacterDirectionSprites | null> {
+  try {
+    const filePath = path.join(assetsRoot, 'assets', 'characters', 'vela.png');
+    if (!fs.existsSync(filePath)) {
+      console.log('[AssetLoader] No Vela sprite found — using fallback');
+      return null;
+    }
+    const pngBuffer = fs.readFileSync(filePath);
+    const sprites = decodeCharacterPng(pngBuffer);
+    console.log('[AssetLoader] ✅ Loaded Vela NPC sprite');
+    return sprites;
+  } catch (err) {
+    console.warn(
+      `[AssetLoader] ⚠️  Error loading Vela sprite: ${err instanceof Error ? err.message : err}`,
+    );
+    return null;
+  }
+}
+
+/**
  * Send character sprites to webview
  */
 export function sendCharacterSpritesToWebview(

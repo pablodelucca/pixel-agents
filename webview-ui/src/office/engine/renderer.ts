@@ -51,6 +51,7 @@ import { CharacterState, TILE_SIZE, TileType } from '../types.js';
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles.js';
 import { getCharacterSprite } from './characters.js';
 import { renderMatrixEffect } from './matrixEffect.js';
+import { drawVerdictBadge } from './radarOverlays.js';
 
 // ── Render functions ────────────────────────────────────────────
 
@@ -151,7 +152,8 @@ export function renderScene(
     const spriteData = getCharacterSprite(ch, sprites);
     const cached = getCachedSprite(spriteData, zoom);
     // Sitting offset: shift character down when seated so they visually sit in the chair
-    const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+    const isSitting = ch.state === CharacterState.TYPE || ch.state === CharacterState.CONSULT;
+    const sittingOffset = isSitting ? CHARACTER_SITTING_OFFSET_PX : 0;
     // Anchor at bottom-center of character — round to integer device pixels
     const drawX = Math.round(offsetX + ch.x * zoom - cached.width / 2);
     const drawY = Math.round(offsetY + (ch.y + sittingOffset) * zoom - cached.height);
@@ -202,6 +204,21 @@ export function renderScene(
         c.drawImage(cached, drawX, drawY);
       },
     });
+
+    // RADAR verdict badge above character
+    if (ch.radarVerdict && ch.radarVerdictTimer !== undefined && ch.radarVerdictTimer > 0) {
+      const vCenterX = drawX + cached.width / 2;
+      const vTopY = drawY;
+      const vVerdict = ch.radarVerdict;
+      const vTimer = ch.radarVerdictTimer;
+      const vIsT2 = ch.radarTier === 2;
+      drawables.push({
+        zY: charZY + 11,
+        draw: (c) => {
+          drawVerdictBadge(c, vVerdict, vTimer, vCenterX, vTopY, zoom, vIsT2);
+        },
+      });
+    }
   }
 
   // Sort by Y (lower = in front = drawn later)
