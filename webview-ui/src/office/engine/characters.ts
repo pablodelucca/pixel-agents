@@ -223,6 +223,14 @@ export function updateCharacter(
         ch.x = center.x;
         ch.y = center.y;
 
+        // RADAR consultation: if walking to visitor seat, transition to CONSULT
+        if (ch.isConsultingRadar && !ch.isWaitingForRadar) {
+          ch.state = CharacterState.CONSULT;
+          ch.frame = 0;
+          ch.frameTimer = 0;
+          break;
+        }
+
         if (ch.isActive) {
           if (!ch.seatId) {
             // No seat — type in place
@@ -290,8 +298,8 @@ export function updateCharacter(
         ch.moveProgress = 0;
       }
 
-      // If became active while wandering, repath to seat
-      if (ch.isActive && ch.seatId) {
+      // If became active while wandering, repath to seat (skip for radar consultation)
+      if (ch.isActive && ch.seatId && !ch.isConsultingRadar) {
         const seat = seats.get(ch.seatId);
         if (seat) {
           const lastStep = ch.path[ch.path.length - 1];
@@ -313,6 +321,18 @@ export function updateCharacter(
       }
       break;
     }
+
+    case CharacterState.CONSULT: {
+      // Agent is at the RADAR desk visitor seat, waiting for verdict.
+      // Uses typing animation (sitting) while at the desk.
+      // Verdict timer countdown and return-to-seat is handled centrally
+      // in OfficeState update — not here.
+      if (ch.frameTimer >= TYPE_FRAME_DURATION_SEC) {
+        ch.frameTimer -= TYPE_FRAME_DURATION_SEC;
+        ch.frame = (ch.frame + 1) % 2;
+      }
+      break;
+    }
   }
 }
 
@@ -323,6 +343,9 @@ export function getCharacterSprite(ch: Character, sprites: CharacterSprites): Sp
       if (isReadingTool(ch.currentTool)) {
         return sprites.reading[ch.dir][ch.frame % 2];
       }
+      return sprites.typing[ch.dir][ch.frame % 2];
+    case CharacterState.CONSULT:
+      // Consulting at RADAR desk — uses typing pose (sitting)
       return sprites.typing[ch.dir][ch.frame % 2];
     case CharacterState.WALK:
       return sprites.walk[ch.dir][ch.frame % 4];
