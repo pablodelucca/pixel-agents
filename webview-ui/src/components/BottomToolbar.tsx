@@ -12,6 +12,7 @@ interface BottomToolbarProps {
   isSettingsOpen: boolean;
   onToggleSettings: () => void;
   workspaceFolders: WorkspaceFolder[];
+  isGitRepo?: boolean;
 }
 
 export function BottomToolbar({
@@ -21,9 +22,11 @@ export function BottomToolbar({
   isSettingsOpen,
   onToggleSettings,
   workspaceFolders,
+  isGitRepo,
 }: BottomToolbarProps) {
   const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
   const [isBypassMenuOpen, setIsBypassMenuOpen] = useState(false);
+  const [isWorktreeMode, setIsWorktreeMode] = useState(false);
   const folderPickerRef = useRef<HTMLDivElement>(null);
   const pendingBypassRef = useRef(false);
   // Close folder picker / bypass menu on outside click
@@ -44,6 +47,10 @@ export function BottomToolbar({
   const handleAgentClick = () => {
     setIsBypassMenuOpen(false);
     pendingBypassRef.current = false;
+    if (isWorktreeMode) {
+      vscode.postMessage({ type: 'requestWorktreeAgent', bypassPermissions: false });
+      return;
+    }
     if (hasMultipleFolders) {
       setIsFolderPickerOpen((v) => !v);
     } else {
@@ -72,6 +79,10 @@ export function BottomToolbar({
 
   const handleBypassSelect = (bypassPermissions: boolean) => {
     setIsBypassMenuOpen(false);
+    if (isWorktreeMode) {
+      vscode.postMessage({ type: 'requestWorktreeAgent', bypassPermissions });
+      return;
+    }
     if (hasMultipleFolders) {
       pendingBypassRef.current = bypassPermissions;
       setIsFolderPickerOpen(true);
@@ -97,9 +108,14 @@ export function BottomToolbar({
               : 'bg-accent hover:bg-accent-bright'
           }
         >
-          + Agent
+          + Agent{isWorktreeMode ? ' ⊕' : ''}
         </Button>
         <Dropdown isOpen={isBypassMenuOpen}>
+          {isGitRepo && (
+            <DropdownItem onClick={() => setIsWorktreeMode((v) => !v)}>
+              {isWorktreeMode ? '☑' : '☐'} New worktree branch
+            </DropdownItem>
+          )}
           <DropdownItem onClick={() => handleBypassSelect(true)}>
             Skip permissions mode <span className="text-2xs text-warning">⚠</span>
           </DropdownItem>

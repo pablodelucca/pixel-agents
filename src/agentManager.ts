@@ -1,3 +1,4 @@
+import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -76,6 +77,7 @@ export async function launchNewTerminal(
   persistAgents: () => void,
   folderPath?: string,
   bypassPermissions?: boolean,
+  worktreePath?: string,
 ): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   // Use home directory as fallback cwd when no workspace is open (common on Linux/macOS).
@@ -104,7 +106,11 @@ export async function launchNewTerminal(
 
   // Create agent immediately (before JSONL file exists)
   const id = nextAgentIdRef.current++;
-  const folderName = isMultiRoot && cwd ? path.basename(cwd) : undefined;
+  const folderName = worktreePath
+    ? `⊕ ${path.basename(worktreePath)}`
+    : isMultiRoot && cwd
+      ? path.basename(cwd)
+      : undefined;
   const agent: AgentState = {
     id,
     sessionId,
@@ -127,6 +133,7 @@ export async function launchNewTerminal(
     linesProcessed: 0,
     seenUnknownRecordTypes: new Set(),
     folderName,
+    worktreePath,
     hookDelivered: false,
     inputTokens: 0,
     outputTokens: 0,
@@ -294,6 +301,7 @@ export function persistAgents(
       jsonlFile: agent.jsonlFile,
       projectDir: agent.projectDir,
       folderName: agent.folderName,
+      worktreePath: agent.worktreePath,
       teamName: agent.teamName,
       agentName: agent.agentName,
       isTeamLead: agent.isTeamLead,
@@ -327,6 +335,7 @@ export function restoreAgents(
   let maxId = 0;
   let maxIdx = 0;
   let restoredProjectDir: string | null = null;
+  const newlyRestoredTerminalIds: number[] = [];
 
   for (const p of persisted) {
     // Skip agents already in the map — prevents duplicate file watchers on re-entry
@@ -374,6 +383,7 @@ export function restoreAgents(
       linesProcessed: 0,
       seenUnknownRecordTypes: new Set(),
       folderName: p.folderName,
+      worktreePath: p.worktreePath,
       hookDelivered: false,
       inputTokens: 0,
       outputTokens: 0,
@@ -386,6 +396,7 @@ export function restoreAgents(
 
     agents.set(p.id, agent);
     knownJsonlFiles.add(p.jsonlFile);
+    if (!isExternal) newlyRestoredTerminalIds.push(p.id);
     if (isExternal) {
       console.log(
         `[Pixel Agents] Terminal: Agent ${p.id} - restored external → ${path.basename(p.jsonlFile)}`,
@@ -453,15 +464,13 @@ export function restoreAgents(
     }
   }
 
-  // After a short delay, remove restored terminal agents that never received data.
+  // After a short delay, remove NEWLY restored terminal agents that never received data.
   // These are dead terminals restored by VS Code (e.g., after /clear or restart)
-  // where Claude is no longer running.
-  const restoredTerminalIds = [...agents.entries()]
-    .filter(([, a]) => !a.isExternal && a.terminalRef)
-    .map(([id]) => id);
-  if (restoredTerminalIds.length > 0) {
+  // where Claude is no longer running. Only targets agents restored in THIS call —
+  // not already-live agents — to avoid killing active agents on panel re-focus.
+  if (newlyRestoredTerminalIds.length > 0) {
     setTimeout(() => {
-      for (const id of restoredTerminalIds) {
+      for (const id of newlyRestoredTerminalIds) {
         const agent = agents.get(id);
         if (agent && !agent.isExternal && agent.linesProcessed === 0) {
           console.log(
@@ -604,6 +613,68 @@ export function sendCurrentAgentStatuses(
       });
     }
   }
+}
+
+export async function launchWorktreeAgent(
+  nextAgentIdRef: { current: number },
+  nextTerminalIndexRef: { current: number },
+  agents: Map<number, AgentState>,
+  activeAgentIdRef: { current: number | null },
+  knownJsonlFiles: Set<string>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
+  projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+  branchName: string,
+  bypassPermissions?: boolean,
+): Promise<void> {
+  const repoRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!repoRoot) {
+    void vscode.window.showErrorMessage('Pixel Agents: No workspace folder open.');
+    return;
+  }
+
+  const worktreePath = path.join(repoRoot, '.worktrees', branchName);
+
+  try {
+    execSync(`git worktree add "${worktreePath}" -b "${branchName}"`, {
+      cwd: repoRoot,
+      encoding: 'utf-8',
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('already exists')) {
+      void vscode.window.showErrorMessage(`Pixel Agents: Branch '${branchName}' already exists.`);
+    } else {
+      void vscode.window.showErrorMessage(`Pixel Agents: Failed to create worktree: ${msg}`);
+    }
+    return;
+  }
+
+  console.log(`[Pixel Agents] Created worktree at ${worktreePath} for branch '${branchName}'`);
+
+  await launchNewTerminal(
+    nextAgentIdRef,
+    nextTerminalIndexRef,
+    agents,
+    activeAgentIdRef,
+    knownJsonlFiles,
+    fileWatchers,
+    pollingTimers,
+    waitingTimers,
+    permissionTimers,
+    jsonlPollTimers,
+    projectScanTimerRef,
+    webview,
+    persistAgents,
+    worktreePath,
+    bypassPermissions,
+    worktreePath,
+  );
 }
 
 export function sendLayout(
