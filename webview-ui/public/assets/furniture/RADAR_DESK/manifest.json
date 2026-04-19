@@ -1,0 +1,14 @@
+{
+  "id": "RADAR_DESK",
+  "name": "Risk Assessment",
+  "category": "desks",
+  "type": "asset",
+  "file": "RADAR_DESK_FRONT.png",
+  "width": 32,
+  "height": 32,
+  "footprintW": 2,
+  "footprintH": 2,
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1
+}

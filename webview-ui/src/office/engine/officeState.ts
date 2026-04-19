@@ -790,6 +790,10 @@ export class OfficeState {
     ch.radarVerdictTimer = RADAR_VERDICT_DISPLAY_SEC;
 
     this.npcManager.deliverVerdict(verdict);
+    // Update tier for T1/T2 visual distinction (tier arrives with verdict, not with start)
+    if (tier !== undefined) {
+      this.npcManager.setTier(tier);
+    }
   }
 
   /** Walk agent to the visitor seat tile */
@@ -818,7 +822,7 @@ export class OfficeState {
       ch.dir = seat.facingDir;
       ch.frame = 0;
       ch.frameTimer = 0;
-      this.npcManager.startStamp(ch.radarTier);
+      this.npcManager.startStamp();
     }
   }
 
@@ -957,7 +961,7 @@ export class OfficeState {
     if (queueAgentId !== null) {
       const queueAgent = this.characters.get(queueAgentId);
       if (queueAgent?.state === CharacterState.CONSULT && this.npcManager.isIdle()) {
-        this.npcManager.startStamp(queueAgent.radarTier);
+        this.npcManager.startStamp();
       }
     }
 

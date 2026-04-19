@@ -156,6 +156,12 @@ export class NpcManager {
     this.vela.frame = 0;
   }
 
+  /** Update assessment tier mid-stamp (tier arrives with verdict, not start).
+   *  Only affects stamp_up duration — if already past stamp_up, no visual change. */
+  setTier(tier: number): void {
+    this.isT2 = tier === 2;
+  }
+
   /** Deliver verdict to stamp animation. Called when agentRadarVerdict arrives. */
   deliverVerdict(verdict: 'PROCEED' | 'HOLD' | 'DENY'): void {
     if (!this.vela) return;

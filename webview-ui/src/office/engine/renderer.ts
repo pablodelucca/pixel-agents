@@ -51,7 +51,7 @@ import { CharacterState, TILE_SIZE, TileType } from '../types.js';
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles.js';
 import { getCharacterSprite } from './characters.js';
 import { renderMatrixEffect } from './matrixEffect.js';
-import { drawVerdictBadge } from './radarOverlays.js';
+import { drawStampMark, drawVerdictBadge } from './radarOverlays.js';
 
 // ── Render functions ────────────────────────────────────────────
 
@@ -108,6 +108,14 @@ interface ZDrawable {
 }
 
 /** @internal */
+export interface StampMarkState {
+  verdict: 'PROCEED' | 'HOLD' | 'DENY';
+  timer: number;
+  deskCol: number;
+  deskRow: number;
+  isT2: boolean;
+}
+
 export function renderScene(
   ctx: CanvasRenderingContext2D,
   furniture: FurnitureInstance[],
@@ -117,6 +125,7 @@ export function renderScene(
   zoom: number,
   selectedAgentId: number | null,
   hoveredAgentId: number | null,
+  stampMark?: StampMarkState,
 ): void {
   const drawables: ZDrawable[] = [];
 
@@ -144,6 +153,21 @@ export function renderScene(
         },
       });
     }
+  }
+
+  // RADAR stamp mark on desk
+  if (stampMark && stampMark.timer > 0) {
+    const sDeskX = offsetX + (stampMark.deskCol * TILE_SIZE + TILE_SIZE) * zoom;
+    const sDeskY = offsetY + (stampMark.deskRow * TILE_SIZE + TILE_SIZE) * zoom;
+    const sVerdict = stampMark.verdict;
+    const sTimer = stampMark.timer;
+    const sIsT2 = stampMark.isT2;
+    drawables.push({
+      zY: (stampMark.deskRow + 2) * TILE_SIZE + 0.25,
+      draw: (c) => {
+        drawStampMark(c, sVerdict, sTimer, sDeskX, sDeskY, zoom, sIsT2);
+      },
+    });
   }
 
   // Characters
@@ -599,6 +623,7 @@ export function renderFrame(
   tileColors?: Array<ColorValue | null>,
   layoutCols?: number,
   layoutRows?: number,
+  stampMark?: StampMarkState,
 ): { offsetX: number; offsetY: number } {
   // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -637,7 +662,17 @@ export function renderFrame(
   // Draw walls + furniture + characters (z-sorted)
   const selectedId = selection?.selectedAgentId ?? null;
   const hoveredId = selection?.hoveredAgentId ?? null;
-  renderScene(ctx, allFurniture, characters, offsetX, offsetY, zoom, selectedId, hoveredId);
+  renderScene(
+    ctx,
+    allFurniture,
+    characters,
+    offsetX,
+    offsetY,
+    zoom,
+    selectedId,
+    hoveredId,
+    stampMark,
+  );
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom);
