@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **RADAR governance visualisation with Vela NPC** — When a Claude Code agent calls the `radar_assess` MCP tool, the agent character walks to a Risk Assessment desk where Vela — the first NPC in Pixel Agents — stamps the verdict. Green stamp for PROCEED, amber for HOLD, red for DENY. T2 (LLM) assessments show a white sparkle indicator and a longer "thinking" animation. Agents queue in FIFO order when multiple assessments run concurrently. Vela is furniture-driven: she appears when a `radar_desk` is placed in the layout editor and disappears when it's removed. No existing behaviour is modified — the feature is fully dormant without `radar_desk` furniture or `@essentianlabs/radar-mcp` installed.
+
+  **New files:** `npcManager.ts` (Vela lifecycle + stamp animation), `radarQueue.ts` (FIFO with dedup), `radarOverlays.ts` (canvas-drawn stamp marks + verdict badges)
+
+  **Dependencies for full functionality:**
+  - Vela character: None (furniture-driven, always present when `radar_desk` placed)
+  - Verdict animations: Requires `@essentianlabs/radar-mcp` installed in Claude Code
+  - `radar-mcp` requires `@essentianlabs/radar-lite` (works without API key for basic rules-engine assessment; LLM API key optional for deeper T2 analysis)
+
+  **Placeholder assets:** Vela sprite (`vela.png`) and radar desk sprite are placeholders. A pixel artist contribution for `vela.png` is welcome — drop a 112×96 PNG with the standard frame layout into `webview-ui/public/assets/characters/` and open a PR. No code changes required.
+
 ## v1.3.0
 
 ### Features
