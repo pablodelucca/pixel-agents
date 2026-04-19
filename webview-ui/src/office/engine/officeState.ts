@@ -10,6 +10,7 @@ import {
   HUE_SHIFT_RANGE_DEG,
   INACTIVE_SEAT_TIMER_MIN_SEC,
   INACTIVE_SEAT_TIMER_RANGE_SEC,
+  RADAR_VERDICT_DISPLAY_SEC,
   WAITING_BUBBLE_DURATION_SEC,
 } from '../../constants.js';
 import { getAnimationFrames, getCatalogEntry, getOnStateType } from '../layout/furnitureCatalog.js';
@@ -33,6 +34,9 @@ import type {
 import { CharacterState, Direction, MATRIX_EFFECT_DURATION, TILE_SIZE } from '../types.js';
 import { createCharacter, updateCharacter } from './characters.js';
 import { matrixEffectSeeds } from './matrixEffect.js';
+import { findVisitorSeat, NpcManager } from './npcManager.js';
+import type { RadarQueueState } from './radarQueue.js';
+import { clearQueue, createRadarQueue, dequeue, enqueue, removeFromQueue } from './radarQueue.js';
 
 export class OfficeState {
   layout: OfficeLayout;
@@ -53,6 +57,8 @@ export class OfficeState {
   /** Reverse lookup: sub-agent character ID → parent info */
   subagentMeta: Map<number, { parentAgentId: number; parentToolId: string }> = new Map();
   private nextSubagentId = -1;
+  readonly npcManager = new NpcManager();
+  readonly radarQueue: RadarQueueState = createRadarQueue();
 
   constructor(layout?: OfficeLayout) {
     this.layout = layout || createDefaultLayout();
@@ -137,6 +143,33 @@ export class OfficeState {
         ch.tileRow >= layout.rows
       ) {
         this.relocateCharacterToWalkable(ch);
+      }
+    }
+
+    // Sync NPC state with furniture (creates/removes Vela based on radar_desk)
+    this.npcManager.syncWithLayout(layout.furniture, this.seats);
+
+    // Update visitor seat for radar queue
+    const visitorSeat = findVisitorSeat(layout.furniture, this.seats);
+    this.radarQueue.visitorSeatId = visitorSeat?.uid ?? null;
+
+    // If radar desk was removed, clear the queue and return all agents to desks
+    if (!this.npcManager.getRadarDesk()) {
+      const evicted = clearQueue(this.radarQueue);
+      for (const agentId of evicted) {
+        const ch = this.characters.get(agentId);
+        if (ch) {
+          ch.isConsultingRadar = false;
+          ch.isWaitingForRadar = false;
+          ch.radarVerdict = undefined;
+          ch.radarVerdictTimer = undefined;
+          ch.state = CharacterState.IDLE;
+        }
+      }
+      if (evicted.length > 0) {
+        console.log(
+          `[Pixel Agents] radar_desk removed — ${evicted.length} pending assessments cancelled`,
+        );
       }
     }
   }
@@ -326,6 +359,12 @@ export class OfficeState {
     const ch = this.characters.get(id);
     if (!ch) return;
     if (ch.matrixEffect === 'despawn') return; // already despawning
+    // Remove from radar queue if consulting
+    if (ch.isConsultingRadar || ch.isWaitingForRadar) {
+      removeFromQueue(this.radarQueue, id);
+      // Promote next agent if one was waiting
+      this.promoteNextInRadarQueue();
+    }
     // Free seat and clear selection immediately
     if (ch.seatId) {
       const seat = this.seats.get(ch.seatId);
@@ -711,6 +750,125 @@ export class OfficeState {
     ch.outputTokens = outputTokens;
   }
 
+  // ── RADAR Governance ────────────────────────────────────────
+
+  /** Get all characters including NPCs for rendering */
+  getCharactersForRender(): Character[] {
+    const chars = Array.from(this.characters.values());
+    const vela = this.npcManager.getVela();
+    if (vela) chars.push(vela);
+    return chars;
+  }
+
+  /** Handle agentRadarStart — enqueue agent for RADAR desk visit */
+  handleRadarStart(agentId: number, tier?: number): void {
+    const ch = this.characters.get(agentId);
+    if (!ch) return;
+    if (!this.radarQueue.visitorSeatId) return;
+
+    if (!enqueue(this.radarQueue, agentId)) return; // Duplicate
+
+    ch.isConsultingRadar = true;
+    ch.radarTier = tier;
+
+    if (this.radarQueue.currentAgentId === agentId) {
+      this.walkAgentToVisitorSeat(ch);
+    } else {
+      ch.isWaitingForRadar = true;
+      ch.bubbleType = 'permission'; // amber dots for waiting (reuse existing bubble)
+      this.walkAgentNearRadarDesk(ch);
+    }
+  }
+
+  /** Handle agentRadarVerdict — deliver verdict and start return countdown */
+  handleRadarVerdict(agentId: number, verdict: 'PROCEED' | 'HOLD' | 'DENY', tier?: number): void {
+    const ch = this.characters.get(agentId);
+    if (!ch) return;
+
+    ch.radarVerdict = verdict;
+    ch.radarTier = tier;
+    ch.radarVerdictTimer = RADAR_VERDICT_DISPLAY_SEC;
+
+    this.npcManager.deliverVerdict(verdict);
+  }
+
+  /** Walk agent to the visitor seat tile */
+  private walkAgentToVisitorSeat(ch: Character): void {
+    const seatId = this.radarQueue.visitorSeatId;
+    if (!seatId) return;
+    const seat = this.seats.get(seatId);
+    if (!seat) return;
+
+    const path = this.withOwnSeatUnblocked(ch, () =>
+      findPath(ch.tileCol, ch.tileRow, seat.seatCol, seat.seatRow, this.tileMap, this.blockedTiles),
+    );
+    if (path.length > 0) {
+      ch.path = path;
+      ch.moveProgress = 0;
+      ch.state = CharacterState.WALK;
+      ch.frame = 0;
+      ch.frameTimer = 0;
+    } else {
+      // Already at seat or unreachable — go directly to CONSULT
+      ch.state = CharacterState.CONSULT;
+      ch.tileCol = seat.seatCol;
+      ch.tileRow = seat.seatRow;
+      ch.x = seat.seatCol * TILE_SIZE + TILE_SIZE / 2;
+      ch.y = seat.seatRow * TILE_SIZE + TILE_SIZE / 2;
+      ch.dir = seat.facingDir;
+      ch.frame = 0;
+      ch.frameTimer = 0;
+      this.npcManager.startStamp(ch.radarTier);
+    }
+  }
+
+  /** Walk agent to a walkable tile near the radar desk (waiting position) */
+  private walkAgentNearRadarDesk(ch: Character): void {
+    const desk = this.npcManager.getRadarDesk();
+    if (!desk) return;
+
+    let bestTile: { col: number; row: number } | null = null;
+    let bestDist = Infinity;
+    for (const tile of this.walkableTiles) {
+      for (let dr = 0; dr < 2; dr++) {
+        for (let dc = 0; dc < 2; dc++) {
+          const dist = Math.abs(tile.col - (desk.col + dc)) + Math.abs(tile.row - (desk.row + dr));
+          if (dist <= 2 && dist < bestDist) {
+            bestDist = dist;
+            bestTile = tile;
+          }
+        }
+      }
+    }
+
+    if (bestTile) {
+      const target = bestTile;
+      const path = this.withOwnSeatUnblocked(ch, () =>
+        findPath(ch.tileCol, ch.tileRow, target.col, target.row, this.tileMap, this.blockedTiles),
+      );
+      if (path.length > 0) {
+        ch.path = path;
+        ch.moveProgress = 0;
+        ch.state = CharacterState.WALK;
+        ch.frame = 0;
+        ch.frameTimer = 0;
+      }
+    }
+  }
+
+  /** Promote next waiting agent to visitor seat */
+  private promoteNextInRadarQueue(): void {
+    const nextId = dequeue(this.radarQueue);
+    if (nextId !== null) {
+      const ch = this.characters.get(nextId);
+      if (ch) {
+        ch.isWaitingForRadar = false;
+        ch.bubbleType = null;
+        this.walkAgentToVisitorSeat(ch);
+      }
+    }
+  }
+
   update(dt: number): void {
     // Furniture animation cycling
     const prevFrame = Math.floor(this.furnitureAnimTimer / FURNITURE_ANIM_INTERVAL_SEC);
@@ -752,7 +910,57 @@ export class OfficeState {
           ch.bubbleTimer = 0;
         }
       }
+
+      // RADAR verdict timer countdown
+      if (ch.radarVerdictTimer !== undefined && ch.radarVerdictTimer > 0) {
+        ch.radarVerdictTimer -= dt;
+        if (ch.radarVerdictTimer <= 0 && ch.state === CharacterState.CONSULT) {
+          // Verdict display complete — agent returns to own seat
+          ch.radarVerdict = undefined;
+          ch.radarVerdictTimer = undefined;
+          ch.radarTier = undefined;
+          ch.isConsultingRadar = false;
+          ch.state = CharacterState.IDLE;
+          ch.frame = 0;
+          ch.frameTimer = 0;
+          // Walk back to own seat
+          if (ch.seatId) {
+            const seat = this.seats.get(ch.seatId);
+            if (seat) {
+              const path = this.withOwnSeatUnblocked(ch, () =>
+                findPath(
+                  ch.tileCol,
+                  ch.tileRow,
+                  seat.seatCol,
+                  seat.seatRow,
+                  this.tileMap,
+                  this.blockedTiles,
+                ),
+              );
+              if (path.length > 0) {
+                ch.path = path;
+                ch.moveProgress = 0;
+                ch.state = CharacterState.WALK;
+              }
+            }
+          }
+          this.promoteNextInRadarQueue();
+        }
+      }
     }
+
+    // Update NPC manager (Vela animation)
+    this.npcManager.update(dt);
+
+    // Check if current queue agent arrived at visitor seat — trigger Vela stamp
+    const queueAgentId = this.radarQueue.currentAgentId;
+    if (queueAgentId !== null) {
+      const queueAgent = this.characters.get(queueAgentId);
+      if (queueAgent?.state === CharacterState.CONSULT && this.npcManager.isIdle()) {
+        this.npcManager.startStamp(queueAgent.radarTier);
+      }
+    }
+
     // Remove characters that finished despawn
     for (const id of toDelete) {
       this.characters.delete(id);
@@ -771,7 +979,8 @@ export class OfficeState {
       if (ch.matrixEffect === 'despawn') continue;
       // Character sprite is 16x24, anchored bottom-center
       // Apply sitting offset to match visual position
-      const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+      const isSitting = ch.state === CharacterState.TYPE || ch.state === CharacterState.CONSULT;
+      const sittingOffset = isSitting ? CHARACTER_SITTING_OFFSET_PX : 0;
       const anchorY = ch.y + sittingOffset;
       const left = ch.x - CHARACTER_HIT_HALF_WIDTH;
       const right = ch.x + CHARACTER_HIT_HALF_WIDTH;
