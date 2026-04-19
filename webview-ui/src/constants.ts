@@ -159,5 +159,6 @@ export const RADAR_PROCEED_COLOR = '#22c55e';
 export const RADAR_HOLD_COLOR = '#fbbf24';
 export const RADAR_DENY_COLOR = '#ef4444';
 export const RADAR_WAIT_BUBBLE_COLOR = '#fbbf24';
+export const RADAR_T2_SPARKLE_COLOR = '#ffffff';
 export const NPC_VELA_ID = -1000;
 export const NPC_IDLE_FRAME_DURATION_SEC = 0.6;
