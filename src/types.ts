@@ -22,6 +22,8 @@ export interface AgentState {
   hadToolsInTurn: boolean;
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+  /** Path of git worktree directory, if agent was launched in a worktree */
+  worktreePath?: string;
   /** Timestamp of last JSONL data received (ms since epoch) */
   lastDataAt: number;
   /** Total JSONL lines processed for this agent */
@@ -70,6 +72,8 @@ export interface PersistedAgent {
   projectDir: string;
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+  /** Path of git worktree directory, if agent was launched in a worktree */
+  worktreePath?: string;
 
   // -- Agent Teams --
   teamName?: string;

@@ -14,6 +14,7 @@ import { PixelAgentsServer } from '../server/src/server.js';
 import {
   getProjectDirPath,
   launchNewTerminal,
+  launchWorktreeAgent,
   persistAgents,
   removeAgent,
   restoreAgents,
@@ -315,6 +316,29 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async promptRemoveWorktree(worktreePath: string): Promise<void> {
+    const branchName = path.basename(worktreePath);
+    const choice = await vscode.window.showInformationMessage(
+      `Remove worktree '${branchName}'?`,
+      'Yes',
+      'No',
+    );
+    if (choice !== 'Yes') return;
+    try {
+      const { execSync } = await import('child_process');
+      const repoRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      execSync(`git worktree remove "${worktreePath}" --force`, { cwd: repoRoot });
+      try {
+        execSync(`git branch -D "${branchName}"`, { cwd: repoRoot });
+      } catch {
+        // Branch may not exist or already deleted — ignore
+      }
+      void vscode.window.showInformationMessage(`Pixel Agents: Removed worktree '${branchName}'.`);
+    } catch (e) {
+      void vscode.window.showErrorMessage(`Pixel Agents: Failed to remove worktree: ${e}`);
+    }
+  }
+
   /** Register an agent with the hook event handler for session->agent mapping.
    *  hookDelivered is NOT set here. It is set only in hookEventHandler.handleEvent()
    *  when an actual hook event arrives, preserving heuristic fallback for agents
@@ -359,6 +383,38 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             this.registerAgentHook(agent);
           }
         }
+      } else if (message.type === 'requestWorktreeAgent') {
+        const now = new Date();
+        const defaultBranch = `worktree-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+        const input = await vscode.window.showInputBox({
+          prompt: 'Branch name for new worktree agent (leave empty for timestamp)',
+          placeHolder: defaultBranch,
+        });
+        if (input === undefined) return;
+        const branchName = input.trim() || defaultBranch;
+        const prevAgentIds = new Set(this.agents.keys());
+        await launchWorktreeAgent(
+          this.nextAgentId,
+          this.nextTerminalIndex,
+          this.agents,
+          this.activeAgentId,
+          this.knownJsonlFiles,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.jsonlPollTimers,
+          this.projectScanTimer,
+          this.webview,
+          this.persistAgents,
+          branchName.trim(),
+          message.bypassPermissions as boolean | undefined,
+        );
+        for (const [id, agent] of this.agents) {
+          if (!prevAgentIds.has(id)) {
+            this.registerAgentHook(agent);
+          }
+        }
       } else if (message.type === 'focusAgent') {
         const agent = this.agents.get(message.id);
         if (agent) {
@@ -375,6 +431,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       } else if (message.type === 'closeAgent') {
         const agent = this.agents.get(message.id);
         if (agent) {
+          const worktreePath = agent.worktreePath;
           if (agent.terminalRef) {
             agent.terminalRef.dispose();
           } else {
@@ -392,6 +449,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
               this.persistAgents,
             );
             webviewView.webview.postMessage({ type: 'agentClosed', id: message.id });
+          }
+          if (worktreePath) {
+            void this.promptRemoveWorktree(worktreePath);
           }
         }
       } else if (message.type === 'saveAgentSeats') {
@@ -508,6 +568,18 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           false,
         );
         const config = readConfig();
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        let isGitRepo = false;
+        if (workspaceRoot) {
+          try {
+            const { execSync } = await import('child_process');
+            execSync('git rev-parse --git-dir', { cwd: workspaceRoot, stdio: 'ignore' });
+            isGitRepo = true;
+          } catch {
+            isGitRepo = false;
+          }
+        }
+        console.log(`[Pixel Agents] isGitRepo: ${isGitRepo}, workspaceRoot: ${workspaceRoot}`);
         this.webview?.postMessage({
           type: 'settingsLoaded',
           soundEnabled,
@@ -518,6 +590,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           hooksEnabled,
           hooksInfoShown,
           externalAssetDirectories: config.externalAssetDirectories,
+          isGitRepo,
         });
 
         // Send workspace folders to webview (only when multi-root)
@@ -531,7 +604,6 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
         // Ensure project scan runs even with no restored agents (to adopt external terminals)
         const projectDir = getProjectDirPath();
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         console.log(`[Pixel Agents] Debug: Platform: ${process.platform}, arch: ${process.arch}`);
         console.log('[Extension] workspaceRoot:', workspaceRoot);
         console.log('[Extension] projectDir:', projectDir);
@@ -813,6 +885,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           if (agent.isTeamLead) {
             this.removeTeammates(id);
           }
+          const worktreePath = agent.worktreePath;
           // Dismiss JSONL so external scanner doesn't re-adopt it
           dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
           this.unregisterAgentHook(agent);
@@ -827,6 +900,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             this.persistAgents,
           );
           webviewView.webview.postMessage({ type: 'agentClosed', id });
+          if (worktreePath) {
+            void this.promptRemoveWorktree(worktreePath);
+          }
         }
       }
     });
