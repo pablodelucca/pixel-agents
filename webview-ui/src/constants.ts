@@ -148,3 +148,16 @@ export const FUEL_COLOR_CRITICAL = '#ff2222';
 export const FUEL_GAUGE_BG = '#222';
 export const TEAM_LEAD_COLOR = '#ffd700';
 export const TEAM_ROLE_COLOR = '#66aaff';
+
+// ── RADAR Governance ────────────────────────────────────────
+export const RADAR_VERDICT_DISPLAY_SEC = 3.0;
+export const RADAR_VERDICT_FADE_SEC = 0.5;
+export const RADAR_STAMP_UP_SEC = 0.4;
+export const RADAR_STAMP_DOWN_SEC = 0.3;
+export const RADAR_STAMP_HOLD_SEC = 2.0;
+export const RADAR_PROCEED_COLOR = '#22c55e';
+export const RADAR_HOLD_COLOR = '#fbbf24';
+export const RADAR_DENY_COLOR = '#ef4444';
+export const RADAR_WAIT_BUBBLE_COLOR = '#fbbf24';
+export const NPC_VELA_ID = -1000;
+export const NPC_IDLE_FRAME_DURATION_SEC = 0.6;
