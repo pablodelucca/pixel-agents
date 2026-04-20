@@ -182,6 +182,7 @@ export function processTranscriptLine(
             // Detect RADAR risk assessment tool calls
             if (toolName === RADAR_ASSESS_TOOL_NAME) {
               agent.radarAssessmentIds.add(block.id);
+              console.log(`[Pixel Agents] RADAR detected: agent ${agentId}, toolId ${block.id}`);
               webview?.postMessage({
                 type: 'agentRadarStart',
                 id: agentId,

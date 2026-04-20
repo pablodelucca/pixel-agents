@@ -771,14 +771,24 @@ export class OfficeState {
 
   /** Handle agentRadarStart — enqueue agent for RADAR desk visit */
   handleRadarStart(agentId: number, tier?: number): void {
+    console.log('[Pixel Agents] handleRadarStart called for agent', agentId);
     const ch = this.characters.get(agentId);
-    if (!ch) return;
+    if (!ch) {
+      console.warn(`[Pixel Agents] handleRadarStart: agent ${agentId} not found in characters map`);
+      return;
+    }
     if (!this.radarQueue.visitorSeatId) {
       console.warn(
         `[Pixel Agents] Agent ${agentId} called radar_assess but no visitor seat found — place a chair adjacent to the radar_desk`,
       );
       return;
     }
+    console.log(
+      '[Pixel Agents] Enqueueing agent',
+      agentId,
+      'visitor seat',
+      this.radarQueue.visitorSeatId,
+    );
 
     if (!enqueue(this.radarQueue, agentId)) return; // Duplicate
 
