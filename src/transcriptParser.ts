@@ -456,11 +456,11 @@ export function processTranscriptLine(
 
 const VALID_RADAR_VERDICTS = new Set(['PROCEED', 'HOLD', 'DENY']);
 
-/** Extract verdict from a radar_assess tool_result block.
+/** @internal Exported for testing. Extract verdict from a radar_assess tool_result block.
  *  Reads result.status (v0.3.0+) or result.verdict (v0.2.x).
  *  Reads result.tier (1 = rules engine, 2 = LLM assessment).
  *  Returns HOLD on parse failure (safe default). */
-function extractRadarVerdict(block: Record<string, unknown>): {
+export function extractRadarVerdict(block: Record<string, unknown>): {
   verdict: 'PROCEED' | 'HOLD' | 'DENY';
   tier?: number;
   riskScore?: number;
