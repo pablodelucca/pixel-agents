@@ -11,8 +11,12 @@ import {
   RADAR_STAMP_UP_SEC,
 } from '../../constants.js';
 import type { Character, PlacedFurniture, Seat } from '../types.js';
-import { CharacterState, TILE_SIZE } from '../types.js';
+import { CharacterState, Direction, TILE_SIZE } from '../types.js';
 import { createCharacter } from './characters.js';
+
+/** Vela's display name and role — shown on hover and in overlays */
+export const VELA_NAME = 'Vela';
+export const VELA_ROLE = 'Risk Architect';
 
 const RADAR_DESK_PREFIX = 'RADAR_DESK';
 
@@ -32,27 +36,9 @@ function findRadarDesk(furniture: PlacedFurniture[]): PlacedFurniture | null {
   return null;
 }
 
-/** Find the nearest seat to a given tile position */
-function findNearestSeat(
-  col: number,
-  row: number,
-  seats: Map<string, Seat>,
-  excludeAssigned: boolean,
-): Seat | null {
-  let best: Seat | null = null;
-  let bestDist = Infinity;
-  for (const seat of seats.values()) {
-    if (excludeAssigned && seat.assigned) continue;
-    const dist = Math.abs(seat.seatCol - col) + Math.abs(seat.seatRow - row);
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = seat;
-    }
-  }
-  return best;
-}
-
-/** Find the nearest unassigned seat adjacent to any RADAR desk */
+/** Find the nearest seat adjacent to any RADAR desk. Used as the visitor seat.
+ *  Returns null if no radar desk or no adjacent seats — callers should log
+ *  a warning pointing users to place a chair next to the desk. */
 export function findVisitorSeat(
   furniture: PlacedFurniture[],
   seats: Map<string, Seat>,
@@ -63,7 +49,6 @@ export function findVisitorSeat(
   let best: Seat | null = null;
   let bestDist = Infinity;
   for (const seat of seats.values()) {
-    if (seat.assigned) continue;
     // Manhattan distance to nearest desk tile
     let minDist = Infinity;
     for (let dr = 0; dr < RADAR_DESK_FOOTPRINT.h; dr++) {
@@ -73,7 +58,6 @@ export function findVisitorSeat(
         if (dist < minDist) minDist = dist;
       }
     }
-    // Only consider adjacent seats (distance 1)
     if (minDist <= 1 && minDist < bestDist) {
       bestDist = minDist;
       best = seat;
@@ -101,12 +85,14 @@ export class NpcManager {
     return this.radarDesk;
   }
 
-  /** Sync NPC state with current layout furniture. Call after rebuildFromLayout. */
-  syncWithLayout(furniture: PlacedFurniture[], seats: Map<string, Seat>): void {
+  /** Sync NPC state with current layout furniture. Call after rebuildFromLayout.
+   *  Vela sits at the back row of the desk (in the backgroundTiles area) without
+   *  needing a chair. Users only need to place one chair adjacent to the desk
+   *  as the visitor seat. */
+  syncWithLayout(furniture: PlacedFurniture[]): void {
     const desk = findRadarDesk(furniture);
 
     if (!desk) {
-      // No radar desk — remove Vela
       if (this.vela) {
         console.log('[Pixel Agents] radar_desk removed — Vela despawned');
       }
@@ -117,33 +103,28 @@ export class NpcManager {
 
     this.radarDesk = desk;
 
-    // Find Vela's home seat (nearest seat to desk, can be assigned)
-    const homeSeat = findNearestSeat(desk.col, desk.row, seats, false);
+    // Vela sits at the back row of the desk (the backgroundTiles row).
+    // Her x/y puts her between the two desk columns so she's centered.
+    const velaCol = desk.col;
+    const velaRow = desk.row; // top row of desk (background)
+    const velaPixelX = desk.col * TILE_SIZE + TILE_SIZE; // center of 2-wide desk
+    const velaPixelY = velaRow * TILE_SIZE + TILE_SIZE / 2;
 
     if (!this.vela) {
-      // Create Vela
-      const seatId = homeSeat?.uid ?? null;
-      this.vela = createCharacter(NPC_VELA_ID, -1, seatId, homeSeat, 0);
+      this.vela = createCharacter(NPC_VELA_ID, -1, null, null, 0);
       this.vela.isNpc = true;
-      this.vela.isActive = false; // NPCs don't use the active/inactive agent model
-      this.vela.state = CharacterState.TYPE; // Sitting at desk
+      this.vela.isActive = false;
+      this.vela.state = CharacterState.TYPE;
       this.vela.npcStampPhase = 'idle';
       this.vela.npcStampTimer = 0;
-      if (homeSeat) {
-        this.vela.dir = homeSeat.facingDir;
-        homeSeat.assigned = true;
-      }
       console.log('[Pixel Agents] Vela spawned at radar_desk');
-    } else if (homeSeat) {
-      // Update Vela's position if desk moved
-      this.vela.seatId = homeSeat.uid;
-      this.vela.tileCol = homeSeat.seatCol;
-      this.vela.tileRow = homeSeat.seatRow;
-      this.vela.x = homeSeat.seatCol * TILE_SIZE + TILE_SIZE / 2;
-      this.vela.y = homeSeat.seatRow * TILE_SIZE + TILE_SIZE / 2;
-      this.vela.dir = homeSeat.facingDir;
-      homeSeat.assigned = true;
     }
+
+    this.vela.tileCol = velaCol;
+    this.vela.tileRow = velaRow;
+    this.vela.x = velaPixelX;
+    this.vela.y = velaPixelY;
+    this.vela.dir = Direction.DOWN;
   }
 
   /** Start the stamp animation. Called when an agent sits at the visitor seat.

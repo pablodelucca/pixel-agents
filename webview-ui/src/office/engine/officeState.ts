@@ -147,7 +147,7 @@ export class OfficeState {
     }
 
     // Sync NPC state with furniture (creates/removes Vela based on radar_desk)
-    this.npcManager.syncWithLayout(layout.furniture, this.seats);
+    this.npcManager.syncWithLayout(layout.furniture);
 
     // Update visitor seat for radar queue
     const visitorSeat = findVisitorSeat(layout.furniture, this.seats);
@@ -764,7 +764,12 @@ export class OfficeState {
   handleRadarStart(agentId: number, tier?: number): void {
     const ch = this.characters.get(agentId);
     if (!ch) return;
-    if (!this.radarQueue.visitorSeatId) return;
+    if (!this.radarQueue.visitorSeatId) {
+      console.warn(
+        `[Pixel Agents] Agent ${agentId} called radar_assess but no visitor seat found — place a chair adjacent to the radar_desk`,
+      );
+      return;
+    }
 
     if (!enqueue(this.radarQueue, agentId)) return; // Duplicate
 
@@ -977,7 +982,7 @@ export class OfficeState {
 
   /** Get character at pixel position (for hit testing). Returns id or null. */
   getCharacterAt(worldX: number, worldY: number): number | null {
-    const chars = this.getCharacters().sort((a, b) => b.y - a.y);
+    const chars = this.getCharactersForRender().sort((a, b) => b.y - a.y);
     for (const ch of chars) {
       // Skip characters that are despawning
       if (ch.matrixEffect === 'despawn') continue;

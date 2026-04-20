@@ -19,6 +19,7 @@ import {
   TOOL_OVERLAY_VERTICAL_OFFSET,
 } from '../../constants.js';
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
+import { VELA_NAME, VELA_ROLE } from '../engine/npcManager.js';
 import type { OfficeState } from '../engine/officeState.js';
 import type { ToolActivity } from '../types.js';
 import { CharacterState, TILE_SIZE } from '../types.js';
@@ -103,8 +104,9 @@ export function ToolOverlay({
   const selectedId = officeState.selectedAgentId;
   const hoveredId = officeState.hoveredAgentId;
 
-  // All character IDs
-  const allIds = [...agents, ...subagentCharacters.map((s) => s.id)];
+  // All character IDs (including NPCs like Vela)
+  const vela = officeState.npcManager.getVela();
+  const allIds = [...agents, ...subagentCharacters.map((s) => s.id), ...(vela ? [vela.id] : [])];
 
   return (
     <>
@@ -115,12 +117,17 @@ export function ToolOverlay({
         const isSelected = selectedId === id;
         const isHovered = hoveredId === id;
         const isSub = ch.isSubagent;
+        const isNpc = !!ch.isNpc;
 
-        // Only show for hovered or selected agents (unless always-show is on)
-        if (!alwaysShowOverlay && !isSelected && !isHovered) return null;
+        // Only show for hovered or selected agents (unless always-show is on).
+        // For NPCs, only show on hover/select (never with always-show to reduce clutter).
+        if (!isSelected && !isHovered) {
+          if (isNpc || !alwaysShowOverlay) return null;
+        }
 
         // Position above character
-        const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+        const isSitting = ch.state === CharacterState.TYPE || ch.state === CharacterState.CONSULT;
+        const sittingOffset = isSitting ? CHARACTER_SITTING_OFFSET_PX : 0;
         const screenX = (deviceOffsetX + ch.x * zoom) / dpr;
         const screenY =
           (deviceOffsetY + (ch.y + sittingOffset - TOOL_OVERLAY_VERTICAL_OFFSET) * zoom) / dpr;
@@ -128,7 +135,11 @@ export function ToolOverlay({
         // Get activity text
         const subHasPermission = isSub && ch.bubbleType === 'permission';
         let activityText: string;
-        if (isSub) {
+        let npcRoleLabel: string | null = null;
+        if (isNpc) {
+          activityText = VELA_NAME;
+          npcRoleLabel = VELA_ROLE;
+        } else if (isSub) {
           if (subHasPermission) {
             activityText = 'Needs approval';
           } else {
@@ -152,9 +163,9 @@ export function ToolOverlay({
           dotColor = 'var(--color-status-active)';
         }
 
-        // Team info
-        const isTeamAgent = !!ch.teamName;
-        const teamRoleLabel = ch.isTeamLead ? 'LEAD' : ch.agentName || null;
+        // Team info (not applicable to NPCs)
+        const isTeamAgent = !isNpc && !!ch.teamName;
+        const teamRoleLabel = isNpc ? npcRoleLabel : ch.isTeamLead ? 'LEAD' : ch.agentName || null;
         const totalTokens = ch.inputTokens + ch.outputTokens;
         const tokenRatio = totalTokens / MAX_CONTEXT_TOKENS;
         const hasExtraLines = !!(ch.folderName || teamRoleLabel);
@@ -206,7 +217,7 @@ export function ToolOverlay({
                   </span>
                 )}
               </div>
-              {isSelected && !isSub && (
+              {isSelected && !isSub && !isNpc && (
                 <Button
                   variant="ghost"
                   size="icon"
