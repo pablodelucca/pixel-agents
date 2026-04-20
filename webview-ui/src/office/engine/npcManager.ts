@@ -102,12 +102,13 @@ export class NpcManager {
 
     this.radarDesk = desk;
 
-    // Vela sits at the back row of the desk (the backgroundTiles row).
-    // Her x/y puts her between the two desk columns so she's centered.
+    // Vela stands behind the desk: her feet rest at the desk top edge
+    // (bottom of the background row), her body visible above the back lip.
+    // Z-sort keeps her behind the desk's solid front face.
     const velaCol = desk.col;
-    const velaRow = desk.row; // top row of desk (background)
+    const velaRow = desk.row; // top row of desk (background row)
     const velaPixelX = desk.col * TILE_SIZE + TILE_SIZE; // center of 2-wide desk
-    const velaPixelY = velaRow * TILE_SIZE + TILE_SIZE / 2;
+    const velaPixelY = (velaRow + 1) * TILE_SIZE; // feet at the desk top edge
 
     if (!this.vela) {
       this.vela = createCharacter(NPC_VELA_ID, -1, null, null, 0);
