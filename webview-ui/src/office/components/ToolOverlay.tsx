@@ -109,10 +109,11 @@ export function ToolOverlay({
   const radarDesk = officeState.npcManager.getRadarDesk();
   const allIds = [...agents, ...subagentCharacters.map((s) => s.id), ...(vela ? [vela.id] : [])];
 
-  // "RISK ASSESSMENT" label above the radar desk (always visible when desk exists)
+  // "RISK ASSESSMENT" label above the radar desk (always visible when desk exists).
+  // Positioned high enough to clear Vela's head — she stands behind the desk with
+  // her head extending ~24px above the desk top.
   let radarLabel: React.ReactElement | null = null;
   if (radarDesk) {
-    // Center label horizontally over the 2-wide desk, position above it
     const deskWorldX = (radarDesk.col + 1) * TILE_SIZE; // center of 2-wide desk
     const deskWorldY = radarDesk.row * TILE_SIZE; // top of desk
     const screenX = (deviceOffsetX + deskWorldX * zoom) / dpr;
@@ -123,7 +124,7 @@ export function ToolOverlay({
         className="absolute -translate-x-1/2 pointer-events-none"
         style={{
           left: screenX,
-          top: screenY - 20,
+          top: screenY - 44,
           zIndex: 40,
         }}
       >
