@@ -4,7 +4,6 @@
  */
 
 import {
-  NPC_IDLE_FRAME_DURATION_SEC,
   NPC_VELA_ID,
   RADAR_STAMP_DOWN_SEC,
   RADAR_STAMP_HOLD_SEC,
@@ -114,12 +113,13 @@ export class NpcManager {
       this.vela = createCharacter(NPC_VELA_ID, -1, null, null, 0);
       this.vela.isNpc = true;
       this.vela.isActive = false;
-      this.vela.state = CharacterState.TYPE;
+      this.vela.state = CharacterState.IDLE; // Standing behind desk (no chair)
       this.vela.npcStampPhase = 'idle';
       this.vela.npcStampTimer = 0;
       console.log('[Pixel Agents] Vela spawned at radar_desk');
     }
 
+    this.vela.state = CharacterState.IDLE;
     this.vela.tileCol = velaCol;
     this.vela.tileRow = velaRow;
     this.vela.x = velaPixelX;
@@ -157,30 +157,30 @@ export class NpcManager {
     const v = this.vela;
     v.frameTimer += dt;
 
+    // State mapping: idle = standing (IDLE state), stamping = typing (TYPE state)
     switch (v.npcStampPhase) {
       case 'idle': {
-        // Subtle idle animation: 2-frame cycle at slow rate
-        if (v.frameTimer >= NPC_IDLE_FRAME_DURATION_SEC) {
-          v.frameTimer -= NPC_IDLE_FRAME_DURATION_SEC;
-          v.frame = (v.frame + 1) % 2;
-        }
+        v.state = CharacterState.IDLE;
+        // No idle animation — standing pose (walk frame 1)
+        v.frameTimer = 0;
         break;
       }
       case 'stamp_up': {
+        v.state = CharacterState.TYPE;
         v.npcStampTimer = (v.npcStampTimer ?? 0) + dt;
-        v.frame = 0; // stamp_up frame (maps to typing frame 0 = column 3)
-        // T2 holds longer — Vela visibly "thinks" before stamping
+        v.frame = 0; // stamp_up frame (maps to typing frame 0)
         const holdDuration = this.isT2 ? RADAR_STAMP_UP_T2_SEC : RADAR_STAMP_UP_SEC;
         if (v.npcStampTimer >= holdDuration) {
           v.npcStampPhase = 'stamp_down';
           v.npcStampTimer = 0;
-          v.frame = 1; // stamp_down frame (maps to typing frame 1 = column 4)
+          v.frame = 1;
         }
         break;
       }
       case 'stamp_down': {
+        v.state = CharacterState.TYPE;
         v.npcStampTimer = (v.npcStampTimer ?? 0) + dt;
-        v.frame = 1; // stamp_down frame
+        v.frame = 1;
         if (v.npcStampTimer >= RADAR_STAMP_DOWN_SEC) {
           v.npcStampPhase = 'stamp_hold';
           v.npcStampTimer = 0;
@@ -188,10 +188,12 @@ export class NpcManager {
         break;
       }
       case 'stamp_hold': {
+        v.state = CharacterState.TYPE;
         v.npcStampTimer = (v.npcStampTimer ?? 0) + dt;
-        v.frame = 1; // hold stamp_down pose
+        v.frame = 1;
         if (v.npcStampTimer >= RADAR_STAMP_HOLD_SEC) {
           v.npcStampPhase = 'idle';
+          v.state = CharacterState.IDLE;
           v.npcStampTimer = 0;
           v.npcStampVerdict = undefined;
           v.frame = 0;

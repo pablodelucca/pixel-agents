@@ -106,12 +106,39 @@ export function ToolOverlay({
 
   // All character IDs (including NPCs like Vela)
   const vela = officeState.npcManager.getVela();
+  const radarDesk = officeState.npcManager.getRadarDesk();
   const allIds = [...agents, ...subagentCharacters.map((s) => s.id), ...(vela ? [vela.id] : [])];
+
+  // "RISK ASSESSMENT" label above the radar desk (always visible when desk exists)
+  let radarLabel: React.ReactElement | null = null;
+  if (radarDesk) {
+    // Center label horizontally over the 2-wide desk, position above it
+    const deskWorldX = (radarDesk.col + 1) * TILE_SIZE; // center of 2-wide desk
+    const deskWorldY = radarDesk.row * TILE_SIZE; // top of desk
+    const screenX = (deviceOffsetX + deskWorldX * zoom) / dpr;
+    const screenY = (deviceOffsetY + deskWorldY * zoom) / dpr;
+    radarLabel = (
+      <div
+        key="radar-desk-label"
+        className="absolute -translate-x-1/2 pointer-events-none"
+        style={{
+          left: screenX,
+          top: screenY - 20,
+          zIndex: 40,
+        }}
+      >
+        <div className="px-4 py-1 pixel-panel whitespace-nowrap" style={{ fontSize: '14px' }}>
+          RISK ASSESSMENT
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
+      {radarLabel}
       {allIds.map((id) => {
-        const ch = officeState.characters.get(id);
+        const ch = officeState.getCharacterById(id);
         if (!ch) return null;
 
         const isSelected = selectedId === id;

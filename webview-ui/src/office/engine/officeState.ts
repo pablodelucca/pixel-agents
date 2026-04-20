@@ -760,6 +760,15 @@ export class OfficeState {
     return chars;
   }
 
+  /** Look up any character by ID, including NPCs (Vela). Returns null if not found. */
+  getCharacterById(id: number): Character | null {
+    const ch = this.characters.get(id);
+    if (ch) return ch;
+    const vela = this.npcManager.getVela();
+    if (vela && vela.id === id) return vela;
+    return null;
+  }
+
   /** Handle agentRadarStart — enqueue agent for RADAR desk visit */
   handleRadarStart(agentId: number, tier?: number): void {
     const ch = this.characters.get(agentId);
