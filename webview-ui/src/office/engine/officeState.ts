@@ -810,16 +810,31 @@ export class OfficeState {
     }
   }
 
-  /** Walk agent to the visitor seat tile */
+  /** Walk agent to the visitor seat tile.
+   *  Temporarily unblocks both the agent's own seat AND the visitor seat
+   *  so the agent can pathfind to the visitor chair (chair tiles are
+   *  normally blocked for non-owners). */
   private walkAgentToVisitorSeat(ch: Character): void {
     const seatId = this.radarQueue.visitorSeatId;
     if (!seatId) return;
     const seat = this.seats.get(seatId);
     if (!seat) return;
 
-    const path = this.withOwnSeatUnblocked(ch, () =>
-      findPath(ch.tileCol, ch.tileRow, seat.seatCol, seat.seatRow, this.tileMap, this.blockedTiles),
-    );
+    const visitorKey = `${seat.seatCol},${seat.seatRow}`;
+    const path = this.withOwnSeatUnblocked(ch, () => {
+      const hadBlock = this.blockedTiles.has(visitorKey);
+      this.blockedTiles.delete(visitorKey);
+      const result = findPath(
+        ch.tileCol,
+        ch.tileRow,
+        seat.seatCol,
+        seat.seatRow,
+        this.tileMap,
+        this.blockedTiles,
+      );
+      if (hadBlock) this.blockedTiles.add(visitorKey);
+      return result;
+    });
     if (path.length > 0) {
       ch.path = path;
       ch.moveProgress = 0;
@@ -941,20 +956,30 @@ export class OfficeState {
           ch.state = CharacterState.IDLE;
           ch.frame = 0;
           ch.frameTimer = 0;
-          // Walk back to own seat
+          // Walk back to own seat. Unblock both own seat AND visitor seat
+          // (agent is standing on the visitor seat, which is normally blocked).
           if (ch.seatId) {
             const seat = this.seats.get(ch.seatId);
             if (seat) {
-              const path = this.withOwnSeatUnblocked(ch, () =>
-                findPath(
+              const visitorSeatId = this.radarQueue.visitorSeatId;
+              const visitorSeat = visitorSeatId ? this.seats.get(visitorSeatId) : null;
+              const visitorKey = visitorSeat
+                ? `${visitorSeat.seatCol},${visitorSeat.seatRow}`
+                : null;
+              const path = this.withOwnSeatUnblocked(ch, () => {
+                const hadBlock = visitorKey ? this.blockedTiles.has(visitorKey) : false;
+                if (visitorKey) this.blockedTiles.delete(visitorKey);
+                const result = findPath(
                   ch.tileCol,
                   ch.tileRow,
                   seat.seatCol,
                   seat.seatRow,
                   this.tileMap,
                   this.blockedTiles,
-                ),
-              );
+                );
+                if (visitorKey && hadBlock) this.blockedTiles.add(visitorKey);
+                return result;
+              });
               if (path.length > 0) {
                 ch.path = path;
                 ch.moveProgress = 0;
