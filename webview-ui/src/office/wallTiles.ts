@@ -10,14 +10,14 @@
  * Bitmask convention: N=1, E=2, S=4, W=8. Out-of-bounds = NOT wall.
  */
 
-import { getColorizedSprite } from './colorize.js';
+import type { ColorValue } from "../components/ui/types.js";
+import { getColorizedSprite } from "./colorize.js";
 import type {
-  FloorColor,
   FurnitureInstance,
   SpriteData,
   TileType as TileTypeVal,
-} from './types.js';
-import { TILE_SIZE, TileType } from './types.js';
+} from "./types.js";
+import { TILE_SIZE, TileType } from "./types.js";
 
 /** Wall tile sets: each set has 16 sprites indexed by bitmask (0-15) */
 let wallSets: SpriteData[][] = [];
@@ -47,7 +47,11 @@ export function getWallSetPreviewSprite(setIndex: number): SpriteData | null {
 /**
  * Build the 4-bit neighbor bitmask for a wall tile at (col, row).
  */
-function buildWallMask(col: number, row: number, tileMap: TileTypeVal[][]): number {
+function buildWallMask(
+  col: number,
+  row: number,
+  tileMap: TileTypeVal[][],
+): number {
   const tmRows = tileMap.length;
   const tmCols = tmRows > 0 ? tileMap[0].length : 0;
 
@@ -63,7 +67,7 @@ function buildWallMask(col: number, row: number, tileMap: TileTypeVal[][]): numb
  * Get the wall sprite for a tile based on its cardinal neighbors.
  * Returns the sprite + Y offset, or null to fall back to solid WALL_COLOR.
  */
-export function getWallSprite(
+function getWallSprite(
   col: number,
   row: number,
   tileMap: TileTypeVal[][],
@@ -85,11 +89,11 @@ export function getWallSprite(
  * Uses Colorize mode (grayscale → HSL) like floor tiles.
  * Returns the colorized sprite + Y offset, or null if no wall sprites loaded.
  */
-export function getColorizedWallSprite(
+function getColorizedWallSprite(
   col: number,
   row: number,
   tileMap: TileTypeVal[][],
-  color: FloorColor,
+  color: ColorValue,
   setIndex = 0,
 ): { sprite: SpriteData; offsetY: number } | null {
   if (wallSets.length === 0) return null;
@@ -100,7 +104,10 @@ export function getColorizedWallSprite(
   if (!sprite) return null;
 
   const cacheKey = `wall-${setIndex}-${mask}-${color.h}-${color.s}-${color.b}-${color.c}`;
-  const colorized = getColorizedSprite(cacheKey, sprite, { ...color, colorize: true });
+  const colorized = getColorizedSprite(cacheKey, sprite, {
+    ...color,
+    colorize: true,
+  });
 
   return { sprite: colorized, offsetY: TILE_SIZE - sprite.length };
 }
@@ -111,7 +118,7 @@ export function getColorizedWallSprite(
  */
 export function getWallInstances(
   tileMap: TileTypeVal[][],
-  tileColors?: Array<FloorColor | null>,
+  tileColors?: Array<ColorValue | null>,
   cols?: number,
 ): FurnitureInstance[] {
   if (wallSets.length === 0) return [];
@@ -140,10 +147,10 @@ export function getWallInstances(
 }
 
 /**
- * Compute the flat fill hex color for a wall tile with a given FloorColor.
+ * Compute the flat fill hex color for a wall tile with a given ColorValue.
  * Uses same Colorize algorithm as floor tiles: 50% gray → HSL.
  */
-export function wallColorToHex(color: FloorColor): string {
+export function wallColorToHex(color: ColorValue): string {
   const { h, s, b, c } = color;
   // Start with 50% gray (wall base)
   let lightness = 0.5;
@@ -197,7 +204,8 @@ export function wallColorToHex(color: FloorColor): string {
   }
 
   const m = lightness - ch / 2;
-  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round((v + m) * 255)));
+  const clamp = (v: number) =>
+    Math.max(0, Math.min(255, Math.round((v + m) * 255)));
 
-  return `#${clamp(r1).toString(16).padStart(2, '0')}${clamp(g1).toString(16).padStart(2, '0')}${clamp(b1).toString(16).padStart(2, '0')}`;
+  return `#${clamp(r1).toString(16).padStart(2, "0")}${clamp(g1).toString(16).padStart(2, "0")}${clamp(b1).toString(16).padStart(2, "0")}`;
 }

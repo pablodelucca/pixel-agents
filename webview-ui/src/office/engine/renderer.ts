@@ -1,7 +1,9 @@
+import type { ColorValue } from "../../components/ui/types.js";
 import {
   BUBBLE_FADE_DURATION_SEC,
   BUBBLE_SITTING_OFFSET_PX,
   BUBBLE_VERTICAL_OFFSET_PX,
+  BUTTON_ICON_COLOR,
   BUTTON_ICON_SIZE_FACTOR,
   BUTTON_LINE_WIDTH_MIN,
   BUTTON_LINE_WIDTH_ZOOM_FACTOR,
@@ -30,36 +32,44 @@ import {
   SELECTION_HIGHLIGHT_COLOR,
   VOID_TILE_DASH_PATTERN,
   VOID_TILE_OUTLINE_COLOR,
-} from '../../constants.js';
-import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js';
-import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js';
+} from "../../constants.js";
+import {
+  getColorizedFloorSprite,
+  hasFloorSprites,
+  WALL_COLOR,
+} from "../floorTiles.js";
+import { getCachedSprite, getOutlineSprite } from "../sprites/spriteCache.js";
 import {
   BUBBLE_PERMISSION_SPRITE,
   BUBBLE_WAITING_SPRITE,
   getCharacterSprites,
-} from '../sprites/spriteData.js';
+} from "../sprites/spriteData.js";
 import type {
   Character,
-  FloorColor,
   FurnitureInstance,
   Seat,
   SpriteData,
   TileType as TileTypeVal,
-} from '../types.js';
-import { CharacterState, TILE_SIZE, TileType } from '../types.js';
-import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles.js';
-import { getCharacterSprite } from './characters.js';
-import { renderMatrixEffect } from './matrixEffect.js';
+} from "../types.js";
+import { CharacterState, TILE_SIZE, TileType } from "../types.js";
+import {
+  getWallInstances,
+  hasWallSprites,
+  wallColorToHex,
+} from "../wallTiles.js";
+import { getCharacterSprite } from "./characters.js";
+import { renderMatrixEffect } from "./matrixEffect.js";
 
 // ── Render functions ────────────────────────────────────────────
 
+/** @internal */
 export function renderTileGrid(
   ctx: CanvasRenderingContext2D,
   tileMap: TileTypeVal[][],
   offsetX: number,
   offsetY: number,
   zoom: number,
-  tileColors?: Array<FloorColor | null>,
+  tileColors?: Array<ColorValue | null>,
   cols?: number,
 ): void {
   const s = TILE_SIZE * zoom;
@@ -104,6 +114,7 @@ interface ZDrawable {
   draw: (ctx: CanvasRenderingContext2D) => void;
 }
 
+/** @internal */
 export function renderScene(
   ctx: CanvasRenderingContext2D,
   furniture: FurnitureInstance[],
@@ -148,10 +159,13 @@ export function renderScene(
     const spriteData = getCharacterSprite(ch, sprites);
     const cached = getCachedSprite(spriteData, zoom);
     // Sitting offset: shift character down when seated so they visually sit in the chair
-    const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+    const sittingOffset =
+      ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
     // Anchor at bottom-center of character — round to integer device pixels
     const drawX = Math.round(offsetX + ch.x * zoom - cached.width / 2);
-    const drawY = Math.round(offsetY + (ch.y + sittingOffset) * zoom - cached.height);
+    const drawY = Math.round(
+      offsetY + (ch.y + sittingOffset) * zoom - cached.height,
+    );
 
     // Sort characters by bottom of their tile (not center) so they render
     // in front of same-row furniture (e.g. chairs) but behind furniture
@@ -177,7 +191,9 @@ export function renderScene(
     const isSelected = selectedAgentId !== null && ch.id === selectedAgentId;
     const isHovered = hoveredAgentId !== null && ch.id === hoveredAgentId;
     if (isSelected || isHovered) {
-      const outlineAlpha = isSelected ? SELECTED_OUTLINE_ALPHA : HOVERED_OUTLINE_ALPHA;
+      const outlineAlpha = isSelected
+        ? SELECTED_OUTLINE_ALPHA
+        : HOVERED_OUTLINE_ALPHA;
       const outlineData = getOutlineSprite(spriteData);
       const outlineCached = getCachedSprite(outlineData, zoom);
       const olDrawX = drawX - zoom; // 1 sprite-pixel offset, scaled
@@ -211,7 +227,7 @@ export function renderScene(
 
 // ── Seat indicators ─────────────────────────────────────────────
 
-export function renderSeatIndicators(
+function renderSeatIndicators(
   ctx: CanvasRenderingContext2D,
   seats: Map<string, Seat>,
   characters: Map<number, Character>,
@@ -227,7 +243,8 @@ export function renderSeatIndicators(
 
   // Only show indicator for the hovered seat tile
   for (const [uid, seat] of seats) {
-    if (seat.seatCol !== hoveredTile.col || seat.seatRow !== hoveredTile.row) continue;
+    if (seat.seatCol !== hoveredTile.col || seat.seatRow !== hoveredTile.row)
+      continue;
 
     const s = TILE_SIZE * zoom;
     const x = offsetX + seat.seatCol * s;
@@ -250,6 +267,7 @@ export function renderSeatIndicators(
 
 // ── Edit mode overlays ──────────────────────────────────────────
 
+/** @internal */
 export function renderGridOverlay(
   ctx: CanvasRenderingContext2D,
   offsetX: number,
@@ -286,7 +304,12 @@ export function renderGridOverlay(
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         if (tileMap[r]?.[c] === TileType.VOID) {
-          ctx.strokeRect(offsetX + c * s + 0.5, offsetY + r * s + 0.5, s - 1, s - 1);
+          ctx.strokeRect(
+            offsetX + c * s + 0.5,
+            offsetY + r * s + 0.5,
+            s - 1,
+            s - 1,
+          );
         }
       }
     }
@@ -295,7 +318,7 @@ export function renderGridOverlay(
 }
 
 /** Draw faint expansion placeholders 1 tile outside grid bounds (ghost border). */
-export function renderGhostBorder(
+function renderGhostBorder(
   ctx: CanvasRenderingContext2D,
   offsetX: number,
   offsetY: number,
@@ -329,7 +352,9 @@ export function renderGhostBorder(
       ctx.fillStyle = GHOST_BORDER_HOVER_FILL;
       ctx.fillRect(x, y, s, s);
     }
-    ctx.strokeStyle = isHovered ? GHOST_BORDER_HOVER_STROKE : GHOST_BORDER_STROKE;
+    ctx.strokeStyle = isHovered
+      ? GHOST_BORDER_HOVER_STROKE
+      : GHOST_BORDER_STROKE;
     ctx.lineWidth = 1;
     ctx.setLineDash(VOID_TILE_DASH_PATTERN);
     ctx.strokeRect(x + 0.5, y + 0.5, s - 1, s - 1);
@@ -338,6 +363,7 @@ export function renderGhostBorder(
   ctx.restore();
 }
 
+/** @internal */
 export function renderGhostPreview(
   ctx: CanvasRenderingContext2D,
   sprite: SpriteData,
@@ -370,6 +396,7 @@ export function renderGhostPreview(
   ctx.restore();
 }
 
+/** @internal */
 export function renderSelectionHighlight(
   ctx: CanvasRenderingContext2D,
   col: number,
@@ -391,6 +418,7 @@ export function renderSelectionHighlight(
   ctx.restore();
 }
 
+/** @internal */
 export function renderDeleteButton(
   ctx: CanvasRenderingContext2D,
   col: number,
@@ -415,9 +443,12 @@ export function renderDeleteButton(
   ctx.fill();
 
   // X mark
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = Math.max(BUTTON_LINE_WIDTH_MIN, zoom * BUTTON_LINE_WIDTH_ZOOM_FACTOR);
-  ctx.lineCap = 'round';
+  ctx.strokeStyle = BUTTON_ICON_COLOR;
+  ctx.lineWidth = Math.max(
+    BUTTON_LINE_WIDTH_MIN,
+    zoom * BUTTON_LINE_WIDTH_ZOOM_FACTOR,
+  );
+  ctx.lineCap = "round";
   const xSize = radius * BUTTON_ICON_SIZE_FACTOR;
   ctx.beginPath();
   ctx.moveTo(cx - xSize, cy - xSize);
@@ -430,7 +461,7 @@ export function renderDeleteButton(
   return { cx, cy, radius };
 }
 
-export function renderRotateButton(
+function renderRotateButton(
   ctx: CanvasRenderingContext2D,
   col: number,
   row: number,
@@ -454,9 +485,12 @@ export function renderRotateButton(
   ctx.fill();
 
   // Circular arrow icon
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = Math.max(BUTTON_LINE_WIDTH_MIN, zoom * BUTTON_LINE_WIDTH_ZOOM_FACTOR);
-  ctx.lineCap = 'round';
+  ctx.strokeStyle = BUTTON_ICON_COLOR;
+  ctx.lineWidth = Math.max(
+    BUTTON_LINE_WIDTH_MIN,
+    zoom * BUTTON_LINE_WIDTH_ZOOM_FACTOR,
+  );
+  ctx.lineCap = "round";
   const arcR = radius * BUTTON_ICON_SIZE_FACTOR;
   ctx.beginPath();
   // Draw a 270-degree arc
@@ -479,7 +513,7 @@ export function renderRotateButton(
 
 // ── Speech bubbles ──────────────────────────────────────────────
 
-export function renderBubbles(
+function renderBubbles(
   ctx: CanvasRenderingContext2D,
   characters: Character[],
   offsetX: number,
@@ -490,11 +524,16 @@ export function renderBubbles(
     if (!ch.bubbleType) continue;
 
     const sprite =
-      ch.bubbleType === 'permission' ? BUBBLE_PERMISSION_SPRITE : BUBBLE_WAITING_SPRITE;
+      ch.bubbleType === "permission"
+        ? BUBBLE_PERMISSION_SPRITE
+        : BUBBLE_WAITING_SPRITE;
 
     // Compute opacity: permission = full, waiting = fade in last 0.5s
     let alpha = 1.0;
-    if (ch.bubbleType === 'waiting' && ch.bubbleTimer < BUBBLE_FADE_DURATION_SEC) {
+    if (
+      ch.bubbleType === "waiting" &&
+      ch.bubbleTimer < BUBBLE_FADE_DURATION_SEC
+    ) {
       alpha = ch.bubbleTimer / BUBBLE_FADE_DURATION_SEC;
     }
 
@@ -502,10 +541,14 @@ export function renderBubbles(
     // Position: centered above the character's head
     // Character is anchored bottom-center at (ch.x, ch.y), sprite is 16x24
     // Place bubble above head with a small gap; follow sitting offset
-    const sittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
+    const sittingOff =
+      ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
     const bubbleX = Math.round(offsetX + ch.x * zoom - cached.width / 2);
     const bubbleY = Math.round(
-      offsetY + (ch.y + sittingOff - BUBBLE_VERTICAL_OFFSET_PX) * zoom - cached.height - 1 * zoom,
+      offsetY +
+        (ch.y + sittingOff - BUBBLE_VERTICAL_OFFSET_PX) * zoom -
+        cached.height -
+        1 * zoom,
     );
 
     ctx.save();
@@ -572,7 +615,7 @@ export function renderFrame(
   panY: number,
   selection?: SelectionRenderState,
   editor?: EditorRenderState,
-  tileColors?: Array<FloorColor | null>,
+  tileColors?: Array<ColorValue | null>,
   layoutCols?: number,
   layoutRows?: number,
 ): { offsetX: number; offsetY: number } {
@@ -607,13 +650,25 @@ export function renderFrame(
   }
 
   // Build wall instances for z-sorting with furniture and characters
-  const wallInstances = hasWallSprites() ? getWallInstances(tileMap, tileColors, layoutCols) : [];
-  const allFurniture = wallInstances.length > 0 ? [...wallInstances, ...furniture] : furniture;
+  const wallInstances = hasWallSprites()
+    ? getWallInstances(tileMap, tileColors, layoutCols)
+    : [];
+  const allFurniture =
+    wallInstances.length > 0 ? [...wallInstances, ...furniture] : furniture;
 
   // Draw walls + furniture + characters (z-sorted)
   const selectedId = selection?.selectedAgentId ?? null;
   const hoveredId = selection?.hoveredAgentId ?? null;
-  renderScene(ctx, allFurniture, characters, offsetX, offsetY, zoom, selectedId, hoveredId);
+  renderScene(
+    ctx,
+    allFurniture,
+    characters,
+    offsetX,
+    offsetY,
+    zoom,
+    selectedId,
+    hoveredId,
+  );
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom);

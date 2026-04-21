@@ -10,9 +10,12 @@ import {
   MATRIX_TRAIL_LENGTH,
   MATRIX_TRAIL_MID_THRESHOLD,
   MATRIX_TRAIL_OVERLAY_ALPHA,
-} from '../../constants.js';
-import type { Character, SpriteData } from '../types.js';
-import { MATRIX_EFFECT_DURATION } from '../types.js';
+  matrixGreenBright,
+  matrixGreenDim,
+  matrixGreenMid,
+} from "../../constants.js";
+import type { Character, SpriteData } from "../types.js";
+import { MATRIX_EFFECT_DURATION } from "../types.js";
 
 /** Hash-based flicker: ~70% visible for shimmer effect */
 function flickerVisible(col: number, row: number, time: number): boolean {
@@ -44,13 +47,14 @@ export function renderMatrixEffect(
   zoom: number,
 ): void {
   const progress = ch.matrixEffectTimer / MATRIX_EFFECT_DURATION;
-  const isSpawn = ch.matrixEffect === 'spawn';
+  const isSpawn = ch.matrixEffect === "spawn";
   const time = ch.matrixEffectTimer;
   const totalSweep = MATRIX_SPRITE_ROWS + MATRIX_TRAIL_LENGTH;
 
   for (let col = 0; col < MATRIX_SPRITE_COLS; col++) {
     // Stagger: each column starts at a slightly different time
-    const stagger = (ch.matrixEffectSeeds[col] ?? 0) * MATRIX_COLUMN_STAGGER_RANGE;
+    const stagger =
+      (ch.matrixEffectSeeds[col] ?? 0) * MATRIX_COLUMN_STAGGER_RANGE;
     const colProgress = Math.max(
       0,
       Math.min(1, (progress - stagger) / (1 - MATRIX_COLUMN_STAGGER_RANGE)),
@@ -59,7 +63,7 @@ export function renderMatrixEffect(
 
     for (let row = 0; row < MATRIX_SPRITE_ROWS; row++) {
       const pixel = spriteData[row]?.[col];
-      const hasPixel = pixel && pixel !== '';
+      const hasPixel = pixel && pixel !== "";
       const distFromHead = headRow - row;
       const px = drawX + col * zoom;
       const py = drawY + row * zoom;
@@ -83,7 +87,7 @@ export function renderMatrixEffect(
             // Green overlay that fades as trail progresses
             const greenAlpha = (1 - trailPos) * MATRIX_TRAIL_OVERLAY_ALPHA;
             if (flickerVisible(col, row, time)) {
-              ctx.fillStyle = `rgba(0, 255, 65, ${greenAlpha})`;
+              ctx.fillStyle = matrixGreenBright(greenAlpha);
               ctx.fillRect(px, py, zoom, zoom);
             }
           } else {
@@ -92,10 +96,10 @@ export function renderMatrixEffect(
               const alpha = (1 - trailPos) * MATRIX_TRAIL_EMPTY_ALPHA;
               ctx.fillStyle =
                 trailPos < MATRIX_TRAIL_MID_THRESHOLD
-                  ? `rgba(0, 255, 65, ${alpha})`
+                  ? matrixGreenBright(alpha)
                   : trailPos < MATRIX_TRAIL_DIM_THRESHOLD
-                    ? `rgba(0, 170, 40, ${alpha})`
-                    : `rgba(0, 85, 20, ${alpha})`;
+                    ? matrixGreenMid(alpha)
+                    : matrixGreenDim(alpha);
               ctx.fillRect(px, py, zoom, zoom);
             }
           }
@@ -125,10 +129,10 @@ export function renderMatrixEffect(
             const alpha = (1 - trailPos) * MATRIX_TRAIL_EMPTY_ALPHA;
             ctx.fillStyle =
               trailPos < MATRIX_TRAIL_MID_THRESHOLD
-                ? `rgba(0, 255, 65, ${alpha})`
+                ? matrixGreenBright(alpha)
                 : trailPos < MATRIX_TRAIL_DIM_THRESHOLD
-                  ? `rgba(0, 170, 40, ${alpha})`
-                  : `rgba(0, 85, 20, ${alpha})`;
+                  ? matrixGreenMid(alpha)
+                  : matrixGreenDim(alpha);
             ctx.fillRect(px, py, zoom, zoom);
           }
         }

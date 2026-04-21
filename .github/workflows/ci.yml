@@ -44,6 +44,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             webview-ui/package-lock.json
+            server/package-lock.json
 
       - name: Install Root Dependencies
         id: install_root
@@ -54,31 +55,42 @@ jobs:
         working-directory: webview-ui
         run: npm ci
 
+      - name: Install Server Dependencies
+        id: install_server
+        working-directory: server
+        run: npm ci
+
       # --- Quality Checks (blocking) ---
 
       - name: Type Check
         id: type_check
-        if: always() && steps.install_root.outcome == 'success'
+        if: always() && steps.install_root.outcome == 'success' && steps.install_server.outcome == 'success'
         run: npm run check-types
         continue-on-error: true
 
-      - name: Root Lint
-        id: root_lint
-        if: always() && steps.install_root.outcome == 'success'
+      - name: Lint
+        id: lint
+        if: always() && steps.install_root.outcome == 'success' && steps.install_webview.outcome == 'success'
         run: npm run lint
         continue-on-error: true
 
-      - name: Webview Lint
-        id: webview_lint
+      - name: Webview Tests
+        id: webview_test
         if: always() && steps.install_webview.outcome == 'success'
         working-directory: webview-ui
-        run: npm run lint
+        run: npm test
         continue-on-error: true
 
       - name: Format Check
         id: format_check
         if: always() && steps.install_root.outcome == 'success'
         run: npm run format:check
+        continue-on-error: true
+
+      - name: Knip (advisory)
+        id: knip
+        if: always() && steps.install_root.outcome == 'success'
+        run: npm run knip
         continue-on-error: true
 
       # --- Build (blocking) ---
@@ -91,19 +103,35 @@ jobs:
           cd webview-ui && npm run build
         continue-on-error: true
 
-      # --- Advisory Checks (non-blocking) ---
+      # --- Server Tests (require build for hook script) ---
+
+      - name: Server Tests
+        id: server_test
+        if: always() && steps.build.outcome == 'success' && steps.install_server.outcome == 'success'
+        working-directory: server
+        run: npm test
+        continue-on-error: true
+
+      # --- Audit Checks (blocking) ---
 
       - name: Audit Root Dependencies
         id: audit_root
         if: always() && steps.install_root.outcome == 'success'
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
         continue-on-error: true
 
       - name: Audit Webview Dependencies
         id: audit_webview
         if: always() && steps.install_webview.outcome == 'success'
         working-directory: webview-ui
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Audit Server Dependencies
+        id: audit_server
+        if: always() && steps.install_server.outcome == 'success'
+        working-directory: server
+        run: npm audit --audit-level=moderate
         continue-on-error: true
 
       # --- Summary ---
@@ -116,15 +144,21 @@ jobs:
           INSTALL_ROOT: ${{ steps.install_root.outcome }}
           INSTALL_WEBVIEW: ${{ steps.install_webview.outcome }}
           TYPE_CHECK: ${{ steps.type_check.outcome }}
-          ROOT_LINT: ${{ steps.root_lint.outcome }}
-          WEBVIEW_LINT: ${{ steps.webview_lint.outcome }}
+          LINT: ${{ steps.lint.outcome }}
+          WEBVIEW_TEST: ${{ steps.webview_test.outcome }}
           FORMAT_CHECK: ${{ steps.format_check.outcome }}
           BUILD: ${{ steps.build.outcome }}
+          SERVER_TEST: ${{ steps.server_test.outcome }}
           AUDIT_ROOT: ${{ steps.audit_root.outcome }}
           AUDIT_WEBVIEW: ${{ steps.audit_webview.outcome }}
+          AUDIT_SERVER: ${{ steps.audit_server.outcome }}
+          KNIP: ${{ steps.knip.outcome }}
         run: |
           status() {
             if [ "$1" = "success" ]; then echo "✅ PASS"; else echo "❌ FAIL"; fi
+          }
+          advisory() {
+            if [ "$1" = "success" ]; then echo "✅ PASS"; else echo "⚠️ WARN"; fi
           }
           {
             echo "## CI Results"
@@ -136,12 +170,15 @@ jobs:
             echo "| Install root deps | $(status "$INSTALL_ROOT") |"
             echo "| Install webview deps | $(status "$INSTALL_WEBVIEW") |"
             echo "| **Type check** | $(status "$TYPE_CHECK") |"
-            echo "| **Root lint** | $(status "$ROOT_LINT") |"
-            echo "| **Webview lint** | $(status "$WEBVIEW_LINT") |"
+            echo "| **Lint** | $(status "$LINT") |"
+            echo "| **Webview tests** | $(status "$WEBVIEW_TEST") |"
             echo "| **Format check** | $(status "$FORMAT_CHECK") |"
             echo "| **Build** | $(status "$BUILD") |"
-            echo "| Audit root _(advisory)_ | $(status "$AUDIT_ROOT") |"
-            echo "| Audit webview _(advisory)_ | $(status "$AUDIT_WEBVIEW") |"
+            echo "| **Server tests** | $(status "$SERVER_TEST") |"
+            echo "| Audit root _(advisory)_ | $(advisory "$AUDIT_ROOT") |"
+            echo "| Audit webview _(advisory)_ | $(advisory "$AUDIT_WEBVIEW") |"
+            echo "| Audit server _(advisory)_ | $(advisory "$AUDIT_SERVER") |"
+            echo "| Knip _(advisory)_ | $(advisory "$KNIP") |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # --- Final Gate ---
@@ -154,19 +191,124 @@ jobs:
           INSTALL_ROOT: ${{ steps.install_root.outcome }}
           INSTALL_WEBVIEW: ${{ steps.install_webview.outcome }}
           TYPE_CHECK: ${{ steps.type_check.outcome }}
-          ROOT_LINT: ${{ steps.root_lint.outcome }}
-          WEBVIEW_LINT: ${{ steps.webview_lint.outcome }}
+          LINT: ${{ steps.lint.outcome }}
+          WEBVIEW_TEST: ${{ steps.webview_test.outcome }}
           FORMAT_CHECK: ${{ steps.format_check.outcome }}
           BUILD: ${{ steps.build.outcome }}
+          SERVER_TEST: ${{ steps.server_test.outcome }}
         run: |
           failed=0
           for step in CHECKOUT SETUP_NODE INSTALL_ROOT INSTALL_WEBVIEW \
-                      TYPE_CHECK ROOT_LINT WEBVIEW_LINT FORMAT_CHECK \
-                      BUILD; do
-            eval "val=\$$step"
+                      TYPE_CHECK LINT \
+                      WEBVIEW_TEST FORMAT_CHECK BUILD SERVER_TEST; do
+            val=$(printenv "$step" 2>/dev/null || echo "skipped")
             if [ "$val" != "success" ]; then
               echo "::error::$step failed"
               failed=1
             fi
           done
           exit "$failed"
+
+  e2e:
+    needs: ci
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: .playwright-browsers
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            webview-ui/package-lock.json
+            server/package-lock.json
+
+      - name: Restore VS Code Cache
+        id: cache_vscode_restore
+        uses: actions/cache/restore@v5
+        with:
+          path: .vscode-test
+          key: vscode-test-${{ runner.os }}-${{ hashFiles('e2e/global-setup.ts') }}-v2
+          restore-keys: |
+            vscode-test-${{ runner.os }}-
+
+      - name: Restore Playwright Cache
+        id: cache_playwright_restore
+        uses: actions/cache/restore@v5
+        with:
+          path: .playwright-browsers
+          key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-v1
+          restore-keys: |
+            playwright-browsers-${{ runner.os }}-
+
+      - name: Install Root Dependencies
+        run: npm ci
+
+      - name: Install Webview Dependencies
+        working-directory: webview-ui
+        run: npm ci
+
+      - name: Build
+        run: node esbuild.js
+
+      - name: Build Webview
+        working-directory: webview-ui
+        run: npm run build
+
+      - name: Install Playwright Dependencies
+        id: install_playwright_deps
+        run: npx playwright install --with-deps chromium
+        continue-on-error: true
+
+      - name: E2E Tests
+        id: e2e_test
+        if: steps.install_playwright_deps.outcome == 'success'
+        run: npm run e2e
+        continue-on-error: true
+
+      - name: Save VS Code Cache
+        if: always() && steps.cache_vscode_restore.outputs.cache-hit != 'true' && steps.e2e_test.outcome == 'success' && hashFiles('.vscode-test/vscode-executable.txt') != ''
+        uses: actions/cache/save@v5
+        with:
+          path: .vscode-test
+          key: ${{ steps.cache_vscode_restore.outputs.cache-primary-key }}
+
+      - name: Save Playwright Cache
+        if: always() && steps.cache_playwright_restore.outputs.cache-hit != 'true' && steps.install_playwright_deps.outcome == 'success' && hashFiles('.playwright-browsers/**') != ''
+        uses: actions/cache/save@v5
+        with:
+          path: .playwright-browsers
+          key: ${{ steps.cache_playwright_restore.outputs.cache-primary-key }}
+
+      - name: Write Step Summary
+        if: always()
+        shell: bash
+        env:
+          OS: ${{ matrix.os }}
+          INSTALL_PLAYWRIGHT_DEPS: ${{ steps.install_playwright_deps.outcome }}
+          E2E_TEST: ${{ steps.e2e_test.outcome }}
+        run: |
+          status() {
+            if [ "$1" = "success" ]; then echo "✅ PASS"; else echo "❌ FAIL"; fi
+          }
+          {
+            echo "## E2E Results ($OS)"
+            echo
+            echo "| Check | Result |"
+            echo "| --- | --- |"
+            echo "| Install Playwright deps | $(status "$INSTALL_PLAYWRIGHT_DEPS") |"
+            echo "| E2E tests | $(status "$E2E_TEST") |"
+          } >> "$GITHUB_STEP_SUMMARY"

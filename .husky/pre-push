@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+echo "🔍 Type-checking..."
+npm run check-types

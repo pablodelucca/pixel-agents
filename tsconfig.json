@@ -12,6 +12,6 @@
     "noUncheckedIndexedAccess": false,
     "noImplicitOverride": false
   },
-  "include": ["src", "shared"],
+  "include": ["src", "server/src", "shared"],
   "exclude": ["node_modules", "webview-ui", "dist", "out", "scripts"]
 }

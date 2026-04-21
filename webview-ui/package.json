@@ -18,7 +18,8 @@
     "@eslint/js": "^9.39.1",
     "@minion-stack/lint-config": "^0.1.1",
     "@minion-stack/tsconfig": "^0.1.0",
-    "@types/node": "^25.5.0",
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/node": "^25.5.2",
     "@types/pngjs": "^6.0.5",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -30,9 +31,10 @@
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "globals": "^17.4.0",
     "pngjs": "^7.0.0",
+    "tailwindcss": "^4.2.2",
     "tsx": "^4.19.3",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.57.0",
-    "vite": "^8.0.0"
+    "typescript-eslint": "^8.58.0",
+    "vite": "^8.0.3"
   }
 }

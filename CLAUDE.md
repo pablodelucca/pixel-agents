@@ -6,16 +6,31 @@ VS Code extension with embedded React webview: pixel art office where AI agents 
 
 ```
 src/                          — Extension backend (Node.js, VS Code API)
-  constants.ts                — All backend magic numbers/strings (timing, truncation, asset parsing, VS Code IDs)
+  constants.ts                — Extension-only constants (VS Code IDs, key names)
   extension.ts                — Entry: activate(), deactivate()
-  PixelAgentsViewProvider.ts   — WebviewViewProvider, message dispatch, asset loading
+  PixelAgentsViewProvider.ts   — WebviewViewProvider, message dispatch, asset loading, server lifecycle
   assetLoader.ts              — PNG parsing, sprite conversion, catalog building, default layout loading
   agentManager.ts             — Terminal lifecycle: launch, remove, restore, persist
+  configPersistence.ts        — User-level config file I/O (~/.pixel-agents/config.json), external asset directories
   layoutPersistence.ts        — User-level layout file I/O (~/.pixel-agents/layout.json), migration, cross-window watching
   fileWatcher.ts              — fs.watch + polling, readNewLines, /clear detection, terminal adoption
   transcriptParser.ts         — JSONL parsing: tool_use/tool_result → webview messages
   timerManager.ts             — Waiting/permission timer logic
   types.ts                    — Shared interfaces (AgentState, PersistedAgent)
+
+server/                       — Standalone server (Node.js, no VS Code deps except types)
+  src/
+    server.ts                 — HTTP server: hook endpoint, health check, server.json discovery
+    hookEventHandler.ts       — Routes hook events to agents, buffers pre-registration events
+    constants.ts              — All timing/scanning constants (shared by extension + server)
+    providers/file/
+      claudeHookInstaller.ts  — Install/uninstall hooks in ~/.claude/settings.json
+      hooks/claude-hook.ts    — Hook script: reads stdin, POSTs to server (bundled to CJS by esbuild)
+  __tests__/                  — Vitest test suite
+    server.test.ts            — HTTP server lifecycle, auth, hooks, server.json
+    hookEventHandler.test.ts  — Event routing, buffering, timer cancellation
+    claudeHookInstaller.test.ts — Hook install/uninstall in settings.json
+    claude-hook.test.ts       — Integration: spawns real hook script process
 
 webview-ui/src/               — React + TypeScript (Vite)
   constants.ts                — All webview magic numbers/strings (grid, animation, rendering, camera, zoom, editor, game logic, notification sound)
@@ -28,7 +43,9 @@ webview-ui/src/               — React + TypeScript (Vite)
   components/
     BottomToolbar.tsx          — + Agent, Layout toggle, Settings button
     ZoomControls.tsx           — +/- zoom (top-right)
-    SettingsModal.tsx          — Centered modal: settings, export/import layout, sound toggle, debug toggle
+    SettingsModal.tsx          — Centered modal: settings, export/import layout, sound toggle, hooks toggle, debug toggle
+    InfoModal.tsx              — Reusable pixel-styled modal (used for hooks info, changelog)
+    Tooltip.tsx                — First-run tooltip with dismiss + "View more" link
     DebugView.tsx              — Debug overlay
   office/
     types.ts                  — Interfaces (OfficeLayout, FloorColor, Character, etc.) + re-exports constants from constants.ts
@@ -73,7 +90,7 @@ scripts/                      — 7-stage asset extraction pipeline
 
 **Vocabulary**: Terminal = VS Code terminal running Claude. Session = JSONL conversation file. Agent = webview character bound 1:1 to a terminal.
 
-**Extension ↔ Webview**: `postMessage` protocol. Key messages: `openClaude`, `agentCreated/Closed`, `focusAgent`, `agentToolStart/Done/Clear`, `agentStatus`, `existingAgents`, `layoutLoaded`, `furnitureAssetsLoaded`, `floorTilesLoaded`, `wallTilesLoaded`, `saveLayout`, `saveAgentSeats`, `exportLayout`, `importLayout`, `settingsLoaded`, `setSoundEnabled`.
+**Extension ↔ Webview**: `postMessage` protocol. Key messages: `openClaude`, `agentCreated/Closed`, `focusAgent`, `agentToolStart/Done/Clear`, `agentStatus`, `existingAgents`, `layoutLoaded`, `furnitureAssetsLoaded`, `floorTilesLoaded`, `wallTilesLoaded`, `saveLayout`, `saveAgentSeats`, `exportLayout`, `importLayout`, `settingsLoaded` (includes `externalAssetDirectories`), `setSoundEnabled`, `addExternalAssetDirectory`, `removeExternalAssetDirectory` (field: `path`), `externalAssetDirectoriesUpdated` (field: `dirs`).
 
 **One-agent-per-terminal**: Each "+ Agent" click → new terminal (`claude --session-id <uuid>`) → immediate agent creation → 1s poll for `<uuid>.jsonl` → file watching starts.
 
@@ -85,11 +102,19 @@ JSONL transcripts at `~/.claude/projects/<project-hash>/<session-id>.jsonl`. Pro
 
 **JSONL record types**: `assistant` (tool_use blocks or thinking), `user` (tool_result or text prompt), `system` with `subtype: "turn_duration"` (reliable turn-end signal), `progress` with `data.type`: `agent_progress` (sub-agent tool_use/tool_result forwarded to webview, non-exempt tools trigger permission timers), `bash_progress` (long-running Bash output — restarts permission timer to confirm tool is executing), `mcp_progress` (MCP tool status — same timer restart logic). Also observed but not tracked: `file-history-snapshot`, `queue-operation`.
 
-**File watching**: Hybrid `fs.watch` + 2s polling backup. Partial line buffering for mid-write reads. Tool done messages delayed 300ms to prevent flicker.
+**File watching**: Single polling approach (500ms). Partial line buffering for mid-write reads. Tool done messages delayed 300ms to prevent flicker.
+
+**Dual-mode session detection**: Hooks mode (preferred) uses Claude Code Hooks API for instant, reliable detection. Heuristic mode (fallback) uses filesystem polling when hooks are unavailable. The `hookDelivered` flag per agent and `hooksEnabledRef` globally control the switch.
+
+**Hooks mode** (11 events): `SessionStart` (session begin/resume/clear), `SessionEnd` (exit/clear), `Stop` (turn complete), `PermissionRequest`, `Notification` (idle/permission prompt), `UserPromptSubmit` (instant agent spawn confirmation), `PreToolUse` (instant active state), `PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop`. HTTP server (`server/src/server.ts`) receives events via `~/.pixel-agents/hooks/claude-hook.js`. Server discovery via `~/.pixel-agents/server.json` (port + PID + auth token). Multi-window safe. When hooks are active, heuristic scanners (main 1s, external 3s, stale 30s) are skipped entirely.
+
+**Heuristic mode** (fallback): Per-agent 500ms JSONL polling for /clear detection, 1s main scanner for terminal adoption, 3s external scanner, 30s stale check. Content-based /clear detection (`/clear</command-name>` in first 8KB). Multiple dismissal systems (clearDismissedFiles, dismissedJsonlFiles, seededMtimes, pendingClearFiles).
+
+**JSONL polling** (always active): `readNewLines` + `processTranscriptLine` run in both modes for tool content (status text, animations). Only timer logic (permission 7s, text-idle 5s) is suppressed by `hookDelivered`.
 
 **Extension state per agent**: `id, terminalRef, projectDir, jsonlFile, fileOffset, lineBuffer, activeToolIds, activeToolStatuses, activeSubagentToolNames, isWaiting`.
 
-**Persistence**: Agents persisted to `workspaceState` key `'pixel-agents.agents'` (includes palette/hueShift/seatId). **Layout persisted to `~/.pixel-agents/layout.json`** (user-level, shared across all VS Code windows/workspaces). `layoutPersistence.ts` handles all file I/O: `readLayoutFromFile()`, `writeLayoutToFile()` (atomic via `.tmp` + rename), `migrateAndLoadLayout()` (checks file → migrates old workspace state → falls back to bundled default), `watchLayoutFile()` (hybrid `fs.watch` + 2s polling for cross-window sync). On save, `markOwnWrite()` prevents the watcher from re-reading our own write. External changes push `layoutLoaded` to the webview; skipped if the editor has unsaved changes (last-save-wins). On webview ready: `restoreAgents()` matches persisted entries to live terminals. `nextAgentId`/`nextTerminalIndex` advanced past restored values. **Default layout**: When no saved layout file exists and no workspace state to migrate, a bundled `default-layout.json` is loaded from `assets/` and written to the file. If that also doesn't exist, `createDefaultLayout()` generates a basic office. To update the default: run "Pixel Agents: Export Layout as Default" from the command palette (writes current layout to `webview-ui/public/assets/default-layout.json`), then rebuild. **Export/Import**: Settings modal offers Export Layout (save dialog → JSON file) and Import Layout (open dialog → validates `version: 1` + `tiles` array → writes to layout file + pushes `layoutLoaded` to webview).
+**Persistence**: Agents persisted to `workspaceState` key `'pixel-agents.agents'` (includes palette/hueShift/seatId). **Layout persisted to `~/.pixel-agents/layout.json`** (user-level, shared across all VS Code windows/workspaces). `layoutPersistence.ts` handles all file I/O: `readLayoutFromFile()`, `writeLayoutToFile()` (atomic via `.tmp` + rename), `migrateAndLoadLayout()` (checks file → migrates old workspace state → falls back to bundled default), `watchLayoutFile()` (hybrid `fs.watch` + 2s polling for cross-window sync). On save, `markOwnWrite()` prevents the watcher from re-reading our own write. External changes push `layoutLoaded` to the webview; skipped if the editor has unsaved changes (last-save-wins). On webview ready: `restoreAgents()` matches persisted entries to live terminals. `nextAgentId`/`nextTerminalIndex` advanced past restored values. **Default layout**: When no saved layout file exists and no workspace state to migrate, a bundled `default-layout.json` is loaded from `assets/` and written to the file. If that also doesn't exist, `createDefaultLayout()` generates a basic office. To update the default: run "Pixel Agents: Export Layout as Default" from the command palette (writes current layout to `webview-ui/public/assets/default-layout.json`), then rebuild. **Export/Import**: Settings modal offers Export Layout (save dialog → JSON file) and Import Layout (open dialog → validates `version: 1` + `tiles` array → writes to layout file + pushes `layoutLoaded` to webview). **Config persisted to `~/.pixel-agents/config.json`** (user-level, shared across windows). `configPersistence.ts` handles read/write with atomic tmp+rename. Currently stores `externalAssetDirectories: string[]` for external asset pack paths. **External asset directories**: Settings modal offers Add/Remove Asset Directory. External furniture merged with bundled assets on boot and on add/remove via `mergeLoadedAssets()` (external IDs override bundled on collision).
 
 ## Office UI
 
@@ -173,9 +198,17 @@ Toggle via "Layout" button. Tools: SELECT (default), Floor paint, Wall paint, Er
 ## Build & Dev
 
 ```sh
-npm install && cd webview-ui && npm install && cd .. && npm run build
+npm install && cd webview-ui && npm install && cd ../server && npm install && cd .. && npm run build
 ```
+
 Build: type-check → lint → esbuild (extension) → vite (webview). F5 for Extension Dev Host.
+
+Testing:
+
+- `npm test` -- all unit/integration tests (webview + server)
+- `npm run test:server` -- server tests (Vitest)
+- `npm run test:webview` -- webview asset integration tests (Node test runner)
+- `npm run e2e` -- Playwright E2E tests (real VS Code instance)
 
 ## TypeScript Constraints
 
@@ -211,3 +244,6 @@ All magic numbers and strings are centralized — never add inline constants to 
 - `WebviewViewProvider` (not `WebviewPanel`) — lives in panel area alongside terminal
 - Inline esbuild problem matcher (no extra extension needed)
 - Webview is separate Vite project with own `node_modules`/`tsconfig`
+- Hook script (`claude-hook.ts`) bundled to standalone CJS via esbuild (`buildHooks()` in esbuild.js), output: `dist/hooks/claude-hook.js`
+- Constants centralized in `server/src/constants.ts` (shared), `src/constants.ts` imports from there. Extension-only constants stay in `src/constants.ts`
+- Server always starts regardless of hooks toggle (foundation for future WS transport). Only hook installation is gated by the setting

@@ -1,18 +1,23 @@
-import { DEFAULT_FLOOR_COLOR, DEFAULT_WALL_COLOR, UNDO_STACK_MAX_SIZE } from '../../constants.js';
-import type { FloorColor, OfficeLayout, TileType as TileTypeVal } from '../types.js';
-import { EditTool, TileType } from '../types.js';
+import type { ColorValue } from "../../components/ui/types.js";
+import {
+  DEFAULT_FLOOR_COLOR,
+  DEFAULT_WALL_COLOR,
+  UNDO_STACK_MAX_SIZE,
+} from "../../constants.js";
+import type { OfficeLayout, TileType as TileTypeVal } from "../types.js";
+import { EditTool, TileType } from "../types.js";
 
 export class EditorState {
   isEditMode = false;
   activeTool: EditTool = EditTool.SELECT;
   selectedTileType: TileTypeVal = TileType.FLOOR_1;
-  selectedFurnitureType = ''; // asset ID, set when catalog loads
+  selectedFurnitureType = ""; // asset ID, set when catalog loads
 
   // Floor color settings (applied to new tiles when painting)
-  floorColor: FloorColor = { ...DEFAULT_FLOOR_COLOR };
+  floorColor: ColorValue = { ...DEFAULT_FLOOR_COLOR };
 
   // Wall color settings (applied to new wall tiles when painting)
-  wallColor: FloorColor = { ...DEFAULT_WALL_COLOR };
+  wallColor: ColorValue = { ...DEFAULT_WALL_COLOR };
 
   // Selected wall set index (0-based, indexes into loaded wall sets)
   selectedWallSet = 0;
@@ -21,7 +26,7 @@ export class EditorState {
   wallDragAdding: boolean | null = null;
 
   // Picked furniture color (copied by pick tool, applied on placement)
-  pickedFurnitureColor: FloorColor | null = null;
+  pickedFurnitureColor: ColorValue | null = null;
 
   // Ghost preview position
   ghostCol = -1;

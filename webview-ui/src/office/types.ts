@@ -5,7 +5,7 @@ export {
   MAX_COLS,
   MAX_ROWS,
   TILE_SIZE,
-} from '../constants.js';
+} from "../constants.js";
 
 export const TileType = {
   WALL: 0,
@@ -22,26 +22,17 @@ export const TileType = {
 } as const;
 export type TileType = (typeof TileType)[keyof typeof TileType];
 
-/** Per-tile color settings for floor pattern colorization */
-export interface FloorColor {
-  /** Hue: 0-360 in colorize mode, -180 to +180 in adjust mode */
-  h: number;
-  /** Saturation: 0-100 in colorize mode, -100 to +100 in adjust mode */
-  s: number;
-  /** Brightness -100 to 100 */
-  b: number;
-  /** Contrast -100 to 100 */
-  c: number;
-  /** When true, use Photoshop-style Colorize (grayscale → fixed HSL). Default: adjust mode. */
-  colorize?: boolean;
-}
+/** Re-export ColorValue for consumers that import color types from office/types */
+export type { ColorValue } from "../components/ui/types.js";
+import type { ColorValue } from "../components/ui/types.js";
 
 export const CharacterState = {
-  IDLE: 'idle',
-  WALK: 'walk',
-  TYPE: 'type',
+  IDLE: "idle",
+  WALK: "walk",
+  TYPE: "type",
 } as const;
-export type CharacterState = (typeof CharacterState)[keyof typeof CharacterState];
+export type CharacterState =
+  (typeof CharacterState)[keyof typeof CharacterState];
 
 export const Direction = {
   DOWN: 0,
@@ -86,13 +77,13 @@ export interface ToolActivity {
 }
 
 export const EditTool = {
-  TILE_PAINT: 'tile_paint',
-  WALL_PAINT: 'wall_paint',
-  FURNITURE_PLACE: 'furniture_place',
-  FURNITURE_PICK: 'furniture_pick',
-  SELECT: 'select',
-  EYEDROPPER: 'eyedropper',
-  ERASE: 'erase',
+  TILE_PAINT: "tile_paint",
+  WALL_PAINT: "wall_paint",
+  FURNITURE_PLACE: "furniture_place",
+  FURNITURE_PICK: "furniture_pick",
+  SELECT: "select",
+  EYEDROPPER: "eyedropper",
+  ERASE: "erase",
 } as const;
 export type EditTool = (typeof EditTool)[keyof typeof EditTool];
 
@@ -122,7 +113,7 @@ export interface PlacedFurniture {
   col: number;
   row: number;
   /** Optional color override for furniture */
-  color?: FloorColor;
+  color?: ColorValue;
 }
 
 export interface OfficeLayout {
@@ -132,7 +123,7 @@ export interface OfficeLayout {
   tiles: TileType[];
   furniture: PlacedFurniture[];
   /** Per-tile color settings, parallel to tiles array. null = wall/no color */
-  tileColors?: Array<FloorColor | null>;
+  tileColors?: Array<ColorValue | null>;
   /** Bumped when the bundled default layout changes; forces a reset on existing installs */
   layoutRevision?: number;
 }
@@ -173,7 +164,7 @@ export interface Character {
   /** Assigned seat uid, or null if no seat */
   seatId: string | null;
   /** Active speech bubble type, or null if none showing */
-  bubbleType: 'permission' | 'waiting' | null;
+  bubbleType: "permission" | "waiting" | null;
   /** Countdown timer for bubble (waiting: 2→0, permission: unused) */
   bubbleTimer: number;
   /** Timer to stay seated while inactive after seat reassignment (counts down to 0) */
@@ -183,11 +174,27 @@ export interface Character {
   /** Parent agent ID if this is a sub-agent, null otherwise */
   parentAgentId: number | null;
   /** Active matrix spawn/despawn effect, or null */
-  matrixEffect: 'spawn' | 'despawn' | null;
+  matrixEffect: "spawn" | "despawn" | null;
   /** Timer counting up from 0 to MATRIX_EFFECT_DURATION */
   matrixEffectTimer: number;
   /** Per-column random seeds (16 values) for staggered rain timing */
   matrixEffectSeeds: number[];
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+
+  // -- Agent Teams --
+  /** Team name this agent belongs to */
+  teamName?: string;
+  /** Role name within the team (null for lead) */
+  agentName?: string;
+  /** Whether this agent is the team lead */
+  isTeamLead?: boolean;
+  /** ID of the lead agent (set on teammates) */
+  leadAgentId?: number;
+  /** True when lead spawns teammates via tmux (run_in_background Agent calls) */
+  teamUsesTmux?: boolean;
+  /** Cumulative input tokens consumed */
+  inputTokens: number;
+  /** Cumulative output tokens consumed */
+  outputTokens: number;
 }
