@@ -69,6 +69,8 @@
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@minion-stack/lint-config": "^0.1.1",
+    "@minion-stack/tsconfig": "^0.1.0",
     "@types/node": "25.x",
     "@types/pngjs": "^6.0.5",
     "@types/vscode": "^1.105.0",
