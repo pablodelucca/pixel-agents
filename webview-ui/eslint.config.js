@@ -1,15 +1,26 @@
 import js from '@eslint/js';
-import globals from 'globals';
+import sharedConfig from '@minion-stack/lint-config/eslint.config.js';
+import { defineConfig, globalIgnores } from 'eslint/config';
+import eslintConfigPrettier from 'eslint-config-prettier';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
+import globals from 'globals';
 import tseslint from 'typescript-eslint';
-import eslintConfigPrettier from 'eslint-config-prettier';
-import { defineConfig, globalIgnores } from 'eslint/config';
+
 import pixelAgentsPlugin from '../eslint-rules/pixel-agents-rules.mjs';
 
+// Shared @minion-stack preset is spread first so local rules/overrides take precedence.
+// Scope each shared config entry to TS/TSX so tseslint's type-aware parser doesn't
+// stumble on the JS config file itself (which sits in a directory with nested
+// node_modules containing another tsconfig).
+const sharedTsOnly = sharedConfig.map((c) =>
+  c.ignores ? c : { ...c, files: c.files ?? ['**/*.{ts,tsx}'] },
+);
+
 export default defineConfig([
-  globalIgnores(['dist']),
+  ...sharedTsOnly,
+  globalIgnores(['dist', 'eslint.config.js']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -25,6 +36,11 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+      parserOptions: {
+        // Pin the root-dir explicitly — nested node_modules/@minion-stack/lint-config
+        // contains its own tsconfig which otherwise creates parser ambiguity.
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     rules: {
       'simple-import-sort/imports': 'warn',

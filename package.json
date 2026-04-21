@@ -18,6 +18,7 @@
   ],
   "activationEvents": [],
   "main": "./dist/extension.js",
+  "prettier": "@minion-stack/lint-config/prettier.config.cjs",
   "contributes": {
     "commands": [
       {
@@ -69,6 +70,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@eslint/js": "^10.0.1",
     "@minion-stack/lint-config": "^0.1.1",
     "@minion-stack/tsconfig": "^0.1.0",
     "@types/node": "25.x",

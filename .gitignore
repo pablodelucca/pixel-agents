@@ -24,6 +24,7 @@ Thumbs.db
 # Environment files
 .env*
 !.env.example
+!.env.defaults
 
 # Project-specific
 .claude/
