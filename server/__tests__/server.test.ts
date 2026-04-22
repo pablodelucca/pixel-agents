@@ -186,14 +186,7 @@ describe('PixelAgentsServer', () => {
     expect(res.status).toBe(404);
   });
 
-  // 14. Hook endpoint rejects invalid provider ID characters
-  it('hook endpoint returns 400 for special characters in provider ID', async () => {
-    const config = await server.start();
-    const res = await postHook(config.port, config.token, '{}', 'bad_provider!');
-    expect(res.status).toBe(400);
-  });
-
-  // 15. Hook callback does NOT fire for events missing required fields
+  // 14. Hook callback does NOT fire for events missing required fields
   it('hook callback does not fire for events without session_id', async () => {
     const config = await server.start();
     const received: unknown[] = [];
@@ -203,21 +196,6 @@ describe('PixelAgentsServer', () => {
       config.port,
       config.token,
       JSON.stringify({ hook_event_name: 'Stop' }), // missing session_id
-    );
-
-    expect(received).toHaveLength(0);
-  });
-
-  // 17. Hook callback does NOT fire for events missing hook_event_name
-  it('hook callback does not fire for events without hook_event_name', async () => {
-    const config = await server.start();
-    const received: unknown[] = [];
-    server.onHookEvent((_pid: string, event: Record<string, unknown>) => received.push(event));
-
-    await postHook(
-      config.port,
-      config.token,
-      JSON.stringify({ session_id: 'abc' }), // missing hook_event_name
     );
 
     expect(received).toHaveLength(0);

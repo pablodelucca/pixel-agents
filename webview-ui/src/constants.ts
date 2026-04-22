@@ -133,3 +133,18 @@ export const AUTO_ON_SIDE_DEPTH = 2;
 export const CHARACTER_HIT_HALF_WIDTH = 8;
 export const CHARACTER_HIT_HEIGHT = 24;
 export const TOOL_OVERLAY_VERTICAL_OFFSET = 32;
+
+// ── Agent Teams ─────────────────────────────────────────────
+export const MAX_CONTEXT_TOKENS = 200_000;
+export const TOKEN_WARN_THRESHOLD = 0.6;
+export const TOKEN_DANGER_THRESHOLD = 0.8;
+export const TOKEN_CRITICAL_THRESHOLD = 0.95;
+export const FUEL_GAUGE_WIDTH_PX = 40;
+export const FUEL_GAUGE_HEIGHT_PX = 4;
+export const FUEL_COLOR_OK = '#44cc44';
+export const FUEL_COLOR_WARN = '#ffcc00';
+export const FUEL_COLOR_DANGER = '#ff8800';
+export const FUEL_COLOR_CRITICAL = '#ff2222';
+export const FUEL_GAUGE_BG = '#222';
+export const TEAM_LEAD_COLOR = '#ffd700';
+export const TEAM_ROLE_COLOR = '#66aaff';

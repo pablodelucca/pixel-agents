@@ -1,7 +1,23 @@
 import { useEffect, useState } from 'react';
 
 import { Button } from '../../components/ui/Button.js';
-import { CHARACTER_SITTING_OFFSET_PX, TOOL_OVERLAY_VERTICAL_OFFSET } from '../../constants.js';
+import {
+  CHARACTER_SITTING_OFFSET_PX,
+  FUEL_COLOR_CRITICAL,
+  FUEL_COLOR_DANGER,
+  FUEL_COLOR_OK,
+  FUEL_COLOR_WARN,
+  FUEL_GAUGE_BG,
+  FUEL_GAUGE_HEIGHT_PX,
+  FUEL_GAUGE_WIDTH_PX,
+  MAX_CONTEXT_TOKENS,
+  TEAM_LEAD_COLOR,
+  TEAM_ROLE_COLOR,
+  TOKEN_CRITICAL_THRESHOLD,
+  TOKEN_DANGER_THRESHOLD,
+  TOKEN_WARN_THRESHOLD,
+  TOOL_OVERLAY_VERTICAL_OFFSET,
+} from '../../constants.js';
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
 import type { OfficeState } from '../engine/officeState.js';
 import type { ToolActivity } from '../types.js';
@@ -41,6 +57,13 @@ function getActivityText(
   }
 
   return 'Idle';
+}
+
+function getFuelColor(ratio: number): string {
+  if (ratio >= TOKEN_CRITICAL_THRESHOLD) return FUEL_COLOR_CRITICAL;
+  if (ratio >= TOKEN_DANGER_THRESHOLD) return FUEL_COLOR_DANGER;
+  if (ratio >= TOKEN_WARN_THRESHOLD) return FUEL_COLOR_WARN;
+  return FUEL_COLOR_OK;
 }
 
 export function ToolOverlay({
@@ -129,13 +152,20 @@ export function ToolOverlay({
           dotColor = 'var(--color-status-active)';
         }
 
+        // Team info
+        const isTeamAgent = !!ch.teamName;
+        const teamRoleLabel = ch.isTeamLead ? 'LEAD' : ch.agentName || null;
+        const totalTokens = ch.inputTokens + ch.outputTokens;
+        const tokenRatio = totalTokens / MAX_CONTEXT_TOKENS;
+        const hasExtraLines = !!(ch.folderName || teamRoleLabel);
+
         return (
           <div
             key={id}
             className="absolute flex flex-col items-center -translate-x-1/2"
             style={{
               left: screenX,
-              top: screenY - (ch.folderName ? 34 : 28),
+              top: screenY - (hasExtraLines ? 34 : 28),
               pointerEvents: isSelected ? 'auto' : 'none',
               opacity: alwaysShowOverlay && !isSelected && !isHovered ? (isSub ? 0.5 : 0.75) : 1,
               zIndex: isSelected ? 42 : 41,
@@ -149,6 +179,18 @@ export function ToolOverlay({
                 />
               )}
               <div className="flex flex-col gap-0 overflow-hidden">
+                {teamRoleLabel && (
+                  <span
+                    className="overflow-hidden text-ellipsis block leading-none"
+                    style={{
+                      fontSize: '18px',
+                      color: ch.isTeamLead ? TEAM_LEAD_COLOR : TEAM_ROLE_COLOR,
+                      fontWeight: ch.isTeamLead ? 'bold' : undefined,
+                    }}
+                  >
+                    {teamRoleLabel}
+                  </span>
+                )}
                 <span
                   className="overflow-hidden text-ellipsis block leading-none"
                   style={{
@@ -179,6 +221,25 @@ export function ToolOverlay({
                 </Button>
               )}
             </div>
+            {isTeamAgent && totalTokens > 0 && (
+              <div
+                style={{
+                  width: FUEL_GAUGE_WIDTH_PX,
+                  height: FUEL_GAUGE_HEIGHT_PX,
+                  background: FUEL_GAUGE_BG,
+                  marginTop: 2,
+                }}
+                title={`${Math.round(tokenRatio * 100)}% context used (${(totalTokens / 1000).toFixed(0)}k tokens)`}
+              >
+                <div
+                  style={{
+                    width: `${Math.min(tokenRatio * 100, 100)}%`,
+                    height: '100%',
+                    background: getFuelColor(tokenRatio),
+                  }}
+                />
+              </div>
+            )}
           </div>
         );
       })}

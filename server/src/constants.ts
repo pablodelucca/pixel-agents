@@ -9,7 +9,9 @@ export const PROJECT_SCAN_INTERVAL_MS = 1000;
 // are suppressed and the server receives instant events instead.
 /** Delay before sending agentToolDone (prevents UI flicker on rapid tool transitions) */
 export const TOOL_DONE_DELAY_MS = 300;
-/** Heuristic: time after a non-exempt tool starts before showing permission bubble */
+/** Heuristic: time after a non-exempt tool starts before showing permission bubble.
+ *  Not used for teammates — false positives on slow tools (WebFetch/WebSearch).
+ *  Teammates rely on the lead's routed Notification(permission_prompt) hook. */
 export const PERMISSION_TIMER_DELAY_MS = 7000;
 /** Heuristic: silence duration before marking a text-only turn as complete */
 export const TEXT_IDLE_DELAY_MS = 5000;
@@ -41,27 +43,13 @@ export const TASK_DESCRIPTION_DISPLAY_MAX_LENGTH = 40;
 export const SERVER_JSON_DIR = '.pixel-agents';
 export const SERVER_JSON_NAME = 'server.json';
 export const HOOK_SCRIPTS_DIR = '.pixel-agents/hooks';
-/** Output filename after esbuild compiles claude-hook.ts to CJS (source is .ts, output is .js) */
-export const CLAUDE_HOOK_SCRIPT_NAME = 'claude-hook.js';
 export const HOOK_API_PREFIX = '/api/hooks';
 
-/** Hook events to install in ~/.claude/settings.json.
- *  SessionStart/SessionEnd handle session lifecycle (start, /clear, resume, exit).
- *  Stop/PermissionRequest/Notification handle turn completion and permission UI.
- */
-export const CLAUDE_HOOK_EVENTS = [
-  'SessionStart',
-  'SessionEnd',
-  'Stop',
-  'PermissionRequest',
-  'Notification',
-  'UserPromptSubmit',
-  'PreToolUse',
-  'PostToolUse',
-  'PostToolUseFailure',
-  'SubagentStart',
-  'SubagentStop',
-] as const;
+// Claude-specific constants live in providers/hook/claude/constants.ts.
+// Re-exported here for backward-compatibility of existing callers that import
+// from '../server/src/constants.js'. New code should import directly from the provider.
+export { CLAUDE_HOOK_EVENTS, CLAUDE_HOOK_SCRIPT_NAME } from './providers/hook/claude/constants.js';
+
 export const HOOK_EVENT_BUFFER_MS = 5_000;
 /** Grace period after SessionEnd(reason=clear/resume) before triggering onSessionEnd.
  *  /clear and /resume fire SessionEnd then SessionStart within ms. This timeout is a

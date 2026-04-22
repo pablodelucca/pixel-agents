@@ -152,9 +152,32 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentCreated') {
         const id = msg.id as number;
         const folderName = msg.folderName as string | undefined;
+        const isTeammate = msg.isTeammate as boolean | undefined;
+        const teammateName = msg.teammateName as string | undefined;
+        const teammateParentId = msg.parentAgentId as number | undefined;
+        const teamName = msg.teamName as string | undefined;
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
-        setSelectedAgent(id);
-        os.addAgent(id, undefined, undefined, undefined, undefined, folderName);
+        // Don't auto-select teammates (keep focus on lead)
+        if (!isTeammate) {
+          setSelectedAgent(id);
+        }
+        if (isTeammate && teammateParentId !== undefined) {
+          // Teammate: inherit parent's palette and workspace folderName (teammate runs
+          // in the same workspace as the lead). Name shown via agentName (teamRoleLabel).
+          const parentCh = os.characters.get(teammateParentId);
+          const palette = parentCh ? parentCh.palette : undefined;
+          const hueShift = parentCh ? parentCh.hueShift : undefined;
+          os.addAgent(id, palette, hueShift, undefined, undefined, parentCh?.folderName);
+          // Set team metadata on the character
+          const ch = os.characters.get(id);
+          if (ch) {
+            ch.leadAgentId = teammateParentId;
+            ch.teamName = teamName ?? parentCh?.teamName;
+            ch.agentName = teammateName;
+          }
+        } else {
+          os.addAgent(id, undefined, undefined, undefined, undefined, folderName);
+        }
         saveAgentSeats(os);
       } else if (msg.type === 'agentClosed') {
         const id = msg.id as number;
@@ -233,8 +256,21 @@ export function useExtensionMessages(
         if (!permissionActive) {
           os.clearPermissionBubble(id);
         }
-        // Create sub-agent character for Task/Agent tool subtasks
-        if (toolName === 'Task' || toolName === 'Agent') {
+        // Create sub-agent character for Task/Agent tool subtasks.
+        // In tmux / inline teams mode, Agent tool has run_in_background=true -- those
+        // are handled via the independent teammate path (onTeammateDetected), not here.
+        // runInBackground gates them out so we don't create ghost sub-agents for them.
+        //
+        // Skip creation for synthetic hook-ids. Later SubagentStop/subagentClear use
+        // the REAL tool id from JSONL; creating with a synthetic id would orphan the
+        // sub-agent (mismatched keys). JSONL's agentToolStart (with real id) handles
+        // creation in both hooks and heuristic modes -- ~500ms delay vs instant hook.
+        const runInBackground = msg.runInBackground as boolean | undefined;
+        if (
+          (toolName === 'Task' || toolName === 'Agent') &&
+          !runInBackground &&
+          !toolId.startsWith('hook-')
+        ) {
           const label = status.startsWith('Subtask:') ? status.slice('Subtask:'.length).trim() : '';
           const subId = os.addSubagent(id, toolId);
           setSubagentCharacters((prev) => {
@@ -267,9 +303,16 @@ export function useExtensionMessages(
           delete next[id];
           return next;
         });
-        // Remove all sub-agent characters belonging to this agent
-        os.removeAllSubagents(id);
-        setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
+        // Remove all sub-agent characters belonging to this agent.
+        // Exception: team leads with inline teammates -- their sub-agents represent
+        // real teammates and should only be removed by SubagentStop/subagentClear.
+        const clearCh = os.characters.get(id);
+        const hasInlineTeammates =
+          clearCh?.teamName && clearCh?.isTeamLead && !clearCh?.teamUsesTmux;
+        if (!hasInlineTeammates) {
+          os.removeAllSubagents(id);
+          setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
+        }
         os.setAgentTool(id, null);
         os.clearPermissionBubble(id);
       } else if (msg.type === 'agentSelected') {
@@ -345,7 +388,10 @@ export function useExtensionMessages(
             [id]: { ...agentSubs, [parentToolId]: [...list, { toolId, status, done: false }] },
           };
         });
-        // Update sub-agent character's tool and active state
+        // Update sub-agent character's tool and active state (if already created by
+        // agentToolStart via PreToolUse). The lookup uses the REAL parent tool id from
+        // JSONL, which won't match the synthetic hook-id the sub-agent was created
+        // with -- so this is a best-effort update for the heuristic (JSONL-driven) path.
         const subId = os.getSubagentId(id, parentToolId);
         if (subId !== null) {
           const subToolName = extractToolName(status);
@@ -447,6 +493,19 @@ export function useExtensionMessages(
         } catch (err) {
           console.error(`❌ Webview: Error processing furnitureAssetsLoaded:`, err);
         }
+      } else if (msg.type === 'agentTeamInfo') {
+        const id = msg.id as number;
+        os.setTeamInfo(
+          id,
+          msg.teamName as string | undefined,
+          msg.agentName as string | undefined,
+          msg.isTeamLead as boolean | undefined,
+          msg.leadAgentId as number | undefined,
+          msg.teamUsesTmux as boolean | undefined,
+        );
+      } else if (msg.type === 'agentTokenUsage') {
+        const id = msg.id as number;
+        os.setAgentTokens(id, msg.inputTokens as number, msg.outputTokens as number);
       }
     };
     window.addEventListener('message', handler);

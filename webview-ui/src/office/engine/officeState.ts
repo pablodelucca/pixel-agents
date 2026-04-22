@@ -685,6 +685,32 @@ export class OfficeState {
     }
   }
 
+  setTeamInfo(
+    id: number,
+    teamName?: string,
+    agentName?: string,
+    isTeamLead?: boolean,
+    leadAgentId?: number,
+    teamUsesTmux?: boolean,
+  ): void {
+    const ch = this.characters.get(id);
+    if (!ch) return;
+    ch.teamName = teamName;
+    ch.agentName = agentName;
+    ch.isTeamLead = isTeamLead;
+    ch.leadAgentId = leadAgentId;
+    if (teamUsesTmux !== undefined) {
+      ch.teamUsesTmux = teamUsesTmux;
+    }
+  }
+
+  setAgentTokens(id: number, inputTokens: number, outputTokens: number): void {
+    const ch = this.characters.get(id);
+    if (!ch) return;
+    ch.inputTokens = inputTokens;
+    ch.outputTokens = outputTokens;
+  }
+
   update(dt: number): void {
     // Furniture animation cycling
     const prevFrame = Math.floor(this.furnitureAnimTimer / FURNITURE_ANIM_INTERVAL_SEC);

@@ -9,6 +9,7 @@ import {
   TEXT_IDLE_DELAY_MS,
   TOOL_DONE_DELAY_MS,
 } from '../server/src/constants.js';
+import type { HookProvider } from '../server/src/provider.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,
@@ -20,7 +21,25 @@ import type { AgentState } from './types.js';
 
 const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
 
+/** Hook provider: supplies formatToolStatus + team.extractTeamMetadataFromRecord.
+ *  Registered once at startup via setHookProvider(). Functions below assume it's set. */
+let hookProvider: HookProvider | null = null;
+
+/** Register the HookProvider that owns CLI-specific formatting and team metadata extraction. */
+export function setHookProvider(provider: HookProvider): void {
+  hookProvider = provider;
+}
+
+/** Format a tool status line. Delegates to the active HookProvider's formatToolStatus. */
 export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
+  if (hookProvider) return hookProvider.formatToolStatus(toolName, input);
+  // Fallback for bootstrapping / tests without a provider set.
+  return defaultFormatToolStatus(toolName, input);
+}
+
+/** Fallback formatter for edge cases (tests, provider not yet registered).
+ *  Mirrors Claude's formatting; most code paths use the provider's implementation. */
+function defaultFormatToolStatus(toolName: string, input: Record<string, unknown>): string {
   const base = (p: unknown) => (typeof p === 'string' ? path.basename(p) : '');
   switch (toolName) {
     case 'Read':
@@ -54,6 +73,14 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
       return 'Planning';
     case 'NotebookEdit':
       return `Editing notebook`;
+    case 'TeamCreate': {
+      const teamName = typeof input.team_name === 'string' ? input.team_name : '';
+      return teamName ? `Creating team: ${teamName}` : 'Creating team';
+    }
+    case 'SendMessage': {
+      const recipient = typeof input.recipient === 'string' ? input.recipient : '';
+      return recipient ? `-> ${recipient}` : 'Sending message';
+    }
     default:
       return `Using ${toolName}`;
   }
@@ -73,6 +100,52 @@ export function processTranscriptLine(
   agent.linesProcessed++;
   try {
     const record = JSON.parse(line);
+
+    // -- Agent Teams: extract team metadata via the active provider --
+    // The provider reads its CLI's own field names (Claude: record.teamName + record.agentName).
+    // Other CLIs would implement this differently or not at all.
+    const teamMeta = hookProvider?.team?.extractTeamMetadataFromRecord(record);
+    if (teamMeta?.teamName && teamMeta.teamName !== agent.teamName) {
+      agent.teamName = teamMeta.teamName;
+      agent.agentName = teamMeta.agentName;
+      agent.isTeamLead = undefined;
+      agent.leadAgentId = undefined;
+      if (debug) {
+        console.log(
+          `[Pixel Agents] Agent ${agentId} team metadata: team=${agent.teamName}, role=${agent.agentName ?? 'lead'}`,
+        );
+      }
+      // Link teammates to leads within the same team
+      linkTeammates(agentId, agent, agents);
+
+      webview?.postMessage({
+        type: 'agentTeamInfo',
+        id: agentId,
+        teamName: agent.teamName,
+        agentName: agent.agentName,
+        isTeamLead: agent.isTeamLead,
+        leadAgentId: agent.leadAgentId,
+      });
+    }
+
+    // -- Token usage extraction from assistant records --
+    const usage = record.message?.usage as
+      | { input_tokens?: number; output_tokens?: number }
+      | undefined;
+    if (usage) {
+      if (typeof usage.input_tokens === 'number') {
+        agent.inputTokens += usage.input_tokens;
+      }
+      if (typeof usage.output_tokens === 'number') {
+        agent.outputTokens += usage.output_tokens;
+      }
+      webview?.postMessage({
+        type: 'agentTokenUsage',
+        id: agentId,
+        inputTokens: agent.inputTokens,
+        outputTokens: agent.outputTokens,
+      });
+    }
 
     // Resilient content extraction: support both record.message.content and record.content
     // Claude Code may change the JSONL structure across versions
@@ -106,8 +179,31 @@ export function processTranscriptLine(
             if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
               hasNonExemptTool = true;
             }
-            // Skip webview message when hooks handle tool visuals (PreToolUse sent it instantly)
-            if (!agent.hookDelivered) {
+            // Detect tmux vs inline team mode from Agent tool's run_in_background flag
+            if (
+              agent.teamName &&
+              toolName === 'Agent' &&
+              block.input?.run_in_background === true &&
+              !agent.teamUsesTmux
+            ) {
+              agent.teamUsesTmux = true;
+              webview?.postMessage({
+                type: 'agentTeamInfo',
+                id: agentId,
+                teamName: agent.teamName,
+                agentName: agent.agentName,
+                isTeamLead: agent.isTeamLead,
+                leadAgentId: agent.leadAgentId,
+                teamUsesTmux: true,
+              });
+            }
+            // Skip webview message when hooks handle tool visuals (PreToolUse sent it instantly).
+            // EXCEPTION: subagent-spawn tools (Task/Agent) ALWAYS use JSONL so the sub-agent
+            // character is created with the REAL tool id. SubagentStop and subagentClear use
+            // the real id -- a synthetic-id sub-agent from PreToolUse could never be matched.
+            const isSubagentSpawn = toolName === 'Agent' || toolName === 'Task';
+            if (!agent.hookDelivered || isSubagentSpawn) {
+              const runInBackground = isSubagentSpawn && block.input?.run_in_background === true;
               webview?.postMessage({
                 type: 'agentToolStart',
                 id: agentId,
@@ -115,11 +211,16 @@ export function processTranscriptLine(
                 status,
                 toolName,
                 permissionActive: agent.permissionSent,
+                runInBackground,
               });
             }
           }
         }
-        if (hasNonExemptTool && !agent.hookDelivered) {
+        // Skip heuristic timer when hooks are active OR for teammates.
+        // Teammate tools (WebFetch, WebSearch) are naturally slow; the heuristic
+        // produces false positives. Permission on teammates comes from the lead's
+        // routed Notification(permission_prompt) hook — slower but accurate.
+        if (hasNonExemptTool && !agent.hookDelivered && !agent.leadAgentId) {
           startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
         }
       } else if (blocks.some((b) => b.type === 'text') && !agent.hadToolsInTurn) {
@@ -183,7 +284,11 @@ export function processTranscriptLine(
               agent.activeToolIds.delete(completedToolId);
               agent.activeToolStatuses.delete(completedToolId);
               agent.activeToolNames.delete(completedToolId);
-              if (!agent.hookDelivered) {
+              // Send agentToolDone when hooks are off, or for Task/Agent tools
+              // (which always use JSONL path for consistent sub-agent lifecycle).
+              const isCompletedAgentTool =
+                completedToolName === 'Task' || completedToolName === 'Agent';
+              if (!agent.hookDelivered || isCompletedAgentTool) {
                 const toolId = completedToolId;
                 setTimeout(() => {
                   webview?.postMessage({
@@ -347,7 +452,7 @@ function processProgressRecord(
   // Skip when hooks are active — Notification hook handles permission detection exactly.
   const dataType = data.type as string | undefined;
   if (dataType === 'bash_progress' || dataType === 'mcp_progress') {
-    if (agent.activeToolIds.has(parentToolId) && !agent.hookDelivered) {
+    if (agent.activeToolIds.has(parentToolId) && !agent.hookDelivered && !agent.leadAgentId) {
       startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
     }
     return;
@@ -449,6 +554,58 @@ function processProgressRecord(
     }
     if (stillHasNonExempt && !agent.hookDelivered) {
       startPermissionTimer(agentId, agents, permissionTimers, PERMISSION_EXEMPT_TOOLS, webview);
+    }
+  }
+}
+
+/**
+ * Link teammates within the same team.
+ * The lead is the agent with no agentName (or the first one detected in the team).
+ * Teammates get leadAgentId pointing to the lead.
+ */
+function linkTeammates(_agentId: number, agent: AgentState, agents: Map<number, AgentState>): void {
+  const teamName = agent.teamName;
+  if (!teamName) return;
+
+  // Find all agents in this team
+  const teamAgents: AgentState[] = [];
+  for (const a of agents.values()) {
+    if (a.teamName === teamName) {
+      teamAgents.push(a);
+    }
+  }
+
+  // Determine lead: always prefer the agent WITHOUT agentName (the real lead has agentName=null).
+  // This handles the case where a teammate is detected first and temporarily marked as lead,
+  // then the real lead joins later.
+  let lead: AgentState | undefined;
+  for (const a of teamAgents) {
+    if (!a.agentName) {
+      lead = a;
+      break;
+    }
+  }
+  if (!lead) {
+    // No agent without agentName -- use existing isTeamLead or first agent
+    for (const a of teamAgents) {
+      if (a.isTeamLead) {
+        lead = a;
+        break;
+      }
+    }
+  }
+  if (!lead) {
+    lead = teamAgents[0];
+  }
+
+  // Update all team members: mark lead, clear stale lead flags, link teammates
+  for (const a of teamAgents) {
+    if (a.id === lead.id) {
+      a.isTeamLead = true;
+      a.leadAgentId = undefined;
+    } else {
+      a.isTeamLead = false;
+      a.leadAgentId = lead.id;
     }
   }
 }

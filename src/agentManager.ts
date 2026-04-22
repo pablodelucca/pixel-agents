@@ -238,6 +238,8 @@ export async function launchNewTerminal(
     seenUnknownRecordTypes: new Set(),
     folderName,
     hookDelivered: false,
+    inputTokens: 0,
+    outputTokens: 0,
   };
 
   agents.set(id, agent);
@@ -405,6 +407,11 @@ export function persistAgents(
       jsonlFile: agent.jsonlFile,
       projectDir: agent.projectDir,
       folderName: agent.folderName,
+      teamName: agent.teamName,
+      agentName: agent.agentName,
+      isTeamLead: agent.isTeamLead,
+      leadAgentId: agent.leadAgentId,
+      teamUsesTmux: agent.teamUsesTmux,
     });
   }
   context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
@@ -487,6 +494,13 @@ export function restoreAgents(
       seenUnknownRecordTypes: new Set(),
       folderName: p.folderName,
       hookDelivered: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      teamName: p.teamName,
+      agentName: p.agentName,
+      isTeamLead: p.isTeamLead,
+      leadAgentId: p.leadAgentId,
+      teamUsesTmux: p.teamUsesTmux,
     };
 
     agents.set(p.id, agent);
@@ -685,6 +699,27 @@ export function sendCurrentAgentStatuses(
         type: 'agentStatus',
         id: agentId,
         status: 'waiting',
+      });
+    }
+    // Re-send team metadata
+    if (agent.teamName) {
+      webview.postMessage({
+        type: 'agentTeamInfo',
+        id: agentId,
+        teamName: agent.teamName,
+        agentName: agent.agentName,
+        isTeamLead: agent.isTeamLead,
+        leadAgentId: agent.leadAgentId,
+        teamUsesTmux: agent.teamUsesTmux,
+      });
+    }
+    // Re-send token usage
+    if (agent.inputTokens > 0 || agent.outputTokens > 0) {
+      webview.postMessage({
+        type: 'agentTokenUsage',
+        id: agentId,
+        inputTokens: agent.inputTokens,
+        outputTokens: agent.outputTokens,
       });
     }
   }

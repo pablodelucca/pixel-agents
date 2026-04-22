@@ -3,7 +3,14 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { CopilotAdapter } from './adapters/copilot.js';
+import type { HookEvent } from '../server/src/hookEventHandler.js';
+import { HookEventHandler } from '../server/src/hookEventHandler.js';
+import {
+  installHooks,
+  uninstallHooks,
+} from '../server/src/providers/hook/claude/claudeHookInstaller.js';
+import { claudeProvider, copyHookScript } from '../server/src/providers/index.js';
+import { PixelAgentsServer } from '../server/src/server.js';
 import {
   getProjectDirPath,
   launchNewTerminal,
@@ -46,12 +53,16 @@ import {
   ensureProjectScan,
   isTrackedProjectDir,
   reassignAgentToFile,
+  scanForTeammateFiles,
   seededMtimes,
+  setTeammateRemovalCallback,
+  setTeamProvider,
   startExternalSessionScanning,
   startStaleExternalAgentCheck,
 } from './fileWatcher.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
+import { setHookProvider } from './transcriptParser.js';
 import type { AgentState } from './types.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
@@ -121,8 +132,17 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       this.waitingTimers,
       this.permissionTimers,
       () => this.webview,
+      claudeProvider,
       this.watchAllSessions,
     );
+
+    // Register Claude's team provider (if present on the hook provider) with the file
+    // watcher module + transcriptParser, plus the teammate removal callback.
+    if (claudeProvider.team) {
+      setTeamProvider(claudeProvider.team);
+    }
+    setHookProvider(claudeProvider);
+    setTeammateRemovalCallback((id) => this.removeTeammate(id, 'team-config'));
 
     this.hookEventHandler.setLifecycleCallbacks({
       onExternalSessionDetected: (sessionId, transcriptPath, cwd) => {
@@ -176,12 +196,37 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         seededMtimes.delete(transcriptPath);
         this.knownJsonlFiles.delete(transcriptPath);
       },
+      onTeammateDetected: (parentAgentId, sessionId, _agentType) => {
+        const parentAgent = this.agents.get(parentAgentId);
+        if (!parentAgent) return;
+        scanForTeammateFiles(
+          parentAgent.projectDir,
+          sessionId,
+          parentAgentId,
+          this.nextAgentId,
+          this.agents,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.webview,
+          this.persistAgents,
+          (agent) => this.registerAgentHook(agent),
+        );
+      },
+      onTeammateRemoved: (teammateAgentId) => {
+        this.removeTeammate(teammateAgentId, 'hooks');
+      },
       onSessionEnd: (agentId) => {
         const agent = this.agents.get(agentId);
         if (!agent) return;
         // Dismiss the file so heuristic scanners don't re-adopt it
         seededMtimes.delete(agent.jsonlFile);
         dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+        // If this is a team lead, remove its teammates
+        if (agent.isTeamLead) {
+          this.removeTeammates(agentId);
+        }
         // External agents: remove immediately (no terminal to keep alive)
         if (agent.isExternal) {
           this.unregisterAgentHook(agent);
@@ -222,6 +267,55 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       .catch((e) => {
         console.error(`[Pixel Agents] Failed to start server: ${e}`);
       });
+  }
+
+  /** Remove all teammates of a lead agent */
+  /** Remove a single teammate agent (used by both hook callback and team config polling). */
+  private removeTeammate(teammateAgentId: number, source: string): void {
+    const agent = this.agents.get(teammateAgentId);
+    if (!agent) return;
+    console.log(`[Pixel Agents] Removing teammate ${teammateAgentId} (source: ${source})`);
+    dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+    this.unregisterAgentHook(agent);
+    removeAgent(
+      teammateAgentId,
+      this.agents,
+      this.fileWatchers,
+      this.pollingTimers,
+      this.waitingTimers,
+      this.permissionTimers,
+      this.jsonlPollTimers,
+      this.persistAgents,
+    );
+    this.webview?.postMessage({ type: 'agentClosed', id: teammateAgentId });
+  }
+
+  private removeTeammates(leadId: number): void {
+    const teammates: number[] = [];
+    for (const [id, agent] of this.agents) {
+      if (agent.leadAgentId === leadId) {
+        teammates.push(id);
+      }
+    }
+    for (const id of teammates) {
+      const agent = this.agents.get(id);
+      if (agent) {
+        console.log(`[Pixel Agents] Removing teammate ${id} (lead ${leadId} closed)`);
+        dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+        this.unregisterAgentHook(agent);
+        removeAgent(
+          id,
+          this.agents,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.jsonlPollTimers,
+          this.persistAgents,
+        );
+        this.webview?.postMessage({ type: 'agentClosed', id });
+      }
+    }
   }
 
   /** Register an agent with the hook event handler for session->agent mapping.
@@ -274,8 +368,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         if (agent) {
           if (agent.terminalRef) {
             agent.terminalRef.show();
+          } else if (agent.leadAgentId !== undefined) {
+            // Teammate (tmux): focus the lead's terminal instead
+            const lead = this.agents.get(agent.leadAgentId);
+            if (lead?.terminalRef) {
+              lead.terminalRef.show();
+            }
           }
-          // External agents (extension panel) have no terminal to focus
         }
       } else if (message.type === 'closeAgent') {
         const agent = this.agents.get(message.id);
@@ -722,6 +821,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         if (agent.terminalRef && agent.terminalRef === closed) {
           if (this.activeAgentId.current === id) {
             this.activeAgentId.current = null;
+          }
+          // If this is a team lead, remove its teammates
+          if (agent.isTeamLead) {
+            this.removeTeammates(id);
           }
           // Dismiss JSONL so external scanner doesn't re-adopt it
           dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
