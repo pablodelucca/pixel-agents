@@ -14,7 +14,15 @@
     "vscode": "^1.105.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "AI"
+  ],
+  "keywords": [
+    "claude",
+    "copilot",
+    "github copilot",
+    "ai agents",
+    "pixel art"
   ],
   "activationEvents": [],
   "main": "./dist/extension.js",

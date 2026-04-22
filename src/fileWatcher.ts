@@ -482,6 +482,7 @@ function adoptTerminalForFile(
   }
   const agent: AgentState = {
     id,
+    source: 'claude-code',
     sessionId,
     terminalRef: terminal,
     isExternal: false,

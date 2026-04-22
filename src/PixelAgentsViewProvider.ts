@@ -87,6 +87,9 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   externalScanTimer: ReturnType<typeof setInterval> | null = null;
   staleCheckTimer: ReturnType<typeof setInterval> | null = null;
 
+  // GitHub Copilot adapter disposable
+  private copilotAdapterDisposable: vscode.Disposable | null = null;
+
   // Global session scanning (opt-in "Watch All Sessions" toggle)
   watchAllSessions = { current: false };
   // Hooks enabled state (mutable ref for passing to scanners)
@@ -352,6 +355,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.persistAgents,
           message.folderPath as string | undefined,
           message.bypassPermissions as boolean | undefined,
+          message.agentType as 'claude-code' | 'copilot-cli' | undefined,
         );
         // Register newly created agent(s) with hook handler
         for (const [id, agent] of this.agents) {
@@ -481,6 +485,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.webview,
           this.persistAgents,
         );
+
+        // Start GitHub Copilot adapter (no-op when Copilot Chat is not installed)
+        if (!this.copilotAdapterDisposable) {
+          this.copilotAdapterDisposable = new CopilotAdapter().start({
+            agents: this.agents,
+            nextAgentIdRef: this.nextAgentId,
+            webview: this.webview,
+            persistAgents: this.persistAgents,
+          });
         // Register all restored agents with hook handler
         for (const agent of this.agents.values()) {
           this.registerAgentHook(agent);
@@ -958,6 +971,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       clearInterval(this.staleCheckTimer);
       this.staleCheckTimer = null;
     }
+    this.copilotAdapterDisposable?.dispose();
+    this.copilotAdapterDisposable = null;
   }
 }
 
