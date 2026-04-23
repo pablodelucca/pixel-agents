@@ -423,6 +423,9 @@ export function processTranscriptLine(
           endSkillTool(agentId, agent, webview);
           clearAgentActivity(agent, agentId, permissionTimers, webview);
           agent.hadToolsInTurn = false;
+          agent.messageCount = (agent.messageCount ?? 0) + 1;
+          maybeSendTaskLabel(agent, webview);
+          void maybeRefineTaskLabel(agent, webview, readRecentBullets);
         }
       } else if (typeof content === 'string' && content.trim()) {
         // New user text prompt — new turn starting
