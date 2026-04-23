@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import type * as vscode from 'vscode';
 
@@ -10,7 +11,8 @@ import {
   TOOL_DONE_DELAY_MS,
 } from '../server/src/constants.js';
 import type { HookProvider } from '../server/src/provider.js';
-import { maybeSendTaskLabel, recordToolUse } from './agentNamer.js';
+import { maybeRefineTaskLabel, maybeSendTaskLabel, recordToolUse } from './agentNamer.js';
+import { NAMER_RECENT_MESSAGES_FOR_PROMPT } from './constants.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,
@@ -19,6 +21,39 @@ import {
   startWaitingTimer,
 } from './timerManager.js';
 import type { AgentState } from './types.js';
+
+/** Read the last N assistant/user text bullets from the agent's JSONL, best-effort. */
+async function readRecentBullets(agent: AgentState): Promise<string[]> {
+  try {
+    const data = await fs.promises.readFile(agent.jsonlFile, 'utf8');
+    const lines = data.split('\n').filter((l) => l.trim());
+    const bullets: string[] = [];
+    for (
+      let i = lines.length - 1;
+      i >= 0 && bullets.length < NAMER_RECENT_MESSAGES_FOR_PROMPT;
+      i--
+    ) {
+      try {
+        const rec = JSON.parse(lines[i]);
+        if (rec.type === 'user' && typeof rec.message?.content === 'string') {
+          bullets.push(`user: ${rec.message.content}`);
+        } else if (rec.type === 'assistant' && Array.isArray(rec.message?.content)) {
+          for (const b of rec.message.content) {
+            if (b.type === 'text' && typeof b.text === 'string') {
+              bullets.push(`assistant: ${b.text}`);
+              break;
+            }
+          }
+        }
+      } catch {
+        // skip malformed lines
+      }
+    }
+    return bullets.reverse();
+  } catch {
+    return [];
+  }
+}
 
 const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
 
@@ -280,6 +315,7 @@ export function processTranscriptLine(
             }
             recordToolUse(agent, toolName);
             maybeSendTaskLabel(agent, webview);
+            void maybeRefineTaskLabel(agent, webview, readRecentBullets);
           }
         }
         // Skip heuristic timer when hooks are active OR for teammates.
@@ -393,6 +429,9 @@ export function processTranscriptLine(
         cancelWaitingTimer(agentId, waitingTimers);
         clearAgentActivity(agent, agentId, permissionTimers, webview);
         agent.hadToolsInTurn = false;
+        agent.messageCount = (agent.messageCount ?? 0) + 1;
+        maybeSendTaskLabel(agent, webview);
+        void maybeRefineTaskLabel(agent, webview, readRecentBullets);
       }
     } else if (record.type === 'queue-operation' && record.operation === 'enqueue') {
       // Background agent completed — parse tool-use-id from XML content
