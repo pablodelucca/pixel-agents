@@ -37,6 +37,7 @@ import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTi
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js';
 import {
   BUBBLE_PERMISSION_SPRITE,
+  BUBBLE_SKILL_SPRITE,
   BUBBLE_WAITING_SPRITE,
   getCharacterSprites,
 } from '../sprites/spriteData.js';
@@ -494,16 +495,21 @@ function renderBubbles(
   zoom: number,
 ): void {
   for (const ch of characters) {
-    if (!ch.bubbleType) continue;
-
-    const sprite =
-      ch.bubbleType === 'permission' ? BUBBLE_PERMISSION_SPRITE : BUBBLE_WAITING_SPRITE;
-
-    // Compute opacity: permission = full, waiting = fade in last 0.5s
+    // Priority: permission > waiting > skill. Skill bubble persists across the
+    // whole slash-command skill run, even as currentTool flips through Read/Grep/etc.
+    let sprite: SpriteData | null = null;
     let alpha = 1.0;
-    if (ch.bubbleType === 'waiting' && ch.bubbleTimer < BUBBLE_FADE_DURATION_SEC) {
-      alpha = ch.bubbleTimer / BUBBLE_FADE_DURATION_SEC;
+    if (ch.bubbleType === 'permission') {
+      sprite = BUBBLE_PERMISSION_SPRITE;
+    } else if (ch.bubbleType === 'waiting') {
+      sprite = BUBBLE_WAITING_SPRITE;
+      if (ch.bubbleTimer < BUBBLE_FADE_DURATION_SEC) {
+        alpha = ch.bubbleTimer / BUBBLE_FADE_DURATION_SEC;
+      }
+    } else if (ch.activeSkillToolId) {
+      sprite = BUBBLE_SKILL_SPRITE;
     }
+    if (!sprite) continue;
 
     const cached = getCachedSprite(sprite, zoom);
     // Position: centered above the character's head

@@ -14,6 +14,8 @@ export interface AgentState {
   activeToolIds: Set<string>;
   activeToolStatuses: Map<string, string>;
   activeToolNames: Map<string, string>;
+  /** Synthetic tool id for an in-flight Skill invocation (slash-command expansion has no real tool_use). */
+  activeSkillToolId?: string | null;
   activeSubagentToolIds: Map<string, Set<string>>; // parentToolId → active sub-tool IDs
   activeSubagentToolNames: Map<string, Map<string, string>>; // parentToolId → (subToolId → toolName)
   backgroundAgentToolIds: Set<string>; // tool IDs for run_in_background Agent calls (stay alive until queue-operation)

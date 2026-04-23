@@ -648,6 +648,20 @@ export class OfficeState {
     }
   }
 
+  setAgentSkillTool(id: number, toolId: string | null): void {
+    const ch = this.characters.get(id);
+    if (ch) {
+      ch.activeSkillToolId = toolId;
+    }
+  }
+
+  clearAgentSkillToolIf(id: number, toolId: string): void {
+    const ch = this.characters.get(id);
+    if (ch && ch.activeSkillToolId === toolId) {
+      ch.activeSkillToolId = null;
+    }
+  }
+
   showPermissionBubble(id: number): void {
     const ch = this.characters.get(id);
     if (ch) {

@@ -67,6 +67,7 @@ export function createCharacter(
     path: [],
     moveProgress: 0,
     currentTool: null,
+    activeSkillToolId: null,
     palette,
     hueShift,
     frame: 0,
