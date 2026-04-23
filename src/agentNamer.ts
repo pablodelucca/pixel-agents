@@ -1,7 +1,11 @@
+import { spawn } from 'child_process';
 import * as path from 'path';
 import type * as vscode from 'vscode';
 
 import {
+  NAMER_BULLET_CHAR_LIMIT,
+  NAMER_CLAUDE_TIMEOUT_MS,
+  NAMER_RECENT_MESSAGES_FOR_PROMPT,
   NAMER_THROTTLE_MS,
   NAMER_TOOL_HISTOGRAM_WINDOW,
   NAMER_TRANSITION_HISTOGRAM_DELTA,
@@ -179,4 +183,70 @@ export function detectTransition(agent: AgentState, now: number): boolean {
   }
   if (total === 0) return false;
   return delta / total > NAMER_TRANSITION_HISTOGRAM_DELTA;
+}
+
+/** Build the pt-BR prompt sent to `claude -p`. */
+export function buildRefinePrompt(args: {
+  cwd: string;
+  heuristic: string;
+  recentBullets: string[];
+  toolHistogram: Record<string, number>;
+  skill: string | null;
+}): string {
+  const toolSummary =
+    Object.entries(args.toolHistogram)
+      .sort((a, b) => b[1] - a[1])
+      .map(([t, c]) => `${t}×${c}`)
+      .join(', ') || 'nenhuma';
+
+  const bullets =
+    args.recentBullets.length > 0
+      ? args.recentBullets.map((b) => `- ${b.slice(0, NAMER_BULLET_CHAR_LIMIT)}`).join('\n')
+      : '- (nenhuma atividade registrada)';
+
+  return `Você está nomeando um agente de IA de programação com base no que ele está fazendo agora.
+
+WORKSPACE: ${args.cwd}
+NOME HEURÍSTICO (fallback): ${args.heuristic}
+ATIVIDADE RECENTE (últimas ${NAMER_RECENT_MESSAGES_FOR_PROMPT} mensagens usuário+assistente, resumidas):
+${bullets}
+TOOLS RECENTES: ${toolSummary}
+SKILL ATIVA: ${args.skill ?? 'nenhuma'}
+
+Produza um nome curto em pt-BR com 1-3 palavras em minúsculas, sem prefixo "agente", sem pontuação. Formato: [contexto] [papel], ou só [contexto], ou só [papel]. Prefira palavras concretas do domínio sobre genéricas (ex: "obsidian" em vez de "vault", "marketing" em vez de "conteudo"). Use "escritor" / "pesquisador" / "orquestrador" / "operador" para papéis. Se estiver em dúvida, retorne o nome heurístico literalmente.
+
+Responda APENAS com o nome, nada mais.`;
+}
+
+/** Spawn `claude -p` and return its stdout (validated+trimmed) or null on failure. */
+export function refineViaClaude(prompt: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    let stdout = '';
+    let settled = false;
+    const done = (result: string | null): void => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
+    try {
+      const child = spawn('claude', ['-p', prompt, '--output-format', 'text'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: NAMER_CLAUDE_TIMEOUT_MS,
+      });
+      child.stdout.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString('utf8');
+      });
+      child.on('error', () => done(null));
+      child.on('close', (code) => {
+        if (code !== 0) {
+          done(null);
+          return;
+        }
+        done(parseRefinedName(stdout));
+      });
+    } catch {
+      done(null);
+    }
+  });
 }
