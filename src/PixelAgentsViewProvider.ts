@@ -883,7 +883,22 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   async delegateTask(): Promise<void> {
     const roles = await this.orchestrator.roleStore.list();
     if (roles.length === 0) {
-      vscode.window.showErrorMessage('Nenhum papel configurado em ~/.pixel-agents/roles.json');
+      const userPath = path.join(os.homedir(), '.pixel-agents', 'roles.json');
+      const bundledPath = vscode.Uri.joinPath(
+        this.extensionUri,
+        'dist',
+        'assets',
+        'default-roles.json',
+      ).fsPath;
+      let msg: string;
+      if (fs.existsSync(userPath)) {
+        msg = `roles.json existe mas está vazio: ${userPath}`;
+      } else if (!fs.existsSync(bundledPath)) {
+        msg = `Bundled default-roles.json não encontrado em ${bundledPath} (build quebrado?)`;
+      } else {
+        msg = 'Nenhum papel disponível (bundled defaults vazios ou corrompidos)';
+      }
+      vscode.window.showErrorMessage(msg);
       return;
     }
     const pick = await vscode.window.showQuickPick(
@@ -903,7 +918,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         `Agente ${agentId} (${pick.label}) delegado: "${task.slice(0, 60)}${task.length > 60 ? '…' : ''}"`,
       );
     } catch (e) {
-      vscode.window.showErrorMessage(`Falha ao delegar: ${(e as Error).message}`);
+      const err = e as NodeJS.ErrnoException;
+      console.error('[Pixel Agents] delegateTask failed:', err);
+      const hint = err.code === 'ENOENT' ? ' (comando "claude" não encontrado no PATH)' : '';
+      vscode.window.showErrorMessage(`Falha ao delegar: ${err.message}${hint}`);
     }
   }
 
