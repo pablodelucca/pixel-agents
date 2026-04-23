@@ -115,6 +115,7 @@ export function useExtensionMessages(
       hueShift?: number;
       seatId?: string;
       folderName?: string;
+      taskLabel?: string;
     }> = [];
 
     const handler = (e: MessageEvent) => {
@@ -139,6 +140,10 @@ export function useExtensionMessages(
         // Add buffered agents now that layout (and seats) are correct
         for (const p of pendingAgents) {
           os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName);
+          if (p.taskLabel) {
+            const ch = os.characters.get(p.id);
+            if (ch) ch.taskLabel = p.taskLabel;
+          }
         }
         pendingAgents = [];
         layoutReadyRef.current = true;
@@ -156,6 +161,12 @@ export function useExtensionMessages(
         const teammateName = msg.teammateName as string | undefined;
         const teammateParentId = msg.parentAgentId as number | undefined;
         const teamName = msg.teamName as string | undefined;
+        // Orchestrator-spawned agents provide palette+hueShift explicitly; terminal
+        // agents leave these undefined so pickDiversePalette() is used instead.
+        const orchestratorPalette =
+          typeof msg.palette === 'number' ? (msg.palette as number) : undefined;
+        const orchestratorHueShift =
+          typeof msg.hueShift === 'number' ? (msg.hueShift as number) : undefined;
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
         // Don't auto-select teammates (keep focus on lead)
         if (!isTeammate) {
@@ -176,9 +187,23 @@ export function useExtensionMessages(
             ch.agentName = teammateName;
           }
         } else {
-          os.addAgent(id, undefined, undefined, undefined, undefined, folderName);
+          // Pass through orchestrator-provided palette/hueShift when present;
+          // undefined values cause addAgent to fall back to pickDiversePalette().
+          os.addAgent(
+            id,
+            orchestratorPalette,
+            orchestratorHueShift,
+            undefined,
+            undefined,
+            folderName,
+          );
         }
         saveAgentSeats(os);
+      } else if (msg.type === 'agentLabelUpdated') {
+        const id = msg.id as number;
+        const label = msg.label as string;
+        const ch = os.characters.get(id);
+        if (ch) ch.taskLabel = label;
       } else if (msg.type === 'agentClosed') {
         const id = msg.id as number;
         setAgents((prev) => prev.filter((a) => a !== id));
@@ -212,6 +237,7 @@ export function useExtensionMessages(
           { palette?: number; hueShift?: number; seatId?: string }
         >;
         const folderNames = (msg.folderNames || {}) as Record<number, string>;
+        const taskLabels = (msg.taskLabels || {}) as Record<number, string>;
         // Buffer agents — they'll be added in layoutLoaded after seats are built
         for (const id of incoming) {
           const m = meta[id];
@@ -221,6 +247,7 @@ export function useExtensionMessages(
             hueShift: m?.hueShift,
             seatId: m?.seatId,
             folderName: folderNames[id],
+            taskLabel: taskLabels[id],
           });
         }
         setAgents((prev) => {
@@ -250,11 +277,15 @@ export function useExtensionMessages(
           };
         });
         const toolName = (msg.toolName as string | undefined) ?? extractToolName(status);
+        console.log(
+          `[SKILL-DEBUG] agentToolStart agent=${id} toolId=${toolId} status="${status}" toolName=${toolName} msg.toolName=${msg.toolName}`,
+        );
         if (toolName === 'Skill') {
-          console.log(
-            `[Pixel Agents webview] Skill tool start — agent=${id}, toolId=${toolId}, status="${status}"`,
-          );
           os.setAgentSkillTool(id, toolId);
+          const chAfter = os.characters.get(id);
+          console.log(
+            `[SKILL-DEBUG] setAgentSkillTool applied — ch.activeSkillToolId=${chAfter?.activeSkillToolId}`,
+          );
         } else {
           os.setAgentTool(id, toolName);
         }
@@ -288,6 +319,11 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentToolDone') {
         const id = msg.id as number;
         const toolId = msg.toolId as string;
+        const chBefore = os.characters.get(id);
+        const willClearSkill = chBefore?.activeSkillToolId === toolId;
+        console.log(
+          `[SKILL-DEBUG] agentToolDone agent=${id} toolId=${toolId} willClearSkill=${willClearSkill} currentSkill=${chBefore?.activeSkillToolId}`,
+        );
         setAgentTools((prev) => {
           const list = prev[id];
           if (!list) return prev;
