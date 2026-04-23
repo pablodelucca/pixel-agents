@@ -10,6 +10,7 @@ import {
   TOOL_DONE_DELAY_MS,
 } from '../server/src/constants.js';
 import type { HookProvider } from '../server/src/provider.js';
+import { maybeSendTaskLabel, recordToolUse } from './agentNamer.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,
@@ -29,16 +30,30 @@ const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
  *  Returns the skill name (e.g. "brainstorming" or "superpowers:brainstorming"). */
 function detectSkillInvocation(content: unknown): string | null {
   if (Array.isArray(content)) {
+    const blockTypes = content
+      .map((b) => (typeof b === 'object' && b !== null ? (b as { type?: string }).type : typeof b))
+      .join(',');
+    console.log(`[SKILL-DEBUG] detect: array content, ${content.length} blocks: [${blockTypes}]`);
     for (const block of content) {
       if (typeof block !== 'object' || block === null) continue;
       const b = block as { type?: string; text?: string };
       if (b.type !== 'text' || typeof b.text !== 'string') continue;
+      console.log(`[SKILL-DEBUG] detect: text block first 120 chars: "${b.text.slice(0, 120)}"`);
       const m = b.text.match(/Base directory for this skill: .*\/skills\/([^/\s]+)/);
-      if (m) return m[1];
+      if (m) {
+        console.log(`[SKILL-DEBUG] detect: MATCH array → "${m[1]}"`);
+        return m[1];
+      }
     }
   } else if (typeof content === 'string') {
+    console.log(`[SKILL-DEBUG] detect: string content first 200 chars: "${content.slice(0, 200)}"`);
     const m = content.match(/<command-name>\/([^<\s]+:[^<\s]+)<\/command-name>/);
-    if (m) return m[1];
+    if (m) {
+      console.log(`[SKILL-DEBUG] detect: MATCH string → "${m[1]}"`);
+      return m[1];
+    }
+  } else {
+    console.log(`[SKILL-DEBUG] detect: unknown content type: ${typeof content}`);
   }
   return null;
 }
@@ -51,7 +66,7 @@ function startSkillTool(
   skillName: string,
   webview: vscode.Webview | undefined,
 ): void {
-  endSkillTool(agentId, agent, webview);
+  endSkillTool(agentId, agent, webview, 'startSkillTool-restart');
   const toolId = `skill-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
   agent.activeSkillToolId = toolId;
   agent.hadToolsInTurn = true;
@@ -71,9 +86,11 @@ function endSkillTool(
   agentId: number,
   agent: AgentState,
   webview: vscode.Webview | undefined,
+  caller = 'unknown',
 ): void {
   const toolId = agent.activeSkillToolId;
   if (!toolId) return;
+  console.log(`[SKILL-DEBUG] endSkillTool(caller=${caller}) agent=${agentId} toolId=${toolId}`);
   agent.activeSkillToolId = null;
   setTimeout(() => {
     webview?.postMessage({ type: 'agentToolDone', id: agentId, toolId });
@@ -277,6 +294,8 @@ export function processTranscriptLine(
                 runInBackground,
               });
             }
+            recordToolUse(agent, toolName);
+            maybeSendTaskLabel(agent, webview);
           }
         }
         // Skip heuristic timer when hooks are active OR for teammates.
@@ -381,7 +400,7 @@ export function processTranscriptLine(
         } else {
           // New user text prompt — new turn starting
           cancelWaitingTimer(agentId, waitingTimers);
-          endSkillTool(agentId, agent, webview);
+          endSkillTool(agentId, agent, webview, 'user-array-new-prompt');
           clearAgentActivity(agent, agentId, permissionTimers, webview);
           agent.hadToolsInTurn = false;
         }
@@ -429,7 +448,7 @@ export function processTranscriptLine(
     } else if (record.type === 'system' && record.subtype === 'turn_duration') {
       cancelWaitingTimer(agentId, waitingTimers);
       cancelPermissionTimer(agentId, permissionTimers);
-      endSkillTool(agentId, agent, webview);
+      endSkillTool(agentId, agent, webview, 'turn_duration');
 
       // Definitive turn-end: clean up any stale tool state, but preserve background agents.
       // When hooks are active, the Stop hook already handled the status change,

@@ -104,6 +104,18 @@ export function maybeSendTaskLabel(agent: AgentState, webview?: vscode.Webview):
   });
 }
 
+/**
+ * Record a tool invocation in the agent's sliding histogram window.
+ * Mutates agent.recentTools. Drops the oldest entry when over capacity.
+ */
+export function recordToolUse(agent: AgentState, toolName: string): void {
+  if (!agent.recentTools) agent.recentTools = [];
+  agent.recentTools.push(toolName);
+  if (agent.recentTools.length > NAMER_TOOL_HISTOGRAM_WINDOW) {
+    agent.recentTools.splice(0, agent.recentTools.length - NAMER_TOOL_HISTOGRAM_WINDOW);
+  }
+}
+
 const NAME_REGEX = /^[a-z0-9à-ÿ\- ]{1,40}$/;
 
 /**

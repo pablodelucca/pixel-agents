@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeHeuristicLabel, parseRefinedName } from '../../src/agentNamer.js';
+import { computeHeuristicLabel, parseRefinedName, recordToolUse } from '../../src/agentNamer.js';
 import type { AgentState } from '../../src/types.js';
 
 function createAgent(overrides: Partial<AgentState> = {}): AgentState {
@@ -162,5 +162,30 @@ describe('computeHeuristicLabel (Phase 2 upgrade)', () => {
     const recent = Array<string>(30).fill('Read');
     const agent = createAgent({ recentTools: [...old, ...recent] });
     expect(computeHeuristicLabel(agent)).toBe('pixel-agents pesquisador');
+  });
+});
+
+describe('recordToolUse', () => {
+  it('initializes recentTools if absent', () => {
+    const agent = createAgent({ recentTools: undefined });
+    recordToolUse(agent, 'Read');
+    expect(agent.recentTools).toEqual(['Read']);
+  });
+
+  it('appends in order', () => {
+    const agent = createAgent({ recentTools: [] });
+    recordToolUse(agent, 'Read');
+    recordToolUse(agent, 'Write');
+    expect(agent.recentTools).toEqual(['Read', 'Write']);
+  });
+
+  it('caps the window at NAMER_TOOL_HISTOGRAM_WINDOW', () => {
+    const agent = createAgent({ recentTools: [] });
+    for (let i = 0; i < 40; i++) {
+      recordToolUse(agent, `Tool${i}`);
+    }
+    expect(agent.recentTools?.length).toBe(30);
+    expect(agent.recentTools?.[0]).toBe('Tool10'); // oldest kept
+    expect(agent.recentTools?.[29]).toBe('Tool39'); // newest
   });
 });
