@@ -62,7 +62,7 @@ export function maybeSendTaskLabel(agent: AgentState, webview?: vscode.Webview):
   webview?.postMessage({ type: 'agentLabelUpdated', id: agent.id, label: next });
 }
 
-const NAME_REGEX = /^[a-z0-9à-ÿ -]+$/;
+const NAME_REGEX = /^[a-z0-9à-ÿ\- ]{1,40}$/;
 
 /**
  * Validate and normalize a name returned by the LLM subprocess.
@@ -74,8 +74,5 @@ export function parseRefinedName(raw: string): string | null {
   if (!NAME_REGEX.test(trimmed)) return null;
   const wordCount = trimmed.split(/\s+/).length;
   if (wordCount < 1 || wordCount > 3) return null;
-  // Limit: single words to 30 chars, multi-word phrases to 40 chars
-  const maxLength = wordCount === 1 ? 30 : 40;
-  if (trimmed.length > maxLength) return null;
   return trimmed;
 }

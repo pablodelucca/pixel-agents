@@ -82,7 +82,7 @@ describe('parseRefinedName', () => {
     expect(parseRefinedName('   ')).toBeNull();
   });
 
-  it('rejects strings longer than 30 chars', () => {
-    expect(parseRefinedName('a'.repeat(31))).toBeNull();
+  it('rejects strings longer than 40 chars', () => {
+    expect(parseRefinedName('a'.repeat(41))).toBeNull();
   });
 });
