@@ -250,7 +250,14 @@ export function useExtensionMessages(
           };
         });
         const toolName = (msg.toolName as string | undefined) ?? extractToolName(status);
-        os.setAgentTool(id, toolName);
+        if (toolName === 'Skill') {
+          console.log(
+            `[Pixel Agents webview] Skill tool start — agent=${id}, toolId=${toolId}, status="${status}"`,
+          );
+          os.setAgentSkillTool(id, toolId);
+        } else {
+          os.setAgentTool(id, toolName);
+        }
         os.setAgentActive(id, true);
         // Don't clear the permission bubble if the hook already confirmed permission is needed
         if (!permissionActive) {
@@ -289,6 +296,7 @@ export function useExtensionMessages(
             [id]: list.map((t) => (t.toolId === toolId ? { ...t, done: true } : t)),
           };
         });
+        os.clearAgentSkillToolIf(id, toolId);
       } else if (msg.type === 'agentToolsClear') {
         const id = msg.id as number;
         setAgentTools((prev) => {
@@ -314,6 +322,7 @@ export function useExtensionMessages(
           setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
         }
         os.setAgentTool(id, null);
+        os.setAgentSkillTool(id, null);
         os.clearPermissionBubble(id);
       } else if (msg.type === 'agentSelected') {
         const id = msg.id as number;

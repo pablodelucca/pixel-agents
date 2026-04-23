@@ -55,6 +55,7 @@ function startSkillTool(
   const toolId = `skill-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
   agent.activeSkillToolId = toolId;
   agent.hadToolsInTurn = true;
+  console.log(`[Pixel Agents] Agent ${agentId}: Skill detected "${skillName}" → toolId=${toolId}`);
   webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
   webview?.postMessage({
     type: 'agentToolStart',

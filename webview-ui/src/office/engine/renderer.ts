@@ -495,8 +495,8 @@ function renderBubbles(
   zoom: number,
 ): void {
   for (const ch of characters) {
-    // Priority: permission > waiting > skill (skill is derived from currentTool,
-    // stays as long as a Skill tool is active; permission/waiting are discrete events).
+    // Priority: permission > waiting > skill. Skill bubble persists across the
+    // whole slash-command skill run, even as currentTool flips through Read/Grep/etc.
     let sprite: SpriteData | null = null;
     let alpha = 1.0;
     if (ch.bubbleType === 'permission') {
@@ -506,7 +506,7 @@ function renderBubbles(
       if (ch.bubbleTimer < BUBBLE_FADE_DURATION_SEC) {
         alpha = ch.bubbleTimer / BUBBLE_FADE_DURATION_SEC;
       }
-    } else if (ch.currentTool === 'Skill') {
+    } else if (ch.activeSkillToolId) {
       sprite = BUBBLE_SKILL_SPRITE;
     }
     if (!sprite) continue;
