@@ -1,7 +1,11 @@
 import * as path from 'path';
 import type * as vscode from 'vscode';
 
-import { NAMER_TOOL_HISTOGRAM_WINDOW } from './constants.js';
+import {
+  NAMER_THROTTLE_MS,
+  NAMER_TOOL_HISTOGRAM_WINDOW,
+  NAMER_TRANSITION_HISTOGRAM_DELTA,
+} from './constants.js';
 import type { AgentState } from './types.js';
 
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit']);
@@ -129,4 +133,50 @@ export function parseRefinedName(raw: string): string | null {
   const wordCount = trimmed.split(/\s+/).length;
   if (wordCount < 1 || wordCount > 3) return null;
   return trimmed;
+}
+
+/** Build a fresh signals snapshot from the current agent state. */
+function currentSignals(agent: AgentState): NonNullable<AgentState['nameSignals']> {
+  const tools = toolWindow(agent);
+  const histogram: Record<string, number> = {};
+  for (const t of tools) histogram[t] = (histogram[t] ?? 0) + 1;
+  return {
+    cwdBase: workspaceLabel(agent),
+    lastSkill: activeSkillName(agent),
+    toolHistogram: histogram,
+    messageCountAtLastRefine: agent.messageCount ?? 0,
+    heuristicRole: roleFromWindow(tools),
+  };
+}
+
+/**
+ * Decide whether the agent deserves a fresh LLM refinement now.
+ *   - Respects the throttle (NAMER_THROTTLE_MS since lastLlmRefineAt)
+ *   - Returns true on first-ever call (no prior snapshot)
+ *   - Returns true when skill, role, or histogram delta has shifted significantly
+ */
+export function detectTransition(agent: AgentState, now: number): boolean {
+  const last = agent.lastLlmRefineAt ?? 0;
+  if (last > 0 && now - last < NAMER_THROTTLE_MS) return false;
+
+  const prior = agent.nameSignals;
+  if (!prior) return true;
+
+  const curr = currentSignals(agent);
+
+  if (curr.lastSkill !== prior.lastSkill) return true;
+  if (curr.heuristicRole !== prior.heuristicRole) return true;
+
+  // Histogram delta: sum of |curr - prior| divided by total current.
+  let delta = 0;
+  let total = 0;
+  const keys = new Set([...Object.keys(curr.toolHistogram), ...Object.keys(prior.toolHistogram)]);
+  for (const k of keys) {
+    const c = curr.toolHistogram[k] ?? 0;
+    const p = prior.toolHistogram[k] ?? 0;
+    delta += Math.abs(c - p);
+    total += c;
+  }
+  if (total === 0) return false;
+  return delta / total > NAMER_TRANSITION_HISTOGRAM_DELTA;
 }

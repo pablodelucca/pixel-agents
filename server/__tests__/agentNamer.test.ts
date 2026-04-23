@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeHeuristicLabel, parseRefinedName, recordToolUse } from '../../src/agentNamer.js';
+import {
+  computeHeuristicLabel,
+  detectTransition,
+  parseRefinedName,
+  recordToolUse,
+} from '../../src/agentNamer.js';
 import type { AgentState } from '../../src/types.js';
 
 function createAgent(overrides: Partial<AgentState> = {}): AgentState {
@@ -187,5 +192,66 @@ describe('recordToolUse', () => {
     expect(agent.recentTools?.length).toBe(30);
     expect(agent.recentTools?.[0]).toBe('Tool10'); // oldest kept
     expect(agent.recentTools?.[29]).toBe('Tool39'); // newest
+  });
+});
+
+describe('detectTransition', () => {
+  const baseSignals = {
+    cwdBase: 'pixel-agents',
+    lastSkill: null,
+    toolHistogram: { Read: 5, Write: 5 },
+    messageCountAtLastRefine: 0,
+    heuristicRole: 'escritor' as string | null,
+  };
+
+  it('returns true when no prior snapshot exists (first call)', () => {
+    const agent = createAgent({ nameSignals: undefined, lastLlmRefineAt: 0 });
+    expect(detectTransition(agent, 100_000)).toBe(true);
+  });
+
+  it('returns false when no signal changed', () => {
+    const agent = createAgent({
+      recentTools: ['Read', 'Read', 'Read', 'Read', 'Read'],
+      messageCount: 0,
+      lastLlmRefineAt: 0,
+    });
+    agent.nameSignals = {
+      ...baseSignals,
+      heuristicRole: 'pesquisador',
+      toolHistogram: { Read: 5 },
+    };
+    expect(detectTransition(agent, 200_000)).toBe(false);
+  });
+
+  it('returns true when the active skill changed', () => {
+    const agent = createAgent({
+      nameSignals: { ...baseSignals, lastSkill: null },
+      activeSkillToolId: 'skill-1',
+      activeToolStatuses: new Map([['skill-1', 'Skill: graphify']]),
+      recentTools: [],
+      messageCount: 0,
+      lastLlmRefineAt: 0,
+    });
+    expect(detectTransition(agent, 200_000)).toBe(true);
+  });
+
+  it('returns true when heuristic role changed', () => {
+    const agent = createAgent({
+      nameSignals: { ...baseSignals, heuristicRole: 'escritor' },
+      recentTools: ['Read', 'Read', 'Read', 'Read', 'Read'],
+      messageCount: 0,
+      lastLlmRefineAt: 0,
+    });
+    expect(detectTransition(agent, 200_000)).toBe(true);
+  });
+
+  it('returns false within throttle window (< 90s since last refine)', () => {
+    const agent = createAgent({
+      nameSignals: { ...baseSignals, heuristicRole: 'escritor' },
+      recentTools: ['Read', 'Read', 'Read', 'Read', 'Read'],
+      lastLlmRefineAt: 150_000,
+      messageCount: 0,
+    });
+    expect(detectTransition(agent, 150_000 + 60_000)).toBe(false);
   });
 });
