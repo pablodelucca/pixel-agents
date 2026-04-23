@@ -7,6 +7,8 @@ export interface AgentState {
   terminalRef?: vscode.Terminal;
   /** Whether this agent was detected from an external source (VS Code extension panel, etc.) */
   isExternal: boolean;
+  /** True se o agente foi spawnado como processo headless pelo orquestrador (sem VS Code terminal). */
+  isHeadless?: boolean;
   projectDir: string;
   jsonlFile: string;
   fileOffset: number;
@@ -59,6 +61,9 @@ export interface AgentState {
   leadAgentId?: number;
   /** True when lead spawns teammates via tmux (run_in_background Agent calls) */
   teamUsesTmux?: boolean;
+
+  /** Heuristic pt-BR task label shown floating above the character (e.g. "pixel-agents escritor"). */
+  taskLabel?: string;
 }
 
 export interface PersistedAgent {
