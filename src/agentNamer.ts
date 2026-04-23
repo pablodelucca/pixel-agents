@@ -5,6 +5,9 @@ import type * as vscode from 'vscode';
 import {
   NAMER_BULLET_CHAR_LIMIT,
   NAMER_CLAUDE_TIMEOUT_MS,
+  NAMER_INITIAL_REFINE_DELAY_MS,
+  NAMER_INITIAL_REFINE_MSG_THRESHOLD,
+  NAMER_MAX_REFINES_PER_SESSION,
   NAMER_RECENT_MESSAGES_FOR_PROMPT,
   NAMER_THROTTLE_MS,
   NAMER_TOOL_HISTOGRAM_WINDOW,
@@ -249,4 +252,74 @@ export function refineViaClaude(prompt: string): Promise<string | null> {
       done(null);
     }
   });
+}
+
+/**
+ * Called after each tool_use or user prompt. Attempts LLM refinement if gates pass.
+ * - Ignores sub-agents (id < 0).
+ * - Skips when LLM is disabled for this session or a refine is in flight.
+ * - Requires initial eligibility (age ≥ NAMER_INITIAL_REFINE_DELAY_MS OR messageCount ≥ threshold) AND a detected transition.
+ * - Respects budget (max refines/session) and throttle.
+ * - On success, sets `agent.taskLabel` and posts `agentLabelUpdated` with `source: 'llm'`.
+ */
+export async function maybeRefineTaskLabel(
+  agent: AgentState,
+  webview: vscode.Webview | undefined,
+  readRecentBullets: (agent: AgentState) => Promise<string[]>,
+  now: number = Date.now(),
+): Promise<void> {
+  if (agent.id < 0) return;
+  if (agent.llmRefineDisabled) return;
+  if (agent.llmRefineInFlight) return;
+  if ((agent.llmRefineCount ?? 0) >= NAMER_MAX_REFINES_PER_SESSION) return;
+
+  // Initial-refine eligibility: the agent must be old enough OR have enough messages.
+  const age = now - (agent.createdAt ?? now);
+  const msgs = agent.messageCount ?? 0;
+  const eligible =
+    age >= NAMER_INITIAL_REFINE_DELAY_MS || msgs >= NAMER_INITIAL_REFINE_MSG_THRESHOLD;
+  if (!eligible) return;
+
+  if (!detectTransition(agent, now)) return;
+
+  agent.llmRefineInFlight = true;
+  try {
+    const heuristic = computeHeuristicLabel(agent);
+    if (!heuristic) return;
+
+    const tools = toolWindow(agent);
+    const histogram: Record<string, number> = {};
+    for (const t of tools) histogram[t] = (histogram[t] ?? 0) + 1;
+
+    const bullets = await readRecentBullets(agent).catch(() => []);
+    const prompt = buildRefinePrompt({
+      cwd: agent.projectDir,
+      heuristic,
+      recentBullets: bullets,
+      toolHistogram: histogram,
+      skill: activeSkillName(agent),
+    });
+
+    const refined = await refineViaClaude(prompt);
+    agent.lastLlmRefineAt = now;
+    agent.llmRefineCount = (agent.llmRefineCount ?? 0) + 1;
+    agent.nameSignals = currentSignals(agent);
+
+    if (refined === null) {
+      agent.llmRefineDisabled = true;
+      return;
+    }
+
+    if (refined !== agent.taskLabel) {
+      agent.taskLabel = refined;
+      webview?.postMessage({
+        type: 'agentLabelUpdated',
+        id: agent.id,
+        label: refined,
+        source: 'llm',
+      });
+    }
+  } finally {
+    agent.llmRefineInFlight = false;
+  }
 }
