@@ -63,4 +63,35 @@ describe('RoleStore', () => {
     const store = new RoleStore(rolesPath, '/nonexistent');
     await expect(store.list()).rejects.toThrow(/parse/i);
   });
+
+  it('rejects file with wrong version', async () => {
+    fs.writeFileSync(rolesPath, JSON.stringify({ version: 2, roles: {} }));
+    const store = new RoleStore(rolesPath, '/nonexistent');
+    await expect(store.list()).rejects.toThrow(/shape/i);
+  });
+
+  it('rejects file with null roles', async () => {
+    fs.writeFileSync(rolesPath, JSON.stringify({ version: 1, roles: null }));
+    const store = new RoleStore(rolesPath, '/nonexistent');
+    await expect(store.list()).rejects.toThrow(/shape/i);
+  });
+
+  it('wraps read errors with context', async () => {
+    fs.mkdirSync(rolesPath); // path is a directory; readFile will EISDIR
+    const store = new RoleStore(rolesPath, '/nonexistent');
+    await expect(store.list()).rejects.toThrow(/failed to read/i);
+  });
+
+  it('save() then list() round-trips and creates parent dir', async () => {
+    const nestedPath = path.join(tmpDir, 'nested', 'roles.json');
+    const store = new RoleStore(nestedPath, '/nonexistent');
+    await store.save({
+      version: 1,
+      roles: { a: { id: 'a', label: 'A', systemPrompt: '', palette: 0, hueShift: 0 } },
+    });
+    expect(fs.existsSync(nestedPath)).toBe(true);
+    const roles = await store.list();
+    expect(roles).toHaveLength(1);
+    expect(roles[0].id).toBe('a');
+  });
 });

@@ -37,15 +37,24 @@ export class RoleStore {
     } catch (e) {
       throw new Error(`RoleStore: failed to read ${sourcePath}: ${(e as Error).message}`);
     }
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(raw) as RolesFile;
-      if (parsed.version !== 1 || typeof parsed.roles !== 'object') {
-        throw new Error(`RoleStore: invalid file shape in ${sourcePath}`);
-      }
-      return parsed;
+      parsed = JSON.parse(raw);
     } catch (e) {
       throw new Error(`RoleStore: failed to parse ${sourcePath}: ${(e as Error).message}`);
     }
+    const file = parsed as RolesFile;
+    if (
+      file === null ||
+      typeof file !== 'object' ||
+      (file as { version?: unknown }).version !== 1 ||
+      typeof (file as { roles?: unknown }).roles !== 'object' ||
+      (file as { roles: unknown }).roles === null ||
+      Array.isArray((file as { roles: unknown }).roles)
+    ) {
+      throw new Error(`RoleStore: invalid file shape in ${sourcePath}`);
+    }
+    return file;
   }
 
   /** Escreve o arquivo atomicamente (tmp + rename). Usado por Fase 4. */
