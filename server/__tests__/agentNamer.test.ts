@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseRefinedName } from '../../src/agentNamer.js';
+import { computeHeuristicLabel, parseRefinedName } from '../../src/agentNamer.js';
 import type { AgentState } from '../../src/types.js';
 
 function createAgent(overrides: Partial<AgentState> = {}): AgentState {
@@ -84,5 +84,83 @@ describe('parseRefinedName', () => {
 
   it('rejects strings longer than 40 chars', () => {
     expect(parseRefinedName('a'.repeat(41))).toBeNull();
+  });
+});
+
+describe('computeHeuristicLabel (Phase 2 upgrade)', () => {
+  it('returns just workspace when no tools used yet', () => {
+    const agent = createAgent({ recentTools: [] });
+    expect(computeHeuristicLabel(agent)).toBe('pixel-agents');
+  });
+
+  it('returns "[workspace] escritor" when Write+Edit dominate', () => {
+    const agent = createAgent({
+      recentTools: ['Write', 'Edit', 'Write', 'Edit', 'Read'],
+    });
+    expect(computeHeuristicLabel(agent)).toBe('pixel-agents escritor');
+  });
+
+  it('returns "[workspace] pesquisador" when Read+Grep dominate', () => {
+    const agent = createAgent({
+      recentTools: ['Read', 'Grep', 'Glob', 'Read', 'Write'],
+    });
+    expect(computeHeuristicLabel(agent)).toBe('pixel-agents pesquisador');
+  });
+
+  it('returns "[workspace] orquestrador" when Task count >= 2 (beats other dominants)', () => {
+    const agent = createAgent({
+      recentTools: ['Task', 'Task', 'Read', 'Read', 'Read'],
+    });
+    expect(computeHeuristicLabel(agent)).toBe('pixel-agents orquestrador');
+  });
+
+  it('returns "[workspace] operador" when Bash dominates (>50%)', () => {
+    const agent = createAgent({
+      recentTools: ['Bash', 'Bash', 'Bash', 'Read'],
+    });
+    expect(computeHeuristicLabel(agent)).toBe('pixel-agents operador');
+  });
+
+  it('omits role when no category dominates', () => {
+    const agent = createAgent({
+      recentTools: ['Read', 'Write', 'Bash', 'Read', 'Write', 'Bash'],
+    });
+    expect(computeHeuristicLabel(agent)).toBe('pixel-agents');
+  });
+
+  it('uses skill name as context when an active skill exists', () => {
+    const agent = createAgent({
+      projectDir: '/Users/x/repo',
+      recentTools: ['Write', 'Edit'],
+      activeSkillToolId: 'skill-abc',
+      activeToolStatuses: new Map([['skill-abc', 'Skill: superpowers:brainstorming']]),
+    });
+    expect(computeHeuristicLabel(agent)).toBe('brainstorming escritor');
+  });
+
+  it('strips plugin prefix from skill context (superpowers:brainstorming → brainstorming)', () => {
+    const agent = createAgent({
+      activeSkillToolId: 'skill-abc',
+      activeToolStatuses: new Map([['skill-abc', 'Skill: superpowers:brainstorming']]),
+      recentTools: [],
+    });
+    expect(computeHeuristicLabel(agent)).toBe('brainstorming');
+  });
+
+  it('lowercases PascalCase workspace names', () => {
+    const agent = createAgent({ projectDir: '/Users/x/PiMindIA', recentTools: [] });
+    expect(computeHeuristicLabel(agent)).toBe('pimindia');
+  });
+
+  it('returns "claude" for workspaces containing .claude', () => {
+    const agent = createAgent({ projectDir: '/Users/x/.claude', recentTools: [] });
+    expect(computeHeuristicLabel(agent)).toBe('claude');
+  });
+
+  it('only considers the most recent NAMER_TOOL_HISTOGRAM_WINDOW entries', () => {
+    const old = Array<string>(10).fill('Write');
+    const recent = Array<string>(30).fill('Read');
+    const agent = createAgent({ recentTools: [...old, ...recent] });
+    expect(computeHeuristicLabel(agent)).toBe('pixel-agents pesquisador');
   });
 });
