@@ -11,6 +11,8 @@
     "src/**/*.ts",
     "../src/types.ts",
     "../src/timerManager.ts",
-    "../src/transcriptParser.ts"
+    "../src/transcriptParser.ts",
+    "../src/agentNamer.ts",
+    "../src/constants.ts"
   ]
 }
