@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { JSONL_POLL_INTERVAL_MS } from '../server/src/constants.js';
+import { maybeSendTaskLabel } from './agentNamer.js';
 import {
   TERMINAL_NAME_PREFIX,
   WORKSPACE_KEY_AGENT_SEATS,
@@ -137,6 +138,7 @@ export async function launchNewTerminal(
   persistAgents();
   console.log(`[Pixel Agents] Terminal: Agent ${id} - created for terminal ${terminal.name}`);
   webview?.postMessage({ type: 'agentCreated', id, folderName });
+  maybeSendTaskLabel(agent, webview);
 
   ensureProjectScan(
     projectDir,
@@ -286,6 +288,9 @@ export function persistAgents(
 ): void {
   const persisted: PersistedAgent[] = [];
   for (const agent of agents.values()) {
+    // Headless agents are ephemeral — their subprocess dies with the extension host,
+    // so persisting them produces ghost entries on reload.
+    if (agent.isHeadless) continue;
     persisted.push({
       id: agent.id,
       sessionId: agent.sessionId,
@@ -531,15 +536,19 @@ export function sendExistingAgents(
     Record<string, { palette?: number; seatId?: string }>
   >(WORKSPACE_KEY_AGENT_SEATS, {});
 
-  // Include folderName and isExternal per agent
+  // Include folderName, isExternal, and taskLabel per agent
   const folderNames: Record<number, string> = {};
   const externalAgents: Record<number, boolean> = {};
+  const taskLabels: Record<number, string> = {};
   for (const [id, agent] of agents) {
     if (agent.folderName) {
       folderNames[id] = agent.folderName;
     }
     if (agent.isExternal) {
       externalAgents[id] = true;
+    }
+    if (agent.taskLabel) {
+      taskLabels[id] = agent.taskLabel;
     }
   }
   console.log(
@@ -552,6 +561,7 @@ export function sendExistingAgents(
     agentMeta,
     folderNames,
     externalAgents,
+    taskLabels,
   });
   // Note: sendCurrentAgentStatuses is called separately AFTER layoutLoaded
   // so that agentStatus/agentToolStart messages arrive after characters are created.

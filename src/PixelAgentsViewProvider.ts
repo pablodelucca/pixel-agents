@@ -244,8 +244,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         if (agent.isTeamLead) {
           this.removeTeammates(agentId);
         }
-        // External agents: remove immediately (no terminal to keep alive)
-        if (agent.isExternal) {
+        // External and headless agents: remove immediately (no VS Code terminal to keep alive)
+        if (agent.isExternal || agent.isHeadless) {
           this.unregisterAgentHook(agent);
           removeAgent(
             agentId,
