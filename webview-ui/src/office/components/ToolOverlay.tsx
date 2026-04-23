@@ -143,11 +143,14 @@ export function ToolOverlay({
         const tools = agentTools[id];
         const hasPermission = subHasPermission || tools?.some((t) => t.permissionWait && !t.done);
         const hasActiveTools = tools?.some((t) => !t.done);
+        const hasActiveSkill = tools?.some((t) => !t.done && t.status.startsWith('Skill:'));
         const isActive = ch.isActive;
 
         let dotColor: string | null = null;
         if (hasPermission) {
           dotColor = 'var(--color-status-permission)';
+        } else if (isActive && hasActiveSkill) {
+          dotColor = 'var(--color-status-skill)';
         } else if (isActive && hasActiveTools) {
           dotColor = 'var(--color-status-active)';
         }

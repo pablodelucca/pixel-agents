@@ -49,6 +49,10 @@ export function formatToolStatus(toolName: string, input?: unknown): string {
       return 'Waiting for your answer';
     case 'EnterPlanMode':
       return 'Planning';
+    case 'Skill': {
+      const skillName = typeof inp.skill === 'string' ? inp.skill : '';
+      return skillName ? `Skill: ${skillName}` : 'Using skill';
+    }
     case 'NotebookEdit':
       return 'Editing notebook';
     case 'TeamCreate': {

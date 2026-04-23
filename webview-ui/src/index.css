@@ -34,6 +34,7 @@
   /* Status */
   --color-status-permission: #cca700;
   --color-status-active: #3794ff;
+  --color-status-skill: #ffcc33;
   --color-status-success: #89d185;
   --color-status-error: var(--color-danger);
 
