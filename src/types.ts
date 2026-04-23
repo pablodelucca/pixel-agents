@@ -64,6 +64,30 @@ export interface AgentState {
 
   /** Heuristic pt-BR task label shown floating above the character (e.g. "pixel-agents escritor"). */
   taskLabel?: string;
+
+  // -- Name refinement (Phase 2) --
+  /** Sliding window of the most recent tool names used (cap NAMER_TOOL_HISTOGRAM_WINDOW). */
+  recentTools?: string[];
+  /** Snapshot of the signals at the last refinement attempt — used by detectTransition(). */
+  nameSignals?: {
+    cwdBase: string;
+    lastSkill: string | null;
+    toolHistogram: Record<string, number>;
+    messageCountAtLastRefine: number;
+    heuristicRole: string | null;
+  };
+  /** Total user+assistant messages seen for this agent (bumps on every new record from processTranscriptLine). */
+  messageCount?: number;
+  /** Timestamp (ms) of the last LLM refinement attempt. 0 = never. */
+  lastLlmRefineAt?: number;
+  /** Count of LLM refinements made for this agent session. */
+  llmRefineCount?: number;
+  /** When true, LLM refinement is disabled for the rest of this agent's session (after a subprocess failure). */
+  llmRefineDisabled?: boolean;
+  /** When true, an LLM subprocess call is currently in flight for this agent. */
+  llmRefineInFlight?: boolean;
+  /** Timestamp (ms) when the agent was first created — used by initial-refine window. */
+  createdAt?: number;
 }
 
 export interface PersistedAgent {
