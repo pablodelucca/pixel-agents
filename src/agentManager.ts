@@ -131,6 +131,11 @@ export async function launchNewTerminal(
     hookDelivered: false,
     inputTokens: 0,
     outputTokens: 0,
+    createdAt: Date.now(),
+    messageCount: 0,
+    recentTools: [],
+    llmRefineCount: 0,
+    lastLlmRefineAt: 0,
   };
 
   agents.set(id, agent);
@@ -382,6 +387,11 @@ export function restoreAgents(
       hookDelivered: false,
       inputTokens: 0,
       outputTokens: 0,
+      createdAt: Date.now(),
+      messageCount: 0,
+      recentTools: [],
+      llmRefineCount: 0,
+      lastLlmRefineAt: 0,
       teamName: p.teamName,
       agentName: p.agentName,
       isTeamLead: p.isTeamLead,
