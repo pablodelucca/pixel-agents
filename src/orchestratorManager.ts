@@ -64,25 +64,47 @@ export class OrchestratorManager {
     const workspaceCwd = cwd ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? os.homedir();
 
     const result = this.spawner.spawn({ role, task, cwd: workspaceCwd });
-    const agentId = this.createHeadlessAgent(result, role, workspaceCwd);
-    this.activeProcesses.set(agentId, result);
 
-    // Catch async spawn errors (e.g. ENOENT if claude binary is missing)
+    // Attach listeners BEFORE createHeadlessAgent so spawn errors don't orphan the subprocess.
+    // agentId is not known until after createHeadlessAgent; use a mutable holder.
+    const agentIdRef: { current: number | undefined } = { current: undefined };
+
     result.process.on('error', (err) => {
+      const idText = agentIdRef.current !== undefined ? String(agentIdRef.current) : '(pre-init)';
       console.error(
-        `[Pixel Agents] Orchestrator: Agent ${agentId} (${role.id}) spawn error: ${err.message}`,
+        `[Pixel Agents] Orchestrator: Agent ${idText} (${role.id}) spawn error: ${err.message}`,
       );
-      this.activeProcesses.delete(agentId);
+      if (agentIdRef.current !== undefined) {
+        this.activeProcesses.delete(agentIdRef.current);
+      }
     });
 
     result.process.on('exit', (code) => {
+      const idText = agentIdRef.current !== undefined ? String(agentIdRef.current) : '(pre-init)';
       console.log(
-        `[Pixel Agents] Orchestrator: Agent ${agentId} (${role.id}) exited with code ${code}`,
+        `[Pixel Agents] Orchestrator: Agent ${idText} (${role.id}) exited with code ${code}`,
       );
-      this.activeProcesses.delete(agentId);
+      if (agentIdRef.current !== undefined) {
+        this.activeProcesses.delete(agentIdRef.current);
+      }
+      // NOTE: character despawn is intentionally driven by the SessionEnd hook, not here,
+      // so the lifecycle is hook-authoritative. If hooks are disabled, see I2 handling in
+      // startJsonlPolling timeout.
     });
 
-    return agentId;
+    try {
+      const agentId = this.createHeadlessAgent(result, role, workspaceCwd);
+      agentIdRef.current = agentId;
+      this.activeProcesses.set(agentId, result);
+      return agentId;
+    } catch (err) {
+      try {
+        result.process.kill('SIGTERM');
+      } catch {
+        // subprocess may already be dead — ignore
+      }
+      throw err;
+    }
   }
 
   private createHeadlessAgent(spawn: HeadlessSpawnResult, role: Role, cwd: string): number {
@@ -180,20 +202,44 @@ export class OrchestratorManager {
         }
         if (pollCount > 30) {
           console.warn(
-            `[Pixel Agents] Orchestrator: Agent ${id} - JSONL never appeared, giving up`,
+            `[Pixel Agents] Orchestrator: Agent ${id} - JSONL never appeared, despawning ghost agent`,
           );
           clearInterval(pollTimer);
           this.jsonlPollTimers.delete(id);
+          this.forceDespawn(id, agent);
         }
       } catch {
-        // ignore transient fs errors
+        // ignore
       }
     }, 1000);
     this.jsonlPollTimers.set(id, pollTimer);
   }
 
+  /** Clean up a headless agent that never delivered a JSONL file (subprocess errored early). */
+  private forceDespawn(id: number, agent: AgentState): void {
+    const result = this.activeProcesses.get(id);
+    if (result) {
+      try {
+        result.process.kill('SIGTERM');
+      } catch {
+        // already dead
+      }
+      this.activeProcesses.delete(id);
+    }
+    this.hookHandler.unregisterAgent(agent.sessionId);
+    this.agents.delete(id);
+    this.persistAgents();
+    this.getWebview()?.postMessage({ type: 'agentClosed', id });
+  }
+
   dispose(): void {
     for (const [id, result] of this.activeProcesses) {
+      // Clear any pending JSONL poll timers we started for this agent
+      const timer = this.jsonlPollTimers.get(id);
+      if (timer) {
+        clearInterval(timer);
+        this.jsonlPollTimers.delete(id);
+      }
       try {
         result.process.kill('SIGTERM');
       } catch {
