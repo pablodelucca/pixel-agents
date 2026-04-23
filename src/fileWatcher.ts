@@ -38,7 +38,6 @@ import {
 } from '../server/src/constants.js';
 import type { TeamProvider } from '../server/src/teamProvider.js';
 import { removeAgent } from './agentManager.js';
-import { maybeSendTaskLabel } from './agentNamer.js';
 import { TERMINAL_NAME_PREFIX } from './constants.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
@@ -516,7 +515,6 @@ function adoptTerminalForFile(
     `[Pixel Agents] Watcher: Agent ${id} - adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`,
   );
   webview?.postMessage({ type: 'agentCreated', id });
-  maybeSendTaskLabel(agent, webview);
 
   startFileWatching(
     id,
@@ -711,7 +709,6 @@ export function scanForTeammateFiles(
       parentAgentId,
       teamName: parentAgent?.teamName,
     });
-    maybeSendTaskLabel(agent, webview);
 
     onAgentCreated?.(agent);
 
@@ -914,7 +911,6 @@ export function adoptExternalSessionFromHook(
       );
     }
     webview?.postMessage({ type: 'agentCreated', id, folderName });
-    maybeSendTaskLabel(agent, webview);
     onAgentCreated?.(agent);
   }
 }
@@ -979,7 +975,6 @@ function adoptExternalSession(
   // Log is emitted by the caller (adoptExternalSessionFromHook or scanExternalDir)
   // to use the correct prefix (Hook: vs Watcher:).
   webview?.postMessage({ type: 'agentCreated', id, isExternal: true, folderName });
-  maybeSendTaskLabel(agent, webview);
 
   startFileWatching(
     id,
