@@ -19,6 +19,8 @@ interface SettingsModalProps {
   onToggleWatchAllSessions: () => void;
   hooksEnabled: boolean;
   onToggleHooksEnabled: () => void;
+  showTokenCounter: boolean;
+  onToggleShowTokenCounter: () => void;
 }
 
 export function SettingsModal({
@@ -33,6 +35,8 @@ export function SettingsModal({
   onToggleWatchAllSessions,
   hooksEnabled,
   onToggleHooksEnabled,
+  showTokenCounter,
+  onToggleShowTokenCounter,
 }: SettingsModalProps) {
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
 
@@ -107,6 +111,11 @@ export function SettingsModal({
         label="Instant Detection (Hooks)"
         checked={hooksEnabled}
         onChange={onToggleHooksEnabled}
+      />
+      <Checkbox
+        label="Token Counter"
+        checked={showTokenCounter}
+        onChange={onToggleShowTokenCounter}
       />
       <Checkbox
         label="Always Show Labels"

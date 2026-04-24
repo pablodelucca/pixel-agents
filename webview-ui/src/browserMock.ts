@@ -261,7 +261,14 @@ export function dispatchMockMessages(): void {
     soundEnabled: false,
     extensionVersion: '1.3.0',
     lastSeenVersion: '1.2',
+    showTokenCounter: true,
   });
+
+  // Mock agents with token usage so the full UI is visible in dev
+  dispatch({ type: 'agentCreated', id: 1, folderName: 'pixel-agents' });
+  dispatch({ type: 'agentCreated', id: 2, folderName: 'pixel-agents' });
+  dispatch({ type: 'agentTokenUsage', id: 1, inputTokens: 124800, outputTokens: 31200 });
+  dispatch({ type: 'agentTokenUsage', id: 2, inputTokens: 87500, outputTokens: 18300 });
 
   console.log('[BrowserMock] Messages dispatched');
 }

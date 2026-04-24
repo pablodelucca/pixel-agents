@@ -7,6 +7,7 @@ import { DebugView } from './components/DebugView.js';
 import { EditActionBar } from './components/EditActionBar.js';
 import { MigrationNotice } from './components/MigrationNotice.js';
 import { SettingsModal } from './components/SettingsModal.js';
+import { TokenCounter } from './components/TokenCounter.js';
 import { Tooltip } from './components/Tooltip.js';
 import { Modal } from './components/ui/Modal.js';
 import { VersionIndicator } from './components/VersionIndicator.js';
@@ -71,6 +72,9 @@ function App() {
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
+    agentTokens,
+    showTokenCounter,
+    setShowTokenCounter,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -190,6 +194,8 @@ function App() {
       {!isDebugMode ? (
         <>
           <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />
+
+          {showTokenCounter && <TokenCounter agentTokens={agentTokens} />}
 
           {/* Vignette overlay */}
           <div
@@ -360,6 +366,12 @@ function App() {
           const newVal = !hooksEnabled;
           setHooksEnabled(newVal);
           vscode.postMessage({ type: 'setHooksEnabled', enabled: newVal });
+        }}
+        showTokenCounter={showTokenCounter}
+        onToggleShowTokenCounter={() => {
+          const newVal = !showTokenCounter;
+          setShowTokenCounter(newVal);
+          vscode.postMessage({ type: 'setShowTokenCounter', enabled: newVal });
         }}
       />
 
