@@ -46,6 +46,11 @@ export interface WorkspaceFolder {
   path: string;
 }
 
+interface AgentTokens {
+  input: number;
+  output: number;
+}
+
 interface ExtensionMessageState {
   agents: number[];
   selectedAgent: number | null;
@@ -66,6 +71,9 @@ interface ExtensionMessageState {
   hooksEnabled: boolean;
   setHooksEnabled: (v: boolean) => void;
   hooksInfoShown: boolean;
+  agentTokens: Record<number, AgentTokens>;
+  showTokenCounter: boolean;
+  setShowTokenCounter: (v: boolean) => void;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -103,6 +111,8 @@ export function useExtensionMessages(
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
   const [hooksEnabled, setHooksEnabled] = useState(true);
   const [hooksInfoShown, setHooksInfoShown] = useState(true);
+  const [agentTokens, setAgentTokens] = useState<Record<number, AgentTokens>>({});
+  const [showTokenCounter, setShowTokenCounter] = useState(true);
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -196,6 +206,12 @@ export function useExtensionMessages(
           return next;
         });
         setSubagentTools((prev) => {
+          if (!(id in prev)) return prev;
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        setAgentTokens((prev) => {
           if (!(id in prev)) return prev;
           const next = { ...prev };
           delete next[id];
@@ -469,6 +485,9 @@ export function useExtensionMessages(
         if (typeof msg.hooksInfoShown === 'boolean') {
           setHooksInfoShown(msg.hooksInfoShown as boolean);
         }
+        if (typeof msg.showTokenCounter === 'boolean') {
+          setShowTokenCounter(msg.showTokenCounter as boolean);
+        }
         if (Array.isArray(msg.externalAssetDirectories)) {
           setExternalAssetDirectories(msg.externalAssetDirectories as string[]);
         }
@@ -505,7 +524,10 @@ export function useExtensionMessages(
         );
       } else if (msg.type === 'agentTokenUsage') {
         const id = msg.id as number;
-        os.setAgentTokens(id, msg.inputTokens as number, msg.outputTokens as number);
+        const inputTokens = msg.inputTokens as number;
+        const outputTokens = msg.outputTokens as number;
+        os.setAgentTokens(id, inputTokens, outputTokens);
+        setAgentTokens((prev) => ({ ...prev, [id]: { input: inputTokens, output: outputTokens } }));
       }
     };
     window.addEventListener('message', handler);
@@ -534,5 +556,8 @@ export function useExtensionMessages(
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
+    agentTokens,
+    showTokenCounter,
+    setShowTokenCounter,
   };
 }
