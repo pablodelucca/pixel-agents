@@ -3,7 +3,7 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "node",
-    "typeRoots": ["./node_modules/@types", "./node_modules"],
+    "typeRoots": ["./node_modules/@types", "./node_modules", "../node_modules/@types", "../node_modules"],
     "types": ["vitest"],
     "noUnusedLocals": true,
     "noUnusedParameters": true
