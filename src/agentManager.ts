@@ -8,6 +8,7 @@ import {
   COPILOT_EVENTS_FILE,
   COPILOT_SESSION_DIR,
 } from '../server/src/providers/hook/copilot/constants.js';
+import { auditLog } from './auditLogger.js';
 import {
   TERMINAL_NAME_PREFIX,
   TERMINAL_NAME_PREFIX_COPILOT,
@@ -124,6 +125,18 @@ export async function launchNewTerminal(
     ? `claude --session-id ${sessionId} --dangerously-skip-permissions`
     : `claude --session-id ${sessionId}`;
   terminal.sendText(claudeCmd);
+
+  // Audit log: bypass permissions is a security-sensitive action (SEC-008)
+  if (bypassPermissions) {
+    auditLog({
+      timestamp: new Date().toISOString(),
+      event: 'agent_bypass_permissions',
+      actor: 'user',
+      resource: 'claude_terminal',
+      outcome: 'success',
+      details: { sessionId: sessionId.slice(0, 8) },
+    });
+  }
 
   const projectDir = getProjectDirPath(cwd);
 

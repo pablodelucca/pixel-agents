@@ -38,8 +38,10 @@ import {
   sendFloorTilesToWebview,
   sendWallTilesToWebview,
 } from './assetLoader.js';
+import { auditLog } from './auditLogger.js';
 import { readConfig, writeConfig } from './configPersistence.js';
 import {
+  CONFIG_KEY_ALLOW_BYPASS_PERMISSIONS,
   GLOBAL_KEY_ALWAYS_SHOW_LABELS,
   GLOBAL_KEY_HOOKS_ENABLED,
   GLOBAL_KEY_HOOKS_INFO_SHOWN,
@@ -264,7 +266,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           installHooks();
           copyHookScript(this.context.extensionPath);
         }
-        logger.info(`Server: ready on port ${config.port}`);
+        logger.info(`Server: ready on socket ${config.socketPath}`);
       })
       .catch((e) => {
         logger.error(`Failed to start server: ${e}`);
@@ -345,6 +347,31 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(async (message) => {
       if (message.type === 'openClaude') {
         const prevAgentIds = new Set(this.agents.keys());
+        const bypassPermissions = message.bypassPermissions as boolean | undefined;
+
+        // SEC-002: Check policy setting before allowing --dangerously-skip-permissions
+        if (bypassPermissions) {
+          const allowed = vscode.workspace
+            .getConfiguration()
+            .get<boolean>(CONFIG_KEY_ALLOW_BYPASS_PERMISSIONS, true);
+          if (!allowed) {
+            vscode.window.showErrorMessage(
+              'Pixel Agents: Skip permissions mode is disabled by workspace or enterprise policy ' +
+                `(${CONFIG_KEY_ALLOW_BYPASS_PERMISSIONS} = false).`,
+            );
+            return;
+          }
+          // Confirmation dialog to ensure intentional use of the dangerous flag
+          const confirm = await vscode.window.showWarningMessage(
+            'WARNING: This launches Claude Code with --dangerously-skip-permissions. ' +
+              'All tool calls will execute without approval prompts, including shell commands, ' +
+              'file writes, and network access. Only use in isolated/trusted environments.',
+            { modal: true },
+            'I understand the risks',
+          );
+          if (confirm !== 'I understand the risks') return;
+        }
+
         await launchNewTerminal(
           this.nextAgentId,
           this.nextTerminalIndex,
@@ -360,7 +387,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.webview,
           this.persistAgents,
           message.folderPath as string | undefined,
-          message.bypassPermissions as boolean | undefined,
+          bypassPermissions,
         );
         // Register newly created agent(s) with hook handler
         for (const [id, agent] of this.agents) {
@@ -791,6 +818,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           cfg.externalAssetDirectories.push(newPath);
           writeConfig(cfg);
         }
+        // Audit log: external asset directory added (SEC-008)
+        auditLog({
+          timestamp: new Date().toISOString(),
+          event: 'external_asset_directory_added',
+          actor: 'user',
+          resource: 'asset_config',
+          outcome: 'success',
+          details: { count: cfg.externalAssetDirectories.length },
+        });
         await this.reloadAndSendCharacters();
         await this.reloadAndSendFurniture();
         this.webview?.postMessage({
@@ -803,6 +839,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           (d) => d !== (message.path as string),
         );
         writeConfig(cfg);
+        // Audit log: external asset directory removed (SEC-008)
+        auditLog({
+          timestamp: new Date().toISOString(),
+          event: 'external_asset_directory_removed',
+          actor: 'user',
+          resource: 'asset_config',
+          outcome: 'success',
+          details: { count: cfg.externalAssetDirectories.length },
+        });
         await this.reloadAndSendCharacters();
         await this.reloadAndSendFurniture();
         this.webview?.postMessage({
@@ -819,14 +864,38 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           const raw = fs.readFileSync(uris[0].fsPath, 'utf-8');
           const imported = parseLayout(raw);
           if (!imported) {
+            // Audit log: layout import failed schema validation (SEC-008)
+            auditLog({
+              timestamp: new Date().toISOString(),
+              event: 'layout_import_schema_failed',
+              actor: 'user',
+              resource: 'layout_file',
+              outcome: 'failure',
+            });
             vscode.window.showErrorMessage('Pixel Agents: Invalid layout file.');
             return;
           }
           this.layoutWatcher?.markOwnWrite();
           writeLayoutToFile(imported);
+          // Audit log: layout imported successfully (SEC-008)
+          auditLog({
+            timestamp: new Date().toISOString(),
+            event: 'layout_import_succeeded',
+            actor: 'user',
+            resource: 'layout_file',
+            outcome: 'success',
+          });
           this.webview?.postMessage({ type: 'layoutLoaded', layout: imported });
           vscode.window.showInformationMessage('Pixel Agents: Layout imported successfully.');
         } catch {
+          // Audit log: layout import file read/parse error (SEC-008)
+          auditLog({
+            timestamp: new Date().toISOString(),
+            event: 'layout_import_read_failed',
+            actor: 'user',
+            resource: 'layout_file',
+            outcome: 'failure',
+          });
           vscode.window.showErrorMessage('Pixel Agents: Failed to read or parse layout file.');
         }
       }

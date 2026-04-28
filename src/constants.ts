@@ -21,8 +21,13 @@ export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';
 export const WORKSPACE_KEY_AGENT_SEATS = 'pixel-agents.agentSeats';
 export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
 
+
 // ── Provider Identifiers ─────────────────────────────────────
 export const TERMINAL_NAME_PREFIX_CLAUDE = 'Claude Code';
 export const TERMINAL_NAME_PREFIX_COPILOT = 'Copilot CLI';
 // Default/legacy prefix for backward compatibility
 export const TERMINAL_NAME_PREFIX = TERMINAL_NAME_PREFIX_CLAUDE;
+
+// ── Security Configuration Keys ──────────────────────────────
+/** VS Code configuration key: allow launching agents with --dangerously-skip-permissions (SEC-002) */
+export const CONFIG_KEY_ALLOW_BYPASS_PERMISSIONS = 'pixelAgents.security.allowBypassPermissions';

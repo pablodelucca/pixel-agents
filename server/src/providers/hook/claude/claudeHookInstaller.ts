@@ -48,18 +48,25 @@ function readClaudeSettings(): ClaudeSettings {
   return {};
 }
 
-/** Write settings back to ~/.claude/settings.json via atomic tmp + rename. */
+/** Write settings back to ~/.claude/settings.json via atomic tmp + rename.
+ *  Uses mode 0o600 on the file and 0o700 on the directory (SEC-004) to prevent
+ *  other local users from reading hook configuration on multi-user systems. */
 function writeClaudeSettings(settings: ClaudeSettings): void {
   const settingsPath = getClaudeSettingsPath();
   const dir = path.dirname(settingsPath);
   try {
     if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+      // Explicitly set permissions on the created directory (defense-in-depth: recursive
+      // mode may not apply to all intermediate directories on all platforms).
+      try { fs.chmodSync(dir, 0o700); } catch { /* non-fatal */ }
     }
-    // Atomic write via tmp file + rename
+    // Atomic write via tmp file + rename with restricted permissions
     const tmpPath = settingsPath + '.pixel-agents-tmp';
-    fs.writeFileSync(tmpPath, JSON.stringify(settings, null, 2), 'utf-8');
+    fs.writeFileSync(tmpPath, JSON.stringify(settings, null, 2), { encoding: 'utf-8', mode: 0o600 });
     fs.renameSync(tmpPath, settingsPath);
+    // Explicitly enforce permissions after rename (renameSync may not preserve mode on all platforms)
+    try { fs.chmodSync(settingsPath, 0o600); } catch { /* non-fatal */ }
   } catch (e) {
     logger.error(` Failed to write Claude settings: ${e}`);
   }

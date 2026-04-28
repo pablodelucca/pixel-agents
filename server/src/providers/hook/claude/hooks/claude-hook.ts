@@ -30,8 +30,7 @@ async function main(): Promise<void> {
   return new Promise((resolve) => {
     const req = http.request(
       {
-        hostname: '127.0.0.1',
-        port: server.port,
+        socketPath: server.socketPath,
         path: `${HOOK_API_PREFIX}/claude`,
         method: 'POST',
         headers: {

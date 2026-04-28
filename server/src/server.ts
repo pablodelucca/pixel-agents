@@ -4,6 +4,7 @@ import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 
+import { auditLog } from './auditLogger.js';
 import {
   HOOK_API_PREFIX,
   MAX_CONCURRENT_CONNECTIONS,
@@ -18,11 +19,11 @@ import { RateLimiter } from './rateLimiter.js';
 
 /** Discovery file written to ~/.pixel-agents/server.json so hook scripts can find the server. */
 export interface ServerConfig {
-  /** Port the HTTP server is listening on */
-  port: number;
+  /** Unix domain socket path (or Windows named pipe path) the server is listening on */
+  socketPath: string;
   /** PID of the process that owns the server */
   pid: number;
-  /** Auth token required in Authorization header for hook requests */
+  /** Auth token required in Authorization header for hook requests (defense-in-depth) */
   token: string;
   /** Timestamp (ms) when the server started */
   startedAt: number;
@@ -70,15 +71,23 @@ export class PixelAgentsServer {
       // Another VS Code window owns the server, reuse its config
       this.config = existing;
       this.ownsServer = false;
-      logger.info(
-        `Reusing existing server on port ${existing.port} (PID ${existing.pid})`,
-      );
+      logger.info(`Reusing existing server on socket ${existing.socketPath} (PID ${existing.pid})`);
       return existing;
     }
 
     // Start our own server
     const token = crypto.randomUUID();
     this.startTime = Date.now();
+    const socketPath = getSocketPath();
+
+    // Remove any stale socket file from a previous (crashed) process
+    if (process.platform !== 'win32') {
+      try {
+        fs.unlinkSync(socketPath);
+      } catch {
+        /* ignore — file may not exist */
+      }
+    }
 
     return new Promise((resolve, reject) => {
       this.server = http.createServer((req, res) => {
@@ -88,27 +97,38 @@ export class PixelAgentsServer {
       this.server.on('error', reject);
       this.server.setTimeout(5000);
 
-      this.server.listen(0, '127.0.0.1', () => {
-        const addr = this.server?.address();
-        if (addr && typeof addr === 'object') {
-          this.config = {
-            port: addr.port,
-            pid: process.pid,
-            token,
-            startedAt: this.startTime,
-          };
-          this.ownsServer = true;
-          this.writeServerJson(this.config);
-          // Replace startup error handler with runtime error handler
-          this.server!.removeListener('error', reject);
-          this.server!.on('error', (err) => {
-            logger.error(`Server: error: ${err}`);
-          });
-          logger.info(`Server: listening on 127.0.0.1:${addr.port}`);
-          resolve(this.config);
-        } else {
-          reject(new Error('Failed to get server address'));
+      this.server.listen(socketPath, () => {
+        // Restrict socket to owner-only access (filesystem ACL authentication)
+        if (process.platform !== 'win32') {
+          try {
+            fs.chmodSync(socketPath, 0o600);
+          } catch {
+            /* non-fatal — permissions best-effort */
+          }
         }
+        this.config = {
+          socketPath,
+          pid: process.pid,
+          token,
+          startedAt: this.startTime,
+        };
+        this.ownsServer = true;
+        this.writeServerJson(this.config);
+        // Audit log: new auth token generated (SEC-008)
+        auditLog({
+          timestamp: new Date().toISOString(),
+          event: 'server_token_generated',
+          actor: 'system',
+          resource: 'hook_server',
+          outcome: 'success',
+        });
+        // Replace startup error handler with runtime error handler
+        this.server!.removeListener('error', reject);
+        this.server!.on('error', (err) => {
+          logger.error(`Server: error: ${err}`);
+        });
+        logger.info(`Server: listening on socket ${socketPath}`);
+        resolve(this.config);
       });
     });
   }
@@ -121,9 +141,17 @@ export class PixelAgentsServer {
     }
     // Clean up rate limiter resources (SEC-007)
     this.rateLimiter.dispose();
-    // Only delete server.json if we own it (our PID)
+    // Only delete server.json and socket if we own it (our PID)
     if (this.ownsServer) {
+      const socketPath = this.config?.socketPath;
       this.deleteServerJson();
+      if (socketPath && process.platform !== 'win32') {
+        try {
+          fs.unlinkSync(socketPath);
+        } catch {
+          /* ignore — may already be gone */
+        }
+      }
     }
     this.config = null;
     this.ownsServer = false;
@@ -134,8 +162,24 @@ export class PixelAgentsServer {
     return this.config;
   }
 
+  /**
+   * Set standard security headers on all HTTP responses (SEC-003).
+   * Even though the server is localhost-only, defense-in-depth requires these headers to
+   * prevent MIME sniffing, caching of authenticated responses, and browser-based attacks
+   * from same-machine pages that may reach the local port.
+   */
+  private setSecurityHeaders(res: http.ServerResponse): void {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Security-Policy', "default-src 'none'");
+  }
+
   /** Top-level request router. Dispatches to health or hook handler based on method + path. */
   private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+    // Set security headers on every response (SEC-003: defense-in-depth for localhost server)
+    this.setSecurityHeaders(res);
+
     // Connection limit check (SEC-007: prevents DoS via connection exhaustion)
     if (this.activeConnections >= MAX_CONCURRENT_CONNECTIONS) {
       res.writeHead(503, { 'Retry-After': '1' });
@@ -186,6 +230,14 @@ export class PixelAgentsServer {
     const authBuf = Buffer.from(authHeader);
     const expectedBuf = Buffer.from(expectedToken);
     if (authBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(authBuf, expectedBuf)) {
+      // Audit log: authentication failure (SEC-008)
+      auditLog({
+        timestamp: new Date().toISOString(),
+        event: 'auth_failure',
+        actor: 'system',
+        resource: 'hook_endpoint',
+        outcome: 'failure',
+      });
       res.writeHead(401);
       res.end('unauthorized');
       return;
@@ -202,6 +254,15 @@ export class PixelAgentsServer {
     // Rate limit by provider ID (SEC-007: prevents DoS from flooding local processes)
     if (!this.rateLimiter.isAllowed(providerId)) {
       const limit = this.rateLimiter.getLimit();
+      // Audit log: rate limit triggered (SEC-008)
+      auditLog({
+        timestamp: new Date().toISOString(),
+        event: 'rate_limit_triggered',
+        actor: 'system',
+        resource: `hook_endpoint:${providerId}`,
+        outcome: 'failure',
+        details: { limit },
+      });
       res.writeHead(429, {
         'Retry-After': '1',
         'X-RateLimit-Limit': limit.toString(),
@@ -310,4 +371,21 @@ function isProcessRunning(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Return a fresh Unix domain socket path (or Windows named pipe path) for a new server instance.
+ * Uses the PID plus a short random suffix so that:
+ *  - Concurrent test instances don't collide (each start() gets a unique socket).
+ *  - Real deployments are still associated with the owning process.
+ *  - The path is stable for the lifetime of one server but not reused across restarts.
+ * Using a Unix socket eliminates all network-layer interception of the auth token
+ * and provides filesystem-ACL-based access control (SEC-006).
+ */
+function getSocketPath(): string {
+  const suffix = crypto.randomBytes(4).toString('hex');
+  if (process.platform === 'win32') {
+    return `\\\\.\\pipe\\pixel-agents-${process.pid}-${suffix}`;
+  }
+  return path.join(os.tmpdir(), `pixel-agents-${process.pid}-${suffix}.sock`);
 }

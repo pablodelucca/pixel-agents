@@ -9,13 +9,15 @@ const HOOK_SCRIPT = path.join(__dirname, '../../dist/hooks/claude-hook.js');
 
 // Isolated temp HOME
 let tmpBase: string;
+// Sockets created during tests (cleaned up in afterEach)
+let cleanupSockets: string[] = [];
 
-function writeServerJson(port: number, token: string): void {
+function writeServerJson(socketPath: string, token: string): void {
   const dir = path.join(tmpBase, '.pixel-agents');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(
     path.join(dir, 'server.json'),
-    JSON.stringify({ port, pid: process.pid, token, startedAt: Date.now() }),
+    JSON.stringify({ socketPath, pid: process.pid, token, startedAt: Date.now() }),
   );
 }
 
@@ -35,12 +37,33 @@ function runHookScript(stdin: string): Promise<{ code: number | null; stdout: st
   });
 }
 
+/** Create a Unix domain socket path unique to this test run. */
+function makeTestSocketPath(suffix: string): string {
+  const sockPath = path.join(os.tmpdir(), `pxl-hook-int-${process.pid}-${suffix}.sock`);
+  cleanupSockets.push(sockPath);
+  // Remove any stale socket from a previous run
+  try {
+    fs.unlinkSync(sockPath);
+  } catch {
+    /* ignore */
+  }
+  return sockPath;
+}
+
 describe('claude-hook.js integration', () => {
   beforeEach(() => {
     tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'pxl-hook-int-'));
+    cleanupSockets = [];
   });
 
   afterEach(() => {
+    for (const sp of cleanupSockets) {
+      try {
+        fs.unlinkSync(sp);
+      } catch {
+        /* ignore */
+      }
+    }
     try {
       fs.rmSync(tmpBase, { recursive: true, force: true });
     } catch {
@@ -61,6 +84,7 @@ describe('claude-hook.js integration', () => {
     if (!fs.existsSync(HOOK_SCRIPT)) return;
 
     const received: string[] = [];
+    const sockPath = makeTestSocketPath('recv');
     const server = http.createServer((req, res) => {
       let body = '';
       req.on('data', (c: Buffer) => (body += c.toString()));
@@ -71,9 +95,8 @@ describe('claude-hook.js integration', () => {
       });
     });
 
-    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
-    const port = (server.address() as { port: number }).port;
-    writeServerJson(port, 'test-token');
+    await new Promise<void>((r) => server.listen(sockPath, r));
+    writeServerJson(sockPath, 'test-token');
 
     const event = JSON.stringify({ session_id: 'abc', hook_event_name: 'Stop' });
     const { code } = await runHookScript(event);
@@ -101,7 +124,7 @@ describe('claude-hook.js integration', () => {
     skipIfNotBuilt();
     if (!fs.existsSync(HOOK_SCRIPT)) return;
 
-    writeServerJson(9999, 'tok');
+    writeServerJson('/tmp/nonexistent.sock', 'tok');
     const { code } = await runHookScript('not json at all!!!');
     expect(code).toBe(0);
   });
@@ -112,11 +135,12 @@ describe('claude-hook.js integration', () => {
     if (!fs.existsSync(HOOK_SCRIPT)) return;
 
     // Start a server that never responds
+    const sockPath = makeTestSocketPath('timeout');
     const server = http.createServer(() => {
       // intentionally never respond
     });
-    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
-    writeServerJson((server.address() as { port: number }).port, 'tok');
+    await new Promise<void>((r) => server.listen(sockPath, r));
+    writeServerJson(sockPath, 'tok');
 
     const start = Date.now();
     const { code } = await runHookScript(

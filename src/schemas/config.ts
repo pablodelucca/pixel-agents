@@ -5,6 +5,8 @@
  */
 import { z } from 'zod';
 
+import { logger } from '../logger.js';
+
 /**
  * Provider identifiers for AI agent CLI tools.
  */
@@ -54,7 +56,7 @@ export function validateConfig(data: unknown, logErrors = true): PixelAgentsConf
   const result = ConfigSchema.safeParse(data);
   if (!result.success) {
     if (logErrors) {
-      console.warn('[Pixel Agents] Config validation failed:', result.error.message);
+      logger.warn('Config validation failed:', result.error.message);
     }
     // Return default config on validation failure
     return { ...DEFAULT_CONFIG };
@@ -76,7 +78,7 @@ export function parseConfig(json: string, logErrors = true): PixelAgentsConfig {
     return validateConfig(parsed, logErrors);
   } catch (e) {
     if (logErrors) {
-      console.error('[Pixel Agents] Failed to parse config JSON:', e);
+      logger.error('Failed to parse config JSON:', e);
     }
     return { ...DEFAULT_CONFIG };
   }

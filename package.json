@@ -46,6 +46,16 @@
           "name": "Pixel Agents"
         }
       ]
+    },
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixelAgents.security.allowBypassPermissions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow launching agents with --dangerously-skip-permissions (skips all Claude Code permission prompts). Set to false to disable this feature for enterprise/policy compliance (SEC-002). Can be enforced via MDM or workspace policy."
+        }
+      }
     }
   },
   "scripts": {

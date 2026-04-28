@@ -131,12 +131,14 @@ describe('copilotTranscriptParser', () => {
       }
     });
 
-    it('returns null for assistant.turn_start events', () => {
+    it('returns assistantStart for assistant.turn_start events', () => {
       const line = JSON.stringify({
         type: 'assistant.turn_start',
         data: { turnId: '0' },
       });
-      expect(parseTranscriptLine(line)).toBeNull();
+      const result = parseTranscriptLine(line);
+      expect(result).not.toBeNull();
+      expect(result!.kind).toBe('assistantStart');
     });
 
     it('returns null for unknown event types', () => {

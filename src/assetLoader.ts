@@ -28,6 +28,7 @@ export type { CharacterDirectionSprites } from '../shared/assets/types.js';
 
 import { LAYOUT_REVISION_KEY } from './constants.js';
 import { logger } from './logger.js';
+import { isSymlink } from './symlinkCheck.js';
 
 export type { FurnitureAsset };
 
@@ -82,6 +83,11 @@ export async function loadFurnitureAssets(workspaceRoot: string): Promise<Loaded
       }
 
       try {
+        // SEC-014: Reject symlinks to prevent symlink-based path traversal attacks.
+        if (isSymlink(manifestPath)) {
+          logger.warn(`SEC-014: Skipping symlinked manifest: ${manifestPath}`);
+          continue;
+        }
         const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
         const manifest = JSON.parse(manifestContent) as FurnitureManifest;
 
@@ -141,9 +147,7 @@ export async function loadFurnitureAssets(workspaceRoot: string): Promise<Loaded
               !resolvedAsset.startsWith(resolvedDir + path.sep) &&
               resolvedAsset !== resolvedDir
             ) {
-              logger.warn(
-                `Skipping asset with path outside directory: ${asset.file}`,
-              );
+              logger.warn(`Skipping asset with path outside directory: ${asset.file}`);
               continue;
             }
             if (!fs.existsSync(assetPath)) {
@@ -151,21 +155,23 @@ export async function loadFurnitureAssets(workspaceRoot: string): Promise<Loaded
               continue;
             }
 
+            // SEC-014: Reject symlinks to prevent symlink-based path traversal attacks.
+            if (isSymlink(assetPath)) {
+              logger.warn(`SEC-014: Skipping symlinked asset: ${assetPath}`);
+              continue;
+            }
+
             const pngBuffer = fs.readFileSync(assetPath);
             const spriteData = pngToSpriteData(pngBuffer, asset.width, asset.height);
             sprites.set(asset.id, spriteData);
           } catch (err) {
-            logger.warn(
-              `Error loading ${asset.id}: ${err instanceof Error ? err.message : err}`,
-            );
+            logger.warn(`Error loading ${asset.id}: ${err instanceof Error ? err.message : err}`);
           }
         }
 
         catalog.push(...assets);
       } catch (err) {
-        logger.warn(
-          `Error processing ${dir.name}: ${err instanceof Error ? err.message : err}`,
-        );
+        logger.warn(`Error processing ${dir.name}: ${err instanceof Error ? err.message : err}`);
       }
     }
 
@@ -462,6 +468,11 @@ export async function loadExternalCharacterSprites(
       const resolvedDir = path.resolve(charDir);
       if (!resolvedFile.startsWith(resolvedDir + path.sep) && resolvedFile !== resolvedDir) {
         logger.warn(`Skipping character with path outside directory: ${filename}`);
+        continue;
+      }
+      // SEC-014: Reject symlinks to prevent symlink-based path traversal attacks.
+      if (isSymlink(filePath)) {
+        logger.warn(`SEC-014: Skipping symlinked character sprite: ${filePath}`);
         continue;
       }
       try {

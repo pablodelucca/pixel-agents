@@ -6,6 +6,8 @@
  */
 import { z } from 'zod';
 
+import { logger } from '../logger.js';
+
 /**
  * Floor color settings for a tile.
  */
@@ -80,7 +82,7 @@ export function validateLayout(data: unknown, logErrors = true): Layout | null {
   const result = LayoutSchema.safeParse(data);
   if (!result.success) {
     if (logErrors) {
-      console.warn('[Pixel Agents] Layout validation failed:', result.error.message);
+      logger.warn('Layout validation failed:', result.error.message);
     }
     return null;
   }
@@ -101,7 +103,7 @@ export function parseLayout(json: string, logErrors = true): Layout | null {
     return validateLayout(parsed, logErrors);
   } catch (e) {
     if (logErrors) {
-      console.error('[Pixel Agents] Failed to parse layout JSON:', e);
+      logger.error('Failed to parse layout JSON:', e);
     }
     return null;
   }

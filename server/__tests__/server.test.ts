@@ -1,7 +1,10 @@
 import * as fs from 'fs';
+import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { HOOK_API_PREFIX } from '../src/constants.js';
 
 // Use isolated temp HOME to avoid touching real ~/.pixel-agents/
 let tmpBase: string;
@@ -16,13 +19,63 @@ vi.mock('os', async () => {
 // Must import AFTER mock setup
 const { PixelAgentsServer } = await import('../src/server.js');
 
+/** Minimal fetch-like response returned by fetchViaSock. */
+interface SockResponse {
+  status: number;
+  headers: { get(key: string): string | null };
+  json(): Promise<unknown>;
+  text(): Promise<string>;
+}
+
+/**
+ * Issue an HTTP request over a Unix domain socket (or Windows named pipe).
+ * Mimics the Fetch API response interface so tests read naturally.
+ */
+function fetchViaSock(
+  socketPath: string,
+  urlPath: string,
+  init: { method?: string; headers?: Record<string, string>; body?: string } = {},
+): Promise<SockResponse> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        socketPath,
+        path: urlPath,
+        method: init.method ?? 'GET',
+        headers: init.headers ?? {},
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => {
+          const body = Buffer.concat(chunks).toString();
+          resolve({
+            status: res.statusCode ?? 0,
+            headers: {
+              get: (k: string) => {
+                const v = res.headers[k.toLowerCase()];
+                return Array.isArray(v) ? v[0] : (v ?? null);
+              },
+            },
+            json: async () => JSON.parse(body) as unknown,
+            text: async () => body,
+          });
+        });
+      },
+    );
+    req.on('error', reject);
+    if (init.body) req.write(init.body);
+    req.end();
+  });
+}
+
 async function postHook(
-  port: number,
+  socketPath: string,
   token: string,
   body: string,
   providerId = 'claude',
-): Promise<Response> {
-  return fetch(`http://127.0.0.1:${port}/api/hooks/${providerId}`, {
+): Promise<SockResponse> {
+  return fetchViaSock(socketPath, `${HOOK_API_PREFIX}/${providerId}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -53,9 +106,9 @@ describe('PixelAgentsServer', () => {
   });
 
   // 1. Server starts and returns config
-  it('starts and returns config with port, token, pid', async () => {
+  it('starts and returns config with socketPath, token, pid', async () => {
     const config = await server.start();
-    expect(config.port).toBeGreaterThan(0);
+    expect(config.socketPath).toBeTruthy();
     expect(config.token).toBeTruthy();
     expect(config.pid).toBe(process.pid);
     expect(config.startedAt).toBeGreaterThan(0);
@@ -64,7 +117,7 @@ describe('PixelAgentsServer', () => {
   // 2. Health endpoint returns 200 + uptime
   it('health endpoint returns 200 with uptime', async () => {
     const config = await server.start();
-    const res = await fetch(`http://127.0.0.1:${config.port}/api/health`);
+    const res = await fetchViaSock(config.socketPath, '/api/health');
     expect(res.status).toBe(200);
     const body = (await res.json()) as { status: string; uptime: number; pid: number };
     expect(body.status).toBe('ok');
@@ -75,7 +128,7 @@ describe('PixelAgentsServer', () => {
   // 3. Hook endpoint requires auth
   it('hook endpoint returns 401 without auth', async () => {
     const config = await server.start();
-    const res = await fetch(`http://127.0.0.1:${config.port}/api/hooks/claude`, {
+    const res = await fetchViaSock(config.socketPath, '/api/hooks/claude', {
       method: 'POST',
       body: '{}',
     });
@@ -86,7 +139,7 @@ describe('PixelAgentsServer', () => {
   it('hook endpoint returns 200 with valid auth', async () => {
     const config = await server.start();
     const res = await postHook(
-      config.port,
+      config.socketPath,
       config.token,
       JSON.stringify({ session_id: 'test', hook_event_name: 'Stop' }),
     );
@@ -102,7 +155,7 @@ describe('PixelAgentsServer', () => {
     });
 
     await postHook(
-      config.port,
+      config.socketPath,
       config.token,
       JSON.stringify({ session_id: 'abc', hook_event_name: 'Stop' }),
     );
@@ -117,21 +170,21 @@ describe('PixelAgentsServer', () => {
   it('hook endpoint returns 413 for oversized body', async () => {
     const config = await server.start();
     const bigBody = 'x'.repeat(70_000); // > 64KB
-    const res = await postHook(config.port, config.token, bigBody);
+    const res = await postHook(config.socketPath, config.token, bigBody);
     expect(res.status).toBe(413);
   });
 
   // 7. Hook endpoint rejects invalid JSON
   it('hook endpoint returns 400 for invalid JSON', async () => {
     const config = await server.start();
-    const res = await postHook(config.port, config.token, 'not json {{{');
+    const res = await postHook(config.socketPath, config.token, 'not json {{{');
     expect(res.status).toBe(400);
   });
 
   // 8. Hook endpoint rejects missing provider ID
   it('hook endpoint returns 400 for missing provider ID', async () => {
     const config = await server.start();
-    const res = await fetch(`http://127.0.0.1:${config.port}/api/hooks/`, {
+    const res = await fetchViaSock(config.socketPath, '/api/hooks/', {
       method: 'POST',
       headers: { Authorization: `Bearer ${config.token}` },
       body: '{}',
@@ -140,10 +193,10 @@ describe('PixelAgentsServer', () => {
   });
 
   // 9. server.json written
-  it('writes server.json with port, pid, token', async () => {
+  it('writes server.json with socketPath, pid, token', async () => {
     const config = await server.start();
     const json = JSON.parse(fs.readFileSync(serverJsonPath, 'utf-8'));
-    expect(json.port).toBe(config.port);
+    expect(json.socketPath).toBe(config.socketPath);
     expect(json.pid).toBe(process.pid);
     expect(json.token).toBe(config.token);
   });
@@ -153,7 +206,7 @@ describe('PixelAgentsServer', () => {
     const config1 = await server.start();
     const server2 = new PixelAgentsServer();
     const config2 = await server2.start();
-    expect(config2.port).toBe(config1.port);
+    expect(config2.socketPath).toBe(config1.socketPath);
     expect(config2.pid).toBe(config1.pid);
     server2.stop(); // should not delete server.json (not owner)
   });
@@ -171,7 +224,7 @@ describe('PixelAgentsServer', () => {
     // Write fake server.json with different PID
     fs.writeFileSync(
       serverJsonPath,
-      JSON.stringify({ port: 9999, pid: 999999, token: 'fake', startedAt: 0 }),
+      JSON.stringify({ socketPath: '/tmp/fake.sock', pid: 999999, token: 'fake', startedAt: 0 }),
     );
     // Server never started (it would reuse), just stop
     const server2 = new PixelAgentsServer();
@@ -182,8 +235,41 @@ describe('PixelAgentsServer', () => {
   // 13. Unknown route returns 404
   it('unknown route returns 404', async () => {
     const config = await server.start();
-    const res = await fetch(`http://127.0.0.1:${config.port}/random/path`);
+    const res = await fetchViaSock(config.socketPath, '/random/path');
     expect(res.status).toBe(404);
+  });
+
+  // SEC-003: Security response headers
+  describe('SEC-003: Security response headers', () => {
+    it('sets security headers on health endpoint', async () => {
+      const config = await server.start();
+      const res = await fetchViaSock(config.socketPath, '/api/health');
+      expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+      expect(res.headers.get('X-Frame-Options')).toBe('DENY');
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+      expect(res.headers.get('Content-Security-Policy')).toBe("default-src 'none'");
+    });
+
+    it('sets security headers on hook endpoint', async () => {
+      const config = await server.start();
+      const res = await postHook(
+        config.socketPath,
+        config.token,
+        JSON.stringify({ session_id: 'test', hook_event_name: 'Stop' }),
+      );
+      expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+      expect(res.headers.get('X-Frame-Options')).toBe('DENY');
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+      expect(res.headers.get('Content-Security-Policy')).toBe("default-src 'none'");
+    });
+
+    it('sets security headers on 401 unauthorized', async () => {
+      const config = await server.start();
+      const res = await postHook(config.socketPath, 'wrong-token', JSON.stringify({ session_id: 'x', hook_event_name: 'Stop' }));
+      expect(res.status).toBe(401);
+      expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+    });
   });
 
   // 14. Hook callback does NOT fire for events missing required fields
@@ -193,7 +279,7 @@ describe('PixelAgentsServer', () => {
     server.onHookEvent((_pid: string, event: Record<string, unknown>) => received.push(event));
 
     await postHook(
-      config.port,
+      config.socketPath,
       config.token,
       JSON.stringify({ hook_event_name: 'Stop' }), // missing session_id
     );
@@ -206,7 +292,7 @@ describe('PixelAgentsServer', () => {
     it('returns rate limit headers on successful hook requests', async () => {
       const config = await server.start();
       const res = await postHook(
-        config.port,
+        config.socketPath,
         config.token,
         JSON.stringify({ session_id: 'test', hook_event_name: 'Stop' }),
       );
@@ -223,7 +309,7 @@ describe('PixelAgentsServer', () => {
       for (let i = 0; i < 100; i++) {
         promises.push(
           postHook(
-            config.port,
+            config.socketPath,
             config.token,
             JSON.stringify({ session_id: `test-${i}`, hook_event_name: 'Stop' }),
           ),
@@ -233,7 +319,7 @@ describe('PixelAgentsServer', () => {
 
       // 101st request should be rate limited
       const res = await postHook(
-        config.port,
+        config.socketPath,
         config.token,
         JSON.stringify({ session_id: 'final', hook_event_name: 'Stop' }),
       );
@@ -250,7 +336,7 @@ describe('PixelAgentsServer', () => {
       for (let i = 0; i < 100; i++) {
         claudePromises.push(
           postHook(
-            config.port,
+            config.socketPath,
             config.token,
             JSON.stringify({ session_id: `test-${i}`, hook_event_name: 'Stop' }),
             'claude',
@@ -261,7 +347,7 @@ describe('PixelAgentsServer', () => {
 
       // 'other-provider' should still work
       const res = await postHook(
-        config.port,
+        config.socketPath,
         config.token,
         JSON.stringify({ session_id: 'test', hook_event_name: 'Stop' }),
         'other-provider',
