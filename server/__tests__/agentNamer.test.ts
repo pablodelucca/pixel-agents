@@ -1,12 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   computeHeuristicLabel,
   detectTransition,
+  maybeRefineTaskLabel,
   parseRefinedName,
   recordToolUse,
 } from '../../src/agentNamer.js';
 import type { AgentState } from '../../src/types.js';
+
+type WebviewLike = Parameters<typeof maybeRefineTaskLabel>[1];
 
 function createAgent(overrides: Partial<AgentState> = {}): AgentState {
   return {
@@ -40,12 +43,6 @@ function createAgent(overrides: Partial<AgentState> = {}): AgentState {
     ...overrides,
   };
 }
-
-describe('agentNamer', () => {
-  it('placeholder — to be replaced by real tests', () => {
-    expect(createAgent().id).toBe(1);
-  });
-});
 
 describe('parseRefinedName', () => {
   it('accepts 1 lowercase word', () => {
@@ -253,5 +250,167 @@ describe('detectTransition', () => {
       messageCount: 0,
     });
     expect(detectTransition(agent, 150_000 + 60_000)).toBe(false);
+  });
+});
+
+describe('maybeRefineTaskLabel', () => {
+  const NOW = 1_000_000;
+
+  /** Build a minimal eligible agent: created long enough ago and no prior signals → transition fires. */
+  function eligibleAgent(overrides: Partial<AgentState> = {}): AgentState {
+    return createAgent({
+      createdAt: NOW - 120_000, // 2 min old → eligible
+      messageCount: 0,
+      recentTools: ['Write', 'Edit', 'Write', 'Edit'],
+      nameSignals: undefined,
+      lastLlmRefineAt: 0,
+      llmRefineCount: 0,
+      ...overrides,
+    });
+  }
+
+  function makeWebview(): { webview: WebviewLike; postMessage: ReturnType<typeof vi.fn> } {
+    const postMessage = vi.fn();
+    return { webview: { postMessage } as unknown as WebviewLike, postMessage };
+  }
+
+  const noBullets = vi.fn().mockResolvedValue([] as string[]);
+
+  it('skips sub-agents (id < 0)', async () => {
+    const agent = eligibleAgent({ id: -1 });
+    const refineFn = vi.fn().mockResolvedValue('foo');
+    await maybeRefineTaskLabel(agent, undefined, noBullets, NOW, refineFn);
+    expect(refineFn).not.toHaveBeenCalled();
+  });
+
+  it('skips when llmRefineDisabled', async () => {
+    const agent = eligibleAgent({ llmRefineDisabled: true });
+    const refineFn = vi.fn().mockResolvedValue('foo');
+    await maybeRefineTaskLabel(agent, undefined, noBullets, NOW, refineFn);
+    expect(refineFn).not.toHaveBeenCalled();
+  });
+
+  it('skips when a refine is already in flight', async () => {
+    const agent = eligibleAgent({ llmRefineInFlight: true });
+    const refineFn = vi.fn().mockResolvedValue('foo');
+    await maybeRefineTaskLabel(agent, undefined, noBullets, NOW, refineFn);
+    expect(refineFn).not.toHaveBeenCalled();
+  });
+
+  it('skips when budget is exhausted', async () => {
+    const agent = eligibleAgent({ llmRefineCount: 20 });
+    const refineFn = vi.fn().mockResolvedValue('foo');
+    await maybeRefineTaskLabel(agent, undefined, noBullets, NOW, refineFn);
+    expect(refineFn).not.toHaveBeenCalled();
+  });
+
+  it('skips when neither age nor message threshold is met', async () => {
+    const agent = eligibleAgent({
+      createdAt: NOW - 1_000, // 1s — below 60s
+      messageCount: 0,
+    });
+    const refineFn = vi.fn().mockResolvedValue('foo');
+    await maybeRefineTaskLabel(agent, undefined, noBullets, NOW, refineFn);
+    expect(refineFn).not.toHaveBeenCalled();
+  });
+
+  it('proceeds when message threshold is met even if young', async () => {
+    const agent = eligibleAgent({
+      createdAt: NOW - 1_000,
+      messageCount: 5,
+    });
+    const refineFn = vi.fn().mockResolvedValue('obsidian escritor');
+    await maybeRefineTaskLabel(agent, undefined, noBullets, NOW, refineFn);
+    expect(refineFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips when no transition is detected', async () => {
+    // Snapshot matches current state exactly → no transition.
+    const agent = eligibleAgent({
+      recentTools: ['Read', 'Read', 'Read', 'Read', 'Read'],
+      nameSignals: {
+        cwdBase: 'pixel-agents',
+        lastSkill: null,
+        toolHistogram: { Read: 5 },
+        messageCountAtLastRefine: 0,
+        heuristicRole: 'pesquisador',
+      },
+      lastLlmRefineAt: NOW - 200_000, // outside throttle window
+    });
+    const refineFn = vi.fn().mockResolvedValue('foo');
+    await maybeRefineTaskLabel(agent, undefined, noBullets, NOW, refineFn);
+    expect(refineFn).not.toHaveBeenCalled();
+  });
+
+  it('on success: mutates taskLabel, posts agentLabelUpdated, resets failures', async () => {
+    const agent = eligibleAgent({ llmRefineConsecutiveFailures: 2 });
+    const { webview, postMessage } = makeWebview();
+    const refineFn = vi.fn().mockResolvedValue('obsidian escritor');
+
+    await maybeRefineTaskLabel(agent, webview, noBullets, NOW, refineFn);
+
+    expect(agent.taskLabel).toBe('obsidian escritor');
+    expect(agent.llmRefineCount).toBe(1);
+    expect(agent.lastLlmRefineAt).toBe(NOW);
+    expect(agent.llmRefineConsecutiveFailures).toBe(0);
+    expect(agent.llmRefineDisabled).not.toBe(true);
+    expect(agent.llmRefineInFlight).toBe(false);
+    expect(agent.nameSignals).toBeDefined();
+    expect(postMessage).toHaveBeenCalledWith({
+      type: 'agentLabelUpdated',
+      id: agent.id,
+      label: 'obsidian escritor',
+      source: 'llm',
+    });
+  });
+
+  it('on failure (1st): increments counter, does NOT disable yet', async () => {
+    const agent = eligibleAgent();
+    const { webview, postMessage } = makeWebview();
+    const refineFn = vi.fn().mockResolvedValue(null);
+
+    await maybeRefineTaskLabel(agent, webview, noBullets, NOW, refineFn);
+
+    expect(agent.llmRefineConsecutiveFailures).toBe(1);
+    expect(agent.llmRefineDisabled).not.toBe(true);
+    expect(agent.taskLabel).toBeUndefined();
+    expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  it('on 3rd consecutive failure: sets llmRefineDisabled', async () => {
+    const agent = eligibleAgent({ llmRefineConsecutiveFailures: 2 });
+    const refineFn = vi.fn().mockResolvedValue(null);
+
+    await maybeRefineTaskLabel(agent, undefined, noBullets, NOW, refineFn);
+
+    expect(agent.llmRefineConsecutiveFailures).toBe(3);
+    expect(agent.llmRefineDisabled).toBe(true);
+  });
+
+  it('success after failures resets the consecutive counter to 0', async () => {
+    const agent = eligibleAgent({ llmRefineConsecutiveFailures: 2 });
+    const refineFn = vi.fn().mockResolvedValue('obsidian');
+
+    await maybeRefineTaskLabel(agent, undefined, noBullets, NOW, refineFn);
+
+    expect(agent.llmRefineConsecutiveFailures).toBe(0);
+    expect(agent.llmRefineDisabled).not.toBe(true);
+  });
+
+  it('skips when heuristic label is empty (no workspace, no role)', async () => {
+    // projectDir + folderName both falsy-ish: empty workspace label
+    const agent = eligibleAgent({
+      projectDir: '',
+      folderName: '',
+      recentTools: [],
+    });
+    const refineFn = vi.fn().mockResolvedValue('foo');
+
+    await maybeRefineTaskLabel(agent, undefined, noBullets, NOW, refineFn);
+
+    // Heuristic empty → early return BEFORE refineFn but AFTER setting llmRefineInFlight
+    // and incrementing nothing. We just verify refineFn not called.
+    expect(refineFn).not.toHaveBeenCalled();
+    expect(agent.llmRefineInFlight).toBe(false); // finally block resets it
   });
 });

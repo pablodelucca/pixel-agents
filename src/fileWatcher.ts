@@ -504,6 +504,11 @@ function adoptTerminalForFile(
     hookDelivered: false,
     inputTokens: 0,
     outputTokens: 0,
+    createdAt: Date.now(),
+    messageCount: 0,
+    recentTools: [],
+    llmRefineCount: 0,
+    lastLlmRefineAt: 0,
   };
 
   agents.set(id, agent);
@@ -688,6 +693,11 @@ export function scanForTeammateFiles(
       seenUnknownRecordTypes: new Set(),
       inputTokens: 0,
       outputTokens: 0,
+      createdAt: Date.now(),
+      messageCount: 0,
+      recentTools: [],
+      llmRefineCount: 0,
+      lastLlmRefineAt: 0,
       // Agent Teams fields
       agentName: teammateName,
       leadAgentId: parentAgentId,
@@ -902,6 +912,11 @@ export function adoptExternalSessionFromHook(
       folderName,
       inputTokens: 0,
       outputTokens: 0,
+      createdAt: Date.now(),
+      messageCount: 0,
+      recentTools: [],
+      llmRefineCount: 0,
+      lastLlmRefineAt: 0,
     };
     agents.set(id, agent);
     persistAgents();

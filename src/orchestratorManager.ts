@@ -139,6 +139,11 @@ export class OrchestratorManager {
       hookDelivered: false,
       inputTokens: 0,
       outputTokens: 0,
+      createdAt: Date.now(),
+      messageCount: 0,
+      recentTools: [],
+      llmRefineCount: 0,
+      lastLlmRefineAt: 0,
     };
 
     this.agents.set(id, agent);

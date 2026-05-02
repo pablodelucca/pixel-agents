@@ -7,6 +7,7 @@ import {
   NAMER_CLAUDE_TIMEOUT_MS,
   NAMER_INITIAL_REFINE_DELAY_MS,
   NAMER_INITIAL_REFINE_MSG_THRESHOLD,
+  NAMER_MAX_CONSECUTIVE_FAILURES,
   NAMER_MAX_REFINES_PER_SESSION,
   NAMER_RECENT_MESSAGES_FOR_PROMPT,
   NAMER_THROTTLE_MS,
@@ -202,9 +203,14 @@ export function buildRefinePrompt(args: {
       .map(([t, c]) => `${t}×${c}`)
       .join(', ') || 'nenhuma';
 
+  // Bullets contain raw user/assistant text — strip newlines so injected
+  // "\n\n---\nNew instructions:" sequences can't reformat the prompt.
+  // The parseRefinedName regex is the final safety net against malicious labels.
   const bullets =
     args.recentBullets.length > 0
-      ? args.recentBullets.map((b) => `- ${b.slice(0, NAMER_BULLET_CHAR_LIMIT)}`).join('\n')
+      ? args.recentBullets
+          .map((b) => `- ${b.replace(/[\r\n]+/g, ' ').slice(0, NAMER_BULLET_CHAR_LIMIT)}`)
+          .join('\n')
       : '- (nenhuma atividade registrada)';
 
   return `Você está nomeando um agente de IA de programação com base no que ele está fazendo agora.
@@ -233,10 +239,14 @@ export function refineViaClaude(prompt: string): Promise<string | null> {
     };
 
     try {
+      // stderr discarded: a piped+unread stderr can fill the pipe buffer on macOS
+      // and block the child. We don't surface stderr anywhere, so 'ignore' is correct.
       const child = spawn('claude', ['-p', prompt, '--output-format', 'text'], {
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ['ignore', 'pipe', 'ignore'],
         timeout: NAMER_CLAUDE_TIMEOUT_MS,
       });
+      // Don't keep the extension host alive on deactivate if Claude is hung.
+      child.unref();
       child.stdout.on('data', (chunk: Buffer) => {
         stdout += chunk.toString('utf8');
       });
@@ -267,6 +277,7 @@ export async function maybeRefineTaskLabel(
   webview: vscode.Webview | undefined,
   readRecentBullets: (agent: AgentState) => Promise<string[]>,
   now: number = Date.now(),
+  refineFn: (prompt: string) => Promise<string | null> = refineViaClaude,
 ): Promise<void> {
   if (agent.id < 0) return;
   if (agent.llmRefineDisabled) return;
@@ -300,15 +311,24 @@ export async function maybeRefineTaskLabel(
       skill: activeSkillName(agent),
     });
 
-    const refined = await refineViaClaude(prompt);
+    const refined = await refineFn(prompt);
     agent.lastLlmRefineAt = now;
     agent.llmRefineCount = (agent.llmRefineCount ?? 0) + 1;
     agent.nameSignals = currentSignals(agent);
 
     if (refined === null) {
-      agent.llmRefineDisabled = true;
+      const failures = (agent.llmRefineConsecutiveFailures ?? 0) + 1;
+      agent.llmRefineConsecutiveFailures = failures;
+      if (failures >= NAMER_MAX_CONSECUTIVE_FAILURES) {
+        agent.llmRefineDisabled = true;
+        console.warn(
+          `[Pixel Agents] Namer: Agent ${agent.id} - LLM refine disabled after ${failures} consecutive failures`,
+        );
+      }
       return;
     }
+
+    agent.llmRefineConsecutiveFailures = 0;
 
     if (refined !== agent.taskLabel) {
       agent.taskLabel = refined;

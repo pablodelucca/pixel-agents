@@ -82,8 +82,10 @@ export interface AgentState {
   lastLlmRefineAt?: number;
   /** Count of LLM refinements made for this agent session. */
   llmRefineCount?: number;
-  /** When true, LLM refinement is disabled for the rest of this agent's session (after a subprocess failure). */
+  /** When true, LLM refinement is disabled for the rest of this agent's session (after NAMER_MAX_CONSECUTIVE_FAILURES). */
   llmRefineDisabled?: boolean;
+  /** Consecutive subprocess failures since the last successful refine. Reset on success. */
+  llmRefineConsecutiveFailures?: number;
   /** When true, an LLM subprocess call is currently in flight for this agent. */
   llmRefineInFlight?: boolean;
   /** Timestamp (ms) when the agent was first created — used by initial-refine window. */
