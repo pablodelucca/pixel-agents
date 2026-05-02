@@ -144,6 +144,10 @@ export interface Character {
   moveProgress: number;
   /** Current tool name for typing vs reading animation, or null */
   currentTool: string | null;
+  /** Synthetic Skill tool id while a slash-command skill is active. Independent
+   *  of currentTool since skills typically fire other tools (Read/Grep/...) which
+   *  overwrite currentTool — the ⚡ bubble must persist across those. */
+  activeSkillToolId: string | null;
   /** Palette index (0-5) */
   palette: number;
   /** Hue shift in degrees (0 = no shift, ≥45 for repeated palettes) */

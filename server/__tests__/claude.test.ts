@@ -217,5 +217,13 @@ describe('claudeProvider', () => {
     it('handles undefined input', () => {
       expect(claudeProvider.formatToolStatus('Read', undefined)).toBe('Reading ');
     });
+    it('formats Skill with skill name', () => {
+      expect(claudeProvider.formatToolStatus('Skill', { skill: 'brainstorming' })).toBe(
+        'Skill: brainstorming',
+      );
+    });
+    it('formats Skill without skill name', () => {
+      expect(claudeProvider.formatToolStatus('Skill', {})).toBe('Using skill');
+    });
   });
 });

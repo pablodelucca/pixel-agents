@@ -1,3 +1,4 @@
+import { execFile } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -62,6 +63,7 @@ import {
 } from './fileWatcher.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
+import { OrchestratorManager } from './orchestratorManager.js';
 import { setHookProvider } from './transcriptParser.js';
 import type { AgentState } from './types.js';
 
@@ -106,6 +108,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   private pixelAgentsServer: PixelAgentsServer | null = null;
   // ServerConfig is not stored as a field; use this.pixelAgentsServer?.getConfig() if needed.
   private hookEventHandler: HookEventHandler | null = null;
+  private orchestrator!: OrchestratorManager;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.initHooks();
@@ -131,6 +134,23 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       () => this.webview,
       claudeProvider,
       this.watchAllSessions,
+    );
+
+    this.orchestrator = new OrchestratorManager(
+      this.extensionUri,
+      this.nextAgentId,
+      this.agents,
+      this.knownJsonlFiles,
+      this.fileWatchers,
+      this.pollingTimers,
+      this.waitingTimers,
+      this.permissionTimers,
+      this.jsonlPollTimers,
+      this.projectScanTimer,
+      this.activeAgentId,
+      this.hookEventHandler,
+      () => this.webview,
+      () => this.persistAgents(),
     );
 
     // Register Claude's team provider (if present on the hook provider) with the file
@@ -224,8 +244,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         if (agent.isTeamLead) {
           this.removeTeammates(agentId);
         }
-        // External agents: remove immediately (no terminal to keep alive)
-        if (agent.isExternal) {
+        // External and headless agents: remove immediately (no VS Code terminal to keep alive)
+        if (agent.isExternal || agent.isHeadless) {
           this.unregisterAgentHook(agent);
           removeAgent(
             agentId,
@@ -768,6 +788,34 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           type: 'externalAssetDirectoriesUpdated',
           dirs: cfg.externalAssetDirectories,
         });
+      } else if (message.type === 'runCheckpoint') {
+        const scriptPath = path.join(os.homedir(), '.pixel-agents', 'checkpoint.sh');
+        if (!fs.existsSync(scriptPath)) {
+          vscode.window.showErrorMessage(
+            `Pixel Agents: checkpoint script not found at ${scriptPath}.`,
+          );
+          return;
+        }
+        execFile('/bin/bash', [scriptPath, 'create'], (err, stdout) => {
+          if (err) {
+            vscode.window.showErrorMessage(`Pixel Agents: checkpoint failed — ${err.message}`);
+            return;
+          }
+          const match = stdout.match(/Checkpoint criado: (.+)/);
+          const dir = match ? match[1].trim() : '';
+          vscode.window
+            .showInformationMessage(
+              dir
+                ? `Pixel Agents: checkpoint saved (${path.basename(dir)})`
+                : 'Pixel Agents: checkpoint saved',
+              'Open Folder',
+            )
+            .then((choice) => {
+              if (choice === 'Open Folder' && dir) {
+                vscode.env.openExternal(vscode.Uri.file(dir));
+              }
+            });
+        });
       } else if (message.type === 'importLayout') {
         const uris = await vscode.window.showOpenDialog({
           filters: { 'JSON Files': ['json'] },
@@ -830,6 +878,51 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
       }
     });
+  }
+
+  async delegateTask(): Promise<void> {
+    const roles = await this.orchestrator.roleStore.list();
+    if (roles.length === 0) {
+      const userPath = path.join(os.homedir(), '.pixel-agents', 'roles.json');
+      const bundledPath = vscode.Uri.joinPath(
+        this.extensionUri,
+        'dist',
+        'assets',
+        'default-roles.json',
+      ).fsPath;
+      let msg: string;
+      if (fs.existsSync(userPath)) {
+        msg = `roles.json existe mas está vazio: ${userPath}`;
+      } else if (!fs.existsSync(bundledPath)) {
+        msg = `Bundled default-roles.json não encontrado em ${bundledPath} (build quebrado?)`;
+      } else {
+        msg = 'Nenhum papel disponível (bundled defaults vazios ou corrompidos)';
+      }
+      vscode.window.showErrorMessage(msg);
+      return;
+    }
+    const pick = await vscode.window.showQuickPick(
+      roles.map((r) => ({ label: r.label, description: r.id, roleId: r.id })),
+      { placeHolder: 'Escolha o papel do agente' },
+    );
+    if (!pick) return;
+    const task = await vscode.window.showInputBox({
+      prompt: 'Descreva a tarefa pro agente',
+      placeHolder: 'ex: implementar login OAuth com Google',
+      ignoreFocusOut: true,
+    });
+    if (!task) return;
+    try {
+      const agentId = await this.orchestrator.delegate(pick.roleId, task);
+      vscode.window.showInformationMessage(
+        `Agente ${agentId} (${pick.label}) delegado: "${task.slice(0, 60)}${task.length > 60 ? '…' : ''}"`,
+      );
+    } catch (e) {
+      const err = e as NodeJS.ErrnoException;
+      console.error('[Pixel Agents] delegateTask failed:', err);
+      const hint = err.code === 'ENOENT' ? ' (comando "claude" não encontrado no PATH)' : '';
+      vscode.window.showErrorMessage(`Falha ao delegar: ${err.message}${hint}`);
+    }
   }
 
   /** Export current saved layout as a versioned default-layout-{N}.json (dev utility) */
@@ -928,6 +1021,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   }
 
   dispose() {
+    this.orchestrator?.dispose();
     this.pixelAgentsServer?.stop();
     this.pixelAgentsServer = null;
     this.hookEventHandler?.dispose();

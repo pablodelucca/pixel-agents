@@ -106,8 +106,38 @@ export function ToolOverlay({
   // All character IDs
   const allIds = [...agents, ...subagentCharacters.map((s) => s.id)];
 
+  const screenPosFor = (ch: { x: number; y: number; state: CharacterState }) => {
+    const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+    const screenX = (deviceOffsetX + ch.x * zoom) / dpr;
+    const screenY =
+      (deviceOffsetY + (ch.y + sittingOffset - TOOL_OVERLAY_VERTICAL_OFFSET) * zoom) / dpr;
+    return { screenX, screenY };
+  };
+
   return (
     <>
+      {/* Always-visible task labels (Phase 1 — heuristic) */}
+      {allIds.map((id) => {
+        const ch = officeState.characters.get(id);
+        if (!ch || ch.isSubagent || !ch.taskLabel) return null;
+        const isSelected = selectedId === id;
+        const isHovered = hoveredId === id;
+        const { screenX, screenY } = screenPosFor(ch);
+        return (
+          <div
+            key={`label-${id}`}
+            className="pixel-task-label absolute -translate-x-1/2 pointer-events-none whitespace-nowrap"
+            style={{
+              left: screenX,
+              top: screenY - 14,
+              opacity: isSelected || isHovered ? 1 : 0.4,
+              zIndex: 40,
+            }}
+          >
+            {ch.taskLabel}
+          </div>
+        );
+      })}
       {allIds.map((id) => {
         const ch = officeState.characters.get(id);
         if (!ch) return null;
@@ -143,11 +173,14 @@ export function ToolOverlay({
         const tools = agentTools[id];
         const hasPermission = subHasPermission || tools?.some((t) => t.permissionWait && !t.done);
         const hasActiveTools = tools?.some((t) => !t.done);
+        const hasActiveSkill = tools?.some((t) => !t.done && t.status.startsWith('Skill:'));
         const isActive = ch.isActive;
 
         let dotColor: string | null = null;
         if (hasPermission) {
           dotColor = 'var(--color-status-permission)';
+        } else if (isActive && hasActiveSkill) {
+          dotColor = 'var(--color-status-skill)';
         } else if (isActive && hasActiveTools) {
           dotColor = 'var(--color-status-active)';
         }

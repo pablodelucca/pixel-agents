@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import type * as vscode from 'vscode';
 
@@ -10,6 +11,8 @@ import {
   TOOL_DONE_DELAY_MS,
 } from '../server/src/constants.js';
 import type { HookProvider } from '../server/src/provider.js';
+import { maybeRefineTaskLabel, maybeSendTaskLabel, recordToolUse } from './agentNamer.js';
+import { NAMER_RECENT_MESSAGES_FOR_PROMPT } from './constants.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,
@@ -19,7 +22,99 @@ import {
 } from './timerManager.js';
 import type { AgentState } from './types.js';
 
+/** Read the last N assistant/user text bullets from the agent's JSONL, best-effort. */
+async function readRecentBullets(agent: AgentState): Promise<string[]> {
+  try {
+    const data = await fs.promises.readFile(agent.jsonlFile, 'utf8');
+    const lines = data.split('\n').filter((l) => l.trim());
+    const bullets: string[] = [];
+    for (
+      let i = lines.length - 1;
+      i >= 0 && bullets.length < NAMER_RECENT_MESSAGES_FOR_PROMPT;
+      i--
+    ) {
+      try {
+        const rec = JSON.parse(lines[i]);
+        if (rec.type === 'user' && typeof rec.message?.content === 'string') {
+          bullets.push(`user: ${rec.message.content}`);
+        } else if (rec.type === 'assistant' && Array.isArray(rec.message?.content)) {
+          for (const b of rec.message.content) {
+            if (b.type === 'text' && typeof b.text === 'string') {
+              bullets.push(`assistant: ${b.text}`);
+              break;
+            }
+          }
+        }
+      } catch {
+        // skip malformed lines
+      }
+    }
+    return bullets.reverse();
+  } catch {
+    return [];
+  }
+}
+
 const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
+
+/** Detect a skill invocation inside a user record's content.
+ *  Slash commands like `/superpowers:brainstorming` are expanded client-side as a
+ *  user message — they do NOT flow through the `Skill` tool. The marker is either:
+ *   - Array content with a text block starting with `Base directory for this skill:`
+ *   - String content containing `<command-name>/<plugin>:<skill></command-name>`
+ *  Returns the skill name (e.g. "brainstorming" or "superpowers:brainstorming"). */
+function detectSkillInvocation(content: unknown): string | null {
+  if (Array.isArray(content)) {
+    for (const block of content) {
+      if (typeof block !== 'object' || block === null) continue;
+      const b = block as { type?: string; text?: string };
+      if (b.type !== 'text' || typeof b.text !== 'string') continue;
+      const m = b.text.match(/Base directory for this skill: .*\/skills\/([^/\s]+)/);
+      if (m) return m[1];
+    }
+  } else if (typeof content === 'string') {
+    const m = content.match(/<command-name>\/([^<\s]+:[^<\s]+)<\/command-name>/);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/** Emit a synthetic Skill tool_use start event. Skills invoked via slash-command
+ *  expansion have no real tool_use, so we fabricate one to drive the UI visuals. */
+function startSkillTool(
+  agentId: number,
+  agent: AgentState,
+  skillName: string,
+  webview: vscode.Webview | undefined,
+): void {
+  endSkillTool(agentId, agent, webview);
+  const toolId = `skill-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
+  agent.activeSkillToolId = toolId;
+  agent.hadToolsInTurn = true;
+  console.log(`[Pixel Agents] Agent ${agentId}: Skill detected "${skillName}" → toolId=${toolId}`);
+  webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+  webview?.postMessage({
+    type: 'agentToolStart',
+    id: agentId,
+    toolId,
+    status: `Skill: ${skillName}`,
+    toolName: 'Skill',
+  });
+}
+
+/** Emit the matching agentToolDone for a synthetic Skill tool, if one is active. */
+function endSkillTool(
+  agentId: number,
+  agent: AgentState,
+  webview: vscode.Webview | undefined,
+): void {
+  const toolId = agent.activeSkillToolId;
+  if (!toolId) return;
+  agent.activeSkillToolId = null;
+  setTimeout(() => {
+    webview?.postMessage({ type: 'agentToolDone', id: agentId, toolId });
+  }, TOOL_DONE_DELAY_MS);
+}
 
 /** Hook provider: supplies formatToolStatus + team.extractTeamMetadataFromRecord.
  *  Registered once at startup via setHookProvider(). Functions below assume it's set. */
@@ -73,6 +168,10 @@ function defaultFormatToolStatus(toolName: string, input: Record<string, unknown
       return 'Planning';
     case 'NotebookEdit':
       return `Editing notebook`;
+    case 'Skill': {
+      const skillName = typeof input.skill === 'string' ? input.skill : '';
+      return skillName ? `Skill: ${skillName}` : 'Using skill';
+    }
     case 'TeamCreate': {
       const teamName = typeof input.team_name === 'string' ? input.team_name : '';
       return teamName ? `Creating team: ${teamName}` : 'Creating team';
@@ -214,6 +313,9 @@ export function processTranscriptLine(
                 runInBackground,
               });
             }
+            recordToolUse(agent, toolName);
+            maybeSendTaskLabel(agent, webview);
+            void maybeRefineTaskLabel(agent, webview, readRecentBullets);
           }
         }
         // Skip heuristic timer when hooks are active OR for teammates.
@@ -247,6 +349,16 @@ export function processTranscriptLine(
       processProgressRecord(agentId, record, agents, waitingTimers, permissionTimers, webview);
     } else if (record.type === 'user') {
       const content = record.message?.content ?? record.content;
+
+      // Detect skill invocations BEFORE generic user-record handling.
+      // Slash commands expand the skill content as a synthetic user message
+      // (no real tool_use), so we fabricate a Skill tool event to drive UI visuals.
+      const skillName = detectSkillInvocation(content);
+      if (skillName) {
+        startSkillTool(agentId, agent, skillName, webview);
+        return;
+      }
+
       if (Array.isArray(content)) {
         const blocks = content as Array<{ type: string; tool_use_id?: string }>;
         const hasToolResult = blocks.some((b) => b.type === 'tool_result');
@@ -308,14 +420,21 @@ export function processTranscriptLine(
         } else {
           // New user text prompt — new turn starting
           cancelWaitingTimer(agentId, waitingTimers);
+          endSkillTool(agentId, agent, webview);
           clearAgentActivity(agent, agentId, permissionTimers, webview);
           agent.hadToolsInTurn = false;
+          agent.messageCount = (agent.messageCount ?? 0) + 1;
+          maybeSendTaskLabel(agent, webview);
+          void maybeRefineTaskLabel(agent, webview, readRecentBullets);
         }
       } else if (typeof content === 'string' && content.trim()) {
         // New user text prompt — new turn starting
         cancelWaitingTimer(agentId, waitingTimers);
         clearAgentActivity(agent, agentId, permissionTimers, webview);
         agent.hadToolsInTurn = false;
+        agent.messageCount = (agent.messageCount ?? 0) + 1;
+        maybeSendTaskLabel(agent, webview);
+        void maybeRefineTaskLabel(agent, webview, readRecentBullets);
       }
     } else if (record.type === 'queue-operation' && record.operation === 'enqueue') {
       // Background agent completed — parse tool-use-id from XML content
@@ -355,6 +474,7 @@ export function processTranscriptLine(
     } else if (record.type === 'system' && record.subtype === 'turn_duration') {
       cancelWaitingTimer(agentId, waitingTimers);
       cancelPermissionTimer(agentId, permissionTimers);
+      endSkillTool(agentId, agent, webview);
 
       // Definitive turn-end: clean up any stale tool state, but preserve background agents.
       // When hooks are active, the Stop hook already handled the status change,

@@ -7,6 +7,8 @@ export interface AgentState {
   terminalRef?: vscode.Terminal;
   /** Whether this agent was detected from an external source (VS Code extension panel, etc.) */
   isExternal: boolean;
+  /** True se o agente foi spawnado como processo headless pelo orquestrador (sem VS Code terminal). */
+  isHeadless?: boolean;
   projectDir: string;
   jsonlFile: string;
   fileOffset: number;
@@ -14,6 +16,8 @@ export interface AgentState {
   activeToolIds: Set<string>;
   activeToolStatuses: Map<string, string>;
   activeToolNames: Map<string, string>;
+  /** Synthetic tool id for an in-flight Skill invocation (slash-command expansion has no real tool_use). */
+  activeSkillToolId?: string | null;
   activeSubagentToolIds: Map<string, Set<string>>; // parentToolId → active sub-tool IDs
   activeSubagentToolNames: Map<string, Map<string, string>>; // parentToolId → (subToolId → toolName)
   backgroundAgentToolIds: Set<string>; // tool IDs for run_in_background Agent calls (stay alive until queue-operation)
@@ -57,6 +61,35 @@ export interface AgentState {
   leadAgentId?: number;
   /** True when lead spawns teammates via tmux (run_in_background Agent calls) */
   teamUsesTmux?: boolean;
+
+  /** Heuristic pt-BR task label shown floating above the character (e.g. "pixel-agents escritor"). */
+  taskLabel?: string;
+
+  // -- Name refinement (Phase 2) --
+  /** Sliding window of the most recent tool names used (cap NAMER_TOOL_HISTOGRAM_WINDOW). */
+  recentTools?: string[];
+  /** Snapshot of the signals at the last refinement attempt — used by detectTransition(). */
+  nameSignals?: {
+    cwdBase: string;
+    lastSkill: string | null;
+    toolHistogram: Record<string, number>;
+    messageCountAtLastRefine: number;
+    heuristicRole: string | null;
+  };
+  /** Total user+assistant messages seen for this agent (bumps on every new record from processTranscriptLine). */
+  messageCount?: number;
+  /** Timestamp (ms) of the last LLM refinement attempt. 0 = never. */
+  lastLlmRefineAt?: number;
+  /** Count of LLM refinements made for this agent session. */
+  llmRefineCount?: number;
+  /** When true, LLM refinement is disabled for the rest of this agent's session (after NAMER_MAX_CONSECUTIVE_FAILURES). */
+  llmRefineDisabled?: boolean;
+  /** Consecutive subprocess failures since the last successful refine. Reset on success. */
+  llmRefineConsecutiveFailures?: number;
+  /** When true, an LLM subprocess call is currently in flight for this agent. */
+  llmRefineInFlight?: boolean;
+  /** Timestamp (ms) when the agent was first created — used by initial-refine window. */
+  createdAt?: number;
 }
 
 export interface PersistedAgent {
