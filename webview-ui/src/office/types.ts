@@ -30,6 +30,7 @@ export const CharacterState = {
   IDLE: 'idle',
   WALK: 'walk',
   TYPE: 'type',
+  CONSULT: 'consult',
 } as const;
 export type CharacterState = (typeof CharacterState)[keyof typeof CharacterState];
 
@@ -196,4 +197,24 @@ export interface Character {
   inputTokens: number;
   /** Cumulative output tokens consumed */
   outputTokens: number;
+
+  // -- NPC / RADAR --
+  /** Whether this character is an NPC (not tied to a terminal) */
+  isNpc?: boolean;
+  /** Whether this agent is currently consulting the RADAR desk */
+  isConsultingRadar?: boolean;
+  /** Whether this agent is waiting in the RADAR queue */
+  isWaitingForRadar?: boolean;
+  /** Active verdict overlay type */
+  radarVerdict?: 'PROCEED' | 'HOLD' | 'DENY';
+  /** Assessment tier: 1 = rules engine, 2 = LLM (affects stamp visual) */
+  radarTier?: number;
+  /** Countdown timer for verdict overlay display (seconds, counts down to 0) */
+  radarVerdictTimer?: number;
+  /** Vela stamp animation phase */
+  npcStampPhase?: 'idle' | 'stamp_up' | 'stamp_down' | 'stamp_hold';
+  /** Timer for current stamp phase */
+  npcStampTimer?: number;
+  /** Verdict for current stamp (set when stamp_down begins) */
+  npcStampVerdict?: 'PROCEED' | 'HOLD' | 'DENY';
 }

@@ -4,6 +4,7 @@ import {
   CAMERA_FOLLOW_LERP,
   CAMERA_FOLLOW_SNAP_THRESHOLD,
   PAN_MARGIN_FRACTION,
+  RADAR_STAMP_HOLD_SEC,
   ZOOM_MAX,
   ZOOM_MIN,
   ZOOM_SCROLL_THRESHOLD,
@@ -252,13 +253,27 @@ export function OfficeCanvas({
           characters: officeState.characters,
         };
 
+        // Compute RADAR stamp mark state for rendering
+        const vela = officeState.npcManager.getVela();
+        const radarDesk = officeState.npcManager.getRadarDesk();
+        const stampMarkState =
+          vela?.npcStampVerdict && radarDesk && vela.npcStampPhase === 'stamp_hold'
+            ? {
+                verdict: vela.npcStampVerdict,
+                timer: RADAR_STAMP_HOLD_SEC - (vela.npcStampTimer ?? 0),
+                deskCol: radarDesk.col,
+                deskRow: radarDesk.row,
+                isT2: officeState.npcManager.isCurrentStampT2(),
+              }
+            : undefined;
+
         const { offsetX, offsetY } = renderFrame(
           ctx,
           w,
           h,
           officeState.tileMap,
           officeState.furniture,
-          officeState.getCharacters(),
+          officeState.getCharactersForRender(),
           zoom,
           panRef.current.x,
           panRef.current.y,
@@ -267,6 +282,7 @@ export function OfficeCanvas({
           officeState.getLayout().tileColors,
           officeState.getLayout().cols,
           officeState.getLayout().rows,
+          stampMarkState,
         );
         offsetRef.current = { x: offsetX, y: offsetY };
 

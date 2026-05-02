@@ -5,6 +5,7 @@ const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
 import {
   BASH_COMMAND_DISPLAY_MAX_LENGTH,
+  RADAR_ASSESS_TOOL_NAME,
   TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
   TEXT_IDLE_DELAY_MS,
   TOOL_DONE_DELAY_MS,
@@ -81,6 +82,8 @@ function defaultFormatToolStatus(toolName: string, input: Record<string, unknown
       const recipient = typeof input.recipient === 'string' ? input.recipient : '';
       return recipient ? `-> ${recipient}` : 'Sending message';
     }
+    case RADAR_ASSESS_TOOL_NAME:
+      return 'Risk assessment';
     default:
       return `Using ${toolName}`;
   }
@@ -176,6 +179,16 @@ export function processTranscriptLine(
             agent.activeToolIds.add(block.id);
             agent.activeToolStatuses.set(block.id, status);
             agent.activeToolNames.set(block.id, toolName);
+            // Detect RADAR risk assessment tool calls
+            if (toolName === RADAR_ASSESS_TOOL_NAME) {
+              agent.radarAssessmentIds.add(block.id);
+              console.log(`[Pixel Agents] RADAR detected: agent ${agentId}, toolId ${block.id}`);
+              webview?.postMessage({
+                type: 'agentRadarStart',
+                id: agentId,
+                toolId: block.id,
+              });
+            }
             if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
               hasNonExemptTool = true;
             }
@@ -255,6 +268,18 @@ export function processTranscriptLine(
             if (block.type === 'tool_result' && block.tool_use_id) {
               const completedToolId = block.tool_use_id;
               const completedToolName = agent.activeToolNames.get(completedToolId);
+
+              // Extract RADAR verdict from tool_result
+              if (agent.radarAssessmentIds.has(completedToolId)) {
+                agent.radarAssessmentIds.delete(completedToolId);
+                const verdict = extractRadarVerdict(block);
+                webview?.postMessage({
+                  type: 'agentRadarVerdict',
+                  id: agentId,
+                  toolId: completedToolId,
+                  ...verdict,
+                });
+              }
 
               // Detect background agent launches — keep the tool alive until queue-operation
               if (
@@ -427,6 +452,48 @@ export function processTranscriptLine(
     }
   } catch {
     // Ignore malformed lines
+  }
+}
+
+const VALID_RADAR_VERDICTS = new Set(['PROCEED', 'HOLD', 'DENY']);
+
+/** @internal Exported for testing. Extract verdict from a radar_assess tool_result block.
+ *  Reads result.status (v0.3.0+) or result.verdict (v0.2.x).
+ *  Reads result.tier (1 = rules engine, 2 = LLM assessment).
+ *  Returns HOLD on parse failure (safe default). */
+export function extractRadarVerdict(block: Record<string, unknown>): {
+  verdict: 'PROCEED' | 'HOLD' | 'DENY';
+  tier?: number;
+  riskScore?: number;
+  triggerReason?: string;
+  recommended?: string;
+} {
+  try {
+    const content = block.content;
+    let text: string | undefined;
+    if (Array.isArray(content)) {
+      const first = content[0] as Record<string, unknown> | undefined;
+      text = typeof first?.text === 'string' ? first.text : undefined;
+    } else if (typeof content === 'string') {
+      text = content;
+    }
+    if (!text) return { verdict: 'HOLD' };
+
+    const result = JSON.parse(text) as Record<string, unknown>;
+    const raw = (result.status ?? result.verdict) as string | undefined;
+    const verdict =
+      raw && VALID_RADAR_VERDICTS.has(raw) ? (raw as 'PROCEED' | 'HOLD' | 'DENY') : 'HOLD';
+
+    return {
+      verdict,
+      ...(typeof result.tier === 'number' ? { tier: result.tier } : {}),
+      ...(typeof result.riskScore === 'number' ? { riskScore: result.riskScore } : {}),
+      ...(typeof result.triggerReason === 'string' ? { triggerReason: result.triggerReason } : {}),
+      ...(typeof result.recommended === 'string' ? { recommended: result.recommended } : {}),
+    };
+  } catch {
+    console.warn('[Pixel Agents] Failed to parse radar_assess result — defaulting to HOLD');
+    return { verdict: 'HOLD' };
   }
 }
 

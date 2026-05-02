@@ -51,6 +51,7 @@ import { CharacterState, TILE_SIZE, TileType } from '../types.js';
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles.js';
 import { getCharacterSprite } from './characters.js';
 import { renderMatrixEffect } from './matrixEffect.js';
+import { drawStampMark, drawVerdictBadge } from './radarOverlays.js';
 
 // ── Render functions ────────────────────────────────────────────
 
@@ -107,6 +108,14 @@ interface ZDrawable {
 }
 
 /** @internal */
+export interface StampMarkState {
+  verdict: 'PROCEED' | 'HOLD' | 'DENY';
+  timer: number;
+  deskCol: number;
+  deskRow: number;
+  isT2: boolean;
+}
+
 export function renderScene(
   ctx: CanvasRenderingContext2D,
   furniture: FurnitureInstance[],
@@ -116,6 +125,7 @@ export function renderScene(
   zoom: number,
   selectedAgentId: number | null,
   hoveredAgentId: number | null,
+  stampMark?: StampMarkState,
 ): void {
   const drawables: ZDrawable[] = [];
 
@@ -145,13 +155,29 @@ export function renderScene(
     }
   }
 
+  // RADAR stamp mark on desk
+  if (stampMark && stampMark.timer > 0) {
+    const sDeskX = offsetX + (stampMark.deskCol * TILE_SIZE + TILE_SIZE) * zoom;
+    const sDeskY = offsetY + (stampMark.deskRow * TILE_SIZE + TILE_SIZE) * zoom;
+    const sVerdict = stampMark.verdict;
+    const sTimer = stampMark.timer;
+    const sIsT2 = stampMark.isT2;
+    drawables.push({
+      zY: (stampMark.deskRow + 2) * TILE_SIZE + 0.25,
+      draw: (c) => {
+        drawStampMark(c, sVerdict, sTimer, sDeskX, sDeskY, zoom, sIsT2);
+      },
+    });
+  }
+
   // Characters
   for (const ch of characters) {
     const sprites = getCharacterSprites(ch.palette, ch.hueShift);
     const spriteData = getCharacterSprite(ch, sprites);
     const cached = getCachedSprite(spriteData, zoom);
     // Sitting offset: shift character down when seated so they visually sit in the chair
-    const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+    const isSitting = ch.state === CharacterState.TYPE || ch.state === CharacterState.CONSULT;
+    const sittingOffset = isSitting ? CHARACTER_SITTING_OFFSET_PX : 0;
     // Anchor at bottom-center of character — round to integer device pixels
     const drawX = Math.round(offsetX + ch.x * zoom - cached.width / 2);
     const drawY = Math.round(offsetY + (ch.y + sittingOffset) * zoom - cached.height);
@@ -202,6 +228,21 @@ export function renderScene(
         c.drawImage(cached, drawX, drawY);
       },
     });
+
+    // RADAR verdict badge above character
+    if (ch.radarVerdict && ch.radarVerdictTimer !== undefined && ch.radarVerdictTimer > 0) {
+      const vCenterX = drawX + cached.width / 2;
+      const vTopY = drawY;
+      const vVerdict = ch.radarVerdict;
+      const vTimer = ch.radarVerdictTimer;
+      const vIsT2 = ch.radarTier === 2;
+      drawables.push({
+        zY: charZY + 11,
+        draw: (c) => {
+          drawVerdictBadge(c, vVerdict, vTimer, vCenterX, vTopY, zoom, vIsT2);
+        },
+      });
+    }
   }
 
   // Sort by Y (lower = in front = drawn later)
@@ -582,6 +623,7 @@ export function renderFrame(
   tileColors?: Array<ColorValue | null>,
   layoutCols?: number,
   layoutRows?: number,
+  stampMark?: StampMarkState,
 ): { offsetX: number; offsetY: number } {
   // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -620,7 +662,17 @@ export function renderFrame(
   // Draw walls + furniture + characters (z-sorted)
   const selectedId = selection?.selectedAgentId ?? null;
   const hoveredId = selection?.hoveredAgentId ?? null;
-  renderScene(ctx, allFurniture, characters, offsetX, offsetY, zoom, selectedId, hoveredId);
+  renderScene(
+    ctx,
+    allFurniture,
+    characters,
+    offsetX,
+    offsetY,
+    zoom,
+    selectedId,
+    hoveredId,
+    stampMark,
+  );
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom);

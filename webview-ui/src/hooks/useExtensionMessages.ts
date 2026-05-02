@@ -5,7 +5,7 @@ import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js';
-import { setCharacterTemplates } from '../office/sprites/spriteData.js';
+import { setCharacterTemplates, setNpcSprites } from '../office/sprites/spriteData.js';
 import { extractToolName } from '../office/toolUtils.js';
 import type { OfficeLayout, ToolActivity } from '../office/types.js';
 import { setWallSprites } from '../office/wallTiles.js';
@@ -443,6 +443,10 @@ export function useExtensionMessages(
         }>;
         console.log(`[Webview] Received ${characters.length} pre-colored character sprites`);
         setCharacterTemplates(characters);
+      } else if (msg.type === 'npcSpritesLoaded') {
+        const vela = msg.vela as { down: string[][][]; up: string[][][]; right: string[][][] };
+        console.log('[Webview] Received Vela NPC sprite');
+        setNpcSprites(vela);
       } else if (msg.type === 'floorTilesLoaded') {
         const sprites = msg.sprites as string[][][];
         console.log(`[Webview] Received ${sprites.length} floor tile patterns`);
@@ -506,6 +510,17 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentTokenUsage') {
         const id = msg.id as number;
         os.setAgentTokens(id, msg.inputTokens as number, msg.outputTokens as number);
+      } else if (msg.type === 'agentRadarStart') {
+        const id = msg.id as number;
+        const tier = msg.tier as number | undefined;
+        console.log('[Pixel Agents Webview] agentRadarStart for agent', id, 'tier', tier);
+        os.handleRadarStart(id, tier);
+      } else if (msg.type === 'agentRadarVerdict') {
+        const id = msg.id as number;
+        const verdict = msg.verdict as 'PROCEED' | 'HOLD' | 'DENY';
+        const tier = msg.tier as number | undefined;
+        console.log('[Pixel Agents Webview] agentRadarVerdict for agent', id, 'verdict', verdict);
+        os.handleRadarVerdict(id, verdict, tier);
       }
     };
     window.addEventListener('message', handler);

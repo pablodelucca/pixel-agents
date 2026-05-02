@@ -34,6 +34,13 @@ interface LoadedCharacterData {
 }
 
 let loadedCharacters: LoadedCharacterData[] | null = null;
+let npcVelaSprites: LoadedCharacterData | null = null;
+
+/** Set Vela NPC sprites loaded from vela.png. Call this when npcSpritesLoaded message arrives. */
+export function setNpcSprites(vela: LoadedCharacterData): void {
+  npcVelaSprites = vela;
+  spriteCache.clear();
+}
 
 /** Set pre-colored character sprites loaded from PNG assets. Call this when characterSpritesLoaded message arrives. */
 export function setCharacterTemplates(data: LoadedCharacterData[]): void {
@@ -112,6 +119,46 @@ function emptySprite(w: number, h: number): SpriteData {
 }
 
 export function getCharacterSprites(paletteIndex: number, hueShift = 0): CharacterSprites {
+  // NPC sprites: palette -1 = Vela
+  if (paletteIndex === -1) {
+    const npcData = npcVelaSprites;
+    if (npcData) {
+      const cacheKey = 'npc:vela';
+      const cached = spriteCache.get(cacheKey);
+      if (cached) return cached;
+      const flip = flipSpriteHorizontal;
+      const sprites: CharacterSprites = {
+        walk: {
+          [Dir.DOWN]: [npcData.down[0], npcData.down[1], npcData.down[2], npcData.down[1]],
+          [Dir.UP]: [npcData.up[0], npcData.up[1], npcData.up[2], npcData.up[1]],
+          [Dir.RIGHT]: [npcData.right[0], npcData.right[1], npcData.right[2], npcData.right[1]],
+          [Dir.LEFT]: [
+            flip(npcData.right[0]),
+            flip(npcData.right[1]),
+            flip(npcData.right[2]),
+            flip(npcData.right[1]),
+          ],
+        },
+        typing: {
+          [Dir.DOWN]: [npcData.down[3], npcData.down[4]],
+          [Dir.UP]: [npcData.up[3], npcData.up[4]],
+          [Dir.RIGHT]: [npcData.right[3], npcData.right[4]],
+          [Dir.LEFT]: [flip(npcData.right[3]), flip(npcData.right[4])],
+        },
+        reading: {
+          [Dir.DOWN]: [npcData.down[5], npcData.down[6]],
+          [Dir.UP]: [npcData.up[5], npcData.up[6]],
+          [Dir.RIGHT]: [npcData.right[5], npcData.right[6]],
+          [Dir.LEFT]: [flip(npcData.right[5]), flip(npcData.right[6])],
+        },
+      };
+      spriteCache.set(cacheKey, sprites);
+      return sprites;
+    }
+    // Fallback: use char_0 with amber hue shift
+    return getCharacterSprites(0, 30);
+  }
+
   const cacheKey = `${paletteIndex}:${hueShift}`;
   const cached = spriteCache.get(cacheKey);
   if (cached) return cached;

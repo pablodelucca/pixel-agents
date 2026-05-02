@@ -57,3 +57,6 @@ export const HOOK_EVENT_BUFFER_MS = 5_000;
  *  the agent is cleaned up instead of staying as a zombie with pendingClear forever. */
 export const SESSION_END_GRACE_MS = 2000;
 export const MAX_HOOK_BODY_SIZE = 65_536; // 64KB
+
+// ── RADAR Governance ────────────────────────────────────────
+export const RADAR_ASSESS_TOOL_NAME = 'mcp__radar__radar_assess';
