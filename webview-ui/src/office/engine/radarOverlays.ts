@@ -95,7 +95,7 @@ function drawT2Sparkle(
   ctx.restore();
 }
 
-/** Draw an 8×8 stamp mark on the desk at the given pixel position. */
+/** Draw a 16×16 stamp mark on the desk — full-tile sized for visibility. */
 export function drawStampMark(
   ctx: CanvasRenderingContext2D,
   verdict: Verdict,
@@ -110,17 +110,22 @@ export function drawStampMark(
 
   ctx.save();
   const color = verdictColor(verdict);
-  ctx.globalAlpha = alpha;
-  const size = 8 * zoom;
+  const size = 14 * zoom;
   const cx = deskPixelX;
   const cy = deskPixelY;
 
+  // White outline for contrast against the desk
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = RADAR_T2_SPARKLE_COLOR; // white
+  ctx.beginPath();
+  ctx.arc(cx, cy, size / 2 + zoom, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Coloured shape
   ctx.fillStyle = color;
   ctx.strokeStyle = color;
-
   drawVerdictShape(ctx, verdict, cx, cy, size, zoom);
 
-  // T2 sparkle: small diamond offset to top-right of stamp mark
   if (isT2) {
     drawT2Sparkle(ctx, cx + size * 0.5, cy - size * 0.5, zoom, alpha);
   }
@@ -128,7 +133,7 @@ export function drawStampMark(
   ctx.restore();
 }
 
-/** Draw a 6×6 verdict badge above an agent's head. */
+/** Draw a 14×14 verdict badge above an agent's head. */
 export function drawVerdictBadge(
   ctx: CanvasRenderingContext2D,
   verdict: Verdict,
@@ -143,18 +148,22 @@ export function drawVerdictBadge(
 
   ctx.save();
   const color = verdictColor(verdict);
-  ctx.globalAlpha = alpha;
-  const size = 6 * zoom;
-  // Position above character head
+  const size = 14 * zoom;
   const cx = charPixelX;
-  const cy = charPixelY - 4 * zoom;
+  const cy = charPixelY - 6 * zoom;
 
+  // White outline circle for contrast
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = RADAR_T2_SPARKLE_COLOR;
+  ctx.beginPath();
+  ctx.arc(cx, cy, size / 2 + zoom, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Coloured shape
   ctx.fillStyle = color;
   ctx.strokeStyle = color;
-
   drawVerdictShape(ctx, verdict, cx, cy, size, zoom);
 
-  // T2 sparkle: small diamond offset to top-right of badge
   if (isT2) {
     drawT2Sparkle(ctx, cx + size * 0.45, cy - size * 0.45, zoom, alpha);
   }

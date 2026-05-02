@@ -11,6 +11,9 @@ import {
   FUEL_GAUGE_HEIGHT_PX,
   FUEL_GAUGE_WIDTH_PX,
   MAX_CONTEXT_TOKENS,
+  RADAR_DENY_COLOR,
+  RADAR_HOLD_COLOR,
+  RADAR_PROCEED_COLOR,
   TEAM_LEAD_COLOR,
   TEAM_ROLE_COLOR,
   TOKEN_CRITICAL_THRESHOLD,
@@ -135,9 +138,50 @@ export function ToolOverlay({
     );
   }
 
+  // Verdict text labels (PROCEED / HOLD / DENY) above any agent with active verdict
+  const verdictLabels: React.ReactElement[] = [];
+  for (const id of agents) {
+    const ch = officeState.characters.get(id);
+    if (!ch || !ch.radarVerdict || !ch.radarVerdictTimer || ch.radarVerdictTimer <= 0) continue;
+    const isSitting = ch.state === CharacterState.TYPE || ch.state === CharacterState.CONSULT;
+    const sittingOffset = isSitting ? CHARACTER_SITTING_OFFSET_PX : 0;
+    const screenX = (deviceOffsetX + ch.x * zoom) / dpr;
+    const screenY = (deviceOffsetY + (ch.y + sittingOffset - 60) * zoom) / dpr;
+    const verdictColor =
+      ch.radarVerdict === 'PROCEED'
+        ? RADAR_PROCEED_COLOR
+        : ch.radarVerdict === 'HOLD'
+          ? RADAR_HOLD_COLOR
+          : RADAR_DENY_COLOR;
+    verdictLabels.push(
+      <div
+        key={`verdict-${id}`}
+        className="absolute -translate-x-1/2 pointer-events-none"
+        style={{
+          left: screenX,
+          top: screenY,
+          zIndex: 50,
+        }}
+      >
+        <div
+          className="px-4 py-1 pixel-panel whitespace-nowrap"
+          style={{
+            fontSize: '16px',
+            color: verdictColor,
+            fontWeight: 'bold',
+            borderColor: verdictColor,
+          }}
+        >
+          {ch.radarVerdict}
+        </div>
+      </div>,
+    );
+  }
+
   return (
     <>
       {radarLabel}
+      {verdictLabels}
       {allIds.map((id) => {
         const ch = officeState.getCharacterById(id);
         if (!ch) return null;

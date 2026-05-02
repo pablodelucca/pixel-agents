@@ -804,17 +804,22 @@ export class OfficeState {
     }
   }
 
-  /** Handle agentRadarVerdict — deliver verdict and start return countdown */
+  /** Handle agentRadarVerdict — deliver verdict. Timer starts when agent
+   *  reaches CONSULT state (handled in the update loop). This prevents
+   *  the timer from expiring during the walk. */
   handleRadarVerdict(agentId: number, verdict: 'PROCEED' | 'HOLD' | 'DENY', tier?: number): void {
     const ch = this.characters.get(agentId);
     if (!ch) return;
 
     ch.radarVerdict = verdict;
     ch.radarTier = tier;
-    ch.radarVerdictTimer = RADAR_VERDICT_DISPLAY_SEC;
+    // If already at the desk, start the display timer now.
+    // Otherwise the timer is started when the agent arrives at CONSULT.
+    if (ch.state === CharacterState.CONSULT) {
+      ch.radarVerdictTimer = RADAR_VERDICT_DISPLAY_SEC;
+    }
 
     this.npcManager.deliverVerdict(verdict);
-    // Update tier for T1/T2 visual distinction (tier arrives with verdict, not with start)
     if (tier !== undefined) {
       this.npcManager.setTier(tier);
     }
@@ -952,6 +957,16 @@ export class OfficeState {
           ch.bubbleType = null;
           ch.bubbleTimer = 0;
         }
+      }
+
+      // RADAR verdict timer: start countdown when agent reaches CONSULT
+      // with a verdict already set (timer was deferred from handleRadarVerdict)
+      if (
+        ch.state === CharacterState.CONSULT &&
+        ch.radarVerdict &&
+        ch.radarVerdictTimer === undefined
+      ) {
+        ch.radarVerdictTimer = RADAR_VERDICT_DISPLAY_SEC;
       }
 
       // RADAR verdict timer countdown
