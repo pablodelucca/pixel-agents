@@ -1,15 +1,15 @@
-export interface ChangelogSection {
+interface ChangelogSection {
   title: string;
   items: string[];
 }
 
-export interface ChangelogContributor {
+interface ChangelogContributor {
   name: string;
   url: string;
   description: string;
 }
 
-export interface ChangelogEntry {
+interface ChangelogEntry {
   version: string;
   sections: ChangelogSection[];
   contributors: ChangelogContributor[];
@@ -24,6 +24,77 @@ export function toMajorMinor(version: string): string {
 export const CHANGELOG_REPO_URL = 'https://github.com/pablodelucca/pixel-agents';
 
 export const changelogEntries: ChangelogEntry[] = [
+  {
+    version: '1.3',
+    sections: [
+      {
+        title: 'Features',
+        items: [
+          'Hooks-first session management with dual-mode architecture (hooks + heuristic fallback)',
+          'Claude Code hooks for instant agent status detection',
+          'External session support and Agent tool recognition',
+          'Multi-root workspace agent detection across all workspace folders',
+          'Load custom characters from external asset directories',
+          'Tailwind CSS v4 migration for the webview UI',
+        ],
+      },
+      {
+        title: 'Fixes',
+        items: [
+          'Prevent duplicate restores, fix tool status reconnect, improve agent tool detection',
+        ],
+      },
+      {
+        title: 'Maintenance',
+        items: [
+          'Add shared/ to lint, format, and lint-staged',
+          'Dependabot dev-dependency group bumps',
+        ],
+      },
+    ],
+    contributors: [
+      {
+        name: '@drewf',
+        url: 'https://github.com/drewf',
+        description: 'External session support and Agent tool recognition',
+      },
+      {
+        name: '@Commandershadow9',
+        url: 'https://github.com/Commandershadow9',
+        description: 'Multi-root workspace agent detection',
+      },
+      {
+        name: '@mitre88',
+        url: 'https://github.com/mitre88',
+        description: 'Duplicate restore, tool status reconnect, tool detection fixes',
+      },
+      {
+        name: '@noam971',
+        url: 'https://github.com/noam971',
+        description: 'Duplicate restore, tool status reconnect, tool detection fixes',
+      },
+      {
+        name: '@itsManeka',
+        url: 'https://github.com/itsManeka',
+        description: 'Custom characters from external asset directories',
+      },
+      {
+        name: '@pablodelucca',
+        url: 'https://github.com/pablodelucca',
+        description: 'Claude Code hooks integration, Tailwind v4 migration',
+      },
+      {
+        name: '@NNTin',
+        url: 'https://github.com/NNTin',
+        description: 'Claude Code hooks integration, Tailwind v4 migration',
+      },
+      {
+        name: '@florintimbuc',
+        url: 'https://github.com/florintimbuc',
+        description: 'Hooks-first dual-mode architecture, review coordination',
+      },
+    ],
+  },
   {
     version: '1.2',
     sections: [

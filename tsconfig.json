@@ -17,7 +17,7 @@
 	"include": [
 		"src",
 		"server/src",
-		"shared"
+		"core/src"
 	],
 	"exclude": [
 		"node_modules",

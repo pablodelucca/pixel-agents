@@ -11,18 +11,17 @@ export function clearAgentActivity(
 ): void {
   if (!agent) return;
 
-  // Preserve background agent tools — only clear foreground state
+  // Preserve background agent tools — only clear foreground state.
+  // The subagent maps are keyed by parentToolId; deleting a non-parent key is a
+  // safe no-op, so no tool-name check is needed here.
   if (agent.backgroundAgentToolIds.size > 0) {
     for (const toolId of agent.activeToolIds) {
       if (agent.backgroundAgentToolIds.has(toolId)) continue;
       agent.activeToolIds.delete(toolId);
       agent.activeToolStatuses.delete(toolId);
-      const toolName = agent.activeToolNames.get(toolId);
       agent.activeToolNames.delete(toolId);
-      if (toolName === 'Task' || toolName === 'Agent') {
-        agent.activeSubagentToolIds.delete(toolId);
-        agent.activeSubagentToolNames.delete(toolId);
-      }
+      agent.activeSubagentToolIds.delete(toolId);
+      agent.activeSubagentToolNames.delete(toolId);
     }
   } else {
     agent.activeToolIds.clear();
@@ -100,7 +99,7 @@ export function startPermissionTimer(
   agentId: number,
   agents: Map<number, AgentState>,
   permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
-  permissionExemptTools: Set<string>,
+  permissionExemptTools: ReadonlySet<string>,
   webview: vscode.Webview | undefined,
 ): void {
   cancelPermissionTimer(agentId, permissionTimers);
@@ -133,7 +132,7 @@ export function startPermissionTimer(
 
     if (hasNonExempt) {
       agent.permissionSent = true;
-      console.log(`[Pixel Agents] Agent ${agentId}: possible permission wait detected`);
+      console.log(`[Pixel Agents] Timer: Agent ${agentId} - possible permission wait detected`);
       webview?.postMessage({
         type: 'agentToolPermission',
         id: agentId,

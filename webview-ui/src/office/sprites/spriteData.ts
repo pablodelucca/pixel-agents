@@ -48,7 +48,7 @@ export function getLoadedCharacterCount(): number {
 }
 
 /** Flip a SpriteData horizontally (for generating left sprites from right) */
-export function flipSpriteHorizontal(sprite: SpriteData): SpriteData {
+function flipSpriteHorizontal(sprite: SpriteData): SpriteData {
   return sprite.map((row) => [...row].reverse());
 }
 

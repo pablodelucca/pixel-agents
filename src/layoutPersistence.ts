@@ -48,7 +48,7 @@ export function writeLayoutToFile(layout: Record<string, unknown>): void {
   }
 }
 
-export interface LayoutLoadResult {
+interface LayoutLoadResult {
   layout: Record<string, unknown>;
   /** True when the user's saved layout was replaced by a newer bundled default */
   wasReset: boolean;
@@ -155,7 +155,7 @@ export function watchLayoutFile(
       });
       fsWatcher.on('error', (err) => {
         // fs.watch can be unreliable on macOS (kqueue) and may hit inotify limits on Linux
-        console.log(`[Pixel Agents] Layout fs.watch error: ${err.message}`);
+        console.log(`[Pixel Agents] Layout: fs.watch error: ${err.message}`);
         fsWatcher?.close();
         fsWatcher = null;
       });

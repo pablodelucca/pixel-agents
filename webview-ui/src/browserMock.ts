@@ -8,6 +8,7 @@
  * Only imported in browser runtime; tree-shaken from VS Code webview runtime.
  */
 
+import { rgbaToHex } from '../../core/src/assets/colorUtils.ts';
 import {
   CARPET_GRID_COLS,
   CARPET_MARCHING_SQUARES_COUNT,
@@ -17,17 +18,16 @@ import {
   CHAR_FRAMES_PER_ROW,
   CHARACTER_DIRECTIONS,
   FLOOR_TILE_SIZE,
-  PNG_ALPHA_THRESHOLD,
   WALL_BITMASK_COUNT,
   WALL_GRID_COLS,
   WALL_PIECE_HEIGHT,
   WALL_PIECE_WIDTH,
-} from '../../shared/assets/constants.ts';
+} from '../../core/src/assets/constants.ts';
 import type {
   AssetIndex,
   CatalogEntry,
   CharacterDirectionSprites,
-} from '../../shared/assets/types.ts';
+} from '../../core/src/assets/types.ts';
 
 interface MockPayload {
   characters: CharacterDirectionSprites[];
@@ -49,14 +49,6 @@ interface DecodedPng {
   width: number;
   height: number;
   data: Uint8ClampedArray;
-}
-
-function rgbaToHex(r: number, g: number, b: number, a: number): string {
-  if (a < PNG_ALPHA_THRESHOLD) return '';
-  const rgb =
-    `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
-  if (a >= 255) return rgb;
-  return `${rgb}${a.toString(16).padStart(2, '0').toUpperCase()}`;
 }
 
 function getPixel(
@@ -300,8 +292,8 @@ export function dispatchMockMessages(): void {
   dispatch({
     type: 'settingsLoaded',
     soundEnabled: false,
-    extensionVersion: '1.2.0',
-    lastSeenVersion: '1.1',
+    extensionVersion: '1.3.0',
+    lastSeenVersion: '1.2',
   });
 
   console.log('[BrowserMock] Messages dispatched');

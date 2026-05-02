@@ -4,54 +4,33 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { JSONL_POLL_INTERVAL_MS } from '../server/src/constants.js';
+import { claudeProvider } from '../server/src/providers/index.js';
 import {
   TERMINAL_NAME_PREFIX,
   WORKSPACE_KEY_AGENT_SEATS,
   WORKSPACE_KEY_AGENTS,
 } from './constants.js';
-import { ensureProjectScan, readNewLines, startFileWatching } from './fileWatcher.js';
+import {
+  ensureProjectScan,
+  readNewLines,
+  reassignAgentToFile,
+  startFileWatching,
+} from './fileWatcher.js';
 import { migrateAndLoadLayout } from './layoutPersistence.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
 import type { AgentState, PersistedAgent } from './types.js';
 
 export function getProjectDirPath(cwd?: string): string {
-  // Fall back to home directory when no workspace folder is open.
-  // This is the common case on Linux/macOS when VS Code is launched without a folder
-  // (e.g. `code` with no arguments). Claude Code writes JSONL files to
-  // ~/.claude/projects/<hash>/ where <hash> is derived from the process cwd, so we
-  // must use the same directory as the terminal's working directory.
+  // Fall back to home directory when no workspace folder is open (common on Linux/macOS
+  // when VS Code is launched without a folder). The provider's getSessionDirs already
+  // implements the Windows case-insensitive fallback for drive-letter casing.
   const workspacePath = cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || os.homedir();
-  const dirName = workspacePath.replace(/[^a-zA-Z0-9-]/g, '-');
-  const projectDir = path.join(os.homedir(), '.claude', 'projects', dirName);
-  console.log(`[Pixel Agents] Project dir: ${workspacePath} → ${dirName}`);
-
-  // Verify the directory exists; if not, try fuzzy matching against existing dirs
-  if (!fs.existsSync(projectDir)) {
-    const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
-    try {
-      if (fs.existsSync(projectsRoot)) {
-        const candidates = fs.readdirSync(projectsRoot);
-        // Try case-insensitive match (handles Windows drive letter casing)
-        const lowerDirName = dirName.toLowerCase();
-        const match = candidates.find((c) => c.toLowerCase() === lowerDirName);
-        if (match && match !== dirName) {
-          const matchedDir = path.join(projectsRoot, match);
-          console.log(
-            `[Pixel Agents] Project dir not found, using case-insensitive match: ${dirName} → ${match}`,
-          );
-          return matchedDir;
-        }
-        if (!match) {
-          console.warn(
-            `[Pixel Agents] Project dir does not exist: ${projectDir}. ` +
-              `Available dirs (${candidates.length}): ${candidates.slice(0, 5).join(', ')}${candidates.length > 5 ? '...' : ''}`,
-          );
-        }
-      }
-    } catch {
-      // Ignore scan errors
-    }
+  const dirs = claudeProvider.getSessionDirs?.(workspacePath) ?? [];
+  if (dirs.length === 0) {
+    throw new Error('claudeProvider.getSessionDirs returned no directories');
   }
+  const projectDir = dirs[0];
+  console.log(`[Pixel Agents] Terminal: Project dir: ${workspacePath} → ${projectDir}`);
   return projectDir;
 }
 
@@ -71,6 +50,7 @@ export async function launchNewTerminal(
   persistAgents: () => void,
   folderPath?: string,
   bypassPermissions?: boolean,
+  suppressShow?: boolean,
 ): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   // Use home directory as fallback cwd when no workspace is open (common on Linux/macOS).
@@ -83,13 +63,20 @@ export async function launchNewTerminal(
     name: `${TERMINAL_NAME_PREFIX} #${idx}`,
     cwd,
   });
-  terminal.show();
+  // When suppressShow is set (auto-spawn + autoShowPanel), keep the panel view
+  // on Pixel Agents instead of switching to Terminal. Claude Code still runs
+  // via sendText below; user can click the character to focus the terminal via
+  // the existing focusAgent message handler.
+  if (!suppressShow) {
+    terminal.show();
+  }
 
   const sessionId = crypto.randomUUID();
-  const claudeCmd = bypassPermissions
-    ? `claude --session-id ${sessionId} --dangerously-skip-permissions`
-    : `claude --session-id ${sessionId}`;
-  terminal.sendText(claudeCmd);
+  const launch = claudeProvider.buildLaunchCommand?.(sessionId, cwd, { bypassPermissions });
+  if (!launch) {
+    throw new Error('claudeProvider.buildLaunchCommand is not implemented');
+  }
+  terminal.sendText([launch.command, ...launch.args].join(' '));
 
   const projectDir = getProjectDirPath(cwd);
 
@@ -123,12 +110,14 @@ export async function launchNewTerminal(
     seenUnknownRecordTypes: new Set(),
     folderName,
     hookDelivered: false,
+    inputTokens: 0,
+    outputTokens: 0,
   };
 
   agents.set(id, agent);
   activeAgentIdRef.current = id;
   persistAgents();
-  console.log(`[Pixel Agents] Agent ${id}: created for terminal ${terminal.name}`);
+  console.log(`[Pixel Agents] Terminal: Agent ${id} - created for terminal ${terminal.name}`);
   webview?.postMessage({ type: 'agentCreated', id, folderName });
 
   ensureProjectScan(
@@ -147,14 +136,15 @@ export async function launchNewTerminal(
   );
 
   // Poll for the specific JSONL file to appear
+  const createdAt = Date.now();
   let pollCount = 0;
-  console.log(`[Pixel Agents] Agent ${id}: waiting for JSONL at ${agent.jsonlFile}`);
+  console.log(`[Pixel Agents] Terminal: Agent ${id} - waiting for JSONL at ${agent.jsonlFile}`);
   const pollTimer = setInterval(() => {
     pollCount++;
     try {
       if (fs.existsSync(agent.jsonlFile)) {
         console.log(
-          `[Pixel Agents] Agent ${id}: found JSONL file ${path.basename(agent.jsonlFile)} (after ${pollCount}s)`,
+          `[Pixel Agents] Terminal: Agent ${id} - found JSONL file ${path.basename(agent.jsonlFile)} (after ${pollCount}s)`,
         );
         clearInterval(pollTimer);
         jsonlPollTimers.delete(id);
@@ -187,9 +177,45 @@ export async function launchNewTerminal(
           dirContents = 'Dir does not exist';
         }
         console.warn(
-          `[Pixel Agents] Agent ${id}: JSONL file not found after 10s. ` +
+          `[Pixel Agents] Terminal: Agent ${id} - JSONL file not found after 10s. ` +
             `Expected: ${agent.jsonlFile}. ${dirContents}`,
         );
+      } else if (pollCount > 10) {
+        // Possible /resume: terminal started a different session than expected.
+        // Check every tick for a file modified after the agent was created.
+        try {
+          const trackedFiles = new Set([...agents.values()].map((a) => path.resolve(a.jsonlFile)));
+          const candidates = fs
+            .readdirSync(projectDir)
+            .filter((f) => f.endsWith('.jsonl'))
+            .map((f) => {
+              const full = path.join(projectDir, f);
+              return { file: full, mtime: fs.statSync(full).mtimeMs };
+            })
+            .filter((c) => !trackedFiles.has(path.resolve(c.file)) && c.mtime > createdAt)
+            .sort((a, b) => b.mtime - a.mtime); // newest first
+
+          if (candidates.length > 0) {
+            console.log(
+              `[Pixel Agents] Terminal: Agent ${id} - /resume detected, reassigning to ${path.basename(candidates[0].file)}`,
+            );
+            clearInterval(pollTimer);
+            jsonlPollTimers.delete(id);
+            reassignAgentToFile(
+              id,
+              candidates[0].file,
+              agents,
+              fileWatchers,
+              pollingTimers,
+              waitingTimers,
+              permissionTimers,
+              webview,
+              persistAgents,
+            );
+          }
+        } catch {
+          /* ignore scan errors */
+        }
       }
     } catch {
       /* file may not exist yet */
@@ -250,6 +276,11 @@ export function persistAgents(
       jsonlFile: agent.jsonlFile,
       projectDir: agent.projectDir,
       folderName: agent.folderName,
+      teamName: agent.teamName,
+      agentName: agent.agentName,
+      isTeamLead: agent.isTeamLead,
+      leadAgentId: agent.leadAgentId,
+      teamUsesTmux: agent.teamUsesTmux,
     });
   }
   context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
@@ -326,14 +357,25 @@ export function restoreAgents(
       seenUnknownRecordTypes: new Set(),
       folderName: p.folderName,
       hookDelivered: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      teamName: p.teamName,
+      agentName: p.agentName,
+      isTeamLead: p.isTeamLead,
+      leadAgentId: p.leadAgentId,
+      teamUsesTmux: p.teamUsesTmux,
     };
 
     agents.set(p.id, agent);
     knownJsonlFiles.add(p.jsonlFile);
     if (isExternal) {
-      console.log(`[Pixel Agents] Restored external agent ${p.id} → ${path.basename(p.jsonlFile)}`);
+      console.log(
+        `[Pixel Agents] Terminal: Agent ${p.id} - restored external → ${path.basename(p.jsonlFile)}`,
+      );
     } else {
-      console.log(`[Pixel Agents] Restored agent ${p.id} → terminal "${p.terminalName}"`);
+      console.log(
+        `[Pixel Agents] Terminal: Agent ${p.id} - restored → terminal "${p.terminalName}"`,
+      );
     }
 
     if (p.id > maxId) maxId = p.id;
@@ -366,7 +408,7 @@ export function restoreAgents(
         const pollTimer = setInterval(() => {
           try {
             if (fs.existsSync(agent.jsonlFile)) {
-              console.log(`[Pixel Agents] Restored agent ${p.id}: found JSONL file`);
+              console.log(`[Pixel Agents] Terminal: Agent ${p.id} - found JSONL file`);
               clearInterval(pollTimer);
               jsonlPollTimers.delete(p.id);
               const stat = fs.statSync(agent.jsonlFile);
@@ -404,7 +446,9 @@ export function restoreAgents(
       for (const id of restoredTerminalIds) {
         const agent = agents.get(id);
         if (agent && !agent.isExternal && agent.linesProcessed === 0) {
-          console.log(`[Pixel Agents] Removing restored terminal agent ${id}: no data received`);
+          console.log(
+            `[Pixel Agents] Terminal: Agent ${id} - removing restored agent, no data received`,
+          );
           agent.terminalRef?.dispose();
           removeAgent(
             id,
@@ -518,6 +562,27 @@ export function sendCurrentAgentStatuses(
         type: 'agentStatus',
         id: agentId,
         status: 'waiting',
+      });
+    }
+    // Re-send team metadata
+    if (agent.teamName) {
+      webview.postMessage({
+        type: 'agentTeamInfo',
+        id: agentId,
+        teamName: agent.teamName,
+        agentName: agent.agentName,
+        isTeamLead: agent.isTeamLead,
+        leadAgentId: agent.leadAgentId,
+        teamUsesTmux: agent.teamUsesTmux,
+      });
+    }
+    // Re-send token usage
+    if (agent.inputTokens > 0 || agent.outputTokens > 0) {
+      webview.postMessage({
+        type: 'agentTokenUsage',
+        id: agentId,
+        inputTokens: agent.inputTokens,
+        outputTokens: agent.outputTokens,
       });
     }
   }

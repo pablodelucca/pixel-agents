@@ -59,7 +59,7 @@ function buildWallMask(col: number, row: number, tileMap: TileTypeVal[][]): numb
  * Get the wall sprite for a tile based on its cardinal neighbors.
  * Returns the sprite + Y offset, or null to fall back to solid WALL_COLOR.
  */
-export function getWallSprite(
+function getWallSprite(
   col: number,
   row: number,
   tileMap: TileTypeVal[][],
@@ -81,7 +81,7 @@ export function getWallSprite(
  * Uses Colorize mode (grayscale → HSL) like floor tiles.
  * Returns the colorized sprite + Y offset, or null if no wall sprites loaded.
  */
-export function getColorizedWallSprite(
+function getColorizedWallSprite(
   col: number,
   row: number,
   tileMap: TileTypeVal[][],

@@ -31,7 +31,7 @@ export function setFloorSprites(sprites: SpriteData[]): void {
 
 /** Get the raw (grayscale) floor sprite for a pattern index (1-7 -> array index 0-6).
  *  Falls back to the default solid gray tile when floors.png is not loaded. */
-export function getFloorSprite(patternIndex: number): SpriteData | null {
+function getFloorSprite(patternIndex: number): SpriteData | null {
   const idx = patternIndex - 1;
   if (idx < 0) return null;
   if (idx < floorSprites.length) return floorSprites[idx];
@@ -50,10 +50,10 @@ export function getFloorPatternCount(): number {
   return floorSprites.length > 0 ? floorSprites.length : 1;
 }
 
-/** Get all floor sprites (for preview rendering, falls back to default solid tile) */
-export function getAllFloorSprites(): SpriteData[] {
-  return floorSprites.length > 0 ? floorSprites : [DEFAULT_FLOOR_SPRITE];
-}
+/** Get all floor sprites (for preview rendering, falls back to default solid tile) - unused */
+// function getAllFloorSprites(): SpriteData[] {
+//   return floorSprites.length > 0 ? floorSprites : [DEFAULT_FLOOR_SPRITE];
+// }
 
 /**
  * Get a colorized version of a floor sprite.

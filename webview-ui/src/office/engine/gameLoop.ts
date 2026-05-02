@@ -1,5 +1,6 @@
 import { MAX_DELTA_TIME_SEC } from '../../constants.js';
 
+/** @internal */
 export interface GameLoopCallbacks {
   update: (dt: number) => void;
   render: (ctx: CanvasRenderingContext2D) => void;

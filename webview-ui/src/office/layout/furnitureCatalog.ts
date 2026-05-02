@@ -34,6 +34,7 @@ export type FurnitureCategory =
   | 'wall'
   | 'misc';
 
+/** @internal */
 export interface CatalogEntryWithCategory extends FurnitureCatalogEntry {
   category: FurnitureCategory;
 }
@@ -326,15 +327,17 @@ export function getCatalogByCategory(category: FurnitureCategory): CatalogEntryW
   return catalog.filter((e) => e.category === category);
 }
 
-export function getActiveCatalog(): CatalogEntryWithCategory[] {
-  return dynamicCatalog ?? [];
-}
+/* Currently unused since the editor palette is organized by category. */
+// function getActiveCatalog(): CatalogEntryWithCategory[] {
+//   return dynamicCatalog ?? [];
+// }
 
 export function getActiveCategories(): Array<{ id: FurnitureCategory; label: string }> {
   const categories = dynamicCategories ?? [];
   return FURNITURE_CATEGORIES.filter((c) => categories.includes(c.id));
 }
 
+/** @internal */
 export const FURNITURE_CATEGORIES: Array<{ id: FurnitureCategory; label: string }> = [
   { id: 'desks', label: 'Desks' },
   { id: 'chairs', label: 'Chairs' },
@@ -369,10 +372,10 @@ export function getOnStateType(currentType: string): string {
   return offToOn.get(currentType) ?? currentType;
 }
 
-/** Returns the "off" variant if this type has one, otherwise returns the type unchanged. */
-export function getOffStateType(currentType: string): string {
-  return onToOff.get(currentType) ?? currentType;
-}
+/** Returns the "off" variant if this type has one, otherwise returns the type unchanged - unused */
+// function getOffStateType(currentType: string): string {
+//   return onToOff.get(currentType) ?? currentType;
+// }
 
 /** Returns true if the given furniture type is part of a rotation group. */
 export function isRotatable(type: string): boolean {

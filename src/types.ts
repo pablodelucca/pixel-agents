@@ -30,6 +30,34 @@ export interface AgentState {
   seenUnknownRecordTypes: Set<string>;
   /** Whether a hook event has been delivered for this agent (suppresses heuristic timers) */
   hookDelivered: boolean;
+  /** True when agent has no transcript file (provider doesn't use JSONL). All state from hooks. */
+  hooksOnly?: boolean;
+  /** Provider that created this agent (defaults to 'claude') */
+  providerId?: string;
+  /** Set when SessionEnd(reason=clear) fires; cleared when SessionStart(source=clear) reassigns */
+  pendingClear?: boolean;
+  /** Hook-generated tool ID for PreToolUse/PostToolUse correlation */
+  currentHookToolId?: string;
+  /** Tool name from the most recent PreToolUse, used to correlate a later SubagentStart
+   *  event with the parent tool that launched it. */
+  currentHookToolName?: string;
+  /** True if the CURRENT PreToolUse tool call is a teammate spawn (per the provider's
+   *  `team.isTeammateSpawnCall`). Authoritative source for teammate vs basic-subagent
+   *  routing in SubagentStart. Set in PreToolUse, NOT cleared in PostToolUse (survives
+   *  the PostToolUse-before-SubagentStart race); overwritten on the next PreToolUse. */
+  currentHookIsTeammateSpawn?: boolean;
+
+  // -- Token tracking --
+  inputTokens: number;
+  outputTokens: number;
+
+  // -- Agent Teams --
+  teamName?: string;
+  agentName?: string;
+  isTeamLead?: boolean;
+  leadAgentId?: number;
+  /** True when lead spawns teammates via tmux (run_in_background Agent calls) */
+  teamUsesTmux?: boolean;
 }
 
 export interface PersistedAgent {
@@ -43,4 +71,11 @@ export interface PersistedAgent {
   projectDir: string;
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+
+  // -- Agent Teams --
+  teamName?: string;
+  agentName?: string;
+  isTeamLead?: boolean;
+  leadAgentId?: number;
+  teamUsesTmux?: boolean;
 }

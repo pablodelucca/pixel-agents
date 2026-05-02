@@ -2,7 +2,7 @@
   "name": "pixel-agents",
   "displayName": "Pixel Agents",
   "description": "Pixel art office where your Claude Code agents come to life as animated characters",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "publisher": "pablodelucca",
   "repository": {
     "type": "git",
@@ -16,7 +16,9 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -46,6 +48,21 @@
           "name": "Pixel Agents"
         }
       ]
+    },
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixel-agents.autoShowPanel": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically open and focus the Pixel Agents panel when VS Code starts."
+        },
+        "pixel-agents.autoSpawnAgent": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically spawn a Claude Code agent when VS Code starts, if no agents are currently running."
+        }
+      }
     }
   },
   "scripts": {
@@ -59,11 +76,11 @@
     "package": "npm run check-types && npm run lint && node esbuild.js --production && npm run build:webview",
     "check-types": "tsc --noEmit && tsc --noEmit -p server/tsconfig.test.json",
     "prepare": "husky",
-    "lint": "eslint src server && cd webview-ui && eslint .",
-    "lint:fix": "eslint src server --fix && cd webview-ui && eslint . --fix",
+    "lint": "eslint src server core && cd webview-ui && eslint .",
+    "lint:fix": "eslint src server core --fix && cd webview-ui && eslint . --fix",
     "import-tileset": "tsx scripts/import-tileset-cli.ts",
-    "format": "prettier --write \"src/**/*.ts\" \"server/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"server/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
+    "format": "prettier --write \"src/**/*.ts\" \"server/**/*.ts\" \"core/src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"server/**/*.ts\" \"core/src/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
     "test:webview": "cd webview-ui && npm test",
     "test:server": "cd server && npm test",
     "test": "npm run test:webview && npm run test:server",
@@ -80,7 +97,7 @@
     "esbuild": "^0.28.0",
     "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "eslint-plugin-simple-import-sort": "^13.0.0",
     "husky": "^9.1.7",
     "knip": "^6.3.0",
     "lint-staged": "^16.3.2",
@@ -94,6 +111,7 @@
   "lint-staged": {
     "src/**/*.ts": "eslint --fix",
     "server/**/*.ts": "eslint --fix",
+    "core/src/**/*.ts": "eslint --fix",
     "webview-ui/src/**/*.{ts,tsx}": "eslint --fix",
     "*.{ts,tsx,js,mjs,css,json,md}": "prettier --write",
     "webview-ui/**/*.{ts,tsx,js,css,json}": "prettier --write"

@@ -9,23 +9,27 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { CHAR_COUNT, CHAR_FRAMES_PER_ROW, WALL_BITMASK_COUNT } from '../shared/assets/constants.js';
+import {
+  CHAR_COUNT,
+  CHAR_FRAMES_PER_ROW,
+  WALL_BITMASK_COUNT,
+} from '../core/src/assets/constants.js';
 import type {
   FurnitureAsset,
   FurnitureManifest,
   InheritedProps,
   ManifestGroup,
-} from '../shared/assets/manifestUtils.js';
-import { flattenManifest } from '../shared/assets/manifestUtils.js';
+} from '../core/src/assets/manifestUtils.js';
+import { flattenManifest } from '../core/src/assets/manifestUtils.js';
 import {
   decodeCharacterPng,
   decodeFloorPng,
   parseCarpetPng,
   parseWallPng,
   pngToSpriteData,
-} from '../shared/assets/pngDecoder.js';
-import type { CharacterDirectionSprites } from '../shared/assets/types.js';
-export type { CharacterDirectionSprites } from '../shared/assets/types.js';
+} from '../core/src/assets/pngDecoder.js';
+import type { CharacterDirectionSprites } from '../core/src/assets/types.js';
+export type { CharacterDirectionSprites } from '../core/src/assets/types.js';
 
 import { LAYOUT_REVISION_KEY } from './constants.js';
 
@@ -242,7 +246,7 @@ export function loadDefaultLayout(assetsRoot: string): Record<string, unknown> |
 
 // ── Wall tile loading ────────────────────────────────────────
 
-export interface LoadedWallTiles {
+interface LoadedWallTiles {
   /** Array of wall sets, each containing 16 sprites indexed by bitmask (N=1,E=2,S=4,W=8) */
   sets: string[][][][];
 }
@@ -310,7 +314,7 @@ export function sendWallTilesToWebview(webview: vscode.Webview, wallTiles: Loade
   console.log(`📤 Sent ${wallTiles.sets.length} wall tile set(s) to webview`);
 }
 
-export interface LoadedFloorTiles {
+interface LoadedFloorTiles {
   sprites: string[][][]; // N sprites (one per floor_N.png), each 16x16 SpriteData
 }
 

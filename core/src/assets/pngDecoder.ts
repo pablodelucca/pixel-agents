@@ -7,6 +7,7 @@
 
 import { PNG } from 'pngjs';
 
+import { rgbaToHex } from './colorUtils.js';
 import {
   CARPET_GRID_COLS,
   CARPET_MARCHING_SQUARES_COUNT,
@@ -16,24 +17,12 @@ import {
   CHAR_FRAMES_PER_ROW,
   CHARACTER_DIRECTIONS,
   FLOOR_TILE_SIZE,
-  PNG_ALPHA_THRESHOLD,
   WALL_BITMASK_COUNT,
   WALL_GRID_COLS,
   WALL_PIECE_HEIGHT,
   WALL_PIECE_WIDTH,
 } from './constants.js';
 import type { CharacterDirectionSprites } from './types.js';
-export type { CharacterDirectionSprites } from './types.js';
-
-// ── Pixel conversion ─────────────────────────────────────────
-
-export function rgbaToHex(r: number, g: number, b: number, a: number): string {
-  if (a < PNG_ALPHA_THRESHOLD) return '';
-  const rgb =
-    `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
-  if (a >= 255) return rgb;
-  return `${rgb}${a.toString(16).padStart(2, '0').toUpperCase()}`;
-}
 
 // ── Sprite decoding ──────────────────────────────────────────
 

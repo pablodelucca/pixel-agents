@@ -1,8 +1,31 @@
+/**
+ * Session Detection: Dual-Mode Architecture
+ *
+ * HOOKS MODE (preferred): Claude Code Hooks API delivers instant, reliable events
+ * for session lifecycle (SessionStart, SessionEnd, Stop, PermissionRequest, etc.).
+ * When hooks work, heuristic scanners and timers are suppressed. The hookDelivered
+ * flag per agent and hooksEnabledRef globally control the switch.
+ *
+ * HEURISTIC MODE (fallback): For environments without hooks (other providers,
+ * hooks disabled, older Claude versions). Uses:
+ * - Per-agent 500ms JSONL polling for tool activity and /clear detection
+ * - 1s main scanner for terminal adoption
+ * - 3s external scanner for external session detection
+ * - 30s stale check for orphaned external agents
+ * - Multiple dismissal systems to prevent re-adoption races
+ *
+ * JSONL POLLING (always active): readNewLines + processTranscriptLine run in both
+ * modes. They provide tool content (status text, animations) that hooks don't carry.
+ * Only their timer logic (permission 7s, text-idle 5s) is suppressed by hookDelivered.
+ */
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
+
+import type { HookProvider } from '../core/src/provider.js';
+import type { TeamProvider } from '../core/src/teamProvider.js';
 import {
   CLEAR_IDLE_THRESHOLD_MS,
   DISMISSED_COOLDOWN_MS,
@@ -27,7 +50,7 @@ export const dismissedJsonlFiles = new Map<string, number>(); // path → dismis
 const clearDismissedFiles = new Set<string>();
 
 /** Mtime at seeding time. If mtime changes later, file was resumed (--resume). */
-const seededMtimes = new Map<string, number>();
+export const seededMtimes = new Map<string, number>();
 
 /** /clear files waiting for second tick (gives per-agent check time to claim first). */
 const pendingClearFiles = new Map<string, number>();
@@ -70,11 +93,10 @@ export function startFileWatching(
     const prevOffset = agent.fileOffset;
     readNewLines(agentId, agents, waitingTimers, permissionTimers, webview);
 
-    // Per-agent /clear detection: when this INTERNAL agent's file is idle AND
-    // terminal focused AND no external agents exist. The !hasExternalAgents guard
-    // prevents stealing external /clear files. Trade-off: internal /clear in mixed
-    // mode creates a clone (external scanner adopts via two-tick).
+    // HEURISTIC FALLBACK: Per-agent /clear detection (skipped when hooks handle sessions).
+    // When hooks are active, SessionEnd+SessionStart handle /clear reliably.
     if (
+      !agent.hookDelivered &&
       clearDetectionDeps &&
       agent.fileOffset === prevOffset &&
       agent.terminalRef &&
@@ -121,7 +143,7 @@ export function startFileWatching(
           // Found a /clear file (has last-prompt) → claim it
           deps.knownJsonlFiles.add(file);
           console.log(
-            `[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${agentId} (/clear)`,
+            `[Pixel Agents] Watcher: Agent ${agentId} - /clear detected, reassigning to ${path.basename(file)}`,
           );
           reassignAgentToFile(
             agentId,
@@ -179,7 +201,7 @@ export function readNewLines(
       // (processed in transcriptParser) should clear it.
       cancelWaitingTimer(agentId, waitingTimers);
       cancelPermissionTimer(agentId, permissionTimers);
-      if (agent.permissionSent && !agent.hookDelivered) {
+      if (agent.permissionSent && !agent.hookDelivered && !agent.leadAgentId) {
         agent.permissionSent = false;
         webview?.postMessage({ type: 'agentToolPermissionClear', id: agentId });
       }
@@ -190,7 +212,9 @@ export function readNewLines(
       processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
     }
   } catch (e) {
-    console.log(`[Pixel Agents] Read error for agent ${agentId}: ${e}`);
+    // ENOENT is expected for hook-detected agents where the JSONL file hasn't been created yet
+    if (e instanceof Error && 'code' in e && (e as NodeJS.ErrnoException).code === 'ENOENT') return;
+    console.log(`[Pixel Agents] Watcher: Agent ${agentId} - read error: ${e}`);
   }
 }
 
@@ -199,7 +223,13 @@ const trackedProjectDirs = new Set<string>();
 
 /** Check if a project dir is tracked by the workspace scanner. */
 export function isTrackedProjectDir(dir: string): boolean {
-  return trackedProjectDirs.has(dir);
+  if (trackedProjectDirs.has(dir)) return true;
+  // Case-insensitive fallback for Windows (drive letter casing: c:\ vs C:\)
+  const resolved = path.resolve(dir).toLowerCase();
+  for (const tracked of trackedProjectDirs) {
+    if (path.resolve(tracked).toLowerCase() === resolved) return true;
+  }
+  return false;
 }
 
 /**
@@ -221,6 +251,7 @@ export function ensureProjectScan(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
   _onAgentCreated?: (agent: AgentState) => void,
+  hooksEnabledRef?: { current: boolean },
 ): void {
   // Set deps for per-agent /clear detection (only on first call)
   if (!clearDetectionDeps) {
@@ -264,6 +295,30 @@ export function ensureProjectScan(
   // Start the shared timer only once
   if (projectScanTimerRef.current) return;
   projectScanTimerRef.current = setInterval(() => {
+    // Teammate scanning runs in BOTH modes (hooks + heuristic).
+    // In hooks mode, SubagentStart triggers immediate scanning, but the periodic
+    // fallback catches teammates that hooks missed (e.g. hook arrived before JSONL).
+    scanAllTeammateFiles(
+      nextAgentIdRef,
+      agents,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
+      webview,
+      persistAgents,
+    );
+
+    // Check team config files to detect dismissed teammates (authoritative source
+    // of truth for team membership). Removes teammates no longer in members list.
+    const toRemove = scanTeamConfigsForRemovals(agents);
+    for (const id of toRemove) {
+      teammateRemovalCallback?.(id);
+    }
+
+    // When hooks are active, SessionStart handles new file detection.
+    if (hooksEnabledRef?.current) return;
+
     for (const dir of trackedProjectDirs) {
       scanForNewJsonlFiles(
         dir,
@@ -315,9 +370,9 @@ function scanForNewJsonlFiles(
     // Non-adopted files stay OUT of knownJsonlFiles so the per-agent /clear
     // check can find them when the idle check passes (up to 5s later).
 
-    // Try to adopt the focused terminal (for manually-opened Claude terminals)
+    // Try to adopt the focused terminal (only if it's a Claude-named terminal)
     const activeTerminal = vscode.window.activeTerminal;
-    if (activeTerminal) {
+    if (activeTerminal && activeTerminal.name.startsWith(TERMINAL_NAME_PREFIX)) {
       let owned = false;
       for (const agent of agents.values()) {
         if (agent.terminalRef === activeTerminal) {
@@ -382,7 +437,7 @@ function scanForNewJsonlFiles(
   for (const [id, agent] of agents) {
     if (agent.isExternal) continue;
     if (agent.terminalRef && agent.terminalRef.exitStatus !== undefined) {
-      console.log(`[Pixel Agents] Agent ${id}: terminal closed, cleaning up orphan`);
+      console.log(`[Pixel Agents] Watcher: Agent ${id} - terminal closed, cleaning up orphan`);
       // Stop file watching
       fileWatchers.get(id)?.close();
       fileWatchers.delete(id);
@@ -417,6 +472,14 @@ function adoptTerminalForFile(
 ): void {
   const id = nextAgentIdRef.current++;
   const sessionId = path.basename(jsonlFile, '.jsonl');
+  // Skip to end of file -- adopted terminals show live activity only, not replay history
+  let fileOffset = 0;
+  try {
+    const stat = fs.statSync(jsonlFile);
+    fileOffset = stat.size;
+  } catch {
+    /* start from beginning if stat fails */
+  }
   const agent: AgentState = {
     id,
     sessionId,
@@ -424,7 +487,7 @@ function adoptTerminalForFile(
     isExternal: false,
     projectDir,
     jsonlFile,
-    fileOffset: 0,
+    fileOffset,
     lineBuffer: '',
     activeToolIds: new Set(),
     activeToolStatuses: new Map(),
@@ -439,6 +502,8 @@ function adoptTerminalForFile(
     linesProcessed: 0,
     seenUnknownRecordTypes: new Set(),
     hookDelivered: false,
+    inputTokens: 0,
+    outputTokens: 0,
   };
 
   agents.set(id, agent);
@@ -447,7 +512,7 @@ function adoptTerminalForFile(
   onAgentCreated?.(agent);
 
   console.log(
-    `[Pixel Agents] Agent ${id}: adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`,
+    `[Pixel Agents] Watcher: Agent ${id} - adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`,
   );
   webview?.postMessage({ type: 'agentCreated', id });
 
@@ -464,7 +529,374 @@ function adoptTerminalForFile(
   readNewLines(id, agents, waitingTimers, permissionTimers, webview);
 }
 
+// ── Lead + Teammates support (provider-driven) ──
+
+/** Known teammate JSONL files (prevents re-adoption). */
+const knownTeammateFiles = new Set<string>();
+
+/** Callback to remove a teammate agent when detected as dismissed via team config. */
+let teammateRemovalCallback: ((teammateAgentId: number) => void) | null = null;
+
+/** Team provider: supplies all CLI-specific paths, parsers, and tool names.
+ *  Set once at startup via setTeamProvider(). Module functions assume it's set
+ *  by the time they're called. */
+let teamProvider: TeamProvider | null = null;
+
+/** Hook provider: supplies non-team capabilities fileWatcher needs (all-session
+ *  roots for global discovery, launch command, etc.). Set once at startup. */
+let hookProvider: HookProvider | null = null;
+
+/** Register the callback used to remove teammates detected as dismissed via team config polling. */
+export function setTeammateRemovalCallback(cb: (teammateAgentId: number) => void): void {
+  teammateRemovalCallback = cb;
+}
+
+/** Register the TeamProvider that describes the active CLI's Lead+Teammates pattern. */
+export function setTeamProvider(provider: TeamProvider): void {
+  teamProvider = provider;
+}
+
+/** Register the active HookProvider for non-team capabilities (session roots, etc.). */
+export function setHookProvider(provider: HookProvider): void {
+  hookProvider = provider;
+}
+
+/**
+ * Scan the provider's teammate transcripts for a given lead session.
+ * Each teammate gets its own independent agent (positive ID) with file watching.
+ *
+ * Called from two paths:
+ * 1. Hooks-triggered (immediate): onTeammateDetected callback from SubagentStart
+ * 2. Periodic fallback: ensureProjectScan timer (heuristic mode)
+ */
+export function scanForTeammateFiles(
+  projectDir: string,
+  sessionId: string,
+  parentAgentId: number,
+  nextAgentIdRef: { current: number },
+  agents: Map<number, AgentState>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+  onAgentCreated?: (agent: AgentState) => void,
+): void {
+  if (!teamProvider) return;
+  const teammates = teamProvider.discoverTeammates(projectDir, sessionId);
+
+  const parentAgent = agents.get(parentAgentId);
+
+  for (const { jsonlPath: file, teammateName } of teammates) {
+    if (knownTeammateFiles.has(file)) continue;
+
+    // Also check if any existing agent already tracks this file
+    let alreadyTracked = false;
+    for (const a of agents.values()) {
+      if (a.jsonlFile === file) {
+        alreadyTracked = true;
+        break;
+      }
+    }
+    if (alreadyTracked) continue;
+
+    knownTeammateFiles.add(file);
+
+    // Deduplicate by teammate name per parent: if we already have a live agent
+    // with the same name for this parent, reassign it to the new JSONL file
+    // (Claude may restart a teammate, creating a new .jsonl for the same role).
+    let existingTeammate: AgentState | undefined;
+    for (const a of agents.values()) {
+      if (a.leadAgentId === parentAgentId && a.agentName === teammateName) {
+        existingTeammate = a;
+        break;
+      }
+    }
+    if (existingTeammate) {
+      if (debug)
+        console.log(
+          `[Pixel Agents] Teammate "${teammateName}" already exists (Agent ${existingTeammate.id}), reassigning to ${path.basename(file)}`,
+        );
+      // Reassign to new JSONL file -- stop old polling, start new
+      const oldTimer = pollingTimers.get(existingTeammate.id);
+      if (oldTimer) clearInterval(oldTimer);
+      pollingTimers.delete(existingTeammate.id);
+      existingTeammate.jsonlFile = file;
+      existingTeammate.fileOffset = 0;
+      existingTeammate.lineBuffer = '';
+      existingTeammate.lastDataAt = Date.now();
+      existingTeammate.linesProcessed = 0;
+      existingTeammate.isWaiting = false;
+      startFileWatching(
+        existingTeammate.id,
+        file,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+      );
+      readNewLines(existingTeammate.id, agents, waitingTimers, permissionTimers, webview);
+      continue;
+    }
+
+    const id = nextAgentIdRef.current++;
+    // Read from start -- teammate JSONL is usually small and we want full tool history
+    const agent: AgentState = {
+      id,
+      sessionId,
+      terminalRef: undefined,
+      isExternal: true,
+      projectDir,
+      jsonlFile: file,
+      fileOffset: 0,
+      lineBuffer: '',
+      activeToolIds: new Set(),
+      activeToolStatuses: new Map(),
+      activeToolNames: new Map(),
+      activeSubagentToolIds: new Map(),
+      activeSubagentToolNames: new Map(),
+      backgroundAgentToolIds: new Set(),
+      isWaiting: false,
+      permissionSent: false,
+      hadToolsInTurn: false,
+      // Keep hookDelivered false: teammates need JSONL-based tool tracking
+      // (agentToolStart messages). Permission events are routed from the lead's
+      // hooks via handlePermissionRequest forwarding.
+      hookDelivered: false,
+      lastDataAt: Date.now(),
+      linesProcessed: 0,
+      seenUnknownRecordTypes: new Set(),
+      inputTokens: 0,
+      outputTokens: 0,
+      // Agent Teams fields
+      agentName: teammateName,
+      leadAgentId: parentAgentId,
+      teamName: parentAgent?.teamName,
+    };
+
+    agents.set(id, agent);
+    persistAgents();
+
+    console.log(
+      `[Pixel Agents] Teammate detected: "${teammateName}" (Agent ${id}) for parent Agent ${parentAgentId} (${path.basename(file)})`,
+    );
+
+    webview?.postMessage({
+      type: 'agentCreated',
+      id,
+      isTeammate: true,
+      teammateName,
+      parentAgentId,
+      teamName: parentAgent?.teamName,
+    });
+
+    onAgentCreated?.(agent);
+
+    startFileWatching(
+      id,
+      file,
+      agents,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
+      webview,
+    );
+    readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+  }
+}
+
+/**
+ * Scan team config files (via the active TeamProvider) to detect teammate
+ * dismissals. A teammate is considered dismissed if:
+ *   - The team config no longer lists them in members, OR
+ *   - The team config file is missing/unreadable (team dissolved)
+ *
+ * This is the authoritative source of truth for Agent Teams membership.
+ * Returns the IDs of teammates that should be removed.
+ */
+export function scanTeamConfigsForRemovals(agents: Map<number, AgentState>): number[] {
+  const toRemove: number[] = [];
+  if (!teamProvider) return toRemove;
+  // Group teammates by their teamName for efficient config lookups
+  const teammatesByTeam = new Map<string, Array<{ id: number; agent: AgentState }>>();
+  for (const [id, agent] of agents) {
+    if (agent.leadAgentId === undefined || agent.teamUsesTmux || !agent.teamName) continue;
+    let list = teammatesByTeam.get(agent.teamName);
+    if (!list) {
+      list = [];
+      teammatesByTeam.set(agent.teamName, list);
+    }
+    list.push({ id, agent });
+  }
+
+  for (const [teamName, members] of teammatesByTeam) {
+    // Provider owns both the read and parse -- returns null on any failure (team dissolved)
+    const memberNames = teamProvider.getTeamMembers(teamName);
+
+    for (const { id, agent } of members) {
+      if (memberNames === null) {
+        toRemove.push(id);
+      } else if (agent.agentName && !memberNames.has(agent.agentName)) {
+        toRemove.push(id);
+      }
+    }
+  }
+
+  return toRemove;
+}
+
+/**
+ * Scan all tracked project dirs for teammate JSONL files.
+ * Called periodically as a fallback when hooks are disabled.
+ */
+export function scanAllTeammateFiles(
+  nextAgentIdRef: { current: number },
+  agents: Map<number, AgentState>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+  onAgentCreated?: (agent: AgentState) => void,
+): void {
+  // For each known lead agent, ask the provider to scan for teammate transcripts.
+  // CRITICAL: only scan agents that JSONL has confirmed as team leads (teamName set).
+  // Without this gate we'd pick up basic subagents' JSONL files (which some CLIs also
+  // write to the same teammate directory) and create spurious teammate characters for
+  // them when the Agent Teams feature is OFF.
+  for (const [agentId, agent] of agents) {
+    // Only scan for lead agents (not teammates themselves)
+    if (agent.leadAgentId !== undefined) continue;
+    if (!agent.sessionId || !agent.projectDir) continue;
+    // Gate: basic-mode agents never get teamName set. Real team leads do, via JSONL.
+    if (!agent.teamName) continue;
+
+    scanForTeammateFiles(
+      agent.projectDir,
+      agent.sessionId,
+      agentId,
+      nextAgentIdRef,
+      agents,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
+      webview,
+      persistAgents,
+      onAgentCreated,
+    );
+  }
+}
+
 // ── External session support (VS Code extension panel, etc.) ──
+
+/**
+ * Adopt an external session detected via hooks (SessionStart for unknown session_id).
+ * Thinner wrapper than filesystem-based adoptExternalSession: hooks provide
+ * transcript_path and cwd directly, no scanning needed.
+ */
+export function adoptExternalSessionFromHook(
+  sessionId: string,
+  transcriptPath: string | undefined,
+  cwd: string,
+  knownJsonlFiles: Set<string>,
+  nextAgentIdRef: { current: number },
+  agents: Map<number, AgentState>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+  onAgentCreated?: (agent: AgentState) => void,
+): void {
+  if (transcriptPath) {
+    // File-based provider (Claude, Codex): adopt with JSONL file watching
+    // Guard: don't adopt if file is already tracked by an agent
+    for (const agent of agents.values()) {
+      if (agent.jsonlFile === transcriptPath) return;
+    }
+    // Don't check knownJsonlFiles here -- hooks confirmed this is a real session,
+    // and seeded files at startup are in knownJsonlFiles but may become active later.
+    if (dismissedJsonlFiles.has(transcriptPath)) return;
+    if (clearDismissedFiles.has(transcriptPath)) return;
+
+    knownJsonlFiles.add(transcriptPath);
+    const projectDir = path.dirname(transcriptPath);
+    const folderName = folderNameFromProjectDir(path.basename(projectDir));
+
+    adoptExternalSession(
+      transcriptPath,
+      projectDir,
+      nextAgentIdRef,
+      agents,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
+      webview,
+      persistAgents,
+      folderName,
+    );
+
+    const adoptedAgent = [...agents.values()].find((a) => a.jsonlFile === transcriptPath);
+    if (adoptedAgent && debug) {
+      console.log(
+        `[Pixel Agents] Hook: Agent ${adoptedAgent.id} - detected external session ${path.basename(transcriptPath)}${adoptedAgent.folderName ? ` (${adoptedAgent.folderName})` : ''}`,
+      );
+    }
+    if (adoptedAgent) {
+      adoptedAgent.sessionId = sessionId;
+      adoptedAgent.hookDelivered = true;
+      onAgentCreated?.(adoptedAgent);
+    }
+  } else {
+    // Hooks-only provider (OpenCode, Copilot): no transcript file, all state from hooks
+    const id = nextAgentIdRef.current++;
+    const folderName = cwd ? path.basename(cwd) : undefined;
+    const agent: AgentState = {
+      id,
+      sessionId,
+      terminalRef: undefined,
+      isExternal: true,
+      projectDir: cwd,
+      jsonlFile: '',
+      fileOffset: 0,
+      lineBuffer: '',
+      activeToolIds: new Set(),
+      activeToolStatuses: new Map(),
+      activeToolNames: new Map(),
+      activeSubagentToolIds: new Map(),
+      activeSubagentToolNames: new Map(),
+      backgroundAgentToolIds: new Set(),
+      isWaiting: false,
+      permissionSent: false,
+      hadToolsInTurn: false,
+      hookDelivered: true,
+      hooksOnly: true,
+      lastDataAt: Date.now(),
+      linesProcessed: 0,
+      seenUnknownRecordTypes: new Set(),
+      folderName,
+      inputTokens: 0,
+      outputTokens: 0,
+    };
+    agents.set(id, agent);
+    persistAgents();
+    if (debug) {
+      console.log(
+        `[Pixel Agents] Hook: Agent ${id} - detected hooks-only external session${folderName ? ` (${folderName})` : ''}`,
+      );
+    }
+    webview?.postMessage({ type: 'agentCreated', id, folderName });
+    onAgentCreated?.(agent);
+  }
+}
 
 function adoptExternalSession(
   jsonlFile: string,
@@ -511,14 +943,15 @@ function adoptExternalSession(
     linesProcessed: 0,
     seenUnknownRecordTypes: new Set(),
     folderName,
+    inputTokens: 0,
+    outputTokens: 0,
   };
 
   agents.set(id, agent);
   persistAgents();
 
-  console.log(
-    `[Pixel Agents] Agent ${id}: detected external session ${path.basename(jsonlFile)}${folderName ? ` (${folderName})` : ''}`,
-  );
+  // Log is emitted by the caller (adoptExternalSessionFromHook or scanExternalDir)
+  // to use the correct prefix (Hook: vs Watcher:).
   webview?.postMessage({ type: 'agentCreated', id, isExternal: true, folderName });
 
   startFileWatching(
@@ -551,22 +984,28 @@ export function startExternalSessionScanning(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
   watchAllSessionsRef?: { current: boolean },
+  hooksEnabledRef?: { current: boolean },
 ): ReturnType<typeof setInterval> {
   return setInterval(() => {
-    // Scan all tracked project dirs (multi-root workspace support)
-    for (const dir of trackedProjectDirs) {
-      scanExternalDir(
-        dir,
-        knownJsonlFiles,
-        nextAgentIdRef,
-        agents,
-        fileWatchers,
-        pollingTimers,
-        waitingTimers,
-        permissionTimers,
-        webview,
-        persistAgents,
-      );
+    // When hooks are active, SessionStart handles workspace session detection.
+    // Only skip workspace scanning; global scanning (Watch All) still needed
+    // because hooks can't detect already-running sessions from other projects.
+    if (!hooksEnabledRef?.current) {
+      // Scan all tracked project dirs (heuristic fallback)
+      for (const dir of trackedProjectDirs) {
+        scanExternalDir(
+          dir,
+          knownJsonlFiles,
+          nextAgentIdRef,
+          agents,
+          fileWatchers,
+          pollingTimers,
+          waitingTimers,
+          permissionTimers,
+          webview,
+          persistAgents,
+        );
+      }
     }
     // If "Watch All Sessions" is ON, also scan all global project dirs
     if (watchAllSessionsRef?.current) {
@@ -610,6 +1049,21 @@ function scanExternalDir(
 
   const now = Date.now();
 
+  // If an internal agent in this projectDir is still waiting for its JSONL file
+  // (file doesn't exist), skip all adoptions. The agent may have done /resume,
+  // and agentManager will detect and reassign it. Prevents the scanner from
+  // stealing the file as a new external agent.
+  const hasOrphanedInternal = [...agents.values()].some((a) => {
+    if (a.isExternal || a.projectDir !== projectDir) return false;
+    try {
+      fs.statSync(a.jsonlFile);
+      return false;
+    } catch {
+      return true;
+    }
+  });
+  if (hasOrphanedInternal) return;
+
   for (const file of files) {
     // --resume detection: seeded files whose mtime changed have new data.
     // Adopt directly, bypassing content check (old /clear files have
@@ -617,37 +1071,19 @@ function scanExternalDir(
     // File stays in knownJsonlFiles (safe from per-agent /clear stealing).
     const seededMtime = seededMtimes.get(file);
     if (seededMtime !== undefined) {
+      // Seeded files are pre-existing at extension startup. If mtime changed,
+      // it could be --resume or internal agent activity. Don't adopt or reassign
+      // here (too ambiguous, causes cascading stealing). Just remove from tracking
+      // so the file can be handled through normal adoption if appropriate.
       try {
         const stat = fs.statSync(file);
-        if (stat.mtimeMs <= seededMtime) continue; // No new writes, skip
-      } catch {
-        continue;
-      }
-      // mtime changed → --resume. Check not tracked, not dismissed.
-      if (clearDismissedFiles.has(file)) continue;
-      const normalizedFile = path.resolve(file);
-      let tracked = false;
-      for (const agent of agents.values()) {
-        if (path.resolve(agent.jsonlFile) === normalizedFile) {
-          tracked = true;
-          break;
+        if (stat.mtimeMs > seededMtime) {
+          seededMtimes.delete(file);
+          knownJsonlFiles.delete(file);
         }
+      } catch {
+        /* ignore */
       }
-      if (tracked) continue;
-      seededMtimes.delete(file);
-      console.log(`[Pixel Agents] Resumed session detected: ${path.basename(file)}`);
-      adoptExternalSession(
-        file,
-        projectDir,
-        nextAgentIdRef,
-        agents,
-        fileWatchers,
-        pollingTimers,
-        waitingTimers,
-        permissionTimers,
-        webview,
-        persistAgents,
-      );
       continue;
     }
 
@@ -705,6 +1141,7 @@ function scanExternalDir(
     }
 
     knownJsonlFiles.add(file);
+    console.log(`[Pixel Agents] Watcher: detected external session ${path.basename(file)}`);
     adoptExternalSession(
       file,
       projectDir,
@@ -726,7 +1163,8 @@ function folderNameFromProjectDir(dirName: string): string {
   return parts[parts.length - 1] || dirName;
 }
 
-/** Scan ALL ~/.claude/projects/ directories for active sessions (global discovery). */
+/** Scan every session root the active provider exposes for active sessions
+ *  (global discovery — powers the "Watch All Sessions" toggle). */
 function scanGlobalProjectDirs(
   knownJsonlFiles: Set<string>,
   nextAgentIdRef: { current: number },
@@ -738,17 +1176,23 @@ function scanGlobalProjectDirs(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
 ): void {
-  const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
-  let dirs: fs.Dirent[];
-  try {
-    dirs = fs.readdirSync(projectsRoot, { withFileTypes: true }).filter((d) => d.isDirectory());
-  } catch {
-    return;
+  const roots = hookProvider?.getAllSessionRoots?.() ?? [];
+  if (roots.length === 0) return;
+
+  const projectDirs: string[] = [];
+  for (const root of roots) {
+    try {
+      const entries = fs.readdirSync(root, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory()) projectDirs.push(path.join(root, entry.name));
+      }
+    } catch {
+      // root missing / unreadable -> skip
+    }
   }
 
   const now = Date.now();
-  for (const dir of dirs) {
-    const dirPath = path.join(projectsRoot, dir.name);
+  for (const dirPath of projectDirs) {
     // Skip directories already tracked by workspace scanning
     if (trackedProjectDirs.has(dirPath)) continue;
 
@@ -781,8 +1225,11 @@ function scanGlobalProjectDirs(
         continue;
       }
 
-      const folderName = folderNameFromProjectDir(dir.name);
+      const folderName = folderNameFromProjectDir(path.basename(dirPath));
       knownJsonlFiles.add(file);
+      console.log(
+        `[Pixel Agents] Watcher: detected global session ${path.basename(file)} (${folderName})`,
+      );
       adoptExternalSession(
         file,
         dirPath,
@@ -814,8 +1261,11 @@ export function startStaleExternalAgentCheck(
   jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
+  hooksEnabledRef?: { current: boolean },
 ): ReturnType<typeof setInterval> {
   return setInterval(() => {
+    // When hooks are active, SessionEnd handles agent cleanup.
+    if (hooksEnabledRef?.current) return;
     const toRemove: number[] = [];
 
     for (const [id, agent] of agents) {
@@ -839,7 +1289,7 @@ export function startStaleExternalAgentCheck(
         // Remove from knownJsonlFiles so the file can be re-adopted if it becomes active again
         knownJsonlFiles.delete(agent.jsonlFile);
       }
-      console.log(`[Pixel Agents] Removing stale external agent ${id}`);
+      console.log(`[Pixel Agents] Watcher: Agent ${id} - removing stale external agent`);
       removeAgent(
         id,
         agents,

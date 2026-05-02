@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { CLAUDE_HOOK_SCRIPT_NAME, HOOK_SCRIPTS_DIR } from '../../constants.js';
+import { HOOK_SCRIPTS_DIR } from '../../../constants.js';
+import { CLAUDE_HOOK_EVENTS, CLAUDE_HOOK_SCRIPT_NAME } from './constants.js';
 
 /** Marker string used to identify Pixel Agents hook entries in Claude's settings. */
 const HOOK_SCRIPT_MARKER = CLAUDE_HOOK_SCRIPT_NAME;
@@ -97,7 +98,7 @@ function makeHookEntry(): ClaudeHookEntry {
 export function areHooksInstalled(): boolean {
   const settings = readClaudeSettings();
   if (!settings.hooks) return false;
-  const events = ['Notification', 'Stop', 'PermissionRequest'];
+  const events = CLAUDE_HOOK_EVENTS;
   return events.every((event) => {
     const entries = settings.hooks?.[event];
     return Array.isArray(entries) && entries.some(isOurHookEntry);
@@ -115,7 +116,7 @@ export function installHooks(): void {
     settings.hooks = {};
   }
 
-  const events = ['Notification', 'Stop', 'PermissionRequest'];
+  const events = CLAUDE_HOOK_EVENTS;
   let changed = false;
 
   for (const event of events) {

@@ -3,8 +3,8 @@ import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 
-import { HOOK_API_PREFIX, SERVER_JSON_DIR, SERVER_JSON_NAME } from '../../../constants.js';
-import type { ServerConfig } from '../../../server.js';
+import { HOOK_API_PREFIX, SERVER_JSON_DIR, SERVER_JSON_NAME } from '../../../../constants.js';
+import type { ServerConfig } from '../../../../server.js';
 
 const SERVER_JSON = path.join(os.homedir(), SERVER_JSON_DIR, SERVER_JSON_NAME);
 

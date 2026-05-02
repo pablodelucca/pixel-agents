@@ -11,7 +11,7 @@ vi.mock('os', async () => {
 });
 
 const { areHooksInstalled, installHooks, uninstallHooks, copyHookScript } =
-  await import('../src/providers/file/claudeHookInstaller.js');
+  await import('../src/providers/hook/claude/claudeHookInstaller.js');
 
 function readSettings(): Record<string, unknown> {
   const p = path.join(tmpBase, '.claude', 'settings.json');
