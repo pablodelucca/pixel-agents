@@ -71,6 +71,10 @@ interface ExtensionMessageState {
   hooksEnabled: boolean;
   setHooksEnabled: (v: boolean) => void;
   hooksInfoShown: boolean;
+  zoneMappings: Record<string, string[]>;
+  setZoneMappings: (v: Record<string, string[]>) => void;
+  showZones: boolean;
+  setShowZones: (v: boolean) => void;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -106,6 +110,8 @@ export function useExtensionMessages(
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
   const [hooksEnabled, setHooksEnabled] = useState(true);
   const [hooksInfoShown, setHooksInfoShown] = useState(true);
+  const [zoneMappings, setZoneMappings] = useState<Record<string, string[]>>({});
+  const [showZones, setShowZones] = useState(false);
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -466,6 +472,10 @@ export function useExtensionMessages(
       } else if (msg.type === 'workspaceFolders') {
         const folders = msg.folders as WorkspaceFolder[];
         setWorkspaceFolders(folders);
+      } else if (msg.type === 'zoneMappingsLoaded') {
+        const mappings = msg.mappings as Record<string, string[]>;
+        setZoneMappings(mappings);
+        os.zoneMappings = mappings;
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean;
         setSoundEnabled(soundOn);
@@ -489,6 +499,9 @@ export function useExtensionMessages(
         }
         if (typeof msg.extensionVersion === 'string') {
           setExtensionVersion(msg.extensionVersion as string);
+        }
+        if (typeof msg.showZones === 'boolean') {
+          setShowZones(msg.showZones as boolean);
         }
       } else if (msg.type === 'externalAssetDirectoriesUpdated') {
         if (Array.isArray(msg.dirs)) {
@@ -551,5 +564,9 @@ export function useExtensionMessages(
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
+    zoneMappings,
+    setZoneMappings,
+    showZones,
+    setShowZones,
   };
 }

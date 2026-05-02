@@ -52,7 +52,7 @@ export function BottomToolbar({
   };
 
   const handleAgentHover = () => {
-    if (!isFolderPickerOpen) {
+    if (!isFolderPickerOpen && !isEditMode) {
       setIsBypassMenuOpen(true);
     }
   };

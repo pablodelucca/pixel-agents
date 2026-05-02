@@ -20,6 +20,18 @@ import { migrateAndLoadLayout } from './layoutPersistence.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
 import type { AgentState, PersistedAgent } from './types.js';
 
+/** Look up the VS Code workspace folder name for a given filesystem path.
+ *  Falls back to path.basename if no matching folder is found. */
+export function workspaceFolderName(fsPath: string): string {
+  const folders = vscode.workspace.workspaceFolders;
+  if (folders) {
+    for (const f of folders) {
+      if (f.uri.fsPath === fsPath) return f.name;
+    }
+  }
+  return path.basename(fsPath);
+}
+
 export function getProjectDirPath(cwd?: string): string {
   // Fall back to home directory when no workspace folder is open (common on Linux/macOS
   // when VS Code is launched without a folder). The provider's getSessionDirs already
@@ -86,7 +98,7 @@ export async function launchNewTerminal(
 
   // Create agent immediately (before JSONL file exists)
   const id = nextAgentIdRef.current++;
-  const folderName = isMultiRoot && cwd ? path.basename(cwd) : undefined;
+  const folderName = isMultiRoot && cwd ? workspaceFolderName(cwd) : undefined;
   const agent: AgentState = {
     id,
     sessionId,

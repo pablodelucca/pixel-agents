@@ -7,6 +7,7 @@ import type {
   OfficeLayout,
   PlacedFurniture,
   TileType as TileTypeVal,
+  ZoneDefinition,
 } from '../types.js';
 import { MAX_COLS, MAX_ROWS, TileType } from '../types.js';
 
@@ -304,6 +305,7 @@ export function expandLayout(
   const newTiles: TileTypeVal[] = new Array(newCols * newRows).fill(TileType.VOID as TileTypeVal);
   const newColors: Array<ColorValue | null> = new Array(newCols * newRows).fill(null);
   const newCarpets: Array<CarpetTile | null> = new Array(newCols * newRows).fill(null);
+  const newZoneTiles: Array<string | null> = new Array(newCols * newRows).fill(null);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -313,6 +315,9 @@ export function expandLayout(
       newColors[newIdx] = existingColors[oldIdx];
       if (carpetTiles) {
         newCarpets[newIdx] = carpetTiles[oldIdx] ?? null;
+      }
+      if (layout.zoneTiles) {
+        newZoneTiles[newIdx] = layout.zoneTiles[oldIdx] ?? null;
       }
     }
   }
@@ -333,7 +338,79 @@ export function expandLayout(
       tileColors: newColors,
       furniture: newFurniture,
       ...(carpetTiles ? { carpetTiles: newCarpets } : {}),
+      ...(layout.zoneTiles ? { zoneTiles: newZoneTiles } : {}),
     },
     shift: { col: shiftCol, row: shiftRow },
   };
+}
+
+// ── Zone operations ──────────────────────────────────────────
+
+/** Paint a zone label on a single floor tile. Returns new layout (immutable). */
+export function paintZone(
+  layout: OfficeLayout,
+  col: number,
+  row: number,
+  zoneLabel: string,
+): OfficeLayout {
+  const idx = row * layout.cols + col;
+  if (idx < 0 || idx >= layout.tiles.length) return layout;
+  // Only paint on floor tiles (skip WALL/VOID)
+  const tileVal = layout.tiles[idx];
+  if (tileVal === TileType.VOID || tileVal === TileType.WALL) return layout;
+
+  const zoneTiles = layout.zoneTiles
+    ? [...layout.zoneTiles]
+    : (new Array(layout.tiles.length).fill(null) as Array<string | null>);
+  if (zoneTiles[idx] === zoneLabel) return layout;
+  zoneTiles[idx] = zoneLabel;
+  return { ...layout, zoneTiles };
+}
+
+/** Erase zone from a single tile. Returns new layout (immutable). */
+export function eraseZone(layout: OfficeLayout, col: number, row: number): OfficeLayout {
+  const idx = row * layout.cols + col;
+  if (idx < 0 || idx >= layout.tiles.length) return layout;
+  if (!layout.zoneTiles) return layout;
+  if (layout.zoneTiles[idx] === null || layout.zoneTiles[idx] === undefined) return layout;
+  const zoneTiles = [...layout.zoneTiles];
+  zoneTiles[idx] = null;
+  return { ...layout, zoneTiles };
+}
+
+/** Add a new zone definition. Returns new layout (immutable). */
+export function addZone(layout: OfficeLayout, label: string, color: string): OfficeLayout {
+  const zones: ZoneDefinition[] = [...(layout.zones ?? [])];
+  if (zones.some((z) => z.label === label)) return layout;
+  zones.push({ label, color });
+  return { ...layout, zones };
+}
+
+/** Remove a zone definition and clear all matching zone tiles. Returns new layout (immutable). */
+export function removeZone(layout: OfficeLayout, label: string): OfficeLayout {
+  const zones = (layout.zones ?? []).filter((z) => z.label !== label);
+  let zoneTiles = layout.zoneTiles;
+  if (zoneTiles) {
+    zoneTiles = zoneTiles.map((z) => (z === label ? null : z));
+  }
+  return { ...layout, zones, zoneTiles };
+}
+
+/** Update a zone's display color. Returns new layout (immutable). */
+export function updateZoneColor(layout: OfficeLayout, label: string, color: string): OfficeLayout {
+  const zones = (layout.zones ?? []).map((z) => (z.label === label ? { ...z, color } : z));
+  return { ...layout, zones };
+}
+
+/** Rename a zone label across definitions and tiles. Returns new layout (immutable). */
+export function renameZone(layout: OfficeLayout, oldLabel: string, newLabel: string): OfficeLayout {
+  if (oldLabel === newLabel) return layout;
+  const zones = (layout.zones ?? []).map((z) =>
+    z.label === oldLabel ? { ...z, label: newLabel } : z,
+  );
+  let zoneTiles = layout.zoneTiles;
+  if (zoneTiles) {
+    zoneTiles = zoneTiles.map((z) => (z === oldLabel ? newLabel : z));
+  }
+  return { ...layout, zones, zoneTiles };
 }

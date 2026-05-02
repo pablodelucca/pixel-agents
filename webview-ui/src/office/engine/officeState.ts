@@ -48,6 +48,8 @@ export class OfficeState {
   cameraFollowId: number | null = null;
   hoveredAgentId: number | null = null;
   hoveredTile: { col: number; row: number } | null = null;
+  /** Zone mappings: folder name → zone labels (from .code-workspace) */
+  zoneMappings: Record<string, string[]> = {};
   /** Maps "parentId:toolId" → sub-agent character ID (negative) */
   subagentIdMap: Map<string, number> = new Map();
   /** Reverse lookup: sub-agent character ID → parent info */
@@ -174,7 +176,48 @@ export class OfficeState {
     return result;
   }
 
-  private findFreeSeat(): string | null {
+  /** Check if a seat is facing electronics (for PC seat preference) */
+  private isSeatFacingElectronics(seat: Seat, electronicsTiles: Set<string>): boolean {
+    const dCol =
+      seat.facingDir === Direction.RIGHT ? 1 : seat.facingDir === Direction.LEFT ? -1 : 0;
+    const dRow = seat.facingDir === Direction.DOWN ? 1 : seat.facingDir === Direction.UP ? -1 : 0;
+    for (let d = 1; d <= AUTO_ON_FACING_DEPTH; d++) {
+      const tileCol = seat.seatCol + dCol * d;
+      const tileRow = seat.seatRow + dRow * d;
+      if (electronicsTiles.has(`${tileCol},${tileRow}`)) return true;
+      if (dCol !== 0) {
+        if (
+          electronicsTiles.has(`${tileCol},${tileRow - 1}`) ||
+          electronicsTiles.has(`${tileCol},${tileRow + 1}`)
+        )
+          return true;
+      } else {
+        if (
+          electronicsTiles.has(`${tileCol - 1},${tileRow}`) ||
+          electronicsTiles.has(`${tileCol + 1},${tileRow}`)
+        )
+          return true;
+      }
+    }
+    return false;
+  }
+
+  /** Pick a random seat from the given list, preferring PC seats */
+  private pickFromSeats(seatUids: string[], electronicsTiles: Set<string>): string | null {
+    if (seatUids.length === 0) return null;
+    const pcSeats: string[] = [];
+    const otherSeats: string[] = [];
+    for (const uid of seatUids) {
+      const seat = this.seats.get(uid);
+      if (!seat) continue;
+      (this.isSeatFacingElectronics(seat, electronicsTiles) ? pcSeats : otherSeats).push(uid);
+    }
+    if (pcSeats.length > 0) return pcSeats[Math.floor(Math.random() * pcSeats.length)];
+    if (otherSeats.length > 0) return otherSeats[Math.floor(Math.random() * otherSeats.length)];
+    return null;
+  }
+
+  private findFreeSeat(folderName?: string): string | null {
     // Build set of tiles occupied by electronics (PCs, monitors, etc.)
     const electronicsTiles = new Set<string>();
     for (const item of this.layout.furniture) {
@@ -187,49 +230,42 @@ export class OfficeState {
       }
     }
 
-    // Collect free seats, split into those facing electronics and the rest
-    const pcSeats: string[] = [];
-    const otherSeats: string[] = [];
-    for (const [uid, seat] of this.seats) {
-      if (seat.assigned) continue;
+    // Zone-aware seat assignment
+    const zoneTiles = this.layout.zoneTiles;
+    const zoneLabels = folderName ? this.zoneMappings[folderName] : undefined;
 
-      // Check if this seat faces electronics (same logic as auto-state detection)
-      let facesPC = false;
-      const dCol =
-        seat.facingDir === Direction.RIGHT ? 1 : seat.facingDir === Direction.LEFT ? -1 : 0;
-      const dRow = seat.facingDir === Direction.DOWN ? 1 : seat.facingDir === Direction.UP ? -1 : 0;
-      for (let d = 1; d <= AUTO_ON_FACING_DEPTH && !facesPC; d++) {
-        const tileCol = seat.seatCol + dCol * d;
-        const tileRow = seat.seatRow + dRow * d;
-        if (electronicsTiles.has(`${tileCol},${tileRow}`)) {
-          facesPC = true;
-          break;
-        }
-        if (dCol !== 0) {
-          if (
-            electronicsTiles.has(`${tileCol},${tileRow - 1}`) ||
-            electronicsTiles.has(`${tileCol},${tileRow + 1}`)
-          ) {
-            facesPC = true;
-            break;
-          }
-        } else {
-          if (
-            electronicsTiles.has(`${tileCol - 1},${tileRow}`) ||
-            electronicsTiles.has(`${tileCol + 1},${tileRow}`)
-          ) {
-            facesPC = true;
-            break;
-          }
-        }
-      }
-      (facesPC ? pcSeats : otherSeats).push(uid);
+    // Collect all free seats
+    const freeSeats: string[] = [];
+    for (const [uid, seat] of this.seats) {
+      if (!seat.assigned) freeSeats.push(uid);
     }
 
-    // Pick randomly: prefer PC seats, then any seat
-    if (pcSeats.length > 0) return pcSeats[Math.floor(Math.random() * pcSeats.length)];
-    if (otherSeats.length > 0) return otherSeats[Math.floor(Math.random() * otherSeats.length)];
-    return null;
+    // Helper: get the zone label for a seat tile
+    const seatZone = (uid: string): string | null => {
+      if (!zoneTiles) return null;
+      const seat = this.seats.get(uid);
+      if (!seat) return null;
+      return zoneTiles[seat.seatRow * this.layout.cols + seat.seatCol] ?? null;
+    };
+
+    // 1. If agent has zone mappings, try seats in any of its zones first
+    if (zoneLabels && zoneLabels.length > 0) {
+      const zoneSet = new Set(zoneLabels);
+      const zoneSeats = freeSeats.filter((uid) => {
+        const z = seatZone(uid);
+        return z !== null && zoneSet.has(z);
+      });
+      const pick = this.pickFromSeats(zoneSeats, electronicsTiles);
+      if (pick) return pick;
+    }
+
+    // 2. Try unzoned seats (no zone label assigned to that tile)
+    const unzonedSeats = freeSeats.filter((uid) => !seatZone(uid));
+    const unzonedPick = this.pickFromSeats(unzonedSeats, electronicsTiles);
+    if (unzonedPick) return unzonedPick;
+
+    // 3. Fallback: any free seat
+    return this.pickFromSeats(freeSeats, electronicsTiles);
   }
 
   /**
@@ -281,7 +317,7 @@ export class OfficeState {
       hueShift = pick.hueShift;
     }
 
-    // Try preferred seat first, then any free seat
+    // Try preferred seat first, then zone-aware free seat
     let seatId: string | null = null;
     if (preferredSeatId && this.seats.has(preferredSeatId)) {
       const seat = this.seats.get(preferredSeatId)!;
@@ -290,7 +326,7 @@ export class OfficeState {
       }
     }
     if (!seatId) {
-      seatId = this.findFreeSeat();
+      seatId = this.findFreeSeat(folderName);
     }
 
     let ch: Character;

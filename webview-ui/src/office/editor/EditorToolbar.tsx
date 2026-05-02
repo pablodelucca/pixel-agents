@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '../../components/ui/Button.js';
 import { ColorPicker } from '../../components/ui/ColorPicker.js';
+import { Dropdown, DropdownItem } from '../../components/ui/Dropdown.js';
 import { ItemSelect } from '../../components/ui/ItemSelect.js';
 import type { ColorValue } from '../../components/ui/types.js';
 import { VisualColorPicker } from '../../components/ui/VisualColorPicker.js';
@@ -9,7 +10,9 @@ import {
   CANVAS_FALLBACK_TILE_COLOR,
   CARPET_DEFAULT_ACCENT_COLOR,
   CARPET_DEFAULT_COLOR,
+  ZONE_DEFAULT_COLORS,
 } from '../../constants.js';
+import type { WorkspaceFolder } from '../../hooks/useExtensionMessages.js';
 import { getCarpetJunctionSprite, getCarpetSetCount, hasCarpetSprites } from '../carpetTiles.js';
 import { getColorizedSprite } from '../colorize.js';
 import { getColorizedFloorSprite, getFloorPatternCount, hasFloorSprites } from '../floorTiles.js';
@@ -20,7 +23,7 @@ import {
   getCatalogByCategory,
 } from '../layout/furnitureCatalog.js';
 import { getCachedSprite } from '../sprites/spriteCache.js';
-import type { TileType as TileTypeVal } from '../types.js';
+import type { TileType as TileTypeVal, ZoneDefinition } from '../types.js';
 import { EditTool } from '../types.js';
 import { getWallSetCount, getWallSetPreviewSprite } from '../wallTiles.js';
 
@@ -49,6 +52,17 @@ interface EditorToolbarProps {
   onCarpetAccentColorChange: (color: ColorValue | undefined) => void;
   onCarpetVariantChange: (variant: number) => void;
   loadedAssets?: LoadedAssetData;
+  // Zone props
+  zones: ZoneDefinition[];
+  selectedZoneLabel: string | null;
+  onSelectZone: (label: string) => void;
+  onAddZone: (label: string, color: string) => void;
+  onRemoveZone: (label: string) => void;
+  onRenameZone: (oldLabel: string, newLabel: string) => void;
+  onZoneColorChange: (label: string, color: string) => void;
+  workspaceFolders: WorkspaceFolder[];
+  zoneMappings: Record<string, string[]>;
+  onZoneMappingChange: (folderName: string, zoneLabel: string, action: 'add' | 'remove') => void;
 }
 
 const THUMB_ZOOM = 2;
@@ -80,12 +94,27 @@ export function EditorToolbar({
   onCarpetAccentColorChange,
   onCarpetVariantChange,
   loadedAssets,
+  zones,
+  selectedZoneLabel,
+  onSelectZone,
+  onAddZone,
+  onRemoveZone,
+  onRenameZone,
+  onZoneColorChange,
+  workspaceFolders,
+  zoneMappings,
+  onZoneMappingChange,
 }: EditorToolbarProps) {
   const [activeCategory, setActiveCategory] = useState<FurnitureCategory | 'carpet'>('desks');
   const [showColor, setShowColor] = useState(false);
   const [showWallColor, setShowWallColor] = useState(false);
   const [showFurnitureColor, setShowFurnitureColor] = useState(false);
   const [showCarpetColor, setShowCarpetColor] = useState(false);
+  const [newZoneName, setNewZoneName] = useState('');
+  const [editingZoneLabel, setEditingZoneLabel] = useState<string | null>(null);
+  const [editingZoneValue, setEditingZoneValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const [folderPickerZone, setFolderPickerZone] = useState<string | null>(null);
 
   // Build dynamic catalog from loaded assets
   useEffect(() => {
@@ -126,6 +155,7 @@ export function EditorToolbar({
   const isFloorActive = activeTool === EditTool.TILE_PAINT || activeTool === EditTool.EYEDROPPER;
   const isWallActive = activeTool === EditTool.WALL_PAINT;
   const isEraseActive = activeTool === EditTool.ERASE;
+  const isZoneActive = activeTool === EditTool.ZONE_PAINT;
   const isCarpetTool = activeTool === EditTool.CARPET_PAINT || activeTool === EditTool.CARPET_PICK;
   const isFurnitureActive =
     activeTool === EditTool.FURNITURE_PLACE ||
@@ -162,6 +192,14 @@ export function EditorToolbar({
           title="Paint walls (click to toggle)"
         >
           Wall
+        </Button>
+        <Button
+          variant={isZoneActive ? 'active' : 'default'}
+          size="md"
+          onClick={() => onToolChange(EditTool.ZONE_PAINT)}
+          title="Paint zones for workspace folders"
+        >
+          Zones
         </Button>
         <Button
           variant={isEraseActive ? 'active' : 'default'}
@@ -516,6 +554,182 @@ export function EditorToolbar({
               }}
             />
           )}
+        </div>
+      )}
+
+      {/* Sub-panel: Zones — stacked bottom-to-top via column-reverse */}
+      {isZoneActive && (
+        <div className="flex flex-col gap-4 mb-4">
+          {/* Zone cards — visually below the add input */}
+          {zones.length > 0 && (
+            <div className="flex gap-4 flex-wrap">
+              {zones.map((zone) => {
+                // Folders mapped to this zone
+                const mappedFolders = workspaceFolders.filter((f) =>
+                  zoneMappings[f.name]?.includes(zone.label),
+                );
+                // Folders available to add (not yet in this zone)
+                const availableFolders = workspaceFolders.filter(
+                  (f) => !zoneMappings[f.name]?.includes(zone.label),
+                );
+                const isSelected = selectedZoneLabel === zone.label;
+
+                return (
+                  <div
+                    key={zone.label}
+                    className={`flex flex-col gap-2 min-w-130 min-h-170 py-4 px-8 cursor-pointer border-2 ${isSelected ? 'border-accent bg-accent-bg' : 'border-border bg-bg'}`}
+                    onClick={() => onSelectZone(zone.label)}
+                  >
+                    {/* Header: color swatch + title + close */}
+                    <div className="flex items-center gap-4">
+                      <input
+                        type="color"
+                        value={zone.color}
+                        onChange={(e) => onZoneColorChange(zone.label, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        title="Change zone color"
+                        className="w-16 h-16 p-0 border-2 border-border cursor-pointer"
+                        style={{ background: zone.color }}
+                      />
+                      {editingZoneLabel === zone.label ? (
+                        <input
+                          ref={renameInputRef}
+                          className="bg-transparent text-sm text-text border-b-2 border-accent outline-none flex-1 w-60"
+                          value={editingZoneValue}
+                          onChange={(e) => setEditingZoneValue(e.target.value)}
+                          onBlur={() => {
+                            const trimmed = editingZoneValue.trim();
+                            if (trimmed && trimmed !== zone.label) {
+                              onRenameZone(zone.label, trimmed);
+                            }
+                            setEditingZoneLabel(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                            if (e.key === 'Escape') setEditingZoneLabel(null);
+                          }}
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span
+                          className="text-sm text-text flex-1"
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            setEditingZoneLabel(zone.label);
+                            setEditingZoneValue(zone.label);
+                          }}
+                          title="Double-click to rename"
+                        >
+                          {zone.label}
+                        </span>
+                      )}
+                      <button
+                        className="text-xs text-text-muted hover:text-red-400 bg-transparent border-none cursor-pointer px-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemoveZone(zone.label);
+                        }}
+                        title="Remove zone"
+                      >
+                        X
+                      </button>
+                    </div>
+
+                    {/* Mapped folders */}
+                    <div className="flex-1 overflow-y-auto flex flex-col gap-1 pixel-scrollbar max-h-80">
+                      {mappedFolders.map((folder) => (
+                        <div
+                          key={folder.name}
+                          className="flex items-center gap-2 px-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <span
+                            className="text-xs text-text-muted flex-1 truncate"
+                            title={folder.path}
+                          >
+                            {folder.name}
+                          </span>
+                          <button
+                            className="text-2xs text-text-muted hover:text-red-400 bg-transparent border-none cursor-pointer px-2"
+                            onClick={() => onZoneMappingChange(folder.name, zone.label, 'remove')}
+                            title="Remove folder from zone"
+                          >
+                            x
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Add folder dropdown */}
+                    <div className="relative mt-auto" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        size="sm"
+                        variant={availableFolders.length === 0 ? 'disabled' : undefined}
+                        className="w-full text-sm mb-3"
+                        disabled={availableFolders.length === 0}
+                        onClick={() =>
+                          setFolderPickerZone((v) => (v === zone.label ? null : zone.label))
+                        }
+                      >
+                        + Directory
+                      </Button>
+                      <Dropdown isOpen={folderPickerZone === zone.label}>
+                        {availableFolders.map((f) => (
+                          <DropdownItem
+                            key={f.name}
+                            className="text-xs"
+                            onClick={() => {
+                              onZoneMappingChange(f.name, zone.label, 'add');
+                              setFolderPickerZone(null);
+                            }}
+                          >
+                            {f.name}
+                          </DropdownItem>
+                        ))}
+                      </Dropdown>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Description — visually between input and zone cards */}
+          <div className="text-xs text-text-muted px-4 leading-none pb-2">
+            Paint zones on the map, then assign workspace directories. Agents will sit in their
+            directory's zone.
+          </div>
+          {/* Add new zone — visually at the top */}
+          <div className="flex items-center gap-2 px-4 py-2">
+            <input
+              className="bg-bg-dark w-full text-text px-8 border-2 border-border outline-none"
+              placeholder="Add new zone..."
+              value={newZoneName}
+              onChange={(e) => setNewZoneName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newZoneName.trim()) {
+                  const nextColor = ZONE_DEFAULT_COLORS[zones.length % ZONE_DEFAULT_COLORS.length];
+                  onAddZone(newZoneName.trim(), nextColor);
+                  setNewZoneName('');
+                }
+              }}
+            />
+            <Button
+              variant="accent"
+              size="sm"
+              className="px-12"
+              onClick={() => {
+                if (newZoneName.trim()) {
+                  const nextColor = ZONE_DEFAULT_COLORS[zones.length % ZONE_DEFAULT_COLORS.length];
+                  onAddZone(newZoneName.trim(), nextColor);
+                  setNewZoneName('');
+                }
+              }}
+            >
+              +
+            </Button>
+          </div>
         </div>
       )}
     </div>

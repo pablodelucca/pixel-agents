@@ -142,6 +142,25 @@ export const CHARACTER_HIT_HALF_WIDTH = 8;
 export const CHARACTER_HIT_HEIGHT = 24;
 export const TOOL_OVERLAY_VERTICAL_OFFSET = 32;
 
+// ── Zones ───────────────────────────────────────────────
+export const ZONE_OVERLAY_ALPHA = 0.25;
+export const ZONE_LABEL_FONT_SIZE_PX = 12;
+export const ZONE_LABEL_FALLBACK_COLOR = '#ffffff';
+export const ZONE_LABEL_SHADOW_COLOR = '#000000';
+export const ZONE_LABEL_SHADOW_ALPHA = 0.5;
+export const ZONE_LABEL_ALPHA = 0.9;
+export const ZONE_ACTIVE_ALPHA_MULTIPLIER = 1.8;
+export const ZONE_DEFAULT_COLORS = [
+  '#ff6b6b',
+  '#4ecdc4',
+  '#45b7d1',
+  '#f9ca24',
+  '#a55eea',
+  '#26de81',
+  '#fd9644',
+  '#778ca3',
+] as const;
+
 // ── Agent Teams ─────────────────────────────────────────────
 export const MAX_CONTEXT_TOKENS = 200_000;
 export const TOKEN_WARN_THRESHOLD = 0.6;

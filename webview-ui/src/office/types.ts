@@ -85,6 +85,7 @@ export const EditTool = {
   SELECT: 'select',
   EYEDROPPER: 'eyedropper',
   ERASE: 'erase',
+  ZONE_PAINT: 'zone_paint',
 } as const;
 export type EditTool = (typeof EditTool)[keyof typeof EditTool];
 
@@ -128,6 +129,12 @@ export interface CarpetTile {
   order?: number;
 }
 
+export interface ZoneDefinition {
+  label: string;
+  /** Hex color for rendering, e.g. "#ff6b6b" */
+  color: string;
+}
+
 export interface OfficeLayout {
   version: 1;
   cols: number;
@@ -140,6 +147,10 @@ export interface OfficeLayout {
   carpetTiles?: Array<CarpetTile | null>;
   /** Bumped when the bundled default layout changes; forces a reset on existing installs */
   layoutRevision?: number;
+  /** Named zones with display colors */
+  zones?: ZoneDefinition[];
+  /** Per-tile zone label, parallel to tiles array. null = no zone */
+  zoneTiles?: Array<string | null>;
 }
 
 export interface Character {

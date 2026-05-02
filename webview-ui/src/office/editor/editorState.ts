@@ -41,6 +41,10 @@ export class EditorState {
   // Tracks toggle direction during carpet drag (true=painting, false=erasing, null=undecided)
   carpetDragErasing: boolean | null = null;
 
+  // Zone paint state
+  selectedZoneLabel: string | null = null;
+  zoneDragErasing: boolean | null = null;
+
   // Layout snapshot captured at the start of a carpet paint/erase stroke.
   carpetStrokeInitialLayout: OfficeLayout | null = null;
 
@@ -157,6 +161,8 @@ export class EditorState {
     this.wallDragAdding = null;
     this.carpetDragErasing = null;
     this.carpetStrokeInitialLayout = null;
+    this.selectedZoneLabel = null;
+    this.zoneDragErasing = null;
     this.undoStack = [];
     this.redoStack = [];
     this.isDirty = false;

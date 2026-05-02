@@ -71,6 +71,10 @@ function App() {
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
+    zoneMappings,
+    setZoneMappings,
+    showZones,
+    setShowZones,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -127,6 +131,32 @@ function App() {
     useCallback(() => setEditorTickForKeyboard((n) => n + 1), []),
     editor.handleToggleEditMode,
   );
+
+  const handleZoneMappingChange = useCallback(
+    (folderName: string, zoneLabel: string, action: 'add' | 'remove') => {
+      const newMappings = { ...zoneMappings };
+      const current = newMappings[folderName] ?? [];
+      if (action === 'add') {
+        if (!current.includes(zoneLabel)) {
+          newMappings[folderName] = [...current, zoneLabel];
+        }
+      } else {
+        newMappings[folderName] = current.filter((z) => z !== zoneLabel);
+        if (newMappings[folderName].length === 0) {
+          delete newMappings[folderName];
+        }
+      }
+      setZoneMappings(newMappings);
+      const os = getOfficeState();
+      os.zoneMappings = newMappings;
+      vscode.postMessage({ type: 'saveZoneMappings', mappings: newMappings });
+    },
+    [zoneMappings, setZoneMappings],
+  );
+
+  // Zone visibility: always show in zone paint mode, otherwise respect settings toggle
+  const effectiveShowZones =
+    (editor.isEditMode && editorState.activeTool === EditTool.ZONE_PAINT) || showZones;
 
   const handleCloseAgent = useCallback((id: number) => {
     vscode.postMessage({ type: 'closeAgent', id });
@@ -185,6 +215,7 @@ function App() {
         zoom={editor.zoom}
         onZoomChange={editor.handleZoomChange}
         panRef={editor.panRef}
+        showZones={effectiveShowZones}
       />
 
       {!isDebugMode ? (
@@ -242,6 +273,16 @@ function App() {
                   onCarpetAccentColorChange={editor.handleCarpetAccentColorChange}
                   onCarpetVariantChange={editor.handleCarpetVariantChange}
                   loadedAssets={loadedAssets}
+                  zones={officeState.getLayout().zones ?? []}
+                  selectedZoneLabel={editorState.selectedZoneLabel}
+                  onSelectZone={editor.handleSelectZone}
+                  onAddZone={editor.handleAddZone}
+                  onRemoveZone={editor.handleRemoveZone}
+                  onRenameZone={editor.handleRenameZone}
+                  onZoneColorChange={editor.handleZoneColorChange}
+                  workspaceFolders={workspaceFolders}
+                  zoneMappings={zoneMappings}
+                  onZoneMappingChange={handleZoneMappingChange}
                 />
               );
             })()}
@@ -368,6 +409,12 @@ function App() {
           const newVal = !hooksEnabled;
           setHooksEnabled(newVal);
           vscode.postMessage({ type: 'setHooksEnabled', enabled: newVal });
+        }}
+        showZones={showZones}
+        onToggleShowZones={() => {
+          const newVal = !showZones;
+          setShowZones(newVal);
+          vscode.postMessage({ type: 'setShowZones', enabled: newVal });
         }}
       />
 

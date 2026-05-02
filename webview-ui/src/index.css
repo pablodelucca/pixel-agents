@@ -109,6 +109,42 @@
   /* Horizontal carousel for editor items */
   .carousel {
     @apply flex gap-8 overflow-x-auto flex-nowrap pb-2;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+  }
+  .carousel::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .carousel::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .carousel::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 0;
+  }
+  .carousel::-webkit-scrollbar-thumb:hover {
+    background: var(--color-accent-bright);
+  }
+
+  /* Pixel-art styled scrollbar */
+  .pixel-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+  }
+  .pixel-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .pixel-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .pixel-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 0;
+  }
+  .pixel-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--color-accent-bright);
   }
 
   /* Pulsing dot animation (DebugView, ToolOverlay) */
