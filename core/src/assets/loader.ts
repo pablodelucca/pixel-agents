@@ -9,7 +9,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { decodeCharacterPng, decodeFloorPng, parseWallPng, pngToSpriteData } from './pngDecoder.js';
+import {
+  decodeCharacterPng,
+  decodeFloorPng,
+  parseCarpetPng,
+  parseWallPng,
+  pngToSpriteData,
+} from './pngDecoder.js';
 import type { CatalogEntry, CharacterDirectionSprites } from './types.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -71,4 +77,13 @@ export function decodeAllFurniture(
     }
   }
   return sprites;
+}
+
+export function decodeAllCarpets(assetsDir: string): string[][][][] {
+  const carpetsDir = path.join(assetsDir, 'carpets');
+  const files = listSortedPngs(carpetsDir, /^carpet_(\d+)\.png$/i);
+  return files.map(({ filename }) => {
+    const pngBuffer = fs.readFileSync(path.join(carpetsDir, filename));
+    return parseCarpetPng(pngBuffer);
+  });
 }

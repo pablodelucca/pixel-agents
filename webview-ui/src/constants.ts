@@ -94,6 +94,14 @@ export const LAYOUT_SAVE_DEBOUNCE_MS = 500;
 export const DEFAULT_FLOOR_COLOR: ColorValue = { h: 35, s: 30, b: 15, c: 0 };
 export const DEFAULT_WALL_COLOR: ColorValue = { h: 240, s: 25, b: 0, c: 0 };
 export const DEFAULT_NEUTRAL_COLOR: ColorValue = { h: 0, s: 0, b: 0, c: 0 };
+export const CARPET_DEFAULT_COLOR: ColorValue = { h: 0, s: 71, b: -32, c: 0, colorize: true };
+export const CARPET_DEFAULT_ACCENT_COLOR: ColorValue = {
+  h: 34,
+  s: 64,
+  b: 21,
+  c: 0,
+  colorize: true,
+};
 
 // ── Notification Sound (done: ascending chime) ─────────────
 export const NOTIFICATION_NOTE_1_HZ = 659.25; // E5

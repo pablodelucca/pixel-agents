@@ -19,6 +19,7 @@ import {
 } from './agentManager.js';
 import type { LoadedAssets, LoadedCharacterSprites } from './assetLoader.js';
 import {
+  loadCarpetTiles,
   loadCharacterSprites,
   loadDefaultLayout,
   loadExternalCharacterSprites,
@@ -28,6 +29,7 @@ import {
   mergeCharacterSprites,
   mergeLoadedAssets,
   sendAssetsToWebview,
+  sendCarpetTilesToWebview,
   sendCharacterSpritesToWebview,
   sendFloorTilesToWebview,
   sendWallTilesToWebview,
@@ -733,6 +735,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             if (wallTiles && this.webview) {
               console.log('[Extension] Wall tiles loaded, sending to webview');
               sendWallTilesToWebview(this.webview, wallTiles);
+            }
+
+            // Load carpet tiles
+            const carpetTiles = await loadCarpetTiles(assetsRoot);
+            if (carpetTiles && this.webview) {
+              console.log('[Extension] Carpet tiles loaded, sending to webview');
+              sendCarpetTilesToWebview(this.webview, carpetTiles);
             }
 
             const assets = await this.loadAllFurnitureAssets();

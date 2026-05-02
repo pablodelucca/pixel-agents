@@ -78,6 +78,8 @@ export interface ToolActivity {
 export const EditTool = {
   TILE_PAINT: 'tile_paint',
   WALL_PAINT: 'wall_paint',
+  CARPET_PAINT: 'carpet_paint',
+  CARPET_PICK: 'carpet_pick',
   FURNITURE_PLACE: 'furniture_place',
   FURNITURE_PICK: 'furniture_pick',
   SELECT: 'select',
@@ -115,6 +117,17 @@ export interface PlacedFurniture {
   color?: ColorValue;
 }
 
+export interface CarpetTile {
+  /** Carpet variant index (0, 1, or 2) */
+  variant: number;
+  /** Optional color override for this carpet tile */
+  color?: ColorValue;
+  /** Optional accent color override for this carpet tile */
+  accentColor?: ColorValue;
+  /** Paint order used to resolve overlapping carpet junctions */
+  order?: number;
+}
+
 export interface OfficeLayout {
   version: 1;
   cols: number;
@@ -123,6 +136,8 @@ export interface OfficeLayout {
   furniture: PlacedFurniture[];
   /** Per-tile color settings, parallel to tiles array. null = wall/no color */
   tileColors?: Array<ColorValue | null>;
+  /** Per-tile carpet data, parallel to tiles array. null/undefined = no carpet */
+  carpetTiles?: Array<CarpetTile | null>;
   /** Bumped when the bundled default layout changes; forces a reset on existing installs */
   layoutRevision?: number;
 }

@@ -22,6 +22,9 @@ export function useEditorKeyboard(
         if (editorState.activeTool === EditTool.FURNITURE_PICK) {
           editorState.activeTool = EditTool.FURNITURE_PLACE;
           editorState.clearGhost();
+        } else if (editorState.activeTool === EditTool.CARPET_PICK) {
+          editorState.activeTool = EditTool.CARPET_PAINT;
+          editorState.clearGhost();
         } else if (
           editorState.activeTool === EditTool.FURNITURE_PLACE &&
           editorState.selectedFurnitureType !== ''
