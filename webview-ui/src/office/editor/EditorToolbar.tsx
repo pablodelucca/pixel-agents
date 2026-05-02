@@ -193,14 +193,16 @@ export function EditorToolbar({
         >
           Wall
         </Button>
-        <Button
-          variant={isZoneActive ? 'active' : 'default'}
-          size="md"
-          onClick={() => onToolChange(EditTool.ZONE_PAINT)}
-          title="Paint zones for workspace folders"
-        >
-          Zones
-        </Button>
+        {workspaceFolders.length > 0 && (
+          <Button
+            variant={isZoneActive ? 'active' : 'default'}
+            size="md"
+            onClick={() => onToolChange(EditTool.ZONE_PAINT)}
+            title="Paint zones for workspace folders"
+          >
+            Zones
+          </Button>
+        )}
         <Button
           variant={isEraseActive ? 'active' : 'default'}
           size="md"
@@ -577,7 +579,7 @@ export function EditorToolbar({
                 return (
                   <div
                     key={zone.label}
-                    className={`flex flex-col gap-2 min-w-130 min-h-170 py-4 px-8 cursor-pointer border-2 ${isSelected ? 'border-accent bg-accent-bg' : 'border-border bg-bg'}`}
+                    className={`flex flex-col gap-2 w-130 min-h-170 py-4 px-8 cursor-pointer border-2 ${isSelected ? 'border-accent bg-accent-bg' : 'border-border bg-bg'}`}
                     onClick={() => onSelectZone(zone.label)}
                   >
                     {/* Header: color swatch + title + close */}
