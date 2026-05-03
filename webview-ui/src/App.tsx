@@ -71,10 +71,10 @@ function App() {
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
-    zoneMappings,
-    setZoneMappings,
-    showZones,
-    setShowZones,
+    areaMappings,
+    setAreaMappings,
+    showAreas,
+    setShowAreas,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -132,31 +132,31 @@ function App() {
     editor.handleToggleEditMode,
   );
 
-  const handleZoneMappingChange = useCallback(
-    (folderName: string, zoneLabel: string, action: 'add' | 'remove') => {
-      const newMappings = { ...zoneMappings };
+  const handleAreaMappingChange = useCallback(
+    (folderName: string, areaLabel: string, action: 'add' | 'remove') => {
+      const newMappings = { ...areaMappings };
       const current = newMappings[folderName] ?? [];
       if (action === 'add') {
-        if (!current.includes(zoneLabel)) {
-          newMappings[folderName] = [...current, zoneLabel];
+        if (!current.includes(areaLabel)) {
+          newMappings[folderName] = [...current, areaLabel];
         }
       } else {
-        newMappings[folderName] = current.filter((z) => z !== zoneLabel);
+        newMappings[folderName] = current.filter((z) => z !== areaLabel);
         if (newMappings[folderName].length === 0) {
           delete newMappings[folderName];
         }
       }
-      setZoneMappings(newMappings);
+      setAreaMappings(newMappings);
       const os = getOfficeState();
-      os.zoneMappings = newMappings;
-      vscode.postMessage({ type: 'saveZoneMappings', mappings: newMappings });
+      os.areaMappings = newMappings;
+      vscode.postMessage({ type: 'saveAreaMappings', mappings: newMappings });
     },
-    [zoneMappings, setZoneMappings],
+    [areaMappings, setAreaMappings],
   );
 
-  // Zone visibility: always show in zone paint mode, otherwise respect settings toggle
-  const effectiveShowZones =
-    (editor.isEditMode && editorState.activeTool === EditTool.ZONE_PAINT) || showZones;
+  // Area visibility: always show in area paint mode, otherwise respect settings toggle
+  const effectiveShowAreas =
+    (editor.isEditMode && editorState.activeTool === EditTool.AREA_PAINT) || showAreas;
 
   const handleCloseAgent = useCallback((id: number) => {
     vscode.postMessage({ type: 'closeAgent', id });
@@ -215,7 +215,7 @@ function App() {
         zoom={editor.zoom}
         onZoomChange={editor.handleZoomChange}
         panRef={editor.panRef}
-        showZones={effectiveShowZones}
+        showAreas={effectiveShowAreas}
       />
 
       {!isDebugMode ? (
@@ -273,16 +273,16 @@ function App() {
                   onCarpetAccentColorChange={editor.handleCarpetAccentColorChange}
                   onCarpetVariantChange={editor.handleCarpetVariantChange}
                   loadedAssets={loadedAssets}
-                  zones={officeState.getLayout().zones ?? []}
-                  selectedZoneLabel={editorState.selectedZoneLabel}
-                  onSelectZone={editor.handleSelectZone}
-                  onAddZone={editor.handleAddZone}
-                  onRemoveZone={editor.handleRemoveZone}
-                  onRenameZone={editor.handleRenameZone}
-                  onZoneColorChange={editor.handleZoneColorChange}
+                  areas={officeState.getLayout().areas ?? []}
+                  selectedAreaLabel={editorState.selectedAreaLabel}
+                  onSelectArea={editor.handleSelectArea}
+                  onAddArea={editor.handleAddArea}
+                  onRemoveArea={editor.handleRemoveArea}
+                  onRenameArea={editor.handleRenameArea}
+                  onAreaColorChange={editor.handleAreaColorChange}
                   workspaceFolders={workspaceFolders}
-                  zoneMappings={zoneMappings}
-                  onZoneMappingChange={handleZoneMappingChange}
+                  areaMappings={areaMappings}
+                  onAreaMappingChange={handleAreaMappingChange}
                 />
               );
             })()}
@@ -410,11 +410,11 @@ function App() {
           setHooksEnabled(newVal);
           vscode.postMessage({ type: 'setHooksEnabled', enabled: newVal });
         }}
-        showZones={showZones}
-        onToggleShowZones={() => {
-          const newVal = !showZones;
-          setShowZones(newVal);
-          vscode.postMessage({ type: 'setShowZones', enabled: newVal });
+        showAreas={showAreas}
+        onToggleShowAreas={() => {
+          const newVal = !showAreas;
+          setShowAreas(newVal);
+          vscode.postMessage({ type: 'setShowAreas', enabled: newVal });
         }}
       />
 

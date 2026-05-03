@@ -7,10 +7,10 @@ import { ItemSelect } from '../../components/ui/ItemSelect.js';
 import type { ColorValue } from '../../components/ui/types.js';
 import { VisualColorPicker } from '../../components/ui/VisualColorPicker.js';
 import {
+  AREA_DEFAULT_COLORS,
   CANVAS_FALLBACK_TILE_COLOR,
   CARPET_DEFAULT_ACCENT_COLOR,
   CARPET_DEFAULT_COLOR,
-  ZONE_DEFAULT_COLORS,
 } from '../../constants.js';
 import type { WorkspaceFolder } from '../../hooks/useExtensionMessages.js';
 import { getCarpetJunctionSprite, getCarpetSetCount, hasCarpetSprites } from '../carpetTiles.js';
@@ -23,7 +23,7 @@ import {
   getCatalogByCategory,
 } from '../layout/furnitureCatalog.js';
 import { getCachedSprite } from '../sprites/spriteCache.js';
-import type { TileType as TileTypeVal, ZoneDefinition } from '../types.js';
+import type { AreaDefinition, TileType as TileTypeVal } from '../types.js';
 import { EditTool } from '../types.js';
 import { getWallSetCount, getWallSetPreviewSprite } from '../wallTiles.js';
 
@@ -52,17 +52,17 @@ interface EditorToolbarProps {
   onCarpetAccentColorChange: (color: ColorValue | undefined) => void;
   onCarpetVariantChange: (variant: number) => void;
   loadedAssets?: LoadedAssetData;
-  // Zone props
-  zones: ZoneDefinition[];
-  selectedZoneLabel: string | null;
-  onSelectZone: (label: string) => void;
-  onAddZone: (label: string, color: string) => void;
-  onRemoveZone: (label: string) => void;
-  onRenameZone: (oldLabel: string, newLabel: string) => void;
-  onZoneColorChange: (label: string, color: string) => void;
+  // Area props
+  areas: AreaDefinition[];
+  selectedAreaLabel: string | null;
+  onSelectArea: (label: string) => void;
+  onAddArea: (label: string, color: string) => void;
+  onRemoveArea: (label: string) => void;
+  onRenameArea: (oldLabel: string, newLabel: string) => void;
+  onAreaColorChange: (label: string, color: string) => void;
   workspaceFolders: WorkspaceFolder[];
-  zoneMappings: Record<string, string[]>;
-  onZoneMappingChange: (folderName: string, zoneLabel: string, action: 'add' | 'remove') => void;
+  areaMappings: Record<string, string[]>;
+  onAreaMappingChange: (folderName: string, areaLabel: string, action: 'add' | 'remove') => void;
 }
 
 const THUMB_ZOOM = 2;
@@ -94,27 +94,27 @@ export function EditorToolbar({
   onCarpetAccentColorChange,
   onCarpetVariantChange,
   loadedAssets,
-  zones,
-  selectedZoneLabel,
-  onSelectZone,
-  onAddZone,
-  onRemoveZone,
-  onRenameZone,
-  onZoneColorChange,
+  areas,
+  selectedAreaLabel,
+  onSelectArea,
+  onAddArea,
+  onRemoveArea,
+  onRenameArea,
+  onAreaColorChange,
   workspaceFolders,
-  zoneMappings,
-  onZoneMappingChange,
+  areaMappings,
+  onAreaMappingChange,
 }: EditorToolbarProps) {
   const [activeCategory, setActiveCategory] = useState<FurnitureCategory | 'carpet'>('desks');
   const [showColor, setShowColor] = useState(false);
   const [showWallColor, setShowWallColor] = useState(false);
   const [showFurnitureColor, setShowFurnitureColor] = useState(false);
   const [showCarpetColor, setShowCarpetColor] = useState(false);
-  const [newZoneName, setNewZoneName] = useState('');
-  const [editingZoneLabel, setEditingZoneLabel] = useState<string | null>(null);
-  const [editingZoneValue, setEditingZoneValue] = useState('');
+  const [newAreaName, setNewAreaName] = useState('');
+  const [editingAreaLabel, setEditingAreaLabel] = useState<string | null>(null);
+  const [editingAreaValue, setEditingAreaValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
-  const [folderPickerZone, setFolderPickerZone] = useState<string | null>(null);
+  const [folderPickerArea, setFolderPickerArea] = useState<string | null>(null);
 
   // Build dynamic catalog from loaded assets
   useEffect(() => {
@@ -155,7 +155,7 @@ export function EditorToolbar({
   const isFloorActive = activeTool === EditTool.TILE_PAINT || activeTool === EditTool.EYEDROPPER;
   const isWallActive = activeTool === EditTool.WALL_PAINT;
   const isEraseActive = activeTool === EditTool.ERASE;
-  const isZoneActive = activeTool === EditTool.ZONE_PAINT;
+  const isAreaActive = activeTool === EditTool.AREA_PAINT;
   const isCarpetTool = activeTool === EditTool.CARPET_PAINT || activeTool === EditTool.CARPET_PICK;
   const isFurnitureActive =
     activeTool === EditTool.FURNITURE_PLACE ||
@@ -195,12 +195,12 @@ export function EditorToolbar({
         </Button>
         {workspaceFolders.length > 0 && (
           <Button
-            variant={isZoneActive ? 'active' : 'default'}
+            variant={isAreaActive ? 'active' : 'default'}
             size="md"
-            onClick={() => onToolChange(EditTool.ZONE_PAINT)}
-            title="Paint zones for workspace folders"
+            onClick={() => onToolChange(EditTool.AREA_PAINT)}
+            title="Paint areas for workspace folders"
           >
-            Zones
+            Areas
           </Button>
         )}
         <Button
@@ -559,56 +559,56 @@ export function EditorToolbar({
         </div>
       )}
 
-      {/* Sub-panel: Zones — stacked bottom-to-top via column-reverse */}
-      {isZoneActive && (
+      {/* Sub-panel: Areas — stacked bottom-to-top via column-reverse */}
+      {isAreaActive && (
         <div className="flex flex-col gap-4 mb-4">
-          {/* Zone cards — visually below the add input */}
-          {zones.length > 0 && (
+          {/* Area cards — visually below the add input */}
+          {areas.length > 0 && (
             <div className="flex gap-4 flex-wrap">
-              {zones.map((zone) => {
-                // Folders mapped to this zone
+              {areas.map((area) => {
+                // Folders mapped to this area
                 const mappedFolders = workspaceFolders.filter((f) =>
-                  zoneMappings[f.name]?.includes(zone.label),
+                  areaMappings[f.name]?.includes(area.label),
                 );
-                // Folders available to add (not yet in this zone)
+                // Folders available to add (not yet in this area)
                 const availableFolders = workspaceFolders.filter(
-                  (f) => !zoneMappings[f.name]?.includes(zone.label),
+                  (f) => !areaMappings[f.name]?.includes(area.label),
                 );
-                const isSelected = selectedZoneLabel === zone.label;
+                const isSelected = selectedAreaLabel === area.label;
 
                 return (
                   <div
-                    key={zone.label}
+                    key={area.label}
                     className={`flex flex-col gap-2 w-130 min-h-170 py-4 px-8 cursor-pointer border-2 ${isSelected ? 'border-accent bg-accent-bg' : 'border-border bg-bg'}`}
-                    onClick={() => onSelectZone(zone.label)}
+                    onClick={() => onSelectArea(area.label)}
                   >
                     {/* Header: color swatch + title + close */}
                     <div className="flex items-center gap-4">
                       <input
                         type="color"
-                        value={zone.color}
-                        onChange={(e) => onZoneColorChange(zone.label, e.target.value)}
+                        value={area.color}
+                        onChange={(e) => onAreaColorChange(area.label, e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        title="Change zone color"
+                        title="Change area color"
                         className="w-16 h-16 p-0 border-2 border-border cursor-pointer"
-                        style={{ background: zone.color }}
+                        style={{ background: area.color }}
                       />
-                      {editingZoneLabel === zone.label ? (
+                      {editingAreaLabel === area.label ? (
                         <input
                           ref={renameInputRef}
                           className="bg-transparent text-sm text-text border-b-2 border-accent outline-none flex-1 w-60"
-                          value={editingZoneValue}
-                          onChange={(e) => setEditingZoneValue(e.target.value)}
+                          value={editingAreaValue}
+                          onChange={(e) => setEditingAreaValue(e.target.value)}
                           onBlur={() => {
-                            const trimmed = editingZoneValue.trim();
-                            if (trimmed && trimmed !== zone.label) {
-                              onRenameZone(zone.label, trimmed);
+                            const trimmed = editingAreaValue.trim();
+                            if (trimmed && trimmed !== area.label) {
+                              onRenameArea(area.label, trimmed);
                             }
-                            setEditingZoneLabel(null);
+                            setEditingAreaLabel(null);
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                            if (e.key === 'Escape') setEditingZoneLabel(null);
+                            if (e.key === 'Escape') setEditingAreaLabel(null);
                           }}
                           autoFocus
                           onClick={(e) => e.stopPropagation()}
@@ -618,21 +618,21 @@ export function EditorToolbar({
                           className="text-sm text-text flex-1"
                           onDoubleClick={(e) => {
                             e.stopPropagation();
-                            setEditingZoneLabel(zone.label);
-                            setEditingZoneValue(zone.label);
+                            setEditingAreaLabel(area.label);
+                            setEditingAreaValue(area.label);
                           }}
                           title="Double-click to rename"
                         >
-                          {zone.label}
+                          {area.label}
                         </span>
                       )}
                       <button
                         className="text-xs text-text-muted hover:text-red-400 bg-transparent border-none cursor-pointer px-2"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onRemoveZone(zone.label);
+                          onRemoveArea(area.label);
                         }}
-                        title="Remove zone"
+                        title="Remove area"
                       >
                         X
                       </button>
@@ -654,8 +654,8 @@ export function EditorToolbar({
                           </span>
                           <button
                             className="text-2xs text-text-muted hover:text-red-400 bg-transparent border-none cursor-pointer px-2"
-                            onClick={() => onZoneMappingChange(folder.name, zone.label, 'remove')}
-                            title="Remove folder from zone"
+                            onClick={() => onAreaMappingChange(folder.name, area.label, 'remove')}
+                            title="Remove folder from area"
                           >
                             x
                           </button>
@@ -671,19 +671,19 @@ export function EditorToolbar({
                         className="w-full text-sm mb-3"
                         disabled={availableFolders.length === 0}
                         onClick={() =>
-                          setFolderPickerZone((v) => (v === zone.label ? null : zone.label))
+                          setFolderPickerArea((v) => (v === area.label ? null : area.label))
                         }
                       >
                         + Directory
                       </Button>
-                      <Dropdown isOpen={folderPickerZone === zone.label}>
+                      <Dropdown isOpen={folderPickerArea === area.label}>
                         {availableFolders.map((f) => (
                           <DropdownItem
                             key={f.name}
                             className="text-xs"
                             onClick={() => {
-                              onZoneMappingChange(f.name, zone.label, 'add');
-                              setFolderPickerZone(null);
+                              onAreaMappingChange(f.name, area.label, 'add');
+                              setFolderPickerArea(null);
                             }}
                           >
                             {f.name}
@@ -697,23 +697,23 @@ export function EditorToolbar({
             </div>
           )}
 
-          {/* Description — visually between input and zone cards */}
+          {/* Description — visually between input and area cards */}
           <div className="text-xs text-text-muted px-4 leading-none pb-2">
-            Paint zones on the map, then assign workspace directories. Agents will sit in their
-            directory's zone.
+            Paint areas on the map, then assign workspace directories. Agents will sit in their
+            directory's area.
           </div>
-          {/* Add new zone — visually at the top */}
+          {/* Add new area — visually at the top */}
           <div className="flex items-center gap-2 px-4 py-2">
             <input
               className="bg-bg-dark w-full text-text px-8 border-2 border-border outline-none"
-              placeholder="Add new zone..."
-              value={newZoneName}
-              onChange={(e) => setNewZoneName(e.target.value)}
+              placeholder="Add new area..."
+              value={newAreaName}
+              onChange={(e) => setNewAreaName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && newZoneName.trim()) {
-                  const nextColor = ZONE_DEFAULT_COLORS[zones.length % ZONE_DEFAULT_COLORS.length];
-                  onAddZone(newZoneName.trim(), nextColor);
-                  setNewZoneName('');
+                if (e.key === 'Enter' && newAreaName.trim()) {
+                  const nextColor = AREA_DEFAULT_COLORS[areas.length % AREA_DEFAULT_COLORS.length];
+                  onAddArea(newAreaName.trim(), nextColor);
+                  setNewAreaName('');
                 }
               }}
             />
@@ -722,10 +722,10 @@ export function EditorToolbar({
               size="sm"
               className="px-12"
               onClick={() => {
-                if (newZoneName.trim()) {
-                  const nextColor = ZONE_DEFAULT_COLORS[zones.length % ZONE_DEFAULT_COLORS.length];
-                  onAddZone(newZoneName.trim(), nextColor);
-                  setNewZoneName('');
+                if (newAreaName.trim()) {
+                  const nextColor = AREA_DEFAULT_COLORS[areas.length % AREA_DEFAULT_COLORS.length];
+                  onAddArea(newAreaName.trim(), nextColor);
+                  setNewAreaName('');
                 }
               }}
             >

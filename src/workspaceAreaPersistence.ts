@@ -1,18 +1,18 @@
 import * as fs from 'fs';
 
 /**
- * Read zone mappings from the `.code-workspace` file.
- * Returns a Record<folderName, zoneLabels[]> or empty object.
+ * Read area mappings from the `.code-workspace` file.
+ * Returns a Record<folderName, areaLabels[]> or empty object.
  * Handles both legacy string values and new array values.
  */
-export function readWorkspaceZoneMappings(workspaceFilePath: string): Record<string, string[]> {
+export function readWorkspaceAreaMappings(workspaceFilePath: string): Record<string, string[]> {
   try {
     if (!fs.existsSync(workspaceFilePath)) return {};
     const raw = fs.readFileSync(workspaceFilePath, 'utf-8');
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const pixelAgents = parsed['pixel-agents'] as Record<string, unknown> | undefined;
     if (!pixelAgents || typeof pixelAgents !== 'object') return {};
-    const mappings = pixelAgents.zoneMappings as Record<string, unknown> | undefined;
+    const mappings = pixelAgents.areaMappings as Record<string, unknown> | undefined;
     if (!mappings || typeof mappings !== 'object') return {};
     const result: Record<string, string[]> = {};
     for (const [key, value] of Object.entries(mappings)) {
@@ -25,16 +25,16 @@ export function readWorkspaceZoneMappings(workspaceFilePath: string): Record<str
     }
     return result;
   } catch (err) {
-    console.error('[Pixel Agents] Failed to read workspace zone mappings:', err);
+    console.error('[Pixel Agents] Failed to read workspace area mappings:', err);
     return {};
   }
 }
 
 /**
- * Write zone mappings to the `.code-workspace` file under `pixel-agents.zoneMappings`.
+ * Write area mappings to the `.code-workspace` file under `pixel-agents.areaMappings`.
  * Preserves all other keys in the workspace file.
  */
-export function writeWorkspaceZoneMappings(
+export function writeWorkspaceAreaMappings(
   workspaceFilePath: string,
   mappings: Record<string, string[]>,
 ): void {
@@ -45,13 +45,13 @@ export function writeWorkspaceZoneMappings(
       parsed = JSON.parse(raw) as Record<string, unknown>;
     }
     const pixelAgents = (parsed['pixel-agents'] as Record<string, unknown> | undefined) ?? {};
-    pixelAgents.zoneMappings = mappings;
+    pixelAgents.areaMappings = mappings;
     parsed['pixel-agents'] = pixelAgents;
     const json = JSON.stringify(parsed, null, 2);
     const tmpPath = workspaceFilePath + '.tmp';
     fs.writeFileSync(tmpPath, json, 'utf-8');
     fs.renameSync(tmpPath, workspaceFilePath);
   } catch (err) {
-    console.error('[Pixel Agents] Failed to write workspace zone mappings:', err);
+    console.error('[Pixel Agents] Failed to write workspace area mappings:', err);
   }
 }

@@ -4,23 +4,23 @@ import type { ColorValue } from '../components/ui/types.js';
 import { LAYOUT_SAVE_DEBOUNCE_MS, ZOOM_MAX, ZOOM_MIN } from '../constants.js';
 import type { ExpandDirection } from '../office/editor/editorActions.js';
 import {
-  addZone,
+  addArea,
   canPlaceFurniture,
+  eraseArea,
   eraseCarpet,
-  eraseZone,
   expandLayout,
   getWallPlacementRow,
   moveFurniture,
+  paintArea,
   paintCarpet,
   paintTile,
-  paintZone,
   placeFurniture,
+  removeArea,
   removeFurniture,
-  removeZone,
-  renameZone,
+  renameArea,
   rotateFurniture,
   toggleFurnitureState,
-  updateZoneColor,
+  updateAreaColor,
 } from '../office/editor/editorActions.js';
 import type { EditorState } from '../office/editor/editorState.js';
 import type { OfficeState } from '../office/engine/officeState.js';
@@ -73,11 +73,11 @@ interface EditorActions {
   handleEditorEraseAction: (col: number, row: number) => void;
   handleEditorSelectionChange: () => void;
   handleDragMove: (uid: string, newCol: number, newRow: number) => void;
-  handleSelectZone: (label: string) => void;
-  handleAddZone: (label: string, color: string) => void;
-  handleRemoveZone: (label: string) => void;
-  handleRenameZone: (oldLabel: string, newLabel: string) => void;
-  handleZoneColorChange: (label: string, color: string) => void;
+  handleSelectArea: (label: string) => void;
+  handleAddArea: (label: string, color: string) => void;
+  handleRemoveArea: (label: string) => void;
+  handleRenameArea: (oldLabel: string, newLabel: string) => void;
+  handleAreaColorChange: (label: string, color: string) => void;
 }
 
 export function useEditorActions(
@@ -484,25 +484,25 @@ export function useEditorActions(
       let effectiveCol = col;
       let effectiveRow = row;
 
-      // Handle zone paint/erase
-      if (editorState.activeTool === EditTool.ZONE_PAINT) {
+      // Handle area paint/erase
+      if (editorState.activeTool === EditTool.AREA_PAINT) {
         if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return;
-        const selectedLabel = editorState.selectedZoneLabel;
+        const selectedLabel = editorState.selectedAreaLabel;
         if (!selectedLabel) return;
 
         const idx = row * layout.cols + col;
-        const existingZone = layout.zoneTiles?.[idx];
+        const existingArea = layout.areaTiles?.[idx];
 
         // Determine drag direction on first tile
-        if (editorState.zoneDragErasing === null) {
-          editorState.zoneDragErasing = existingZone === selectedLabel;
+        if (editorState.areaDragErasing === null) {
+          editorState.areaDragErasing = existingArea === selectedLabel;
         }
 
         let newLayout: OfficeLayout;
-        if (editorState.zoneDragErasing) {
-          newLayout = eraseZone(layout, col, row);
+        if (editorState.areaDragErasing) {
+          newLayout = eraseArea(layout, col, row);
         } else {
-          newLayout = paintZone(layout, col, row, selectedLabel);
+          newLayout = paintArea(layout, col, row, selectedLabel);
         }
         if (newLayout !== layout) {
           applyEdit(newLayout);
@@ -718,9 +718,9 @@ export function useEditorActions(
       const layout = os.getLayout();
       if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return;
 
-      // Zone tool: right-click erases zone
-      if (editorState.activeTool === EditTool.ZONE_PAINT) {
-        const newLayout = eraseZone(layout, col, row);
+      // Area tool: right-click erases area
+      if (editorState.activeTool === EditTool.AREA_PAINT) {
+        const newLayout = eraseArea(layout, col, row);
         if (newLayout !== layout) {
           applyEdit(newLayout);
         }
@@ -747,58 +747,58 @@ export function useEditorActions(
     [getOfficeState, editorState, applyEdit, applyCarpetEdit],
   );
 
-  const handleSelectZone = useCallback(
+  const handleSelectArea = useCallback(
     (label: string) => {
-      editorState.selectedZoneLabel = label;
+      editorState.selectedAreaLabel = label;
       setEditorTick((n) => n + 1);
     },
     [editorState],
   );
 
-  const handleAddZone = useCallback(
+  const handleAddArea = useCallback(
     (label: string, color: string) => {
       const os = getOfficeState();
-      const newLayout = addZone(os.getLayout(), label, color);
+      const newLayout = addArea(os.getLayout(), label, color);
       if (newLayout !== os.getLayout()) {
         applyEdit(newLayout);
-        editorState.selectedZoneLabel = label;
+        editorState.selectedAreaLabel = label;
       }
     },
     [getOfficeState, editorState, applyEdit],
   );
 
-  const handleRemoveZone = useCallback(
+  const handleRemoveArea = useCallback(
     (label: string) => {
       const os = getOfficeState();
-      const newLayout = removeZone(os.getLayout(), label);
+      const newLayout = removeArea(os.getLayout(), label);
       if (newLayout !== os.getLayout()) {
         applyEdit(newLayout);
-        if (editorState.selectedZoneLabel === label) {
-          editorState.selectedZoneLabel = null;
+        if (editorState.selectedAreaLabel === label) {
+          editorState.selectedAreaLabel = null;
         }
       }
     },
     [getOfficeState, editorState, applyEdit],
   );
 
-  const handleRenameZone = useCallback(
+  const handleRenameArea = useCallback(
     (oldLabel: string, newLabel: string) => {
       const os = getOfficeState();
-      const newLayout = renameZone(os.getLayout(), oldLabel, newLabel);
+      const newLayout = renameArea(os.getLayout(), oldLabel, newLabel);
       if (newLayout !== os.getLayout()) {
         applyEdit(newLayout);
-        if (editorState.selectedZoneLabel === oldLabel) {
-          editorState.selectedZoneLabel = newLabel;
+        if (editorState.selectedAreaLabel === oldLabel) {
+          editorState.selectedAreaLabel = newLabel;
         }
       }
     },
     [getOfficeState, editorState, applyEdit],
   );
 
-  const handleZoneColorChange = useCallback(
+  const handleAreaColorChange = useCallback(
     (label: string, color: string) => {
       const os = getOfficeState();
-      const newLayout = updateZoneColor(os.getLayout(), label, color);
+      const newLayout = updateAreaColor(os.getLayout(), label, color);
       if (newLayout !== os.getLayout()) {
         applyEdit(newLayout);
       }
@@ -839,10 +839,10 @@ export function useEditorActions(
     handleEditorEraseAction,
     handleEditorSelectionChange,
     handleDragMove,
-    handleSelectZone,
-    handleAddZone,
-    handleRemoveZone,
-    handleRenameZone,
-    handleZoneColorChange,
+    handleSelectArea,
+    handleAddArea,
+    handleRemoveArea,
+    handleRenameArea,
+    handleAreaColorChange,
   };
 }

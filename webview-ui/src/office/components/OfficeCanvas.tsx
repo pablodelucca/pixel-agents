@@ -40,7 +40,7 @@ interface OfficeCanvasProps {
   zoom: number;
   onZoomChange: (zoom: number) => void;
   panRef: React.MutableRefObject<{ x: number; y: number }>;
-  showZones: boolean;
+  showAreas: boolean;
 }
 
 export function OfficeCanvas({
@@ -58,7 +58,7 @@ export function OfficeCanvas({
   zoom,
   onZoomChange,
   panRef,
-  showZones,
+  showAreas,
 }: OfficeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -135,7 +135,7 @@ export function OfficeCanvas({
             editorState.activeTool === EditTool.TILE_PAINT ||
             editorState.activeTool === EditTool.WALL_PAINT ||
             editorState.activeTool === EditTool.ERASE ||
-            editorState.activeTool === EditTool.ZONE_PAINT;
+            editorState.activeTool === EditTool.AREA_PAINT;
           editorRender = {
             showGrid: true,
             ghostSprite: null,
@@ -279,10 +279,10 @@ export function OfficeCanvas({
           officeState.getLayout().cols,
           officeState.getLayout().rows,
           officeState.getLayout().carpetTiles,
-          showZones ? officeState.getLayout().zoneTiles : undefined,
-          showZones ? officeState.getLayout().zones : undefined,
-          isEditMode && editorState.activeTool === EditTool.ZONE_PAINT
-            ? editorState.selectedZoneLabel
+          showAreas ? officeState.getLayout().areaTiles : undefined,
+          showAreas ? officeState.getLayout().areas : undefined,
+          isEditMode && editorState.activeTool === EditTool.AREA_PAINT
+            ? editorState.selectedAreaLabel
             : undefined,
         );
         offsetRef.current = { x: offsetX, y: offsetY };
@@ -297,7 +297,7 @@ export function OfficeCanvas({
       stop();
       observer.disconnect();
     };
-  }, [officeState, resizeCanvas, isEditMode, editorState, _editorTick, zoom, panRef, showZones]);
+  }, [officeState, resizeCanvas, isEditMode, editorState, _editorTick, zoom, panRef, showAreas]);
 
   // Convert CSS mouse coords to world (sprite pixel) coords
   const screenToWorld = useCallback(
@@ -392,7 +392,7 @@ export function OfficeCanvas({
               editorState.activeTool === EditTool.WALL_PAINT ||
               editorState.activeTool === EditTool.ERASE ||
               editorState.activeTool === EditTool.CARPET_PAINT ||
-              editorState.activeTool === EditTool.ZONE_PAINT) &&
+              editorState.activeTool === EditTool.AREA_PAINT) &&
             !editorState.dragUid
           ) {
             onEditorTileAction(tile.col, tile.row);
@@ -549,7 +549,7 @@ export function OfficeCanvas({
             editorState.activeTool === EditTool.WALL_PAINT ||
             editorState.activeTool === EditTool.ERASE ||
             editorState.activeTool === EditTool.CARPET_PAINT ||
-            editorState.activeTool === EditTool.ZONE_PAINT)
+            editorState.activeTool === EditTool.AREA_PAINT)
         ) {
           const layout = officeState.getLayout();
           if (tile.col >= 0 && tile.col < layout.cols && tile.row >= 0 && tile.row < layout.rows) {
@@ -662,7 +662,7 @@ export function OfficeCanvas({
       if (e.button === 2) {
         isEraseDraggingRef.current = false;
         editorState.carpetDragErasing = null;
-        editorState.zoneDragErasing = null;
+        editorState.areaDragErasing = null;
         editorState.endCarpetStroke();
         return;
       }
@@ -707,7 +707,7 @@ export function OfficeCanvas({
       editorState.isDragging = false;
       editorState.wallDragAdding = null;
       editorState.carpetDragErasing = null;
-      editorState.zoneDragErasing = null;
+      editorState.areaDragErasing = null;
       editorState.endCarpetStroke();
     },
     [editorState, isEditMode, officeState, onDragMove, onEditorSelectionChange],

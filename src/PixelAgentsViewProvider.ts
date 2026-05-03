@@ -42,7 +42,7 @@ import {
   GLOBAL_KEY_HOOKS_ENABLED,
   GLOBAL_KEY_HOOKS_INFO_SHOWN,
   GLOBAL_KEY_LAST_SEEN_VERSION,
-  GLOBAL_KEY_SHOW_ZONES,
+  GLOBAL_KEY_SHOW_AREAS,
   GLOBAL_KEY_SOUND_ENABLED,
   GLOBAL_KEY_WATCH_ALL_SESSIONS,
   LAYOUT_REVISION_KEY,
@@ -67,9 +67,9 @@ import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layout
 import { setHookProvider } from './transcriptParser.js';
 import type { AgentState } from './types.js';
 import {
-  readWorkspaceZoneMappings,
-  writeWorkspaceZoneMappings,
-} from './workspaceZonePersistence.js';
+  readWorkspaceAreaMappings,
+  writeWorkspaceAreaMappings,
+} from './workspaceAreaPersistence.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   nextAgentId = { current: 1 };
@@ -479,15 +479,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             this.webview?.postMessage({ type: 'agentClosed', id });
           }
         }
-      } else if (message.type === 'saveZoneMappings') {
+      } else if (message.type === 'saveAreaMappings') {
         const mappings = message.mappings as Record<string, string[]>;
         const wsFile = vscode.workspace.workspaceFile;
         if (wsFile && wsFile.scheme === 'file') {
-          writeWorkspaceZoneMappings(wsFile.fsPath, mappings);
+          writeWorkspaceAreaMappings(wsFile.fsPath, mappings);
         }
-      } else if (message.type === 'setShowZones') {
+      } else if (message.type === 'setShowAreas') {
         const enabled = message.enabled as boolean;
-        this.context.globalState.update(GLOBAL_KEY_SHOW_ZONES, enabled);
+        this.context.globalState.update(GLOBAL_KEY_SHOW_AREAS, enabled);
       } else if (message.type === 'webviewReady') {
         // Provider capabilities: tool taxonomy for webview animation + subagent rendering.
         // Sent once before restoreAgents so characters render with correct animations
@@ -585,7 +585,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           GLOBAL_KEY_HOOKS_INFO_SHOWN,
           false,
         );
-        const showZones = this.context.globalState.get<boolean>(GLOBAL_KEY_SHOW_ZONES, false);
+        const showAreas = this.context.globalState.get<boolean>(GLOBAL_KEY_SHOW_AREAS, false);
         const config = readConfig();
         this.webview?.postMessage({
           type: 'settingsLoaded',
@@ -597,7 +597,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           hooksEnabled,
           hooksInfoShown,
           externalAssetDirectories: config.externalAssetDirectories,
-          showZones,
+          showAreas,
         });
 
         // Send workspace folders to webview (only when multi-root)
@@ -609,11 +609,11 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           });
         }
 
-        // Send zone mappings from .code-workspace file
+        // Send area mappings from .code-workspace file
         const wsFile = vscode.workspace.workspaceFile;
         if (wsFile && wsFile.scheme === 'file') {
-          const mappings = readWorkspaceZoneMappings(wsFile.fsPath);
-          this.webview?.postMessage({ type: 'zoneMappingsLoaded', mappings });
+          const mappings = readWorkspaceAreaMappings(wsFile.fsPath);
+          this.webview?.postMessage({ type: 'areaMappingsLoaded', mappings });
         }
 
         // Ensure project scan runs even with no restored agents (to adopt external terminals)

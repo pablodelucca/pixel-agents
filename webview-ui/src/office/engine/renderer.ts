@@ -1,5 +1,12 @@
 import type { ColorValue } from '../../components/ui/types.js';
 import {
+  AREA_ACTIVE_ALPHA_MULTIPLIER,
+  AREA_LABEL_ALPHA,
+  AREA_LABEL_FALLBACK_COLOR,
+  AREA_LABEL_FONT_SIZE_PX,
+  AREA_LABEL_SHADOW_ALPHA,
+  AREA_LABEL_SHADOW_COLOR,
+  AREA_OVERLAY_ALPHA,
   BUBBLE_FADE_DURATION_SEC,
   BUBBLE_SITTING_OFFSET_PX,
   BUBBLE_VERTICAL_OFFSET_PX,
@@ -34,13 +41,6 @@ import {
   SELECTION_HIGHLIGHT_COLOR,
   VOID_TILE_DASH_PATTERN,
   VOID_TILE_OUTLINE_COLOR,
-  ZONE_ACTIVE_ALPHA_MULTIPLIER,
-  ZONE_LABEL_ALPHA,
-  ZONE_LABEL_FALLBACK_COLOR,
-  ZONE_LABEL_FONT_SIZE_PX,
-  ZONE_LABEL_SHADOW_ALPHA,
-  ZONE_LABEL_SHADOW_COLOR,
-  ZONE_OVERLAY_ALPHA,
 } from '../../constants.js';
 import { getCarpetJunctionSprite, getCarpetPaletteKey, hasCarpetSprites } from '../carpetTiles.js';
 import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js';
@@ -51,13 +51,13 @@ import {
   getCharacterSprites,
 } from '../sprites/spriteData.js';
 import type {
+  AreaDefinition,
   CarpetTile,
   Character,
   FurnitureInstance,
   Seat,
   SpriteData,
   TileType as TileTypeVal,
-  ZoneDefinition,
 } from '../types.js';
 import { CharacterState, TILE_SIZE, TileType } from '../types.js';
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles.js';
@@ -191,51 +191,51 @@ export function renderCarpetLayer(
   }
 }
 
-/** Render semi-transparent zone overlay on tiles. */
-export function renderZoneOverlay(
+/** Render semi-transparent area overlay on tiles. */
+export function renderAreaOverlay(
   ctx: CanvasRenderingContext2D,
-  zoneTiles: Array<string | null>,
-  zones: ZoneDefinition[],
+  areaTiles: Array<string | null>,
+  areas: AreaDefinition[],
   cols: number,
   rows: number,
   offsetX: number,
   offsetY: number,
   zoom: number,
-  activeZoneLabel?: string | null,
+  activeAreaLabel?: string | null,
 ): void {
   const s = TILE_SIZE * zoom;
-  const zoneColorMap = new Map<string, string>();
-  for (const z of zones) {
-    zoneColorMap.set(z.label, z.color);
+  const areaColorMap = new Map<string, string>();
+  for (const z of areas) {
+    areaColorMap.set(z.label, z.color);
   }
 
   // Compute centroids for labels
-  const zoneCentroids = new Map<string, { sumCol: number; sumRow: number; count: number }>();
+  const areaCentroids = new Map<string, { sumCol: number; sumRow: number; count: number }>();
 
   ctx.save();
-  ctx.globalAlpha = ZONE_OVERLAY_ALPHA;
+  ctx.globalAlpha = AREA_OVERLAY_ALPHA;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const label = zoneTiles[r * cols + c];
+      const label = areaTiles[r * cols + c];
       if (!label) continue;
-      const color = zoneColorMap.get(label);
+      const color = areaColorMap.get(label);
       if (!color) continue;
 
-      // Highlight active zone more brightly
-      if (activeZoneLabel !== undefined && activeZoneLabel === label) {
-        ctx.globalAlpha = ZONE_OVERLAY_ALPHA * ZONE_ACTIVE_ALPHA_MULTIPLIER;
+      // Highlight active area more brightly
+      if (activeAreaLabel !== undefined && activeAreaLabel === label) {
+        ctx.globalAlpha = AREA_OVERLAY_ALPHA * AREA_ACTIVE_ALPHA_MULTIPLIER;
       } else {
-        ctx.globalAlpha = ZONE_OVERLAY_ALPHA;
+        ctx.globalAlpha = AREA_OVERLAY_ALPHA;
       }
 
       ctx.fillStyle = color;
       ctx.fillRect(offsetX + c * s, offsetY + r * s, s, s);
 
       // Accumulate centroids
-      let entry = zoneCentroids.get(label);
+      let entry = areaCentroids.get(label);
       if (!entry) {
         entry = { sumCol: 0, sumRow: 0, count: 0 };
-        zoneCentroids.set(label, entry);
+        areaCentroids.set(label, entry);
       }
       entry.sumCol += c;
       entry.sumRow += r;
@@ -245,11 +245,11 @@ export function renderZoneOverlay(
   ctx.restore();
 }
 
-/** Render zone labels on top of everything (called after scene + bubbles). */
-export function renderZoneLabels(
+/** Render area labels on top of everything (called after scene + bubbles). */
+export function renderAreaLabels(
   ctx: CanvasRenderingContext2D,
-  zoneTiles: Array<string | null>,
-  zones: ZoneDefinition[],
+  areaTiles: Array<string | null>,
+  areas: AreaDefinition[],
   cols: number,
   rows: number,
   offsetX: number,
@@ -257,21 +257,21 @@ export function renderZoneLabels(
   zoom: number,
 ): void {
   const s = TILE_SIZE * zoom;
-  const zoneColorMap = new Map<string, string>();
-  for (const z of zones) {
-    zoneColorMap.set(z.label, z.color);
+  const areaColorMap = new Map<string, string>();
+  for (const z of areas) {
+    areaColorMap.set(z.label, z.color);
   }
 
   // Compute centroids
-  const zoneCentroids = new Map<string, { sumCol: number; sumRow: number; count: number }>();
+  const areaCentroids = new Map<string, { sumCol: number; sumRow: number; count: number }>();
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const label = zoneTiles[r * cols + c];
+      const label = areaTiles[r * cols + c];
       if (!label) continue;
-      let entry = zoneCentroids.get(label);
+      let entry = areaCentroids.get(label);
       if (!entry) {
         entry = { sumCol: 0, sumRow: 0, count: 0 };
-        zoneCentroids.set(label, entry);
+        areaCentroids.set(label, entry);
       }
       entry.sumCol += c;
       entry.sumRow += r;
@@ -279,19 +279,19 @@ export function renderZoneLabels(
     }
   }
 
-  const fontSize = Math.max(ZONE_LABEL_FONT_SIZE_PX * zoom, 12);
+  const fontSize = Math.max(AREA_LABEL_FONT_SIZE_PX * zoom, 12);
   ctx.save();
   ctx.font = `bold ${fontSize}px "FS Pixel Sans", monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  for (const [label, centroid] of zoneCentroids) {
+  for (const [label, centroid] of areaCentroids) {
     const cx = offsetX + (centroid.sumCol / centroid.count + 0.5) * s;
     const cy = offsetY + (centroid.sumRow / centroid.count + 0.5) * s;
-    ctx.fillStyle = ZONE_LABEL_SHADOW_COLOR;
-    ctx.globalAlpha = ZONE_LABEL_SHADOW_ALPHA;
+    ctx.fillStyle = AREA_LABEL_SHADOW_COLOR;
+    ctx.globalAlpha = AREA_LABEL_SHADOW_ALPHA;
     ctx.fillText(label, cx + 1, cy + 1);
-    ctx.fillStyle = ZONE_LABEL_FALLBACK_COLOR;
-    ctx.globalAlpha = ZONE_LABEL_ALPHA;
+    ctx.fillStyle = AREA_LABEL_FALLBACK_COLOR;
+    ctx.globalAlpha = AREA_LABEL_ALPHA;
     ctx.fillText(label, cx, cy);
   }
   ctx.restore();
@@ -779,9 +779,9 @@ export function renderFrame(
   layoutCols?: number,
   layoutRows?: number,
   carpetTiles?: Array<CarpetTile | null>,
-  zoneTiles?: Array<string | null>,
-  zones?: ZoneDefinition[],
-  activeZoneLabel?: string | null,
+  areaTiles?: Array<string | null>,
+  areas?: AreaDefinition[],
+  activeAreaLabel?: string | null,
 ): { offsetX: number; offsetY: number } {
   // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -804,9 +804,9 @@ export function renderFrame(
     renderCarpetLayer(ctx, carpetTiles, cols, rows, offsetX, offsetY, zoom);
   }
 
-  // Draw zone overlay (after carpet, before seat indicators)
-  if (zoneTiles && zoneTiles.length > 0 && zones && zones.length > 0) {
-    renderZoneOverlay(ctx, zoneTiles, zones, cols, rows, offsetX, offsetY, zoom, activeZoneLabel);
+  // Draw area overlay (after carpet, before seat indicators)
+  if (areaTiles && areaTiles.length > 0 && areas && areas.length > 0) {
+    renderAreaOverlay(ctx, areaTiles, areas, cols, rows, offsetX, offsetY, zoom, activeAreaLabel);
   }
 
   // Seat indicators (below furniture/characters, on top of floor)
@@ -835,9 +835,9 @@ export function renderFrame(
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom);
 
-  // Zone labels (on top of furniture, characters, and bubbles)
-  if (zoneTiles && zoneTiles.length > 0 && zones && zones.length > 0) {
-    renderZoneLabels(ctx, zoneTiles, zones, cols, rows, offsetX, offsetY, zoom);
+  // Area labels (on top of furniture, characters, and bubbles)
+  if (areaTiles && areaTiles.length > 0 && areas && areas.length > 0) {
+    renderAreaLabels(ctx, areaTiles, areas, cols, rows, offsetX, offsetY, zoom);
   }
 
   // Editor overlays

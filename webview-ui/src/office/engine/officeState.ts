@@ -48,8 +48,8 @@ export class OfficeState {
   cameraFollowId: number | null = null;
   hoveredAgentId: number | null = null;
   hoveredTile: { col: number; row: number } | null = null;
-  /** Zone mappings: folder name → zone labels (from .code-workspace) */
-  zoneMappings: Record<string, string[]> = {};
+  /** Area mappings: folder name → area labels (from .code-workspace) */
+  areaMappings: Record<string, string[]> = {};
   /** Maps "parentId:toolId" → sub-agent character ID (negative) */
   subagentIdMap: Map<string, number> = new Map();
   /** Reverse lookup: sub-agent character ID → parent info */
@@ -230,9 +230,9 @@ export class OfficeState {
       }
     }
 
-    // Zone-aware seat assignment
-    const zoneTiles = this.layout.zoneTiles;
-    const zoneLabels = folderName ? this.zoneMappings[folderName] : undefined;
+    // Area-aware seat assignment
+    const areaTiles = this.layout.areaTiles;
+    const areaLabels = folderName ? this.areaMappings[folderName] : undefined;
 
     // Collect all free seats
     const freeSeats: string[] = [];
@@ -240,29 +240,29 @@ export class OfficeState {
       if (!seat.assigned) freeSeats.push(uid);
     }
 
-    // Helper: get the zone label for a seat tile
-    const seatZone = (uid: string): string | null => {
-      if (!zoneTiles) return null;
+    // Helper: get the area label for a seat tile
+    const seatArea = (uid: string): string | null => {
+      if (!areaTiles) return null;
       const seat = this.seats.get(uid);
       if (!seat) return null;
-      return zoneTiles[seat.seatRow * this.layout.cols + seat.seatCol] ?? null;
+      return areaTiles[seat.seatRow * this.layout.cols + seat.seatCol] ?? null;
     };
 
-    // 1. If agent has zone mappings, try seats in any of its zones first
-    if (zoneLabels && zoneLabels.length > 0) {
-      const zoneSet = new Set(zoneLabels);
-      const zoneSeats = freeSeats.filter((uid) => {
-        const z = seatZone(uid);
-        return z !== null && zoneSet.has(z);
+    // 1. If agent has area mappings, try seats in any of its areas first
+    if (areaLabels && areaLabels.length > 0) {
+      const areaSet = new Set(areaLabels);
+      const areaSeats = freeSeats.filter((uid) => {
+        const z = seatArea(uid);
+        return z !== null && areaSet.has(z);
       });
-      const pick = this.pickFromSeats(zoneSeats, electronicsTiles);
+      const pick = this.pickFromSeats(areaSeats, electronicsTiles);
       if (pick) return pick;
     }
 
-    // 2. Try unzoned seats (no zone label assigned to that tile)
-    const unzonedSeats = freeSeats.filter((uid) => !seatZone(uid));
-    const unzonedPick = this.pickFromSeats(unzonedSeats, electronicsTiles);
-    if (unzonedPick) return unzonedPick;
+    // 2. Try seats with no area label assigned to that tile
+    const unassignedSeats = freeSeats.filter((uid) => !seatArea(uid));
+    const unassignedPick = this.pickFromSeats(unassignedSeats, electronicsTiles);
+    if (unassignedPick) return unassignedPick;
 
     // 3. Fallback: any free seat
     return this.pickFromSeats(freeSeats, electronicsTiles);
@@ -317,7 +317,7 @@ export class OfficeState {
       hueShift = pick.hueShift;
     }
 
-    // Try preferred seat first, then zone-aware free seat
+    // Try preferred seat first, then area-aware free seat
     let seatId: string | null = null;
     if (preferredSeatId && this.seats.has(preferredSeatId)) {
       const seat = this.seats.get(preferredSeatId)!;

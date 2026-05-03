@@ -3,11 +3,11 @@ import { DEFAULT_NEUTRAL_COLOR } from '../../constants.js';
 import { getCatalogEntry, getRotatedType, getToggledType } from '../layout/furnitureCatalog.js';
 import { getPlacementBlockedTiles } from '../layout/layoutSerializer.js';
 import type {
+  AreaDefinition,
   CarpetTile,
   OfficeLayout,
   PlacedFurniture,
   TileType as TileTypeVal,
-  ZoneDefinition,
 } from '../types.js';
 import { MAX_COLS, MAX_ROWS, TileType } from '../types.js';
 
@@ -305,7 +305,7 @@ export function expandLayout(
   const newTiles: TileTypeVal[] = new Array(newCols * newRows).fill(TileType.VOID as TileTypeVal);
   const newColors: Array<ColorValue | null> = new Array(newCols * newRows).fill(null);
   const newCarpets: Array<CarpetTile | null> = new Array(newCols * newRows).fill(null);
-  const newZoneTiles: Array<string | null> = new Array(newCols * newRows).fill(null);
+  const newAreaTiles: Array<string | null> = new Array(newCols * newRows).fill(null);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -316,8 +316,8 @@ export function expandLayout(
       if (carpetTiles) {
         newCarpets[newIdx] = carpetTiles[oldIdx] ?? null;
       }
-      if (layout.zoneTiles) {
-        newZoneTiles[newIdx] = layout.zoneTiles[oldIdx] ?? null;
+      if (layout.areaTiles) {
+        newAreaTiles[newIdx] = layout.areaTiles[oldIdx] ?? null;
       }
     }
   }
@@ -338,20 +338,20 @@ export function expandLayout(
       tileColors: newColors,
       furniture: newFurniture,
       ...(carpetTiles ? { carpetTiles: newCarpets } : {}),
-      ...(layout.zoneTiles ? { zoneTiles: newZoneTiles } : {}),
+      ...(layout.areaTiles ? { areaTiles: newAreaTiles } : {}),
     },
     shift: { col: shiftCol, row: shiftRow },
   };
 }
 
-// ── Zone operations ──────────────────────────────────────────
+// ── Area operations ──────────────────────────────────────────
 
-/** Paint a zone label on a single floor tile. Returns new layout (immutable). */
-export function paintZone(
+/** Paint an area label on a single floor tile. Returns new layout (immutable). */
+export function paintArea(
   layout: OfficeLayout,
   col: number,
   row: number,
-  zoneLabel: string,
+  areaLabel: string,
 ): OfficeLayout {
   const idx = row * layout.cols + col;
   if (idx < 0 || idx >= layout.tiles.length) return layout;
@@ -359,58 +359,58 @@ export function paintZone(
   const tileVal = layout.tiles[idx];
   if (tileVal === TileType.VOID || tileVal === TileType.WALL) return layout;
 
-  const zoneTiles = layout.zoneTiles
-    ? [...layout.zoneTiles]
+  const areaTiles = layout.areaTiles
+    ? [...layout.areaTiles]
     : (new Array(layout.tiles.length).fill(null) as Array<string | null>);
-  if (zoneTiles[idx] === zoneLabel) return layout;
-  zoneTiles[idx] = zoneLabel;
-  return { ...layout, zoneTiles };
+  if (areaTiles[idx] === areaLabel) return layout;
+  areaTiles[idx] = areaLabel;
+  return { ...layout, areaTiles };
 }
 
-/** Erase zone from a single tile. Returns new layout (immutable). */
-export function eraseZone(layout: OfficeLayout, col: number, row: number): OfficeLayout {
+/** Erase area from a single tile. Returns new layout (immutable). */
+export function eraseArea(layout: OfficeLayout, col: number, row: number): OfficeLayout {
   const idx = row * layout.cols + col;
   if (idx < 0 || idx >= layout.tiles.length) return layout;
-  if (!layout.zoneTiles) return layout;
-  if (layout.zoneTiles[idx] === null || layout.zoneTiles[idx] === undefined) return layout;
-  const zoneTiles = [...layout.zoneTiles];
-  zoneTiles[idx] = null;
-  return { ...layout, zoneTiles };
+  if (!layout.areaTiles) return layout;
+  if (layout.areaTiles[idx] === null || layout.areaTiles[idx] === undefined) return layout;
+  const areaTiles = [...layout.areaTiles];
+  areaTiles[idx] = null;
+  return { ...layout, areaTiles };
 }
 
-/** Add a new zone definition. Returns new layout (immutable). */
-export function addZone(layout: OfficeLayout, label: string, color: string): OfficeLayout {
-  const zones: ZoneDefinition[] = [...(layout.zones ?? [])];
-  if (zones.some((z) => z.label === label)) return layout;
-  zones.push({ label, color });
-  return { ...layout, zones };
+/** Add a new area definition. Returns new layout (immutable). */
+export function addArea(layout: OfficeLayout, label: string, color: string): OfficeLayout {
+  const areas: AreaDefinition[] = [...(layout.areas ?? [])];
+  if (areas.some((z) => z.label === label)) return layout;
+  areas.push({ label, color });
+  return { ...layout, areas };
 }
 
-/** Remove a zone definition and clear all matching zone tiles. Returns new layout (immutable). */
-export function removeZone(layout: OfficeLayout, label: string): OfficeLayout {
-  const zones = (layout.zones ?? []).filter((z) => z.label !== label);
-  let zoneTiles = layout.zoneTiles;
-  if (zoneTiles) {
-    zoneTiles = zoneTiles.map((z) => (z === label ? null : z));
+/** Remove an area definition and clear all matching area tiles. Returns new layout (immutable). */
+export function removeArea(layout: OfficeLayout, label: string): OfficeLayout {
+  const areas = (layout.areas ?? []).filter((z) => z.label !== label);
+  let areaTiles = layout.areaTiles;
+  if (areaTiles) {
+    areaTiles = areaTiles.map((z) => (z === label ? null : z));
   }
-  return { ...layout, zones, zoneTiles };
+  return { ...layout, areas, areaTiles };
 }
 
-/** Update a zone's display color. Returns new layout (immutable). */
-export function updateZoneColor(layout: OfficeLayout, label: string, color: string): OfficeLayout {
-  const zones = (layout.zones ?? []).map((z) => (z.label === label ? { ...z, color } : z));
-  return { ...layout, zones };
+/** Update an area's display color. Returns new layout (immutable). */
+export function updateAreaColor(layout: OfficeLayout, label: string, color: string): OfficeLayout {
+  const areas = (layout.areas ?? []).map((z) => (z.label === label ? { ...z, color } : z));
+  return { ...layout, areas };
 }
 
-/** Rename a zone label across definitions and tiles. Returns new layout (immutable). */
-export function renameZone(layout: OfficeLayout, oldLabel: string, newLabel: string): OfficeLayout {
+/** Rename an area label across definitions and tiles. Returns new layout (immutable). */
+export function renameArea(layout: OfficeLayout, oldLabel: string, newLabel: string): OfficeLayout {
   if (oldLabel === newLabel) return layout;
-  const zones = (layout.zones ?? []).map((z) =>
+  const areas = (layout.areas ?? []).map((z) =>
     z.label === oldLabel ? { ...z, label: newLabel } : z,
   );
-  let zoneTiles = layout.zoneTiles;
-  if (zoneTiles) {
-    zoneTiles = zoneTiles.map((z) => (z === oldLabel ? newLabel : z));
+  let areaTiles = layout.areaTiles;
+  if (areaTiles) {
+    areaTiles = areaTiles.map((z) => (z === oldLabel ? newLabel : z));
   }
-  return { ...layout, zones, zoneTiles };
+  return { ...layout, areas, areaTiles };
 }
