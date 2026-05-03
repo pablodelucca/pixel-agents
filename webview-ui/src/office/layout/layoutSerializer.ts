@@ -272,7 +272,7 @@ export function createDefaultLayout(): OfficeLayout {
   return { version: 1, cols: DEFAULT_COLS, rows: DEFAULT_ROWS, tiles, tileColors, furniture: [] };
 }
 
-/** Serialize layout to JSON string
+/** Serialize layout to JSON string (carpetTiles included if present)
  * @internal */
 export function serializeLayout(layout: OfficeLayout): string {
   return JSON.stringify(layout);

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
+import { setCarpetSprites } from '../office/carpetTiles.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
-import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
+import { buildDynamicCatalog, type LoadedAssetData } from '../office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js';
 import { setCharacterTemplates } from '../office/sprites/spriteData.js';
 import {
@@ -59,7 +60,7 @@ interface ExtensionMessageState {
   subagentCharacters: SubagentCharacter[];
   layoutReady: boolean;
   layoutWasReset: boolean;
-  loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> };
+  loadedAssets?: LoadedAssetData;
   workspaceFolders: WorkspaceFolder[];
   externalAssetDirectories: string[];
   lastSeenVersion: string;
@@ -70,6 +71,10 @@ interface ExtensionMessageState {
   hooksEnabled: boolean;
   setHooksEnabled: (v: boolean) => void;
   hooksInfoShown: boolean;
+  areaMappings: Record<string, string[]>;
+  setAreaMappings: (v: Record<string, string[]>) => void;
+  showAreas: boolean;
+  setShowAreas: (v: boolean) => void;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -96,9 +101,7 @@ export function useExtensionMessages(
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([]);
   const [layoutReady, setLayoutReady] = useState(false);
   const [layoutWasReset, setLayoutWasReset] = useState(false);
-  const [loadedAssets, setLoadedAssets] = useState<
-    { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> } | undefined
-  >();
+  const [loadedAssets, setLoadedAssets] = useState<LoadedAssetData | undefined>();
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([]);
   const [externalAssetDirectories, setExternalAssetDirectories] = useState<string[]>([]);
   const [lastSeenVersion, setLastSeenVersion] = useState('');
@@ -107,9 +110,12 @@ export function useExtensionMessages(
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
   const [hooksEnabled, setHooksEnabled] = useState(true);
   const [hooksInfoShown, setHooksInfoShown] = useState(true);
+  const [areaMappings, setAreaMappings] = useState<Record<string, string[]>>({});
+  const [showAreas, setShowAreas] = useState(false);
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
+  const carpetVariantCountRef = useRef(0);
 
   useEffect(() => {
     // Buffer agents from existingAgents until layout is loaded
@@ -455,9 +461,21 @@ export function useExtensionMessages(
         const sets = msg.sets as string[][][][];
         console.log(`[Webview] Received ${sets.length} wall tile set(s)`);
         setWallSprites(sets);
+      } else if (msg.type === 'carpetTilesLoaded') {
+        const sets = msg.sets as string[][][][];
+        console.log(`[Webview] Received ${sets.length} carpet tile variant(s)`);
+        setCarpetSprites(sets);
+        carpetVariantCountRef.current = sets.length;
+        setLoadedAssets((prev) =>
+          prev ? { ...prev, carpetVariantCount: carpetVariantCountRef.current } : prev,
+        );
       } else if (msg.type === 'workspaceFolders') {
         const folders = msg.folders as WorkspaceFolder[];
         setWorkspaceFolders(folders);
+      } else if (msg.type === 'areaMappingsLoaded') {
+        const mappings = msg.mappings as Record<string, string[]>;
+        setAreaMappings(mappings);
+        os.areaMappings = mappings;
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean;
         setSoundEnabled(soundOn);
@@ -482,6 +500,9 @@ export function useExtensionMessages(
         if (typeof msg.extensionVersion === 'string') {
           setExtensionVersion(msg.extensionVersion as string);
         }
+        if (typeof msg.showAreas === 'boolean') {
+          setShowAreas(msg.showAreas as boolean);
+        }
       } else if (msg.type === 'externalAssetDirectoriesUpdated') {
         if (Array.isArray(msg.dirs)) {
           setExternalAssetDirectories(msg.dirs as string[]);
@@ -490,10 +511,15 @@ export function useExtensionMessages(
         try {
           const catalog = msg.catalog as FurnitureAsset[];
           const sprites = msg.sprites as Record<string, string[][]>;
+          const assets: LoadedAssetData = {
+            catalog,
+            sprites,
+            carpetVariantCount: carpetVariantCountRef.current,
+          };
           console.log(`📦 Webview: Loaded ${catalog.length} furniture assets`);
           // Build dynamic catalog immediately so getCatalogEntry() works when layoutLoaded arrives next
-          buildDynamicCatalog({ catalog, sprites });
-          setLoadedAssets({ catalog, sprites });
+          buildDynamicCatalog(assets);
+          setLoadedAssets(assets);
         } catch (err) {
           console.error(`❌ Webview: Error processing furnitureAssetsLoaded:`, err);
         }
@@ -538,5 +564,9 @@ export function useExtensionMessages(
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
+    areaMappings,
+    setAreaMappings,
+    showAreas,
+    setShowAreas,
   };
 }

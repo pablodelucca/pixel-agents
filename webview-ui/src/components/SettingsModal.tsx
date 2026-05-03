@@ -19,6 +19,8 @@ interface SettingsModalProps {
   onToggleWatchAllSessions: () => void;
   hooksEnabled: boolean;
   onToggleHooksEnabled: () => void;
+  showAreas: boolean;
+  onToggleShowAreas: () => void;
 }
 
 export function SettingsModal({
@@ -33,6 +35,8 @@ export function SettingsModal({
   onToggleWatchAllSessions,
   hooksEnabled,
   onToggleHooksEnabled,
+  showAreas,
+  onToggleShowAreas,
 }: SettingsModalProps) {
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
 
@@ -113,6 +117,7 @@ export function SettingsModal({
         checked={alwaysShowOverlay}
         onChange={onToggleAlwaysShowOverlay}
       />
+      <Checkbox label="Show Areas" checked={showAreas} onChange={onToggleShowAreas} />
       <Checkbox label="Debug View" checked={isDebugMode} onChange={onToggleDebugMode} />
     </Modal>
   );

@@ -78,11 +78,14 @@ export interface ToolActivity {
 export const EditTool = {
   TILE_PAINT: 'tile_paint',
   WALL_PAINT: 'wall_paint',
+  CARPET_PAINT: 'carpet_paint',
+  CARPET_PICK: 'carpet_pick',
   FURNITURE_PLACE: 'furniture_place',
   FURNITURE_PICK: 'furniture_pick',
   SELECT: 'select',
   EYEDROPPER: 'eyedropper',
   ERASE: 'erase',
+  AREA_PAINT: 'area_paint',
 } as const;
 export type EditTool = (typeof EditTool)[keyof typeof EditTool];
 
@@ -115,6 +118,23 @@ export interface PlacedFurniture {
   color?: ColorValue;
 }
 
+export interface CarpetTile {
+  /** Carpet variant index (0, 1, or 2) */
+  variant: number;
+  /** Optional color override for this carpet tile */
+  color?: ColorValue;
+  /** Optional accent color override for this carpet tile */
+  accentColor?: ColorValue;
+  /** Paint order used to resolve overlapping carpet junctions */
+  order?: number;
+}
+
+export interface AreaDefinition {
+  label: string;
+  /** Hex color for rendering, e.g. "#ff6b6b" */
+  color: string;
+}
+
 export interface OfficeLayout {
   version: 1;
   cols: number;
@@ -123,8 +143,14 @@ export interface OfficeLayout {
   furniture: PlacedFurniture[];
   /** Per-tile color settings, parallel to tiles array. null = wall/no color */
   tileColors?: Array<ColorValue | null>;
+  /** Per-tile carpet data, parallel to tiles array. null/undefined = no carpet */
+  carpetTiles?: Array<CarpetTile | null>;
   /** Bumped when the bundled default layout changes; forces a reset on existing installs */
   layoutRevision?: number;
+  /** Named areas with display colors */
+  areas?: AreaDefinition[];
+  /** Per-tile area label, parallel to tiles array. null = no area */
+  areaTiles?: Array<string | null>;
 }
 
 export interface Character {

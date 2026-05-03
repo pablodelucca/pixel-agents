@@ -71,6 +71,10 @@ function App() {
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
+    areaMappings,
+    setAreaMappings,
+    showAreas,
+    setShowAreas,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -127,6 +131,32 @@ function App() {
     useCallback(() => setEditorTickForKeyboard((n) => n + 1), []),
     editor.handleToggleEditMode,
   );
+
+  const handleAreaMappingChange = useCallback(
+    (folderName: string, areaLabel: string, action: 'add' | 'remove') => {
+      const newMappings = { ...areaMappings };
+      const current = newMappings[folderName] ?? [];
+      if (action === 'add') {
+        if (!current.includes(areaLabel)) {
+          newMappings[folderName] = [...current, areaLabel];
+        }
+      } else {
+        newMappings[folderName] = current.filter((z) => z !== areaLabel);
+        if (newMappings[folderName].length === 0) {
+          delete newMappings[folderName];
+        }
+      }
+      setAreaMappings(newMappings);
+      const os = getOfficeState();
+      os.areaMappings = newMappings;
+      vscode.postMessage({ type: 'saveAreaMappings', mappings: newMappings });
+    },
+    [areaMappings, setAreaMappings],
+  );
+
+  // Area visibility: always show in area paint mode, otherwise respect settings toggle
+  const effectiveShowAreas =
+    (editor.isEditMode && editorState.activeTool === EditTool.AREA_PAINT) || showAreas;
 
   const handleCloseAgent = useCallback((id: number) => {
     vscode.postMessage({ type: 'closeAgent', id });
@@ -185,6 +215,7 @@ function App() {
         zoom={editor.zoom}
         onZoomChange={editor.handleZoomChange}
         panRef={editor.panRef}
+        showAreas={effectiveShowAreas}
       />
 
       {!isDebugMode ? (
@@ -226,14 +257,32 @@ function App() {
                   floorColor={editorState.floorColor}
                   wallColor={editorState.wallColor}
                   selectedWallSet={editorState.selectedWallSet}
+                  carpetVariant={editorState.carpetVariant}
+                  carpetColor={editorState.carpetColor}
+                  carpetAccentColor={editorState.carpetAccentColor}
                   onToolChange={editor.handleToolChange}
                   onTileTypeChange={editor.handleTileTypeChange}
                   onFloorColorChange={editor.handleFloorColorChange}
                   onWallColorChange={editor.handleWallColorChange}
                   onWallSetChange={editor.handleWallSetChange}
                   onSelectedFurnitureColorChange={editor.handleSelectedFurnitureColorChange}
+                  pickedFurnitureColor={editorState.pickedFurnitureColor}
+                  onPickedFurnitureColorChange={editor.handlePickedFurnitureColorChange}
                   onFurnitureTypeChange={editor.handleFurnitureTypeChange}
+                  onCarpetColorChange={editor.handleCarpetColorChange}
+                  onCarpetAccentColorChange={editor.handleCarpetAccentColorChange}
+                  onCarpetVariantChange={editor.handleCarpetVariantChange}
                   loadedAssets={loadedAssets}
+                  areas={officeState.getLayout().areas ?? []}
+                  selectedAreaLabel={editorState.selectedAreaLabel}
+                  onSelectArea={editor.handleSelectArea}
+                  onAddArea={editor.handleAddArea}
+                  onRemoveArea={editor.handleRemoveArea}
+                  onRenameArea={editor.handleRenameArea}
+                  onAreaColorChange={editor.handleAreaColorChange}
+                  workspaceFolders={workspaceFolders}
+                  areaMappings={areaMappings}
+                  onAreaMappingChange={handleAreaMappingChange}
                 />
               );
             })()}
@@ -360,6 +409,12 @@ function App() {
           const newVal = !hooksEnabled;
           setHooksEnabled(newVal);
           vscode.postMessage({ type: 'setHooksEnabled', enabled: newVal });
+        }}
+        showAreas={showAreas}
+        onToggleShowAreas={() => {
+          const newVal = !showAreas;
+          setShowAreas(newVal);
+          vscode.postMessage({ type: 'setShowAreas', enabled: newVal });
         }}
       />
 

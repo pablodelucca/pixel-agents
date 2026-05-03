@@ -2,8 +2,20 @@ import type { ColorValue } from '../../components/ui/types.js';
 import { DEFAULT_NEUTRAL_COLOR } from '../../constants.js';
 import { getCatalogEntry, getRotatedType, getToggledType } from '../layout/furnitureCatalog.js';
 import { getPlacementBlockedTiles } from '../layout/layoutSerializer.js';
-import type { OfficeLayout, PlacedFurniture, TileType as TileTypeVal } from '../types.js';
+import type {
+  AreaDefinition,
+  CarpetTile,
+  OfficeLayout,
+  PlacedFurniture,
+  TileType as TileTypeVal,
+} from '../types.js';
 import { MAX_COLS, MAX_ROWS, TileType } from '../types.js';
+
+function sameColorValue(a?: ColorValue, b?: ColorValue): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.h === b.h && a.s === b.s && a.b === b.b && a.c === b.c && !!a.colorize === !!b.colorize;
+}
 
 /** Paint a single tile with pattern and color. Returns new layout (immutable). */
 export function paintTile(
@@ -44,6 +56,65 @@ export function paintTile(
   const tileColors = [...existingColors];
   tileColors[idx] = newColor;
   return { ...layout, tiles, tileColors };
+}
+
+/** Paint carpet on a floor tile. Returns new layout (immutable). Only applies to FLOOR tiles. */
+export function paintCarpet(
+  layout: OfficeLayout,
+  col: number,
+  row: number,
+  variant: number,
+  color?: ColorValue,
+  accentColor?: ColorValue,
+  order?: number,
+): OfficeLayout {
+  const idx = row * layout.cols + col;
+  if (idx < 0 || idx >= layout.tiles.length) return layout;
+  // Only paint on floor tiles (skip VOID and WALL)
+  const tileVal = layout.tiles[idx];
+  if (tileVal === TileType.VOID || tileVal === TileType.WALL) return layout;
+
+  const existingCarpets: Array<CarpetTile | null> =
+    layout.carpetTiles ?? new Array(layout.cols * layout.rows).fill(null);
+
+  let maxOrder = 0;
+  for (const carpet of existingCarpets) {
+    if (carpet && carpet.order !== undefined && carpet.order > maxOrder) {
+      maxOrder = carpet.order;
+    }
+  }
+
+  const carpetTiles = [...existingCarpets];
+  const nextOrder = order ?? maxOrder + 1;
+  const nextTile: CarpetTile = { variant, order: nextOrder };
+  if (color !== undefined) nextTile.color = { ...color };
+  if (accentColor !== undefined) nextTile.accentColor = { ...accentColor };
+
+  const existingTile = existingCarpets[idx];
+  if (
+    existingTile &&
+    existingTile.variant === nextTile.variant &&
+    (existingTile.order ?? undefined) === nextTile.order &&
+    sameColorValue(existingTile.color, nextTile.color) &&
+    sameColorValue(existingTile.accentColor, nextTile.accentColor)
+  ) {
+    return layout;
+  }
+
+  carpetTiles[idx] = nextTile;
+  return { ...layout, carpetTiles };
+}
+
+/** Erase carpet from a tile. Returns new layout (immutable). */
+export function eraseCarpet(layout: OfficeLayout, col: number, row: number): OfficeLayout {
+  const idx = row * layout.cols + col;
+  if (idx < 0 || idx >= layout.tiles.length) return layout;
+  if (!layout.carpetTiles) return layout;
+  if (layout.carpetTiles[idx] === null || layout.carpetTiles[idx] === undefined) return layout;
+
+  const carpetTiles = [...layout.carpetTiles];
+  carpetTiles[idx] = null;
+  return { ...layout, carpetTiles };
 }
 
 /** Place furniture. Returns new layout (immutable). */
@@ -208,7 +279,7 @@ export function expandLayout(
   layout: OfficeLayout,
   direction: ExpandDirection,
 ): { layout: OfficeLayout; shift: { col: number; row: number } } | null {
-  const { cols, rows, tiles, furniture, tileColors } = layout;
+  const { cols, rows, tiles, furniture, tileColors, carpetTiles } = layout;
   const existingColors = tileColors || new Array(tiles.length).fill(null);
 
   let newCols = cols;
@@ -233,6 +304,8 @@ export function expandLayout(
   // Build new tile array
   const newTiles: TileTypeVal[] = new Array(newCols * newRows).fill(TileType.VOID as TileTypeVal);
   const newColors: Array<ColorValue | null> = new Array(newCols * newRows).fill(null);
+  const newCarpets: Array<CarpetTile | null> = new Array(newCols * newRows).fill(null);
+  const newAreaTiles: Array<string | null> = new Array(newCols * newRows).fill(null);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -240,6 +313,12 @@ export function expandLayout(
       const newIdx = (r + shiftRow) * newCols + (c + shiftCol);
       newTiles[newIdx] = tiles[oldIdx];
       newColors[newIdx] = existingColors[oldIdx];
+      if (carpetTiles) {
+        newCarpets[newIdx] = carpetTiles[oldIdx] ?? null;
+      }
+      if (layout.areaTiles) {
+        newAreaTiles[newIdx] = layout.areaTiles[oldIdx] ?? null;
+      }
     }
   }
 
@@ -258,7 +337,80 @@ export function expandLayout(
       tiles: newTiles,
       tileColors: newColors,
       furniture: newFurniture,
+      ...(carpetTiles ? { carpetTiles: newCarpets } : {}),
+      ...(layout.areaTiles ? { areaTiles: newAreaTiles } : {}),
     },
     shift: { col: shiftCol, row: shiftRow },
   };
+}
+
+// ── Area operations ──────────────────────────────────────────
+
+/** Paint an area label on a single floor tile. Returns new layout (immutable). */
+export function paintArea(
+  layout: OfficeLayout,
+  col: number,
+  row: number,
+  areaLabel: string,
+): OfficeLayout {
+  const idx = row * layout.cols + col;
+  if (idx < 0 || idx >= layout.tiles.length) return layout;
+  // Only paint on floor tiles (skip WALL/VOID)
+  const tileVal = layout.tiles[idx];
+  if (tileVal === TileType.VOID || tileVal === TileType.WALL) return layout;
+
+  const areaTiles = layout.areaTiles
+    ? [...layout.areaTiles]
+    : (new Array(layout.tiles.length).fill(null) as Array<string | null>);
+  if (areaTiles[idx] === areaLabel) return layout;
+  areaTiles[idx] = areaLabel;
+  return { ...layout, areaTiles };
+}
+
+/** Erase area from a single tile. Returns new layout (immutable). */
+export function eraseArea(layout: OfficeLayout, col: number, row: number): OfficeLayout {
+  const idx = row * layout.cols + col;
+  if (idx < 0 || idx >= layout.tiles.length) return layout;
+  if (!layout.areaTiles) return layout;
+  if (layout.areaTiles[idx] === null || layout.areaTiles[idx] === undefined) return layout;
+  const areaTiles = [...layout.areaTiles];
+  areaTiles[idx] = null;
+  return { ...layout, areaTiles };
+}
+
+/** Add a new area definition. Returns new layout (immutable). */
+export function addArea(layout: OfficeLayout, label: string, color: string): OfficeLayout {
+  const areas: AreaDefinition[] = [...(layout.areas ?? [])];
+  if (areas.some((z) => z.label === label)) return layout;
+  areas.push({ label, color });
+  return { ...layout, areas };
+}
+
+/** Remove an area definition and clear all matching area tiles. Returns new layout (immutable). */
+export function removeArea(layout: OfficeLayout, label: string): OfficeLayout {
+  const areas = (layout.areas ?? []).filter((z) => z.label !== label);
+  let areaTiles = layout.areaTiles;
+  if (areaTiles) {
+    areaTiles = areaTiles.map((z) => (z === label ? null : z));
+  }
+  return { ...layout, areas, areaTiles };
+}
+
+/** Update an area's display color. Returns new layout (immutable). */
+export function updateAreaColor(layout: OfficeLayout, label: string, color: string): OfficeLayout {
+  const areas = (layout.areas ?? []).map((z) => (z.label === label ? { ...z, color } : z));
+  return { ...layout, areas };
+}
+
+/** Rename an area label across definitions and tiles. Returns new layout (immutable). */
+export function renameArea(layout: OfficeLayout, oldLabel: string, newLabel: string): OfficeLayout {
+  if (oldLabel === newLabel) return layout;
+  const areas = (layout.areas ?? []).map((z) =>
+    z.label === oldLabel ? { ...z, label: newLabel } : z,
+  );
+  let areaTiles = layout.areaTiles;
+  if (areaTiles) {
+    areaTiles = areaTiles.map((z) => (z === oldLabel ? newLabel : z));
+  }
+  return { ...layout, areas, areaTiles };
 }

@@ -4,15 +4,23 @@ import type { ColorValue } from '../components/ui/types.js';
 import { LAYOUT_SAVE_DEBOUNCE_MS, ZOOM_MAX, ZOOM_MIN } from '../constants.js';
 import type { ExpandDirection } from '../office/editor/editorActions.js';
 import {
+  addArea,
   canPlaceFurniture,
+  eraseArea,
+  eraseCarpet,
   expandLayout,
   getWallPlacementRow,
   moveFurniture,
+  paintArea,
+  paintCarpet,
   paintTile,
   placeFurniture,
+  removeArea,
   removeFurniture,
+  renameArea,
   rotateFurniture,
   toggleFurnitureState,
+  updateAreaColor,
 } from '../office/editor/editorActions.js';
 import type { EditorState } from '../office/editor/editorState.js';
 import type { OfficeState } from '../office/engine/officeState.js';
@@ -48,7 +56,11 @@ interface EditorActions {
   handleWallColorChange: (color: ColorValue) => void;
   handleWallSetChange: (setIndex: number) => void;
   handleSelectedFurnitureColorChange: (color: ColorValue | null) => void;
+  handlePickedFurnitureColorChange: (color: ColorValue | null) => void;
   handleFurnitureTypeChange: (type: string) => void; // FurnitureType enum or asset ID
+  handleCarpetColorChange: (color: ColorValue | undefined) => void;
+  handleCarpetAccentColorChange: (color: ColorValue | undefined) => void;
+  handleCarpetVariantChange: (variant: number) => void;
   handleDeleteSelected: () => void;
   handleRotateSelected: () => void;
   handleToggleState: () => void;
@@ -61,6 +73,11 @@ interface EditorActions {
   handleEditorEraseAction: (col: number, row: number) => void;
   handleEditorSelectionChange: () => void;
   handleDragMove: (uid: string, newCol: number, newRow: number) => void;
+  handleSelectArea: (label: string) => void;
+  handleAddArea: (label: string, color: string) => void;
+  handleRemoveArea: (label: string) => void;
+  handleRenameArea: (oldLabel: string, newLabel: string) => void;
+  handleAreaColorChange: (label: string, color: string) => void;
 }
 
 export function useEditorActions(
@@ -103,6 +120,24 @@ export function useEditorActions(
     [getOfficeState, editorState, saveLayout],
   );
 
+  const applyCarpetEdit = useCallback(
+    (newLayout: OfficeLayout) => {
+      const os = getOfficeState();
+      const currentLayout = os.getLayout();
+      const undoLayout = editorState.takeCarpetStrokeUndoLayout(currentLayout);
+      if (undoLayout) {
+        editorState.pushUndo(undoLayout);
+        editorState.clearRedo();
+      }
+      editorState.isDirty = true;
+      setIsDirty(true);
+      os.rebuildFromLayout(newLayout);
+      saveLayout(newLayout);
+      setEditorTick((n) => n + 1);
+    },
+    [getOfficeState, editorState, saveLayout],
+  );
+
   const handleOpenClaude = useCallback(() => {
     vscode.postMessage({ type: 'openClaude' });
   }, []);
@@ -124,10 +159,11 @@ export function useEditorActions(
           }
         }
       } else {
+        editorState.activeTool = EditTool.SELECT;
         editorState.clearSelection();
         editorState.clearGhost();
         editorState.clearDrag();
-        wallColorEditActiveRef.current = false;
+        editorState.endCarpetStroke();
       }
       return next;
     });
@@ -141,11 +177,15 @@ export function useEditorActions(
       } else {
         editorState.activeTool = tool;
       }
+      if (tool === EditTool.CARPET_PAINT) {
+        editorState.carpetOrder = undefined;
+      } else {
+        editorState.endCarpetStroke();
+      }
       editorState.clearSelection();
       editorState.clearGhost();
       editorState.clearDrag();
       colorEditUidRef.current = null;
-      wallColorEditActiveRef.current = false;
       setEditorTick((n) => n + 1);
     },
     [editorState],
@@ -167,41 +207,12 @@ export function useEditorActions(
     [editorState],
   );
 
-  // Track whether we've already pushed undo for the current wall color editing session
-  const wallColorEditActiveRef = useRef(false);
-
   const handleWallColorChange = useCallback(
     (color: ColorValue) => {
       editorState.wallColor = color;
-
-      // Update all existing wall tiles to the new color
-      const os = getOfficeState();
-      const layout = os.getLayout();
-      const existingColors = layout.tileColors || new Array(layout.tiles.length).fill(null);
-      const newColors = [...existingColors];
-      let changed = false;
-      for (let i = 0; i < layout.tiles.length; i++) {
-        if (layout.tiles[i] === TileType.WALL) {
-          newColors[i] = { ...color };
-          changed = true;
-        }
-      }
-      if (changed) {
-        // Push undo only once per editing session (first slider touch)
-        if (!wallColorEditActiveRef.current) {
-          editorState.pushUndo(layout);
-          editorState.clearRedo();
-          wallColorEditActiveRef.current = true;
-        }
-        const newLayout = { ...layout, tileColors: newColors };
-        editorState.isDirty = true;
-        setIsDirty(true);
-        os.rebuildFromLayout(newLayout);
-        saveLayout(newLayout);
-      }
       setEditorTick((n) => n + 1);
     },
-    [editorState, getOfficeState, saveLayout],
+    [editorState],
   );
 
   const handleWallSetChange = useCallback(
@@ -245,6 +256,14 @@ export function useEditorActions(
     [getOfficeState, editorState, saveLayout],
   );
 
+  const handlePickedFurnitureColorChange = useCallback(
+    (color: ColorValue | null) => {
+      editorState.pickedFurnitureColor = color;
+      setEditorTick((n) => n + 1);
+    },
+    [editorState],
+  );
+
   const handleFurnitureTypeChange = useCallback(
     (type: string) => {
       // Clicking the same item deselects it (no ghost), stays in furniture mode
@@ -254,6 +273,38 @@ export function useEditorActions(
       } else {
         editorState.selectedFurnitureType = type;
       }
+      setEditorTick((n) => n + 1);
+    },
+    [editorState],
+  );
+
+  const handleCarpetColorChange = useCallback(
+    (color: ColorValue | undefined) => {
+      editorState.carpetColor = color;
+      editorState.carpetOrder = undefined;
+      setEditorTick((n) => n + 1);
+    },
+    [editorState],
+  );
+
+  const handleCarpetAccentColorChange = useCallback(
+    (color: ColorValue | undefined) => {
+      editorState.carpetAccentColor = color;
+      editorState.carpetOrder = undefined;
+      setEditorTick((n) => n + 1);
+    },
+    [editorState],
+  );
+
+  const handleCarpetVariantChange = useCallback(
+    (variant: number) => {
+      // Clicking the same variant deselects it, like furniture type toggle
+      if (editorState.carpetVariant === variant) {
+        editorState.carpetVariant = -1;
+      } else {
+        editorState.carpetVariant = variant;
+      }
+      editorState.carpetOrder = undefined;
       setEditorTick((n) => n + 1);
     },
     [editorState],
@@ -433,6 +484,67 @@ export function useEditorActions(
       let effectiveCol = col;
       let effectiveRow = row;
 
+      // Handle area paint/erase
+      if (editorState.activeTool === EditTool.AREA_PAINT) {
+        if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return;
+        const selectedLabel = editorState.selectedAreaLabel;
+        if (!selectedLabel) return;
+
+        const idx = row * layout.cols + col;
+        const existingArea = layout.areaTiles?.[idx];
+
+        // Determine drag direction on first tile
+        if (editorState.areaDragErasing === null) {
+          editorState.areaDragErasing = existingArea === selectedLabel;
+        }
+
+        let newLayout: OfficeLayout;
+        if (editorState.areaDragErasing) {
+          newLayout = eraseArea(layout, col, row);
+        } else {
+          newLayout = paintArea(layout, col, row, selectedLabel);
+        }
+        if (newLayout !== layout) {
+          applyEdit(newLayout);
+        }
+        return;
+      }
+
+      // Handle carpet paint/erase
+      if (editorState.activeTool === EditTool.CARPET_PAINT) {
+        if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return;
+        const idx = row * layout.cols + col;
+        const existingCarpet = layout.carpetTiles?.[idx];
+
+        // Determine drag direction on first tile
+        if (editorState.carpetDragErasing === null) {
+          const hasSameVariant =
+            existingCarpet !== null &&
+            existingCarpet !== undefined &&
+            existingCarpet.variant === editorState.carpetVariant;
+          editorState.carpetDragErasing = hasSameVariant;
+        }
+
+        let newLayout: OfficeLayout;
+        if (editorState.carpetDragErasing) {
+          newLayout = eraseCarpet(layout, col, row);
+        } else {
+          newLayout = paintCarpet(
+            layout,
+            col,
+            row,
+            editorState.carpetVariant,
+            editorState.carpetColor,
+            editorState.carpetAccentColor,
+            editorState.carpetOrder,
+          );
+        }
+        if (newLayout !== layout) {
+          applyCarpetEdit(newLayout);
+        }
+        return;
+      }
+
       // Handle ghost border expansion for floor/wall tools
       if (
         editorState.activeTool === EditTool.TILE_PAINT ||
@@ -569,6 +681,19 @@ export function useEditorActions(
           editorState.activeTool = EditTool.WALL_PAINT;
         }
         setEditorTick((n) => n + 1);
+      } else if (editorState.activeTool === EditTool.CARPET_PICK) {
+        const idx = row * layout.cols + col;
+        const carpet = layout.carpetTiles?.[idx];
+        if (carpet) {
+          editorState.carpetVariant = carpet.variant;
+          editorState.carpetColor = carpet.color ? { ...carpet.color } : undefined;
+          editorState.carpetAccentColor = carpet.accentColor
+            ? { ...carpet.accentColor }
+            : undefined;
+          editorState.carpetOrder = carpet.order;
+          editorState.activeTool = EditTool.CARPET_PAINT;
+        }
+        setEditorTick((n) => n + 1);
       } else if (editorState.activeTool === EditTool.SELECT) {
         const hit = layout.furniture.find((f) => {
           const entry = getCatalogEntry(f.type);
@@ -584,7 +709,7 @@ export function useEditorActions(
         setEditorTick((n) => n + 1);
       }
     },
-    [getOfficeState, editorState, applyEdit, maybeExpand],
+    [getOfficeState, editorState, applyEdit, applyCarpetEdit, maybeExpand],
   );
 
   const handleEditorEraseAction = useCallback(
@@ -592,11 +717,89 @@ export function useEditorActions(
       const os = getOfficeState();
       const layout = os.getLayout();
       if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return;
+
+      // Area tool: right-click erases area
+      if (editorState.activeTool === EditTool.AREA_PAINT) {
+        const newLayout = eraseArea(layout, col, row);
+        if (newLayout !== layout) {
+          applyEdit(newLayout);
+        }
+        return;
+      }
+
+      // Carpet tool: right-click erases carpet
+      if (editorState.activeTool === EditTool.CARPET_PAINT) {
+        const newLayout = eraseCarpet(layout, col, row);
+        if (newLayout !== layout) {
+          applyCarpetEdit(newLayout);
+        }
+        return;
+      }
+
       const idx = row * layout.cols + col;
       // Only erase non-VOID tiles
       if (layout.tiles[idx] === TileType.VOID) return;
       const newLayout = paintTile(layout, col, row, TileType.VOID);
       if (newLayout !== layout) {
+        applyEdit(newLayout);
+      }
+    },
+    [getOfficeState, editorState, applyEdit, applyCarpetEdit],
+  );
+
+  const handleSelectArea = useCallback(
+    (label: string) => {
+      editorState.selectedAreaLabel = label;
+      setEditorTick((n) => n + 1);
+    },
+    [editorState],
+  );
+
+  const handleAddArea = useCallback(
+    (label: string, color: string) => {
+      const os = getOfficeState();
+      const newLayout = addArea(os.getLayout(), label, color);
+      if (newLayout !== os.getLayout()) {
+        applyEdit(newLayout);
+        editorState.selectedAreaLabel = label;
+      }
+    },
+    [getOfficeState, editorState, applyEdit],
+  );
+
+  const handleRemoveArea = useCallback(
+    (label: string) => {
+      const os = getOfficeState();
+      const newLayout = removeArea(os.getLayout(), label);
+      if (newLayout !== os.getLayout()) {
+        applyEdit(newLayout);
+        if (editorState.selectedAreaLabel === label) {
+          editorState.selectedAreaLabel = null;
+        }
+      }
+    },
+    [getOfficeState, editorState, applyEdit],
+  );
+
+  const handleRenameArea = useCallback(
+    (oldLabel: string, newLabel: string) => {
+      const os = getOfficeState();
+      const newLayout = renameArea(os.getLayout(), oldLabel, newLabel);
+      if (newLayout !== os.getLayout()) {
+        applyEdit(newLayout);
+        if (editorState.selectedAreaLabel === oldLabel) {
+          editorState.selectedAreaLabel = newLabel;
+        }
+      }
+    },
+    [getOfficeState, editorState, applyEdit],
+  );
+
+  const handleAreaColorChange = useCallback(
+    (label: string, color: string) => {
+      const os = getOfficeState();
+      const newLayout = updateAreaColor(os.getLayout(), label, color);
+      if (newLayout !== os.getLayout()) {
         applyEdit(newLayout);
       }
     },
@@ -619,7 +822,11 @@ export function useEditorActions(
     handleWallColorChange,
     handleWallSetChange,
     handleSelectedFurnitureColorChange,
+    handlePickedFurnitureColorChange,
     handleFurnitureTypeChange,
+    handleCarpetColorChange,
+    handleCarpetAccentColorChange,
+    handleCarpetVariantChange,
     handleDeleteSelected,
     handleRotateSelected,
     handleToggleState,
@@ -632,5 +839,10 @@ export function useEditorActions(
     handleEditorEraseAction,
     handleEditorSelectionChange,
     handleDragMove,
+    handleSelectArea,
+    handleAddArea,
+    handleRemoveArea,
+    handleRenameArea,
+    handleAreaColorChange,
   };
 }

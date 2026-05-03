@@ -1,5 +1,12 @@
 import type { ColorValue } from '../../components/ui/types.js';
 import {
+  AREA_ACTIVE_ALPHA_MULTIPLIER,
+  AREA_LABEL_ALPHA,
+  AREA_LABEL_FALLBACK_COLOR,
+  AREA_LABEL_FONT_SIZE_PX,
+  AREA_LABEL_SHADOW_ALPHA,
+  AREA_LABEL_SHADOW_COLOR,
+  AREA_OVERLAY_ALPHA,
   BUBBLE_FADE_DURATION_SEC,
   BUBBLE_SITTING_OFFSET_PX,
   BUBBLE_VERTICAL_OFFSET_PX,
@@ -9,6 +16,8 @@ import {
   BUTTON_LINE_WIDTH_ZOOM_FACTOR,
   BUTTON_MIN_RADIUS,
   BUTTON_RADIUS_ZOOM_FACTOR,
+  CARPET_DEFAULT_ACCENT_COLOR,
+  CARPET_DEFAULT_COLOR,
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_Z_SORT_OFFSET,
   DELETE_BUTTON_BG,
@@ -33,6 +42,7 @@ import {
   VOID_TILE_DASH_PATTERN,
   VOID_TILE_OUTLINE_COLOR,
 } from '../../constants.js';
+import { getCarpetJunctionSprite, getCarpetPaletteKey, hasCarpetSprites } from '../carpetTiles.js';
 import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js';
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js';
 import {
@@ -41,6 +51,8 @@ import {
   getCharacterSprites,
 } from '../sprites/spriteData.js';
 import type {
+  AreaDefinition,
+  CarpetTile,
   Character,
   FurnitureInstance,
   Seat,
@@ -99,6 +111,190 @@ export function renderTileGrid(
       ctx.drawImage(cached, offsetX + c * s, offsetY + r * s);
     }
   }
+}
+
+/**
+ * Render carpet junctions after the floor tiles pass.
+ * Uses dual-grid marching squares: iterates all junctions (corners between tiles)
+ * and draws the appropriate 16×16 sprite centered on each corner.
+ */
+export function renderCarpetLayer(
+  ctx: CanvasRenderingContext2D,
+  carpetTiles: (CarpetTile | null)[],
+  cols: number,
+  rows: number,
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  if (!hasCarpetSprites()) return;
+
+  const s = TILE_SIZE * zoom;
+  // Half tile offset so junction sprite is centered on the corner between 4 tiles
+  const halfS = s / 2;
+
+  for (let jy = 0; jy <= rows; jy++) {
+    for (let jx = 0; jx <= cols; jx++) {
+      const localGroups = new Map<
+        string,
+        {
+          variant: number;
+          color: ColorValue;
+          accentColor: ColorValue;
+          paletteKey: string;
+          order: number;
+        }
+      >();
+
+      const adjacent = [
+        { col: jx - 1, row: jy - 1 },
+        { col: jx, row: jy - 1 },
+        { col: jx, row: jy },
+        { col: jx - 1, row: jy },
+      ];
+
+      for (const pos of adjacent) {
+        if (pos.col < 0 || pos.row < 0 || pos.col >= cols || pos.row >= rows) continue;
+        const tile = carpetTiles[pos.row * cols + pos.col];
+        if (!tile) continue;
+        const color = tile.color ?? CARPET_DEFAULT_COLOR;
+        const accentColor = tile.accentColor ?? CARPET_DEFAULT_ACCENT_COLOR;
+        const paletteKey = getCarpetPaletteKey(color, accentColor);
+        const key = `${tile.variant}:${paletteKey}`;
+        const order = tile.order ?? 0;
+        const existing = localGroups.get(key);
+        if (!existing || order > existing.order) {
+          localGroups.set(key, { variant: tile.variant, color, accentColor, paletteKey, order });
+        }
+      }
+
+      const orderedGroups = [...localGroups.values()].sort((a, b) => a.order - b.order);
+      for (const { variant, color, accentColor, paletteKey } of orderedGroups) {
+        const sprite = getCarpetJunctionSprite(
+          jx,
+          jy,
+          variant,
+          carpetTiles,
+          cols,
+          rows,
+          color,
+          accentColor,
+          paletteKey,
+        );
+        if (!sprite) continue;
+        const cached = getCachedSprite(sprite, zoom);
+        // Junction (jx, jy) maps to pixel corner (jx*TILE_SIZE, jy*TILE_SIZE)
+        // Sprite is centered on the corner: offset by -halfS so it spans all 4 adjacent tiles
+        ctx.drawImage(cached, offsetX + jx * s - halfS, offsetY + jy * s - halfS);
+      }
+    }
+  }
+}
+
+/** Render semi-transparent area overlay on tiles. */
+export function renderAreaOverlay(
+  ctx: CanvasRenderingContext2D,
+  areaTiles: Array<string | null>,
+  areas: AreaDefinition[],
+  cols: number,
+  rows: number,
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+  activeAreaLabel?: string | null,
+): void {
+  const s = TILE_SIZE * zoom;
+  const areaColorMap = new Map<string, string>();
+  for (const z of areas) {
+    areaColorMap.set(z.label, z.color);
+  }
+
+  // Compute centroids for labels
+  const areaCentroids = new Map<string, { sumCol: number; sumRow: number; count: number }>();
+
+  ctx.save();
+  ctx.globalAlpha = AREA_OVERLAY_ALPHA;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const label = areaTiles[r * cols + c];
+      if (!label) continue;
+      const color = areaColorMap.get(label);
+      if (!color) continue;
+
+      // Highlight active area more brightly
+      if (activeAreaLabel !== undefined && activeAreaLabel === label) {
+        ctx.globalAlpha = AREA_OVERLAY_ALPHA * AREA_ACTIVE_ALPHA_MULTIPLIER;
+      } else {
+        ctx.globalAlpha = AREA_OVERLAY_ALPHA;
+      }
+
+      ctx.fillStyle = color;
+      ctx.fillRect(offsetX + c * s, offsetY + r * s, s, s);
+
+      // Accumulate centroids
+      let entry = areaCentroids.get(label);
+      if (!entry) {
+        entry = { sumCol: 0, sumRow: 0, count: 0 };
+        areaCentroids.set(label, entry);
+      }
+      entry.sumCol += c;
+      entry.sumRow += r;
+      entry.count++;
+    }
+  }
+  ctx.restore();
+}
+
+/** Render area labels on top of everything (called after scene + bubbles). */
+export function renderAreaLabels(
+  ctx: CanvasRenderingContext2D,
+  areaTiles: Array<string | null>,
+  areas: AreaDefinition[],
+  cols: number,
+  rows: number,
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  const s = TILE_SIZE * zoom;
+  const areaColorMap = new Map<string, string>();
+  for (const z of areas) {
+    areaColorMap.set(z.label, z.color);
+  }
+
+  // Compute centroids
+  const areaCentroids = new Map<string, { sumCol: number; sumRow: number; count: number }>();
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const label = areaTiles[r * cols + c];
+      if (!label) continue;
+      let entry = areaCentroids.get(label);
+      if (!entry) {
+        entry = { sumCol: 0, sumRow: 0, count: 0 };
+        areaCentroids.set(label, entry);
+      }
+      entry.sumCol += c;
+      entry.sumRow += r;
+      entry.count++;
+    }
+  }
+
+  const fontSize = Math.max(AREA_LABEL_FONT_SIZE_PX * zoom, 12);
+  ctx.save();
+  ctx.font = `bold ${fontSize}px "FS Pixel Sans", monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const [label, centroid] of areaCentroids) {
+    const cx = offsetX + (centroid.sumCol / centroid.count + 0.5) * s;
+    const cy = offsetY + (centroid.sumRow / centroid.count + 0.5) * s;
+    ctx.fillStyle = AREA_LABEL_SHADOW_COLOR;
+    ctx.globalAlpha = AREA_LABEL_SHADOW_ALPHA;
+    ctx.fillText(label, cx + 1, cy + 1);
+    ctx.fillStyle = AREA_LABEL_FALLBACK_COLOR;
+    ctx.globalAlpha = AREA_LABEL_ALPHA;
+    ctx.fillText(label, cx, cy);
+  }
+  ctx.restore();
 }
 
 interface ZDrawable {
@@ -582,6 +778,10 @@ export function renderFrame(
   tileColors?: Array<ColorValue | null>,
   layoutCols?: number,
   layoutRows?: number,
+  carpetTiles?: Array<CarpetTile | null>,
+  areaTiles?: Array<string | null>,
+  areas?: AreaDefinition[],
+  activeAreaLabel?: string | null,
 ): { offsetX: number; offsetY: number } {
   // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -598,6 +798,16 @@ export function renderFrame(
 
   // Draw tiles (floor + wall base color)
   renderTileGrid(ctx, tileMap, offsetX, offsetY, zoom, tileColors, layoutCols);
+
+  // Draw carpet overlay (after floor, before furniture and characters)
+  if (carpetTiles && carpetTiles.length > 0) {
+    renderCarpetLayer(ctx, carpetTiles, cols, rows, offsetX, offsetY, zoom);
+  }
+
+  // Draw area overlay (after carpet, before seat indicators)
+  if (areaTiles && areaTiles.length > 0 && areas && areas.length > 0) {
+    renderAreaOverlay(ctx, areaTiles, areas, cols, rows, offsetX, offsetY, zoom, activeAreaLabel);
+  }
 
   // Seat indicators (below furniture/characters, on top of floor)
   if (selection) {
@@ -624,6 +834,11 @@ export function renderFrame(
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom);
+
+  // Area labels (on top of furniture, characters, and bubbles)
+  if (areaTiles && areaTiles.length > 0 && areas && areas.length > 0) {
+    renderAreaLabels(ctx, areaTiles, areas, cols, rows, offsetX, offsetY, zoom);
+  }
 
   // Editor overlays
   if (editor) {

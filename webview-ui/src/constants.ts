@@ -94,6 +94,14 @@ export const LAYOUT_SAVE_DEBOUNCE_MS = 500;
 export const DEFAULT_FLOOR_COLOR: ColorValue = { h: 35, s: 30, b: 15, c: 0 };
 export const DEFAULT_WALL_COLOR: ColorValue = { h: 240, s: 25, b: 0, c: 0 };
 export const DEFAULT_NEUTRAL_COLOR: ColorValue = { h: 0, s: 0, b: 0, c: 0 };
+export const CARPET_DEFAULT_COLOR: ColorValue = { h: 0, s: 71, b: -32, c: 0, colorize: true };
+export const CARPET_DEFAULT_ACCENT_COLOR: ColorValue = {
+  h: 34,
+  s: 64,
+  b: 21,
+  c: 0,
+  colorize: true,
+};
 
 // ── Notification Sound (done: ascending chime) ─────────────
 export const NOTIFICATION_NOTE_1_HZ = 659.25; // E5
@@ -133,6 +141,25 @@ export const AUTO_ON_SIDE_DEPTH = 2;
 export const CHARACTER_HIT_HALF_WIDTH = 8;
 export const CHARACTER_HIT_HEIGHT = 24;
 export const TOOL_OVERLAY_VERTICAL_OFFSET = 32;
+
+// ── Areas ───────────────────────────────────────────────
+export const AREA_OVERLAY_ALPHA = 0.25;
+export const AREA_LABEL_FONT_SIZE_PX = 12;
+export const AREA_LABEL_FALLBACK_COLOR = '#ffffff';
+export const AREA_LABEL_SHADOW_COLOR = '#000000';
+export const AREA_LABEL_SHADOW_ALPHA = 0.5;
+export const AREA_LABEL_ALPHA = 0.9;
+export const AREA_ACTIVE_ALPHA_MULTIPLIER = 1.8;
+export const AREA_DEFAULT_COLORS = [
+  '#ff6b6b',
+  '#4ecdc4',
+  '#45b7d1',
+  '#f9ca24',
+  '#a55eea',
+  '#26de81',
+  '#fd9644',
+  '#778ca3',
+] as const;
 
 // ── Agent Teams ─────────────────────────────────────────────
 export const MAX_CONTEXT_TOKENS = 200_000;
