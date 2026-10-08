@@ -6,10 +6,10 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "@types/ws": "^8.18.1",
-    "allure-vitest": "^3.9.0",
+    "@types/ws": "^8.18.2",
+    "allure-vitest": "^3.13.0",
     "vitest": "^4.1.10",
-    "ws": "^8.18.0"
+    "ws": "^8.22.0"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
