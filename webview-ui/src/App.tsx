@@ -115,6 +115,7 @@ function App() {
     setShowAreas,
     bypassPermissions,
     setBypassPermissions,
+    officeReadOnly,
     terminalAvailable,
     terminalUnavailableReason,
     terminalAgentIds,
@@ -642,7 +643,9 @@ function App() {
         </div>
       </Modal>
 
-      {!isMobile && (
+      {/* A read-only office gets no toolbar: launching, layout editing and every
+          setting would be refused by the server anyway. */}
+      {!isMobile && !officeReadOnly && (
         <BottomToolbar
           isEditMode={editor.isEditMode}
           onToggleEditMode={editor.handleToggleEditMode}
@@ -658,7 +661,7 @@ function App() {
 
       {/* Mobile: Settings floats top-left (the layout editor stays desktop-
             only — its tools are drag/hover-driven). */}
-      {isMobile && !isDebugMode && (
+      {isMobile && !isDebugMode && !officeReadOnly && (
         <div className="absolute mobile-safe-top left-8 z-20">
           <Button
             size="sm"
