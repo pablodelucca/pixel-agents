@@ -24,8 +24,9 @@ import type { AgentState } from './types.js';
 import {
   bearerTokenValid,
   isAllowedWebSocketOrigin,
+  privilegedHostnames,
   redactTokenQuery,
-  standaloneTokenValid,
+  standaloneHandshakeVerdict,
 } from './wsAuth.js';
 
 /** Options for creating the HTTP + WebSocket server. */
@@ -55,6 +56,10 @@ export interface HttpServerOptions {
   /** PTY terminals for standalone-launched agents. Absent = terminal feature off
    *  (VS Code embedded mode, where the editor owns terminals). */
   ptyManager?: PtySessionManager;
+  /** Extra Host names (beyond loopback and a specific bind address) a
+   *  privileged standalone handshake may arrive under -- e.g. a reverse proxy's
+   *  public name. See wsAuth.privilegedHostnames. */
+  allowedHosts?: readonly string[];
 }
 
 /** Result of createHttpServer(). */
@@ -98,18 +103,21 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
 
   // ── Routes ──────────────────────────────────────────────────
 
+  const host = options.host ?? '127.0.0.1';
+  const allowedHostnames = privilegedHostnames(host, options.allowedHosts ?? []);
+
   registerHealthRoute(app);
   registerHookRoute(app, options);
-  registerWebSocketRoute(app, options);
+  registerWebSocketRoute(app, options, allowedHostnames);
   registerTerminalRoutes(app, {
     token: options.token,
-    host: options.host ?? '127.0.0.1',
+    allowedHostnames,
     ptyManager: options.ptyManager,
   });
 
   // ── Listen ──────────────────────────────────────────────────
 
-  await app.listen({ host: options.host ?? '127.0.0.1', port: options.port ?? 0 });
+  await app.listen({ host, port: options.port ?? 0 });
   const address = app.server.address();
   const port = typeof address === 'object' ? (address?.port ?? 0) : 0;
 
@@ -161,7 +169,11 @@ function registerHookRoute(app: FastifyInstance, options: HttpServerOptions): vo
 
 // ── WebSocket ──────────────────────────────────────────────────
 
-function registerWebSocketRoute(app: FastifyInstance, options: HttpServerOptions): void {
+function registerWebSocketRoute(
+  app: FastifyInstance,
+  options: HttpServerOptions,
+  allowedHostnames: ReadonlySet<string>,
+): void {
   app.get('/ws', { websocket: true }, (socket, request) => {
     // CONNECTION gate. Embedded (VS Code) requires the Bearer token. Standalone
     // requires a same-origin handshake instead (isAllowedWebSocketOrigin), so a
@@ -171,7 +183,6 @@ function registerWebSocketRoute(app: FastifyInstance, options: HttpServerOptions
     if (options.embedded) {
       if (!bearerTokenValid(request.headers.authorization, options.token)) {
         socket.close(WS_CLOSE_UNAUTHORIZED, 'unauthorized');
-
         return;
       }
     } else if (!isAllowedWebSocketOrigin(request.headers.origin, request.headers.host)) {
@@ -182,9 +193,28 @@ function registerWebSocketRoute(app: FastifyInstance, options: HttpServerOptions
     // Both modes prove privilege with the SAME out-of-band secret, differently
     // carried: embedded sends the Bearer token it was handed in-process;
     // standalone sends the `?token=` the CLI printed in the local URL and the
-    // SPA forwarded on this handshake. Nothing about a network POSITION is
-    // consulted, because every position is reproducible by a forwarder.
-    const privileged = options.embedded || standaloneTokenValid(request.url, options.token);
+    // SPA forwarded on this handshake, and it must arrive under an allowed Host
+    // -- the same verdict the terminal socket applies. A network POSITION
+    // never grants privilege, because every position is reproducible by a
+    // forwarder; the Host allowlist can only take it away.
+    let privileged = options.embedded;
+    if (!options.embedded) {
+      const verdict = standaloneHandshakeVerdict(
+        request.url,
+        request.headers.host,
+        options.token,
+        allowedHostnames,
+      );
+      privileged = verdict === 'privileged';
+      if (verdict === 'untrusted-host') {
+        // The operator has the right URL but reached us under a name they never
+        // listed (typically a reverse proxy). Say how to fix it, or the session
+        // silently stays watch-only.
+        console.warn(
+          `[Pixel Agents] Tokened connection via Host "${request.headers.host ?? ''}" is watch-only: restart with --allowed-host <that name> to allow launching agents and hook changes from it.`,
+        );
+      }
+    }
 
     const { store } = options;
 

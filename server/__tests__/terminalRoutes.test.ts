@@ -186,13 +186,38 @@ describe('terminal WebSocket auth', () => {
     // The real rebinding shape: the victim's browser reaches 127.0.0.1 but sends
     // BOTH Host: evil.com and Origin: http://evil.com (both derived from the
     // rebound URL). origin === host, so the same-origin check alone would pass;
-    // the loopback-Host allowlist is what rejects it. Guards the token leak fixed
-    // in fix(terminal): reject non-loopback Host on a loopback-bound server.
+    // the Host allowlist (wsAuth.standaloneHandshakeVerdict) is what rejects it.
     const result = await attach(port, 1, token, 'http://evil.com', 'evil.com');
     // As with the other rejections, the WS upgrade completes and the handler
     // then closes with the app code -- the close code is the signal, and no
     // scrollback/live output is ever sent before it (verified end-to-end).
     expect(result.code).toBe(WS_CLOSE_FORBIDDEN_ORIGIN);
+  });
+
+  it('accepts a reverse-proxy attach once its Host is passed as --allowed-host', async () => {
+    // Before --allowed-host this was refused on a loopback bind, and the only
+    // escape was binding 0.0.0.0 -- exposing the port to the LAN.
+    const proxy = 'my-mac.tailnet.ts.net';
+    const refused = await attach(port, 1, token, `https://${proxy}`, proxy);
+    expect(refused.code).toBe(WS_CLOSE_FORBIDDEN_ORIGIN);
+
+    server.stop();
+    server = new PixelAgentsServer();
+    const config = await server.start({
+      store: new AgentStateStore(),
+      embedded: false,
+      ptyManager,
+      allowedHosts: [proxy],
+    });
+    const ws = new WebSocket(terminalUrl(config.port, 1, config.token), {
+      headers: { origin: `https://${proxy}`, host: proxy },
+    });
+    await new Promise<void>((resolve, reject) => {
+      ws.on('open', () => resolve());
+      ws.on('close', (code: number) => reject(new Error(`closed with ${String(code)}`)));
+      ws.on('error', reject);
+    });
+    ws.close();
   });
 
   it('rejects attaching to an agent with no terminal, even with a valid token', async () => {

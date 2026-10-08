@@ -5,17 +5,15 @@
  * process. It is arbitrary code execution and is the most sensitive surface in
  * this codebase.
  *
- * The route requires the server token. WebSocket connections are exempt from
+ * The route requires privilege. WebSocket connections are exempt from
  * CORS, so any page the user visits can open ws://127.0.0.1:<port>/terminal/1
  * -- the same-origin policy stops the browser from READING a cross-origin HTTP
  * response, but never stops the socket from connecting; scanning localhost
- * ports from a web page is a known, practical attack. The token is the same
- * out-of-band secret that privileges the /ws control socket, carried the same
- * way (`?token=`, checked by the same wsAuth.standaloneTokenValid) so there is
- * exactly one privilege gate to audit; the request logger redacts it. The
- * same-origin + loopback-Host check (terminalGuard.ts) is defence in depth on
- * top of it; it is never the gate on its own. See
- * docs/design/standalone-terminal.md ("Security model").
+ * ports from a web page is a known, practical attack. Privilege is decided by
+ * the SAME predicate as the /ws control socket (wsAuth.standaloneHandshakeVerdict:
+ * the `?token=` the CLI printed, under an allowed Host), so there is exactly one
+ * privilege gate to audit; the request logger redacts the token. A same-origin
+ * check sits on top. See docs/design/standalone-terminal.md ("Security model").
  */
 
 import type { FastifyInstance } from 'fastify';
@@ -27,16 +25,13 @@ import {
   WS_CLOSE_NO_SESSION,
   WS_CLOSE_UNAUTHORIZED,
 } from '../constants.js';
-import { standaloneTokenValid } from '../wsAuth.js';
+import { isAllowedWebSocketOrigin, standaloneHandshakeVerdict } from '../wsAuth.js';
 import type { PtySessionManager } from './ptySessionManager.js';
-import { isLoopbackHost, isTrustedTerminalRequest } from './terminalGuard.js';
 
 export interface TerminalRoutesOptions {
   token: string;
-  /** Host the server is bound to. When loopback, the terminal guard also
-   *  requires a loopback Host header (anti-DNS-rebinding); see
-   *  isTrustedTerminalRequest. */
-  host: string;
+  /** Host names a privileged handshake may arrive under (wsAuth.privilegedHostnames). */
+  allowedHostnames: ReadonlySet<string>;
   ptyManager?: PtySessionManager;
 }
 
@@ -56,11 +51,6 @@ export function registerTerminalRoutes(app: FastifyInstance, options: TerminalRo
   if (!options.ptyManager) return;
   const ptyManager = options.ptyManager;
 
-  // Only enforce the loopback-Host allowlist when we're actually loopback-bound.
-  // An operator who bound off-loopback opted into network exposure (and was
-  // warned); their legitimate Host is a LAN name we can't enumerate.
-  const enforceLoopbackHost = isLoopbackHost(options.host);
-
   app.get<{ Params: { agentId: string } }>(
     `${TERMINAL_WS_PREFIX}/:agentId`,
     {
@@ -75,12 +65,19 @@ export function registerTerminalRoutes(app: FastifyInstance, options: TerminalRo
     },
     (socket: TerminalSocket, request) => {
       // ── Auth (before anything else touches a process) ──
-      if (!standaloneTokenValid(request.url, options.token)) {
+      const verdict = standaloneHandshakeVerdict(
+        request.url,
+        request.headers.host,
+        options.token,
+        options.allowedHostnames,
+      );
+      if (verdict === 'bad-token') {
         socket.close(WS_CLOSE_UNAUTHORIZED, 'unauthorized');
         return;
       }
       if (
-        !isTrustedTerminalRequest(request.headers.origin, request.headers.host, enforceLoopbackHost)
+        verdict === 'untrusted-host' ||
+        !isAllowedWebSocketOrigin(request.headers.origin, request.headers.host)
       ) {
         socket.close(WS_CLOSE_FORBIDDEN_ORIGIN, 'forbidden origin');
         return;

@@ -1,4 +1,5 @@
 import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import type { CSSProperties } from 'react';
 import { useEffect, useRef } from 'react';
@@ -12,6 +13,7 @@ import {
 } from '../constants.js';
 import type { TerminalConnectionStatus } from '../terminal/terminalClient.js';
 import { TerminalConnection } from '../terminal/terminalClient.js';
+import { terminalLinkOpener } from '../terminal/terminalLinks.js';
 
 interface TerminalPaneProps {
   agentId: number;
@@ -43,16 +45,21 @@ export function TerminalPane({ agentId, isActive, onStatusChange }: TerminalPane
     const host = hostRef.current;
     if (!host) return;
 
+    const openLink = terminalLinkOpener(window.open.bind(window));
     const term = new Terminal({
       fontFamily: TERMINAL_FONT_FAMILY,
       fontSize: TERMINAL_FONT_SIZE_PX,
       theme: { ...TERMINAL_THEME },
       scrollback: TERMINAL_SCROLLBACK_LINES,
       cursorBlink: true,
-      allowProposedApi: true,
+      // OSC 8 hyperlinks. Without this xterm's built-in activator opens any
+      // scheme behind a confirm(); see terminalLinkOpener.
+      linkHandler: { activate: openLink },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
+    // Plain URLs printed as text (most of what an agent prints) become clickable.
+    term.loadAddon(new WebLinksAddon(openLink));
     termRef.current = term;
     fitRef.current = fit;
 

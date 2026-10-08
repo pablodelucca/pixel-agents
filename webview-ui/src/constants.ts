@@ -363,6 +363,10 @@ export const TERMINAL_FONT_SIZE_PX = 13;
 export const TERMINAL_SCROLLBACK_LINES = 5_000;
 /** Debounce for propagating a resize to the PTY (fit on every frame thrashes it). */
 export const TERMINAL_RESIZE_DEBOUNCE_MS = 100;
+/** URL schemes a click in the terminal pane may open (see terminalLinks.ts). */
+export const TERMINAL_LINK_PROTOCOLS: readonly string[] = ['http:', 'https:'];
+/** window.open features for terminal links: no opener handle, no Referer. */
+export const TERMINAL_LINK_WINDOW_FEATURES = 'noopener,noreferrer';
 
 /** xterm theme, matched to the office palette (index.css :root). */
 export const TERMINAL_THEME = {

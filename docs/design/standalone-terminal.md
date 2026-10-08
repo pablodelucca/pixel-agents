@@ -216,12 +216,18 @@ it from a same-origin `GET /api/terminal/session` guarded by `Origin`/`Host` che
 attacker-supplied headers the gate, and it was dropped in favour of the `/ws` model when the two
 were reconciled.
 
-The terminal WS still applies `isTrustedTerminalRequest` (`server/src/terminal/terminalGuard.ts`:
-the shared same-origin check, plus a loopback-`Host` allowlist when bound to loopback) **before**
-it attaches to any PTY — as defence in depth on top
-of the token, never as the gate. It blunts DNS rebinding cheaply: a rebound page sends
-`Host: evil.com`, never a loopback literal. When the operator has deliberately bound off-loopback
-(a warned, opt-in exposure), the loopback-`Host` clause is skipped and the token alone is the guard.
+Privilege on BOTH sockets is one predicate, `standaloneHandshakeVerdict` (`server/src/wsAuth.ts`):
+the token, arriving under an allowed `Host`. The allowlist is loopback, the bind address when it is
+a specific one, and every `--allowed-host` name. It is defence in depth on top of the token, never
+the gate: it blunts DNS rebinding, where a rebound page reaches 127.0.0.1 while its `Host` is still
+the attacker's domain. The terminal socket additionally applies the same-origin check.
+
+An earlier iteration enforced a loopback-only `Host` on the terminal socket alone, and only when
+bound to loopback. That broke reverse proxies (Tailscale Serve forwards to 127.0.0.1 with its public
+name as `Host`), and the only escape was `--host 0.0.0.0` — which also exposes the port, and the
+token in transit, to the LAN over plain HTTP. The explicit allowlist keeps the bind on loopback, and
+applying it to `/ws` too means no privileged path is weaker than another. A tokened `/ws` connection
+under an unlisted `Host` stays watch-only and the server logs the `--allowed-host` hint.
 
 ### Other properties
 
@@ -229,7 +235,18 @@ of the token, never as the gate. It blunts DNS rebinding cheaply: a rebound page
   directory itself is usually created earlier by config/layout persistence with the default mode,
   so the file's own mode is the protection) so the printed URL survives restarts — a bookmark or
   home-screen web app pointing at a long-running server keeps working. The embedded (VS Code)
-  server still mints a `crypto.randomUUID()` per process.
+  server still mints a `crypto.randomUUID()` per process. A persisted token never expires, so
+  `--rotate-token` is the revocation path for a leaked URL: it replaces the file (tmp + rename, 0600) and every URL carrying the old token stops granting privilege, on every device. It is
+  refused while another standalone server is running, which would keep honouring the old token.
+  The token stays in the address bar on purpose (stripping it would break bookmarks); the SPA
+  sets `referrer: no-referrer` so it never leaves as a Referer.
+- A second `npx pixel-agents` reuses a running standalone server only when its access matches
+  (`ServerConfig.standalone`: terminal on/off, bind host, allowed hosts). Otherwise `--no-terminal`
+  would report the terminal off while attaching the user to a server that has one.
+- Terminal links: plain URLs (`@xterm/addon-web-links`) and OSC 8 hyperlinks (`linkHandler`) both
+  go through `terminalLinkOpener`, which opens only `http:`/`https:` in a new tab with
+  `noopener,noreferrer`. xterm's default OSC 8 activator opens any scheme (`javascript:`,
+  `file:`, OS protocol handlers) into a same-origin popup behind a generic `confirm()`.
 - Every token comparison in the server -- hook Bearer, embedded `/ws` Bearer, standalone `/ws`
   and terminal `?token=` -- goes through the one `timingSafeStringEqual` in `wsAuth.ts`.
 - The PTY inherits the server's uid/gid — no privilege boundary is claimed or implied. This

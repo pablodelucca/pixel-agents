@@ -195,6 +195,9 @@ function isValidDimension(value: number): boolean {
 export class PtySessionManager {
   private readonly sessions = new Map<number, PtySession>();
   private resolution: ReturnType<typeof resolvePtyModule> | null = null;
+  /** True for a manager built by disabled(): the operator opted out, as opposed
+   *  to the PTY module failing to load. Recorded in the server registry. */
+  private disabledByOperator = false;
 
   /** Injectable for tests; production resolves the real optional native module. */
   constructor(
@@ -209,7 +212,15 @@ export class PtySessionManager {
    * native module is never resolved or probed.
    */
   static disabled(reason: string): PtySessionManager {
-    return new PtySessionManager(() => ({ module: null, moduleId: null, reason }));
+    const manager = new PtySessionManager(() => ({ module: null, moduleId: null, reason }));
+    manager.disabledByOperator = true;
+    return manager;
+  }
+
+  /** Whether the operator enabled the terminal (no probe: module failures are
+   *  a runtime fact, the opt-out is the operator's request). */
+  get enabled(): boolean {
+    return !this.disabledByOperator;
   }
 
   /** Resolve (once) and cache the PTY module. Lazy: a user who never opens a
@@ -281,7 +292,6 @@ export class PtySessionManager {
   }
 
   /** Kill and forget an agent's terminal. No-op when there isn't one. */
-
   dispose(agentId: number): void {
     const session = this.sessions.get(agentId);
     if (!session) return;

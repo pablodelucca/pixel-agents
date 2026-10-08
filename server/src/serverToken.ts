@@ -27,22 +27,39 @@ const USABLE_TOKEN = /^[A-Za-z0-9-]{16,128}$/;
  * mkdir never tightens an existing directory. Falls back to a per-process
  * token when the file cannot be written, so a read-only HOME still gets a
  * working (if unstable) server.
-
+ *
+ * A persisted token never expires, so `rotate` is the revocation path for a
+ * leaked URL: it mints a fresh token and overwrites the file, and every URL
+ * carrying the old one -- on every device -- stops granting privilege.
  */
-export function loadOrCreateStandaloneToken(): string {
+export function loadOrCreateStandaloneToken({ rotate = false } = {}): string {
   const dir = path.join(os.homedir(), SERVER_JSON_DIR);
   const file = path.join(dir, STANDALONE_TOKEN_FILE_NAME);
-  try {
-    const existing = fs.readFileSync(file, 'utf-8').trim();
-    if (USABLE_TOKEN.test(existing)) return existing;
-  } catch {
-    // Absent or unreadable: mint below.
+  if (!rotate) {
+    try {
+      const existing = fs.readFileSync(file, 'utf-8').trim();
+      if (USABLE_TOKEN.test(existing)) return existing;
+    } catch {
+      // Absent or unreadable: mint below.
+    }
   }
   const token = crypto.randomUUID();
   try {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    fs.writeFileSync(file, `${token}\n`, { encoding: 'utf-8', mode: 0o600 });
+    // tmp + rename: a rotation replaces the file whole (never a torn token),
+    // and the new inode is created 0600 even if the old one was looser.
+    const tmp = `${file}.tmp`;
+    fs.rmSync(tmp, { force: true });
+    fs.writeFileSync(tmp, `${token}\n`, { encoding: 'utf-8', mode: 0o600 });
+    fs.renameSync(tmp, file);
   } catch (err) {
+    // A rotation that didn't land would bring the leaked token back on the
+    // next start; fail loudly instead of running on a per-process token.
+    if (rotate) {
+      throw new Error(
+        `Could not rotate the server token: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     console.warn(
       `[Pixel Agents] Could not persist the server token (${err instanceof Error ? err.message : String(err)}); using a per-process token.`,
     );

@@ -25,12 +25,17 @@ import {
   grantHooksConsent,
   readConfig,
 } from './configPersistence.js';
-import { MAX_PORT, MIN_PORT, TERMINAL_DISABLED_BY_FLAG_REASON } from './constants.js';
+import {
+  MAX_PORT,
+  MIN_PORT,
+  TERMINAL_DISABLED_BY_FLAG_REASON,
+  WILDCARD_HOSTNAMES,
+} from './constants.js';
 import { FileStateAdapter } from './fileStateAdapter.js';
 import { claudeProvider, copyHookScript, hookProviderById } from './providers/index.js';
 import { PixelAgentsServer } from './server.js';
 import { PtySessionManager } from './terminal/ptySessionManager.js';
-import { isLoopbackHost } from './terminal/terminalGuard.js';
+import { isLoopbackHost, normalizeHostname } from './wsAuth.js';
 
 // ── Argument parsing ──────────────────────────────────────────
 
@@ -42,6 +47,12 @@ export interface CliArgs {
   /** False when --no-terminal was passed: the office only watches agents; the
    *  browser can neither launch them nor attach to their terminals. */
   terminal: boolean;
+  /** --allowed-host names (repeatable): extra Host names, beyond loopback and a
+   *  specific --host, that a tokened browser session is privileged under --
+   *  typically a reverse proxy's public name. See wsAuth.privilegedHostnames. */
+  allowedHosts: string[];
+  /** --rotate-token: replace the persisted server token before starting. */
+  rotateToken: boolean;
 }
 
 /** Thrown by parseArgs on an invalid --port. Kept separate from process.exit so
@@ -50,7 +61,12 @@ export interface CliArgs {
 export class CliArgsError extends Error {}
 
 export function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { host: '127.0.0.1', terminal: true };
+  const args: CliArgs = {
+    host: '127.0.0.1',
+    terminal: true,
+    allowedHosts: [],
+    rotateToken: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--port' || argv[i] === '-p') {
       const raw = argv[i + 1];
@@ -70,6 +86,20 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (argv[i] === '--host' && argv[i + 1]) {
       args.host = argv[i + 1];
       i++;
+    } else if (argv[i] === '--allowed-host') {
+      const raw = argv[i + 1];
+      const name = normalizeHostname(raw);
+      if (name === null || (WILDCARD_HOSTNAMES as readonly string[]).includes(name)) {
+        throw new CliArgsError(
+          raw === undefined
+            ? 'Missing value for --allowed-host: expected a host name, e.g. my-mac.tailnet.ts.net.'
+            : `Invalid --allowed-host "${raw}": expected a host name, e.g. my-mac.tailnet.ts.net.`,
+        );
+      }
+      args.allowedHosts.push(raw as string);
+      i++;
+    } else if (argv[i] === '--rotate-token') {
+      args.rotateToken = true;
     } else if (argv[i] === '--no-terminal') {
       args.terminal = false;
     } else if (argv[i] === '--help') {
@@ -78,6 +108,11 @@ export function parseArgs(argv: string[]): CliArgs {
 Options:
   --port, -p <number>   Port to listen on (default: OS-assigned ephemeral port)
   --host <string>       Host to bind to (default: 127.0.0.1)
+  --allowed-host <name> Also accept the tokened URL at this host name, e.g. a
+                        reverse proxy's (Tailscale Serve). Repeatable. Without
+                        it, only localhost and a specific --host are privileged
+  --rotate-token        Replace the server token. Every URL that carried the
+                        old one (bookmarks, other devices) stops working
   --no-terminal         Disable the embedded terminal (watch agents only; no
                         launching or attaching from the browser)
   --help                Show this help message`);
@@ -151,7 +186,9 @@ function reportTerminalStatus(
     console.warn(
       `[Pixel Agents] WARNING: bound to ${host}, not loopback. The terminal is a shell:\n` +
         `[Pixel Agents] anyone who can reach this port AND has the auth token can run commands\n` +
-        `[Pixel Agents] as you. Use --host 127.0.0.1 unless you specifically intend this.`,
+        `[Pixel Agents] as you, and plain HTTP sends that token unencrypted. Behind a reverse\n` +
+        `[Pixel Agents] proxy (e.g. Tailscale Serve), keep --host 127.0.0.1 and pass the proxy's\n` +
+        `[Pixel Agents] name with --allowed-host instead.`,
     );
   }
 }
@@ -302,8 +339,15 @@ async function main(): Promise<void> {
       onSetHooksEnabled,
       onReloadAssets,
       ptyManager,
+      allowedHosts: args.allowedHosts,
+      rotateToken: args.rotateToken,
     });
     currentConfig = { port: config.port, token: config.token };
+    if (args.rotateToken) {
+      console.log(
+        '[Pixel Agents] Server token rotated: URLs carrying the old token no longer grant access. Open the new URL below on each device.',
+      );
+    }
 
     reportTerminalStatus(ptyManager, args.host, args.terminal);
 

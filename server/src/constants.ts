@@ -104,11 +104,12 @@ export const MAX_HOOK_BODY_SIZE = 65_536; // 64KB
  *  means anyone who prefers the Microsoft package can just install it.
  *  See docs/design/standalone-terminal.md. */
 export const PTY_MODULE_CANDIDATES = ['@lydell/node-pty', 'node-pty'] as const;
-/** Loopback hostnames. Used both to warn when the server binds off-loopback and
- *  as the anti-DNS-rebinding allowlist for the terminal's Host header: a rebound
- *  page reaches 127.0.0.1 but its Host header is still the attacker's domain, so
- *  a loopback-bound server can safely refuse any non-loopback Host. */
+/** Loopback hostnames. Used to warn when the server binds off-loopback, and
+ *  always part of the privileged-Host allowlist (wsAuth.privilegedHostnames). */
 export const LOOPBACK_HOSTNAMES = ['127.0.0.1', 'localhost', '::1'] as const;
+/** Wildcard bind addresses: listen targets, never a name a browser sends as
+ *  Host, so binding to one adds nothing to the privileged-Host allowlist. */
+export const WILDCARD_HOSTNAMES = ['0.0.0.0', '::'] as const;
 
 /** Scrollback lines the per-session headless-xterm mirror retains. Matches the
  *  browser's TERMINAL_SCROLLBACK_LINES so a reattach replays the same depth the
@@ -124,12 +125,12 @@ export const TERMINAL_KILL_GRACE_MS = 2_000;
 /** unavailableReason() when the operator opted out with --no-terminal. Shown
  *  verbatim as the disabled + Agent button's tooltip in the browser. */
 export const TERMINAL_DISABLED_BY_FLAG_REASON = 'Terminal disabled with --no-terminal.';
-/** terminalAvailability reason for an UNTOKENED /ws client: the PTY may work,
- *  but this connection may not open one. Launching an agent starts a shell as
- *  the operator, so it is gated exactly like the hooks toggle -- on the server
- *  token the CLI printed in its URL, never on a network position. */
+/** terminalAvailability reason for an UNPRIVILEGED /ws client (no valid token,
+ *  or a Host outside the allowlist): the PTY may work, but this connection may
+ *  not open one. Launching an agent starts a shell as the operator, so it is
+ *  gated exactly like the hooks toggle (wsAuth.standaloneHandshakeVerdict). */
 export const TERMINAL_REQUIRES_TOKEN_REASON =
-  'Open the URL the CLI printed (with its ?token=) to launch agents from this browser.';
+  'Open the URL the CLI printed (with its ?token=), at localhost or a name passed with --allowed-host, to launch agents from this browser.';
 /** Standalone persists its server token here (mode 0600, beside server.json) so
  *  the tokened URL a browser bookmarked keeps working across restarts. The
  *  embedded (VS Code) server still mints a fresh token per process. */

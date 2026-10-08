@@ -1,8 +1,9 @@
 /**
- * The server's token and origin predicates -- ONE implementation for every
- * gate: the hook endpoint's Bearer header, the embedded `/ws` Bearer header,
- * the standalone `/ws` and `/terminal/:agentId` `?token=` query, and the
- * standalone same-origin connection check.
+ * The server's token, Host and origin predicates -- ONE implementation for
+ * every gate: the hook endpoint's Bearer header, the embedded `/ws` Bearer
+ * header, the standalone `/ws` and `/terminal/:agentId` privilege verdict
+ * (`?token=` query + Host allowlist), and the standalone same-origin
+ * connection check.
  *
  * Pure functions over plain values so the security-relevant decisions (is this
  * token valid? is this origin ours?) are unit-testable without a live socket,
@@ -10,6 +11,8 @@
  */
 
 import * as crypto from 'crypto';
+
+import { LOOPBACK_HOSTNAMES, WILDCARD_HOSTNAMES } from './constants.js';
 
 /** Constant-time string compare, length-guarded (timingSafeEqual throws on a
  *  length mismatch; the length itself is not secret). */
@@ -89,9 +92,7 @@ export function standaloneTokenValid(url: string | undefined, expected: string):
  * This gate is NOT sufficient for privileged actions and never was. Both header
  * values are attacker-supplied, so a DNS-rebound page (`evil.com` → 127.0.0.1)
  * sends `Origin: http://evil.com:PORT` AND `Host: evil.com:PORT` and passes
- * equality. See standaloneTokenValid for what actually guards privilege, and
- * terminal/terminalGuard.ts for the loopback-Host clause that blunts rebinding
- * on the terminal socket.
+ * equality. See standaloneHandshakeVerdict for what actually guards privilege.
  */
 export function isAllowedWebSocketOrigin(
   origin: string | undefined,
@@ -118,4 +119,87 @@ const TOKEN_QUERY_REDACTED = '[redacted]';
  */
 export function redactTokenQuery(url: string): string {
   return url.replace(/([?&]token=)[^&#]*/g, `$1${TOKEN_QUERY_REDACTED}`);
+}
+
+// ── Host allowlist ─────────────────────────────────────────────
+
+const HOST_CHARS = /^[A-Za-z0-9.\-:[\]]+$/;
+
+/**
+ * Lower-cased hostname of a Host header or a bare host argument, with the port
+ * and IPv6 brackets stripped (`[::1]:3100` -> `::1`, `Example.ts.net` ->
+ * `example.ts.net`), or null when it is empty or unparseable. One normaliser
+ * for both sides of the allowlist comparison, so they can't drift.
+ */
+export function normalizeHostname(host: string | undefined): string | null {
+  // Host-shaped characters only: URL parsing would otherwise read
+  // `evil@127.0.0.1` or `127.0.0.1/x` as the hostname 127.0.0.1.
+  if (!host || !HOST_CHARS.test(host)) return null;
+  // A bare IPv6 literal (`::1`, a --host or --allowed-host value) has no
+  // brackets; URL parsing needs them.
+  const bracketed = !host.startsWith('[') && host.split(':').length > 2 ? `[${host}]` : host;
+  try {
+    const { hostname } = new URL(`http://${bracketed}`);
+    const bare =
+      hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
+    return bare === '' ? null : bare;
+  } catch {
+    return null;
+  }
+}
+
+/** True when a bind host or Host header names this machine's loopback. */
+export function isLoopbackHost(host: string | undefined): boolean {
+  const name = normalizeHostname(host);
+  return name !== null && (LOOPBACK_HOSTNAMES as readonly string[]).includes(name);
+}
+
+/**
+ * The Host names a privileged standalone handshake may arrive under: loopback,
+ * the bind address when it is a specific one, and every `--allowed-host`.
+ *
+ * Why a Host allowlist on top of the token: DNS rebinding. A rebound page
+ * reaches this server while its Host header is still the attacker's domain --
+ * never a name the operator listed. It has no token either, so this is defence
+ * in depth, but it is applied to BOTH privileged sockets (/ws and the terminal)
+ * so no privileged path is weaker than another.
+ *
+ * Why explicit, rather than "loopback only when bound to loopback": a reverse
+ * proxy (Tailscale Serve, cloudflared) forwards to 127.0.0.1 with its public
+ * name as Host. A loopback-only rule refuses it, and the only escape was
+ * binding 0.0.0.0 -- which also exposes the port, and the token in transit, to
+ * the LAN over plain HTTP. Naming the proxy's host keeps the bind on loopback.
+ */
+export function privilegedHostnames(
+  bindHost: string,
+  allowedHosts: readonly string[],
+): ReadonlySet<string> {
+  const names = new Set<string>(LOOPBACK_HOSTNAMES);
+  for (const host of [bindHost, ...allowedHosts]) {
+    const name = normalizeHostname(host);
+    if (name !== null && !(WILDCARD_HOSTNAMES as readonly string[]).includes(name)) {
+      names.add(name);
+    }
+  }
+  return names;
+}
+
+/** What a standalone handshake proves: privilege, or why not. */
+export type HandshakeVerdict = 'privileged' | 'bad-token' | 'untrusted-host';
+
+/**
+ * The standalone privilege predicate for BOTH `/ws` and `/terminal/:agentId`:
+ * the server token in the `?token=` query, arriving under an allowed Host.
+ * Token first, so an untokened probe learns nothing about the allowlist.
+ */
+export function standaloneHandshakeVerdict(
+  url: string | undefined,
+  host: string | undefined,
+  token: string,
+  allowedHostnames: ReadonlySet<string>,
+): HandshakeVerdict {
+  if (!standaloneTokenValid(url, token)) return 'bad-token';
+  const name = normalizeHostname(host);
+  if (name === null || !allowedHostnames.has(name)) return 'untrusted-host';
+  return 'privileged';
 }
