@@ -332,8 +332,8 @@ This section is auto-generated. Do not edit between the markers; CI fails on dri
 
 ### `@area:mobile` (2 tests)
 
-- `e2e/standalone/mobile.spec.ts:66` — phone shell: + card launches and slides to the terminal; toggle, card taps and edge swipe navigate (Standalone / mobile shell)
-- `e2e/standalone/mobile.spec.ts:110` — tapping a URL in the terminal opens it (Standalone / mobile shell)
+- `e2e/standalone/mobile.spec.ts:75` — phone shell: + card launches and slides to the terminal; toggle, card taps and edge swipe navigate (Standalone / mobile shell)
+- `e2e/standalone/mobile.spec.ts:119` — tapping a URL in the terminal opens it (Standalone / mobile shell)
 
 ### `@area:pets` (3 tests)
 
