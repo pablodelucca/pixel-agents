@@ -75,12 +75,18 @@ export const MAX_PORT = 65_535;
 export const SERVER_REGISTRY_PROTOCOL_VERSION = 1;
 
 // ── WebSocket close codes (application range 4000-4999) ────
-/** Embedded mode: Bearer token missing or wrong. */
+/** The handshake's token is missing or wrong: the embedded `/ws` Bearer header,
+ *  or the `?token=` query on `/terminal/:agentId` (an untokened standalone `/ws`
+ *  still connects, unprivileged -- see wsAuth.ts). */
 export const WS_CLOSE_UNAUTHORIZED = 4001;
+
 /** Standalone mode: the handshake's Origin is not this server's own origin.
  *  WebSocket connects bypass CORS, so this is the only thing standing between
  *  a drive-by web page and the privileged client-message channel. */
 export const WS_CLOSE_FORBIDDEN_ORIGIN = 4003;
+/** Terminal socket: the agent has no PTY on this server (never spawned, or
+ *  already exited). The route only ever attaches; it cannot start one. */
+export const WS_CLOSE_NO_SESSION = 4004;
 
 export const HOOK_EVENT_BUFFER_MS = 5_000;
 /** Grace period after SessionEnd(reason=clear/resume) before triggering onSessionEnd.
@@ -89,6 +95,46 @@ export const HOOK_EVENT_BUFFER_MS = 5_000;
  *  the agent is cleaned up instead of staying as a zombie with pendingClear forever. */
 export const SESSION_END_GRACE_MS = 2000;
 export const MAX_HOOK_BODY_SIZE = 65_536; // 64KB
+
+// ── Standalone Embedded Terminal ────────────────────────────
+/** PTY module ids tried in order by the loader. @lydell/node-pty ships prebuilt
+ *  binaries for all six platform/arch targets as optionalDependencies with no
+ *  install scripts; official node-pty has no Linux prebuild and relies on
+ *  install scripts that npm >=11.16 gates by default. Keeping a candidate LIST
+ *  means anyone who prefers the Microsoft package can just install it.
+ *  See docs/design/standalone-terminal.md. */
+export const PTY_MODULE_CANDIDATES = ['@lydell/node-pty', 'node-pty'] as const;
+/** Loopback hostnames. Used to warn when the server binds off-loopback, and
+ *  always part of the privileged-Host allowlist (wsAuth.privilegedHostnames). */
+export const LOOPBACK_HOSTNAMES = ['127.0.0.1', 'localhost', '::1'] as const;
+/** Wildcard bind addresses: listen targets, never a name a browser sends as
+ *  Host, so binding to one adds nothing to the privileged-Host allowlist. */
+export const WILDCARD_HOSTNAMES = ['0.0.0.0', '::'] as const;
+
+/** Scrollback lines the per-session headless-xterm mirror retains. Matches the
+ *  browser's TERMINAL_SCROLLBACK_LINES so a reattach replays the same depth the
+ *  client would have kept. Bounds the serialized replay snapshot. */
+export const TERMINAL_MIRROR_SCROLLBACK_LINES = 5_000;
+/** Terminal size used until the browser reports its real geometry. */
+export const TERMINAL_DEFAULT_COLS = 80;
+export const TERMINAL_DEFAULT_ROWS = 24;
+/** TERM value exported into the PTY. */
+export const TERMINAL_TERM_NAME = 'xterm-256color';
+/** Grace period between SIGHUP and SIGKILL when disposing a PTY. */
+export const TERMINAL_KILL_GRACE_MS = 2_000;
+/** unavailableReason() when the operator opted out with --no-terminal. Shown
+ *  verbatim as the disabled + Agent button's tooltip in the browser. */
+export const TERMINAL_DISABLED_BY_FLAG_REASON = 'Terminal disabled with --no-terminal.';
+/** terminalAvailability reason for an UNPRIVILEGED /ws client (no valid token,
+ *  or a Host outside the allowlist): the PTY may work, but this connection may
+ *  not open one. Launching an agent starts a shell as the operator, so it is
+ *  gated exactly like the hooks toggle (wsAuth.standaloneHandshakeVerdict). */
+export const TERMINAL_REQUIRES_TOKEN_REASON =
+  'Open the URL the CLI printed (with its ?token=), at localhost or a name passed with --allowed-host, to launch agents from this browser.';
+/** Standalone persists its server token here (mode 0600, beside server.json) so
+ *  the tokened URL a browser bookmarked keeps working across restarts. The
+ *  embedded (VS Code) server still mints a fresh token per process. */
+export const STANDALONE_TOKEN_FILE_NAME = 'standalone-token';
 
 // ── Layout/Config Persistence ──────────────────────────────
 export const LAYOUT_FILE_DIR = '.pixel-agents';
