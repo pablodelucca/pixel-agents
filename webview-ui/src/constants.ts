@@ -367,6 +367,10 @@ export const TERMINAL_RESIZE_DEBOUNCE_MS = 100;
 export const TERMINAL_LINK_PROTOCOLS: readonly string[] = ['http:', 'https:'];
 /** window.open features for terminal links: no opener handle, no Referer. */
 export const TERMINAL_LINK_WINDOW_FEATURES = 'noopener,noreferrer';
+/** Plain-URL pattern for touch taps -- the same one @xterm/addon-web-links
+ *  matches for mouse clicks, so a URL that is clickable is also tappable. */
+export const TERMINAL_URL_PATTERN =
+  /(https?|HTTPS?):[/]{2}[^\s"'!*(){}|\\^<>`]*[^\s"':,.!?{}|\\^~[\]`()<>]/g;
 
 /** xterm theme, matched to the office palette (index.css :root). */
 export const TERMINAL_THEME = {
