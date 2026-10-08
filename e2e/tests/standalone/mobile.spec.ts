@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import type { Page } from '@playwright/test';
 
 import { expect, test } from '../../fixtures/standalone';
@@ -16,6 +18,13 @@ import { arrangeNextClaudeInvocation, claudeScenario } from '../../helpers/mock-
  */
 
 const PHONE = { width: 390, height: 844 };
+
+/** The + card opens the launch drawer; the launch itself is a tap on the
+ *  host-contributed Directory (the workspace the server started in). */
+async function launchFromCard(page: Page, workspaceDir: string) {
+  await page.getByTitle('Launch agent', { exact: true }).tap();
+  await page.getByRole('button', { name: path.basename(workspaceDir), exact: true }).tap();
+}
 
 /** The page currently showing, read off the view toggle's title. */
 async function expectView(page: Page, view: 'office' | 'terminal') {
@@ -79,7 +88,7 @@ test.describe('Standalone / mobile shell', () => {
     await expectView(page, 'office');
 
     // + launches, and the shell slides over once the terminal appears.
-    await launch.tap();
+    await launchFromCard(page, standalone.workspaceDir);
     const card = page.getByTitle('Agent 1', { exact: true });
     await expect(card).toBeVisible({ timeout: 15_000 });
     await expectView(page, 'terminal');
@@ -112,7 +121,7 @@ test.describe('Standalone / mobile shell', () => {
       standalone.tmpHome,
       claudeScenario('mobile link tap').holdOpenFor(60_000).build(),
     );
-    await page.getByTitle('Launch agent', { exact: true }).tap();
+    await launchFromCard(page, standalone.workspaceDir);
     const terminal = page.locator('.xterm').first();
     await expect(terminal).toContainText('mock claude session', { timeout: 15_000 });
 
