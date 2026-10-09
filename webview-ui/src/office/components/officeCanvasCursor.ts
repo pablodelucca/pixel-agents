@@ -25,6 +25,8 @@ export interface OfficeCursorState {
   getSeatAtTile: (col: number, row: number) => string | null;
   getSeat: (seatId: string) => OfficeCursorSeat | undefined;
   getCharacter: (id: number) => OfficeCursorCharacter | undefined;
+  /** Optional: uid of a game table covering the tile (click-to-play target). */
+  getGameTableAtTile?: (col: number, row: number) => string | null;
 }
 
 export type OfficeCursor = 'pointer' | 'default';
@@ -52,6 +54,10 @@ export function computeNormalModeCursor(state: OfficeCursorState): OfficeCursor 
           return 'pointer';
         }
       }
+    }
+    // 4. Game table hover — send the selected character to play.
+    if (state.getGameTableAtTile?.(state.tile.col, state.tile.row)) {
+      return 'pointer';
     }
   }
 

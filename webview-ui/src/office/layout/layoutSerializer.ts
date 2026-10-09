@@ -1,14 +1,23 @@
 import type { ColorValue } from '../../components/ui/types.js';
+import {
+  GAME_QUEUE_MARKER_RANGE,
+  GAME_QUEUE_MAX,
+  GAME_QUEUE_SPOT_GROUP_ID,
+  GAME_TABLE_GROUP_IDS,
+} from '../../constants.js';
 import { getColorizedSprite } from '../colorize.js';
 import type {
   FurnitureInstance,
+  GameSlot,
   OfficeLayout,
   PlacedFurniture,
   Seat,
   TileType as TileTypeVal,
+  WaitSpot,
 } from '../types.js';
 import { DEFAULT_COLS, DEFAULT_ROWS, Direction, TILE_SIZE, TileType } from '../types.js';
 import { getCatalogEntry, getOrientationInGroup } from './furnitureCatalog.js';
+import { isWalkable } from './tileMap.js';
 
 /** Convert flat tile array from layout into 2D grid */
 export function layoutToTileMap(layout: OfficeLayout): TileTypeVal[][] {
@@ -120,6 +129,161 @@ export function getBlockedTiles(
     }
   }
   return tiles;
+}
+
+/** Whether a placed item is a two-player game table (ping pong, air hockey, ...). */
+export function isGameTable(type: string): boolean {
+  const entry = getCatalogEntry(type);
+  return !!entry?.groupId && (GAME_TABLE_GROUP_IDS as readonly string[]).includes(entry.groupId);
+}
+
+/** Standing slots beside every game table: one tile left and one tile right of the
+ *  table's bottom row, facing inward. Slots on non-walkable tiles are dropped. */
+export function layoutToGameSlots(
+  furniture: PlacedFurniture[],
+  tileMap: TileTypeVal[][],
+  blockedTiles: Set<string>,
+): GameSlot[] {
+  const slots: GameSlot[] = [];
+  for (const item of furniture) {
+    const entry = getCatalogEntry(item.type);
+    if (!entry?.groupId || !isGameTable(item.type)) continue;
+    const row = item.row + entry.footprintH - 1;
+    const ends: Array<[number, Direction, 0 | 1]> = [
+      [item.col - 1, Direction.RIGHT, 0],
+      [item.col + entry.footprintW, Direction.LEFT, 1],
+    ];
+    for (const [col, dir, side] of ends) {
+      if (isWalkable(col, row, tileMap, blockedTiles)) {
+        slots.push({ uid: item.uid, game: entry.groupId, side, col, row, dir });
+      }
+    }
+  }
+  return slots;
+}
+
+/** Tile distance from a point to a rectangle (0 when inside). */
+function rectDistance(
+  col: number,
+  row: number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): number {
+  const dx = col < x0 ? x0 - col : col > x1 ? col - x1 : 0;
+  const dy = row < y0 ? y0 - row : row > y1 ? row - y1 : 0;
+  return Math.max(dx, dy);
+}
+
+/** Face a tile toward the centre of a rectangle (horizontal wins ties). */
+function faceToward(col: number, row: number, cx: number, cy: number): Direction {
+  const dx = cx - col;
+  const dy = cy - row;
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? Direction.RIGHT : Direction.LEFT;
+  return dy > 0 ? Direction.DOWN : Direction.UP;
+}
+
+/** Spectator spots for every game table.
+ *
+ *  Default: a row one tile below the table (a gap so nobody stands in front of
+ *  the ball), spanning the table plus one tile each side, all facing up — at most
+ *  GAME_QUEUE_MAX. Users override this by placing GAME_QUEUE_SPOT floor markers:
+ *  each marker within GAME_QUEUE_MARKER_RANGE of a table becomes a spot for its
+ *  nearest table, facing it, and that table then uses only its markers. */
+export function layoutToWaitSpots(
+  furniture: PlacedFurniture[],
+  tileMap: TileTypeVal[][],
+  blockedTiles: Set<string>,
+): WaitSpot[] {
+  const tables = furniture
+    .map((item) => ({ item, entry: getCatalogEntry(item.type) }))
+    .filter(({ item, entry }) => entry?.groupId && isGameTable(item.type))
+    .map(({ item, entry }) => ({
+      item,
+      x0: item.col,
+      y0: item.row,
+      x1: item.col + entry!.footprintW - 1,
+      y1: item.row + entry!.footprintH - 1,
+    }));
+  if (tables.length === 0) return [];
+
+  // Markers → nearest table in range
+  const markersByTable = new Map<string, Array<{ col: number; row: number; d: number }>>();
+  for (const m of furniture) {
+    if (getCatalogEntry(m.type)?.groupId !== GAME_QUEUE_SPOT_GROUP_ID) continue;
+    let best: (typeof tables)[number] | null = null;
+    let bestD = Infinity;
+    for (const t of tables) {
+      const d = rectDistance(m.col, m.row, t.x0, t.y0, t.x1, t.y1);
+      if (d < bestD) {
+        bestD = d;
+        best = t;
+      }
+    }
+    if (!best || bestD === 0 || bestD > GAME_QUEUE_MARKER_RANGE) continue;
+    if (!isWalkable(m.col, m.row, tileMap, blockedTiles)) continue;
+    const list = markersByTable.get(best.item.uid) ?? [];
+    list.push({ col: m.col, row: m.row, d: bestD });
+    markersByTable.set(best.item.uid, list);
+  }
+
+  const seats = layoutToSeats(furniture);
+  const endTiles = new Set(
+    layoutToGameSlots(furniture, tileMap, blockedTiles).map((e) => `${e.col},${e.row}`),
+  );
+  const spots: WaitSpot[] = [];
+  for (const t of tables) {
+    const cx = (t.x0 + t.x1) / 2;
+    const cy = (t.y0 + t.y1) / 2;
+    const markers = markersByTable.get(t.item.uid);
+    if (markers && markers.length > 0) {
+      for (const m of markers.sort((a, b) => a.d - b.d)) {
+        spots.push({
+          uid: t.item.uid,
+          col: m.col,
+          row: m.row,
+          dir: faceToward(m.col, m.row, cx, cy),
+        });
+      }
+      continue;
+    }
+    let kept = 0;
+    // Nearby unclaimed-by-layout seats (sofas, chairs) first: spectators sit there
+    const nearSeats = [...seats.entries()]
+      .map(([seatId, seat]) => ({
+        seatId,
+        seat,
+        d: rectDistance(seat.seatCol, seat.seatRow, t.x0, t.y0, t.x1, t.y1),
+      }))
+      .filter(
+        ({ seat, d }) =>
+          d > 0 && d <= GAME_QUEUE_MARKER_RANGE && !endTiles.has(`${seat.seatCol},${seat.seatRow}`),
+      )
+      .sort((a, b) => a.d - b.d);
+    for (const { seatId, seat } of nearSeats) {
+      if (kept >= GAME_QUEUE_MAX) break;
+      spots.push({
+        uid: t.item.uid,
+        col: seat.seatCol,
+        row: seat.seatRow,
+        dir: seat.facingDir,
+        seatId,
+      });
+      kept++;
+    }
+    // Then a row one tile of air below the table, centred, spilling one tile past each end
+    const row = t.y1 + 2;
+    const order = [0, 1, -1, 2, -2, 3, -3].map((k) => Math.round(cx) + k);
+    for (const col of order) {
+      if (kept >= GAME_QUEUE_MAX) break;
+      if (col < t.x0 - 1 || col > t.x1 + 1) continue;
+      if (!isWalkable(col, row, tileMap, blockedTiles)) continue;
+      spots.push({ uid: t.item.uid, col, row, dir: Direction.UP });
+      kept++;
+    }
+  }
+  return spots;
 }
 
 /** Get tiles blocked for placement purposes — skips top backgroundTiles rows per item */

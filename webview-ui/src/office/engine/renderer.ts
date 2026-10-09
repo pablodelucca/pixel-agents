@@ -23,6 +23,8 @@ import {
   CHARACTER_Z_SORT_OFFSET,
   DELETE_BUTTON_BG,
   FALLBACK_FLOOR_COLOR,
+  GAME_CELEBRATE_HOP_PX,
+  GAME_CELEBRATE_HOPS_PER_SEC,
   GHOST_BORDER_HOVER_FILL,
   GHOST_BORDER_HOVER_STROKE,
   GHOST_BORDER_STROKE,
@@ -35,6 +37,10 @@ import {
   HOVERED_OUTLINE_ALPHA,
   OUTLINE_Z_SORT_OFFSET,
   ROTATE_BUTTON_BG,
+  SCOREBOARD_COLOR,
+  SCOREBOARD_FONT_SIZE_PX,
+  SCOREBOARD_MIN_FONT_SIZE_PX,
+  SCOREBOARD_SHADOW_COLOR,
   SEAT_AVAILABLE_COLOR,
   SEAT_BUSY_COLOR,
   SEAT_OWN_COLOR,
@@ -64,14 +70,16 @@ import type {
   CarpetTile,
   Character,
   FurnitureInstance,
+  GameBall,
   Pet,
+  Scoreboard,
   Seat,
   SpriteData,
   TileType as TileTypeVal,
 } from '../types.js';
-import { CharacterState, TILE_SIZE, TileType } from '../types.js';
+import { TILE_SIZE, TileType } from '../types.js';
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles.js';
-import { getCharacterSprite } from './characters.js';
+import { getCharacterSprite, isSeatedPose } from './characters.js';
 import { renderMatrixEffect } from './matrixEffect.js';
 import { getPetSpriteData } from './petEntity.js';
 
@@ -295,6 +303,48 @@ export function renderAreaLabels(
   ctx.restore();
 }
 
+/** Draw each ball as a 2×2 sprite-pixel dot (colour on top, shade below). */
+export function renderBalls(
+  ctx: CanvasRenderingContext2D,
+  balls: GameBall[],
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  for (const b of balls) {
+    const x = Math.round(offsetX + (b.x - 1) * zoom);
+    const y = Math.round(offsetY + (b.y - 1) * zoom);
+    ctx.fillStyle = b.color;
+    ctx.fillRect(x, y, 2 * zoom, zoom);
+    ctx.fillStyle = b.shade;
+    ctx.fillRect(x, y + zoom, 2 * zoom, zoom);
+  }
+}
+
+/** Draw "2 - 1" style scores above game tables in play. */
+export function renderScoreboards(
+  ctx: CanvasRenderingContext2D,
+  boards: Scoreboard[],
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  const fontSize = Math.max(SCOREBOARD_FONT_SIZE_PX * zoom, SCOREBOARD_MIN_FONT_SIZE_PX);
+  ctx.save();
+  ctx.font = `bold ${fontSize}px 'FS Pixel Sans'`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  for (const b of boards) {
+    const x = Math.round(offsetX + b.x * zoom);
+    const y = Math.round(offsetY + b.y * zoom);
+    ctx.fillStyle = SCOREBOARD_SHADOW_COLOR;
+    ctx.fillText(b.text, x + 1, y + 1);
+    ctx.fillStyle = SCOREBOARD_COLOR;
+    ctx.fillText(b.text, x, y);
+  }
+  ctx.restore();
+}
+
 /** @internal */
 export function renderTileGrid(
   ctx: CanvasRenderingContext2D,
@@ -393,10 +443,16 @@ export function renderScene(
     const spriteData = getCharacterSprite(ch, sprites);
     const cached = getCachedSprite(spriteData, zoom);
     // Sitting offset: shift character down when seated so they visually sit in the chair
-    const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+    const sittingOffset = isSeatedPose(ch) ? CHARACTER_SITTING_OFFSET_PX : 0;
+    // Celebration hop: bounce on |sin| while the timer runs down
+    const hop =
+      ch.celebrateTimer > 0
+        ? -GAME_CELEBRATE_HOP_PX *
+          Math.abs(Math.sin(ch.celebrateTimer * Math.PI * GAME_CELEBRATE_HOPS_PER_SEC))
+        : 0;
     // Anchor at bottom-center of character — round to integer device pixels
     const drawX = Math.round(offsetX + ch.x * zoom - cached.width / 2);
-    const drawY = Math.round(offsetY + (ch.y + sittingOffset) * zoom - cached.height);
+    const drawY = Math.round(offsetY + (ch.y + sittingOffset + hop) * zoom - cached.height);
 
     // Sort characters by bottom of their tile (not center) so they render
     // in front of same-row furniture (e.g. chairs) but behind furniture
@@ -502,6 +558,7 @@ function renderSeatIndicators(
   offsetX: number,
   offsetY: number,
   zoom: number,
+  gameSlots?: SelectionRenderState['gameSlots'],
 ): void {
   if (selectedAgentId === null || !hoveredTile) return;
   const selectedChar = characters.get(selectedAgentId);
@@ -527,6 +584,15 @@ function renderSeatIndicators(
     }
     ctx.fillRect(x, y, s, s);
     break;
+  }
+
+  // Hovering a game table: show where the selected agent would stand
+  if (gameSlots) {
+    const s = TILE_SIZE * zoom;
+    for (const slot of gameSlots) {
+      ctx.fillStyle = slot.free ? SEAT_AVAILABLE_COLOR : SEAT_BUSY_COLOR;
+      ctx.fillRect(offsetX + slot.col * s, offsetY + slot.row * s, s, s);
+    }
   }
 }
 
@@ -792,7 +858,7 @@ function renderBubbles(
     // Position: centered above the character's head
     // Character is anchored bottom-center at (ch.x, ch.y), sprite is 16x24
     // Place bubble above head with a small gap; follow sitting offset
-    const sittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
+    const sittingOff = isSeatedPose(ch) ? BUBBLE_SITTING_OFFSET_PX : 0;
     const bubbleX = Math.round(offsetX + ch.x * zoom - cached.width / 2);
     const bubbleY = Math.round(
       offsetY + (ch.y + sittingOff - BUBBLE_VERTICAL_OFFSET_PX) * zoom - cached.height - 1 * zoom,
@@ -880,6 +946,8 @@ export interface SelectionRenderState {
   hoveredTile: { col: number; row: number } | null;
   seats: Map<string, Seat>;
   characters: Map<number, Character>;
+  /** Standing ends of the hovered game table, if any (green = free, red = taken) */
+  gameSlots?: Array<{ col: number; row: number; free: boolean }>;
 }
 
 export function renderFrame(
@@ -903,6 +971,8 @@ export function renderFrame(
   showAreas?: boolean,
   activeAreaLabel?: string | null,
   pets?: Pet[],
+  scoreboards?: Scoreboard[],
+  balls?: GameBall[],
 ): { offsetX: number; offsetY: number } {
   // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -939,6 +1009,7 @@ export function renderFrame(
       offsetX,
       offsetY,
       zoom,
+      selection.gameSlots,
     );
   }
 
@@ -963,6 +1034,13 @@ export function renderFrame(
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom);
+  // Game balls in flight + scoreboards above tables in play
+  if (balls && balls.length > 0) {
+    renderBalls(ctx, balls, offsetX, offsetY, zoom);
+  }
+  if (scoreboards && scoreboards.length > 0) {
+    renderScoreboards(ctx, scoreboards, offsetX, offsetY, zoom);
+  }
   // Pet heart bubbles (same overlay pass)
   if (pets && pets.length > 0) {
     renderPetBubbles(ctx, pets, offsetX, offsetY, zoom);

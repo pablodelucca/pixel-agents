@@ -312,3 +312,57 @@ export const PET_THUMB_SCALE_MARGIN = 0.85;
 export const EMPTY_SPRITE_THUMBNAIL_BG = '#333';
 /** Maximum string length for a PlacedPet.id (defends against pathologically-long layout entries). */
 export const MAX_PET_ID_LENGTH = 128;
+
+// ── Game Tables (ping pong, air hockey, foosball) ─────────────
+/** Catalog groupIds of two-player game tables (assets/furniture/<id>/). Idle agents
+ *  stand at the left/right ends and play; the table shows its animated on-state
+ *  while both ends are taken. */
+export const GAME_TABLE_GROUP_IDS = [
+  'PING_PONG_TABLE',
+  'AIR_HOCKEY_TABLE',
+  'FOOSBALL_TABLE',
+] as const;
+/** Chance an idle wander step heads to a free game slot instead of a random tile. */
+export const GAME_JOIN_CHANCE = 0.5;
+/** Idle agents beyond the two players wait in a row one tile below the table; at most
+ *  this many default spots per table. Placed GAME_QUEUE_SPOT markers override the row. */
+export const GAME_QUEUE_MAX = 5;
+/** Catalog groupId of the floor marker that pins a spectator spot to a chosen tile */
+export const GAME_QUEUE_SPOT_GROUP_ID = 'GAME_QUEUE_SPOT';
+/** A marker belongs to the nearest game table within this many tiles of its footprint */
+export const GAME_QUEUE_MARKER_RANGE = 4;
+/** Rally simulation: one end-to-end ball flight, the miss fly-past, and the
+ *  time the loser spends turning to pick the ball up before serving. */
+export const GAME_RALLY_FLIGHT_SEC = 0.55;
+export const GAME_MISS_SEC = 0.6;
+export const GAME_PICKUP_SEC = 1.4;
+/** Returns per point before someone misses (inclusive range) */
+export const GAME_HITS_MIN = 2;
+export const GAME_HITS_MAX = 7;
+/** How long the swing frame is held after a hit */
+export const GAME_SWING_SEC = 0.25;
+/** Ball flight geometry in sprite px: inset from the table's ends, height on the
+ *  table sprite, how far a missed ball flies past the end, and how far it drops. */
+export const GAME_BALL_END_INSET_PX = 5;
+export const GAME_BALL_SURFACE_Y_PX = 13;
+export const GAME_MISS_DISTANCE_PX = 14;
+export const GAME_MISS_DROP_PX = 12;
+/** Per-game ball look: colour, shade pixel, arc height (0 = slides on the surface) */
+export const GAME_BALL_STYLES: Record<string, { color: string; shade: string; arcPx: number }> = {
+  PING_PONG_TABLE: { color: '#fff6c8', shade: '#e0c96a', arcPx: 5 },
+  AIR_HOCKEY_TABLE: { color: '#ff3b3b', shade: '#b31f1f', arcPx: 0 },
+  FOOSBALL_TABLE: { color: '#ffffff', shade: '#cfcfcf', arcPx: 0 },
+};
+/** First to this many points wins; both players then leave the table */
+export const GAME_WIN_SCORE = 5;
+export const GAME_CELEBRATE_POINT_SEC = 1.2;
+export const GAME_CELEBRATE_WIN_SEC = 3.0;
+/** Celebration hop: full bounces per second and height in sprite pixels */
+export const GAME_CELEBRATE_HOPS_PER_SEC = 3;
+export const GAME_CELEBRATE_HOP_PX = 4;
+/** Scoreboard drawn above a table in play */
+export const SCOREBOARD_FONT_SIZE_PX = 8;
+export const SCOREBOARD_MIN_FONT_SIZE_PX = 10;
+export const SCOREBOARD_COLOR = '#ffffff';
+export const SCOREBOARD_SHADOW_COLOR = '#000000';
+export const SCOREBOARD_OFFSET_PX = 6;

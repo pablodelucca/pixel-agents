@@ -270,6 +270,15 @@ export function OfficeCanvas({
           hoveredTile: officeState.hoveredTile,
           seats: officeState.seats,
           characters: officeState.characters,
+          gameSlots: officeState.hoveredTile
+            ? (() => {
+                const uid = officeState.getGameTableAtTile(
+                  officeState.hoveredTile.col,
+                  officeState.hoveredTile.row,
+                );
+                return uid ? officeState.getGameSlotStatus(uid) : [];
+              })()
+            : [],
         };
 
         const layout = officeState.getLayout();
@@ -294,6 +303,8 @@ export function OfficeCanvas({
           showAreas,
           activeAreaLabel,
           officeState.pets,
+          officeState.getScoreboards(),
+          officeState.getBalls(),
         );
         offsetRef.current = { x: offsetX, y: offsetY };
 
@@ -516,6 +527,7 @@ export function OfficeCanvas({
           getSeatAtTile: (col, row) => officeState.getSeatAtTile(col, row),
           getSeat: (seatId) => officeState.seats.get(seatId),
           getCharacter: (id) => officeState.characters.get(id),
+          getGameTableAtTile: (col, row) => officeState.getGameTableAtTile(col, row),
         });
       }
       officeState.hoveredAgentId = hitId;
@@ -758,6 +770,13 @@ export function OfficeCanvas({
         if (selectedCh && !selectedCh.isSubagent) {
           const tile = screenToTile(e.clientX, e.clientY);
           if (tile) {
+            // Clicked a game table (or one of its ends) — send the agent to play
+            const tableUid = officeState.getGameTableAtTile(tile.col, tile.row);
+            if (tableUid && officeState.sendToGame(officeState.selectedAgentId, tableUid)) {
+              officeState.selectedAgentId = null;
+              officeState.cameraFollowId = null;
+              return;
+            }
             const seatId = officeState.getSeatAtTile(tile.col, tile.row);
             if (seatId) {
               const seat = officeState.seats.get(seatId);

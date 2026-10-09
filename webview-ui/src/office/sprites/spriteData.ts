@@ -6,6 +6,12 @@ import { Direction as Dir } from '../types.js';
 import bubblePermissionData from './bubble-permission.json';
 import bubblePetData from './bubble-pet.json';
 import bubbleWaitingData from './bubble-waiting.json';
+import foosballReadyData from './foosball-ready.json';
+import foosballSwingData from './foosball-swing.json';
+import malletReadyData from './mallet-ready.json';
+import malletSwingData from './mallet-swing.json';
+import paddleReadyData from './paddle-ready.json';
+import paddleSwingData from './paddle-swing.json';
 
 // ── Speech Bubble Sprites ───────────────────────────────────────
 
@@ -54,6 +60,69 @@ export function getLoadedCharacterCount(): number {
 /** Flip a SpriteData horizontally (for generating left sprites from right) */
 function flipSpriteHorizontal(sprite: SpriteData): SpriteData {
   return sprite.map((row) => [...row].reverse());
+}
+
+// ── Game play sprites (standing frame + per-game hand overlay) ──
+
+/** Sprite-pixel where the right-facing standing frame shows the hand; its color
+ *  fills the 'A' (arm) pixels of the swing overlay so the raised arm matches skin. */
+const PADDLE_HAND_COL = 9;
+const PADDLE_HAND_ROW = 22;
+const PADDLE_ARM_KEY = 'A';
+
+type OverlayPair = [BubbleSpriteJson, BubbleSpriteJson];
+/** Hand overlay [ready, swing] per game table groupId (see GAME_TABLE_GROUP_IDS). */
+const GAME_OVERLAYS: Record<string, OverlayPair> = {
+  PING_PONG_TABLE: [paddleReadyData, paddleSwingData],
+  AIR_HOCKEY_TABLE: [malletReadyData, malletSwingData],
+  FOOSBALL_TABLE: [foosballReadyData, foosballSwingData],
+};
+const DEFAULT_GAME = 'PING_PONG_TABLE';
+type PlaySprites = Record<Direction, [SpriteData, SpriteData]>;
+const playSpriteCache = new WeakMap<CharacterSprites, Map<string, PlaySprites>>();
+
+/** Overlay a paddle layer (right-facing) onto a standing frame. `mirror` flips the
+ *  layer for left-facing frames (whose base is already flipped). */
+function composePaddle(base: SpriteData, layer: BubbleSpriteJson, mirror: boolean): SpriteData {
+  const skin =
+    base[PADDLE_HAND_ROW]?.[
+      mirror ? (base[0]?.length ?? 0) - 1 - PADDLE_HAND_COL : PADDLE_HAND_COL
+    ];
+  return base.map((row, y) =>
+    row.map((px, x) => {
+      const lx = mirror ? row.length - 1 - x : x;
+      const key = layer.pixels[y]?.[lx];
+      if (key === undefined || key === '_') return px;
+      if (key === PADDLE_ARM_KEY) return skin || px;
+      return layer.palette[key] ?? px;
+    }),
+  );
+}
+
+/** Standing body (walk frame 1) holding the game's gear: [ready, swing] per direction.
+ *  Unknown games fall back to the ping pong paddle. */
+export function getPlaySprites(sprites: CharacterSprites, game?: string): PlaySprites {
+  const key = game && GAME_OVERLAYS[game] ? game : DEFAULT_GAME;
+  let perGame = playSpriteCache.get(sprites);
+  if (!perGame) {
+    perGame = new Map();
+    playSpriteCache.set(sprites, perGame);
+  }
+  const hit = perGame.get(key);
+  if (hit) return hit;
+  const layers = GAME_OVERLAYS[key];
+  const pair = (dir: Direction, mirror: boolean): [SpriteData, SpriteData] => [
+    composePaddle(sprites.walk[dir][1], layers[0], mirror),
+    composePaddle(sprites.walk[dir][1], layers[1], mirror),
+  ];
+  const built: PlaySprites = {
+    [Dir.DOWN]: pair(Dir.DOWN, false),
+    [Dir.UP]: pair(Dir.UP, false),
+    [Dir.RIGHT]: pair(Dir.RIGHT, false),
+    [Dir.LEFT]: pair(Dir.LEFT, true),
+  };
+  perGame.set(key, built);
+  return built;
 }
 
 // ════════════════════════════════════════════════════════════════

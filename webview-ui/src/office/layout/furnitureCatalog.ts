@@ -87,6 +87,7 @@ export function buildDynamicCatalog(assets: LoadedAssetData): boolean {
         sprite,
         isDesk: asset.isDesk,
         category: asset.category as FurnitureCategory,
+        ...(asset.groupId ? { groupId: asset.groupId } : {}),
         ...(asset.orientation ? { orientation: asset.orientation } : {}),
         ...(asset.canPlaceOnSurfaces ? { canPlaceOnSurfaces: true } : {}),
         ...(asset.backgroundTiles ? { backgroundTiles: asset.backgroundTiles } : {}),

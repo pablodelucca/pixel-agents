@@ -7,6 +7,20 @@ import {
   CHARACTER_SITTING_OFFSET_PX,
   DISMISS_BUBBLE_FAST_FADE_SEC,
   FURNITURE_ANIM_INTERVAL_SEC,
+  GAME_BALL_END_INSET_PX,
+  GAME_BALL_STYLES,
+  GAME_BALL_SURFACE_Y_PX,
+  GAME_CELEBRATE_POINT_SEC,
+  GAME_CELEBRATE_WIN_SEC,
+  GAME_HITS_MAX,
+  GAME_HITS_MIN,
+  GAME_MISS_DISTANCE_PX,
+  GAME_MISS_DROP_PX,
+  GAME_MISS_SEC,
+  GAME_PICKUP_SEC,
+  GAME_RALLY_FLIGHT_SEC,
+  GAME_SWING_SEC,
+  GAME_WIN_SCORE,
   GREETER_ID,
   GREETER_TILE_MARGIN,
   INACTIVE_SEAT_TIMER_MIN_SEC,
@@ -14,15 +28,20 @@ import {
   MAX_PET_ID_LENGTH,
   PET_HIT_HALF_WIDTH,
   PET_HIT_HEIGHT,
+  SCOREBOARD_OFFSET_PX,
   WAITING_BUBBLE_DURATION_SEC,
+  WANDER_PAUSE_MIN_SEC,
 } from '../../constants.js';
 import { getAnimationFrames, getCatalogEntry, getOnStateType } from '../layout/furnitureCatalog.js';
 import {
   createDefaultLayout,
   getBlockedTiles,
+  isGameTable,
   layoutToFurnitureInstances,
+  layoutToGameSlots,
   layoutToSeats,
   layoutToTileMap,
+  layoutToWaitSpots,
 } from '../layout/layoutSerializer.js';
 import { findPath, getWalkableTiles, isWalkable } from '../layout/tileMap.js';
 import { getPetCount, getPetName } from '../sprites/petSpriteData.js';
@@ -30,15 +49,20 @@ import { getLoadedCharacterCount } from '../sprites/spriteData.js';
 import type {
   Character,
   FurnitureInstance,
+  GameBall,
+  GameMatch,
+  GameSlot,
   OfficeLayout,
   Pet,
   PlacedFurniture,
   PlacedPet,
+  Scoreboard,
   Seat,
   TileType as TileTypeVal,
+  WaitSpot,
 } from '../types.js';
 import { CharacterState, Direction, PetState, TILE_SIZE } from '../types.js';
-import { createCharacter, updateCharacter } from './characters.js';
+import { createCharacter, isSeatedPose, updateCharacter } from './characters.js';
 import { advanceMatrixEffect, startMatrixEffect } from './matrixEffectState.js';
 import { createPet, updatePet } from './petEntity.js';
 import { anchorTile, closestFreeSeat } from './seatPlacement.js';
@@ -58,6 +82,12 @@ export class OfficeState {
   blockedTiles: Set<string>;
   furniture: FurnitureInstance[];
   walkableTiles: Array<{ col: number; row: number }>;
+  /** Standing spots beside game tables (derived from layout) */
+  gameSlots: GameSlot[] = [];
+  /** Spectator spots where queued agents wait for an end (derived from layout) */
+  waitSpots: WaitSpot[] = [];
+  /** Games in progress, keyed by table uid. Exists only while both ends are taken. */
+  matches: Map<string, GameMatch> = new Map();
   characters: Map<number, Character> = new Map();
   pets: Pet[] = [];
   /** Accumulated time for furniture animation frame cycling */
@@ -112,6 +142,8 @@ export class OfficeState {
     this.blockedTiles = getBlockedTiles(this.layout.furniture);
     this.furniture = layoutToFurnitureInstances(this.layout.furniture);
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles);
+    this.gameSlots = layoutToGameSlots(this.layout.furniture, this.tileMap, this.blockedTiles);
+    this.waitSpots = layoutToWaitSpots(this.layout.furniture, this.tileMap, this.blockedTiles);
     // Pets are built last because they need walkableTiles populated for spawn.
     this.rebuildPetsFromLayout(this.layout);
   }
@@ -125,6 +157,8 @@ export class OfficeState {
     this.blockedTiles = getBlockedTiles(layout.furniture);
     this.rebuildFurnitureInstances();
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles);
+    this.gameSlots = layoutToGameSlots(layout.furniture, this.tileMap, this.blockedTiles);
+    this.waitSpots = layoutToWaitSpots(layout.furniture, this.tileMap, this.blockedTiles);
 
     // Shift character positions when grid expands left/up
     if (shift && (shift.col !== 0 || shift.row !== 0)) {
@@ -133,6 +167,21 @@ export class OfficeState {
         ch.tileRow += shift.row;
         ch.x += shift.col * TILE_SIZE;
         ch.y += shift.row * TILE_SIZE;
+        // Game slot claims move with the table they belong to
+        if (ch.playSlot) {
+          ch.playSlot = {
+            ...ch.playSlot,
+            col: ch.playSlot.col + shift.col,
+            row: ch.playSlot.row + shift.row,
+          };
+        }
+        if (ch.waitSpot) {
+          ch.waitSpot = {
+            ...ch.waitSpot,
+            col: ch.waitSpot.col + shift.col,
+            row: ch.waitSpot.row + shift.row,
+          };
+        }
         // Clear path since tile coords changed
         ch.path = [];
         ch.moveProgress = 0;
@@ -151,6 +200,20 @@ export class OfficeState {
       }
     }
 
+    // Release claims on slots that no longer exist (table moved/removed) — the
+    // PLAY state sees playSlot === null and walks off. Runs after the shift so a
+    // grid expansion keeps a game going.
+    for (const ch of this.characters.values()) {
+      const s = ch.playSlot;
+      if (s && !this.gameSlots.some((p) => p.uid === s.uid && p.col === s.col && p.row === s.row)) {
+        ch.playSlot = null;
+      }
+      const w = ch.waitSpot;
+      if (w && !this.waitSpots.some((p) => p.uid === w.uid && p.col === w.col && p.row === w.row)) {
+        ch.waitSpot = null;
+      }
+    }
+
     // Reassign characters to new seats, preserving existing assignments when possible
     for (const seat of this.seats.values()) {
       seat.assigned = false;
@@ -162,6 +225,8 @@ export class OfficeState {
         const seat = this.seats.get(ch.seatId)!;
         if (!seat.assigned) {
           seat.assigned = true;
+          // Playing or queued at a game table: keep the seat but stay at the table
+          if (ch.playSlot || ch.waitSpot) continue;
           // Snap character to seat position
           ch.tileCol = seat.seatCol;
           ch.tileRow = seat.seatRow;
@@ -261,9 +326,14 @@ export class OfficeState {
   /** Temporarily unblock a character's own seat, run fn, then re-block */
   private withOwnSeatUnblocked<T>(ch: Character, fn: () => T): T {
     const key = this.ownSeatKey(ch);
+    // A couch wait spot we claimed is a seat tile too — open it for our own path
+    const couch = ch.waitSpot?.seatId ? `${ch.waitSpot.col},${ch.waitSpot.row}` : null;
+    const couchWasBlocked = couch !== null && this.blockedTiles.has(couch);
     if (key) this.blockedTiles.delete(key);
+    if (couchWasBlocked) this.blockedTiles.delete(couch!);
     const result = fn();
     if (key) this.blockedTiles.add(key);
+    if (couchWasBlocked) this.blockedTiles.add(couch!);
     return result;
   }
 
@@ -665,6 +735,82 @@ export class OfficeState {
     }
   }
 
+  /** Uid of the game table whose footprint or standing slot covers a tile, or null. */
+  getGameTableAtTile(col: number, row: number): string | null {
+    for (const s of this.gameSlots) {
+      if (s.col === col && s.row === row) return s.uid;
+    }
+    for (const item of this.layout.furniture) {
+      if (!isGameTable(item.type)) continue;
+      const entry = getCatalogEntry(item.type);
+      if (!entry) continue;
+      if (
+        col >= item.col &&
+        col < item.col + entry.footprintW &&
+        row >= item.row &&
+        row < item.row + entry.footprintH
+      ) {
+        return item.uid;
+      }
+    }
+    return null;
+  }
+
+  /** Standing slots of a table with whether each is still free (for hover indicators). */
+  getGameSlotStatus(uid: string): Array<{ col: number; row: number; free: boolean }> {
+    const free = new Set(this.freeGameSlots().map((s) => `${s.col},${s.row}`));
+    return this.gameSlots
+      .filter((s) => s.uid === uid)
+      .map((s) => ({ col: s.col, row: s.row, free: free.has(`${s.col},${s.row}`) }));
+  }
+
+  /** Send an idle agent to play at a table (click-to-play). Picks the nearest free end.
+   *  Returns false when the agent is busy, a sub-agent, or no end is free/reachable. */
+  sendToGame(agentId: number, uid: string): boolean {
+    const ch = this.characters.get(agentId);
+    if (!ch || ch.isSubagent || ch.isActive) return false;
+    // Already heading to / playing at / queued for this table — nothing to do
+    if (ch.playSlot?.uid === uid || ch.waitSpot?.uid === uid) return true;
+    const byDistance = <T extends { col: number; row: number }>(spots: T[]): T[] =>
+      spots.sort(
+        (a, b) =>
+          Math.abs(a.col - ch.tileCol) +
+          Math.abs(a.row - ch.tileRow) -
+          (Math.abs(b.col - ch.tileCol) + Math.abs(b.row - ch.tileRow)),
+      );
+    const go = (target: GameSlot | WaitSpot): boolean => {
+      const blocked = new Set(this.blockedTiles);
+      if ('seatId' in target && target.seatId) blocked.delete(`${target.col},${target.row}`);
+      const path = this.withOwnSeatUnblocked(ch, () =>
+        findPath(ch.tileCol, ch.tileRow, target.col, target.row, this.tileMap, blocked),
+      );
+      const alreadyThere = ch.tileCol === target.col && ch.tileRow === target.row;
+      if (path.length === 0 && !alreadyThere) return false;
+      ch.playSlot = null;
+      ch.waitSpot = null;
+      if ('side' in target) ch.playSlot = target;
+      else {
+        ch.waitSpot = target;
+        ch.queuedAt = ++this.queueTicket;
+      }
+      ch.seatTimer = 0;
+      ch.path = path;
+      ch.moveProgress = 0;
+      ch.state = CharacterState.WALK; // arrival flips to PLAY / QUEUE
+      ch.frame = 0;
+      ch.frameTimer = 0;
+      return true;
+    };
+    // A free end nobody is waiting for → play. Otherwise → get in line.
+    for (const end of byDistance(this.freeGameSlotsFor(ch).filter((s) => s.uid === uid))) {
+      if (go(end)) return true;
+    }
+    for (const spot of byDistance(this.freeWaitSpots().filter((s) => s.uid === uid))) {
+      if (go(spot)) return true;
+    }
+    return false;
+  }
+
   /** Walk an agent to an arbitrary walkable tile (right-click command) */
   walkToTile(agentId: number, col: number, row: number): boolean {
     const ch = this.characters.get(agentId);
@@ -844,6 +990,16 @@ export class OfficeState {
 
     // Build modified furniture list with auto-state and animation applied
     const animFrame = Math.floor(this.furnitureAnimTimer / FURNITURE_ANIM_INTERVAL_SEC);
+    const onTypeFor = (item: PlacedFurniture): string => {
+      let onType = getOnStateType(item.type);
+      if (onType === item.type) return item.type;
+      // Check if the on-state type has animation frames
+      const frames = getAnimationFrames(onType);
+      if (frames && frames.length > 1) {
+        onType = frames[animFrame % frames.length];
+      }
+      return onType;
+    };
     const modifiedFurniture: PlacedFurniture[] = this.layout.furniture.map((item) => {
       const entry = getCatalogEntry(item.type);
       if (!entry) return item;
@@ -851,17 +1007,8 @@ export class OfficeState {
       for (let dr = 0; dr < entry.footprintH; dr++) {
         for (let dc = 0; dc < entry.footprintW; dc++) {
           if (autoOnTiles.has(`${item.col + dc},${item.row + dr}`)) {
-            let onType = getOnStateType(item.type);
-            if (onType !== item.type) {
-              // Check if the on-state type has animation frames
-              const frames = getAnimationFrames(onType);
-              if (frames && frames.length > 1) {
-                const frameIdx = animFrame % frames.length;
-                onType = frames[frameIdx];
-              }
-              return { ...item, type: onType };
-            }
-            return item;
+            const onType = onTypeFor(item);
+            return onType !== item.type ? { ...item, type: onType } : item;
           }
         }
       }
@@ -869,6 +1016,249 @@ export class OfficeState {
     });
 
     this.furniture = layoutToFurnitureInstances(modifiedFurniture);
+  }
+
+  /** Characters in PLAY state grouped by table uid. */
+  private playersByTable(): Map<string, Character[]> {
+    const byTable = new Map<string, Character[]>();
+    for (const ch of this.characters.values()) {
+      if (ch.state !== CharacterState.PLAY || !ch.playSlot) continue;
+      const list = byTable.get(ch.playSlot.uid);
+      if (list) list.push(ch);
+      else byTable.set(ch.playSlot.uid, [ch]);
+    }
+    return byTable;
+  }
+
+  /** Simulate the rallies at tables with both ends taken.
+   *
+   *  rally  → ball flies to `to`; on arrival the receiver swings and returns it
+   *           (hitsLeft--), or misses when hitsLeft is 0.
+   *  miss   → ball flies past the end; the other side scores and celebrates.
+   *  pickup → the loser turns around, fetches the ball, and serves it back.
+   *  First to GAME_WIN_SCORE wins; after the winner's celebration both leave. */
+  private updateMatches(dt: number): void {
+    const byTable = this.playersByTable();
+    for (const uid of [...this.matches.keys()]) {
+      if ((byTable.get(uid)?.length ?? 0) < 2) this.matches.delete(uid); // someone left: reset
+    }
+    for (const [uid, players] of byTable) {
+      if (players.length < 2) continue;
+      const bySide = (side: 0 | 1) => players.find((p) => p.playSlot?.side === side);
+      let match = this.matches.get(uid);
+      if (!match) {
+        const server: 0 | 1 = Math.random() < 0.5 ? 0 : 1;
+        match = {
+          uid,
+          game: players[0].playSlot?.game ?? '',
+          scores: [0, 0],
+          phase: 'rally',
+          to: other(server),
+          t: 0,
+          hitsLeft: randomHits(),
+          winner: null,
+        };
+        const srv = bySide(server);
+        if (srv) srv.swingTimer = GAME_SWING_SEC;
+        this.matches.set(uid, match);
+      }
+
+      switch (match.phase) {
+        case 'rally': {
+          match.t += dt / GAME_RALLY_FLIGHT_SEC;
+          if (match.t < 1) break;
+          const receiver = bySide(match.to);
+          if (match.hitsLeft > 0) {
+            // Returned: swing, ball heads back the other way
+            if (receiver) receiver.swingTimer = GAME_SWING_SEC;
+            match.hitsLeft--;
+            match.to = other(match.to);
+            match.t = 0;
+          } else {
+            // Missed: the hitter scores
+            const scorerSide = other(match.to);
+            match.scores[scorerSide]++;
+            const scorer = bySide(scorerSide);
+            if (match.scores[scorerSide] >= GAME_WIN_SCORE) {
+              match.winner = scorerSide;
+              if (scorer) scorer.celebrateTimer = GAME_CELEBRATE_WIN_SEC;
+            } else if (scorer) {
+              scorer.celebrateTimer = GAME_CELEBRATE_POINT_SEC;
+            }
+            match.phase = 'miss';
+            match.t = 0;
+          }
+          break;
+        }
+        case 'miss': {
+          match.t += dt / GAME_MISS_SEC;
+          if (match.t < 1) break;
+          if (match.winner !== null) {
+            // Game over: once the winner is done celebrating, either the loser
+            // yields the end to whoever is waiting (winner stays on), or — with
+            // nobody in line — the same two start a new game.
+            const winner = bySide(match.winner);
+            if (winner && winner.celebrateTimer > 0) break;
+            const beaten = bySide(other(match.winner));
+            if (beaten && this.queueHead(uid)) {
+              this.rotateOut(beaten);
+              this.matches.delete(uid); // the next match starts when the newcomer arrives
+              break;
+            }
+            match.scores = [0, 0];
+            match.winner = null;
+          }
+          // Loser turns to fetch the ball
+          const loser = bySide(match.to);
+          if (loser) loser.dir = Direction.DOWN;
+          match.phase = 'pickup';
+          match.t = 0;
+          break;
+        }
+        case 'pickup': {
+          match.t += dt / GAME_PICKUP_SEC;
+          if (match.t < 1) break;
+          // Serve from the loser's end
+          const loser = bySide(match.to);
+          if (loser?.playSlot) {
+            loser.dir = loser.playSlot.dir;
+            loser.swingTimer = GAME_SWING_SEC;
+          }
+          match.phase = 'rally';
+          match.to = other(match.to);
+          match.t = 0;
+          match.hitsLeft = randomHits();
+          break;
+        }
+      }
+    }
+  }
+
+  /** Ball positions for every match in progress (world px), for the renderer. */
+  getBalls(): GameBall[] {
+    if (this.matches.size === 0) return [];
+    const balls: GameBall[] = [];
+    for (const m of this.matches.values()) {
+      const item = this.layout.furniture.find((f) => f.uid === m.uid);
+      const entry = item && getCatalogEntry(item.type);
+      if (!item || !entry) continue;
+      const style = GAME_BALL_STYLES[m.game] ?? GAME_BALL_STYLES.PING_PONG_TABLE;
+      const xEnd: [number, number] = [
+        item.col * TILE_SIZE + GAME_BALL_END_INSET_PX,
+        (item.col + entry.footprintW) * TILE_SIZE - GAME_BALL_END_INSET_PX,
+      ];
+      const ySurface = item.row * TILE_SIZE + GAME_BALL_SURFACE_Y_PX;
+      const dir = m.to === 1 ? 1 : -1; // +x when heading to the right end
+      let x: number;
+      let y: number;
+      if (m.phase === 'rally') {
+        const from = xEnd[other(m.to)];
+        x = from + (xEnd[m.to] - from) * m.t;
+        y = ySurface - style.arcPx * Math.sin(m.t * Math.PI);
+      } else if (m.phase === 'miss') {
+        if (m.winner !== null) continue; // game over: ball is gone
+        x = xEnd[m.to] + dir * GAME_MISS_DISTANCE_PX * m.t;
+        y = ySurface + GAME_MISS_DROP_PX * m.t * m.t;
+      } else {
+        if (m.t > 0.5) continue; // picked up
+        x = xEnd[m.to] + dir * GAME_MISS_DISTANCE_PX;
+        y = ySurface + GAME_MISS_DROP_PX;
+      }
+      balls.push({ x, y, color: style.color, shade: style.shade });
+    }
+    return balls;
+  }
+
+  /** Scoreboards for every match in progress, positioned above the table. */
+  getScoreboards(): Scoreboard[] {
+    if (this.matches.size === 0) return [];
+    const boards: Scoreboard[] = [];
+    for (const match of this.matches.values()) {
+      const item = this.layout.furniture.find((f) => f.uid === match.uid);
+      const entry = item && getCatalogEntry(item.type);
+      if (!item || !entry) continue;
+      boards.push({
+        x: (item.col + entry.footprintW / 2) * TILE_SIZE,
+        y: item.row * TILE_SIZE - SCOREBOARD_OFFSET_PX,
+        text: `${match.scores[0]} - ${match.scores[1]}`,
+      });
+    }
+    return boards;
+  }
+
+  /** Monotonic ticket for click-to-play queue joins (FSM joins use the module counter). */
+  private queueTicket = 1_000_000;
+
+  /** Game slots no character has claimed (walking to or playing at). */
+  private freeGameSlots(): GameSlot[] {
+    if (this.gameSlots.length === 0) return [];
+    const claimed = new Set<string>();
+    for (const ch of this.characters.values()) {
+      if (ch.playSlot) claimed.add(`${ch.playSlot.col},${ch.playSlot.row}`);
+    }
+    return this.gameSlots.filter((s) => !claimed.has(`${s.col},${s.row}`));
+  }
+
+  /** Free ends `ch` is allowed to take: a table with a queue only offers its ends to
+   *  the head of that queue, so newcomers never jump the line. */
+  private freeGameSlotsFor(ch: Character): GameSlot[] {
+    const free = this.freeGameSlots();
+    if (free.length === 0) return free;
+    return free.filter((s) => {
+      const head = this.queueHead(s.uid);
+      return head === null || head === ch;
+    });
+  }
+
+  /** A beaten player gives up its end: it walks to the back of the line at the same
+   *  table, or wanders off when every spectator spot is taken. */
+  private rotateOut(loser: Character): void {
+    const uid = loser.playSlot?.uid;
+    loser.playSlot = null;
+    loser.state = CharacterState.IDLE;
+    loser.frame = 0;
+    loser.frameTimer = 0;
+    loser.wanderTimer = WANDER_PAUSE_MIN_SEC;
+    if (!uid) return;
+    for (const spot of this.freeWaitSpots().filter((s) => s.uid === uid)) {
+      const path = findPath(
+        loser.tileCol,
+        loser.tileRow,
+        spot.col,
+        spot.row,
+        this.tileMap,
+        this.blockedTiles,
+      );
+      if (path.length === 0) continue;
+      loser.waitSpot = spot;
+      loser.queuedAt = ++this.queueTicket;
+      loser.path = path;
+      loser.moveProgress = 0;
+      loser.state = CharacterState.WALK;
+      return;
+    }
+  }
+
+  /** Longest-waiting character queued (or walking to queue) at a table, or null. */
+  private queueHead(uid: string): Character | null {
+    let head: Character | null = null;
+    for (const c of this.characters.values()) {
+      if (c.waitSpot?.uid !== uid) continue;
+      if (!head || c.queuedAt < head.queuedAt) head = c;
+    }
+    return head;
+  }
+
+  /** Spectator spots no character has claimed. */
+  private freeWaitSpots(): WaitSpot[] {
+    if (this.waitSpots.length === 0) return [];
+    const claimed = new Set<string>();
+    for (const ch of this.characters.values()) {
+      if (ch.waitSpot) claimed.add(`${ch.waitSpot.col},${ch.waitSpot.row}`);
+    }
+    return this.waitSpots.filter(
+      (s) => !claimed.has(`${s.col},${s.row}`) && !(s.seatId && this.seats.get(s.seatId)?.assigned),
+    );
   }
 
   setAgentTool(id: number, tool: string | null): void {
@@ -1111,7 +1501,16 @@ export class OfficeState {
 
       // Temporarily unblock own seat so character can pathfind to it
       this.withOwnSeatUnblocked(ch, () =>
-        updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles),
+        updateCharacter(
+          ch,
+          dt,
+          this.walkableTiles,
+          this.seats,
+          this.tileMap,
+          this.blockedTiles,
+          ch.isSubagent ? [] : this.freeGameSlotsFor(ch),
+          ch.isSubagent ? [] : this.freeWaitSpots(),
+        ),
       );
 
       // Tick bubble timer for waiting bubbles
@@ -1127,6 +1526,7 @@ export class OfficeState {
     for (const id of toDelete) {
       this.characters.delete(id);
     }
+    this.updateMatches(dt);
 
     // ── Pet FSM ────────────────────────────────────────────────
     for (const pet of this.pets) {
@@ -1178,7 +1578,7 @@ export class OfficeState {
       if (ch.matrixEffect === 'despawn') continue;
       // Character sprite is 16x24, anchored bottom-center
       // Apply sitting offset to match visual position
-      const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+      const sittingOffset = isSeatedPose(ch) ? CHARACTER_SITTING_OFFSET_PX : 0;
       const anchorY = ch.y + sittingOffset;
       const left = ch.x - CHARACTER_HIT_HALF_WIDTH;
       const right = ch.x + CHARACTER_HIT_HALF_WIDTH;
@@ -1190,4 +1590,12 @@ export class OfficeState {
     }
     return null;
   }
+}
+
+function randomHits(): number {
+  return GAME_HITS_MIN + Math.floor(Math.random() * (GAME_HITS_MAX - GAME_HITS_MIN + 1));
+}
+
+function other(side: 0 | 1): 0 | 1 {
+  return side === 0 ? 1 : 0;
 }

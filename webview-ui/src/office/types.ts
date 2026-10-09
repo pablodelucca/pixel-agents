@@ -30,8 +30,75 @@ export const CharacterState = {
   IDLE: 'idle',
   WALK: 'walk',
   TYPE: 'type',
+  /** Standing at a game table end, playing (standing frame + hand overlay) */
+  PLAY: 'play',
+  /** Waiting beside a full game table for an end to free up */
+  QUEUE: 'queue',
 } as const;
 export type CharacterState = (typeof CharacterState)[keyof typeof CharacterState];
+
+/** A standing spot beside a ping pong table. One per table end (left/right). */
+export interface GameSlot {
+  /** Table furniture uid */
+  uid: string;
+  /** Table kind: catalog groupId (one of GAME_TABLE_GROUP_IDS) — picks the hand overlay */
+  game: string;
+  /** 0 = left end, 1 = right end — index into GameMatch.scores */
+  side: 0 | 1;
+  col: number;
+  row: number;
+  /** Direction the player faces (toward the table) */
+  dir: Direction;
+}
+
+/** A spectator spot beside a game table where queued agents wait their turn. */
+export interface WaitSpot {
+  /** Table furniture uid */
+  uid: string;
+  col: number;
+  row: number;
+  /** Direction the waiting agent faces (toward the table) */
+  dir: Direction;
+  /** Set when the spot is a nearby chair/sofa seat: the spectator sits while waiting */
+  seatId?: string;
+}
+
+export type RallyPhase = 'rally' | 'miss' | 'pickup';
+
+/** A game in progress at one table: both ends taken, a ball in play. */
+export interface GameMatch {
+  uid: string;
+  game: string;
+  /** Points per side: [left, right] */
+  scores: [number, number];
+  /** rally = ball in flight toward `to`; miss = flew past `to`; pickup = `to` fetches it */
+  phase: RallyPhase;
+  /** Side the ball is travelling toward (or that missed / is picking up) */
+  to: 0 | 1;
+  /** 0..1 progress through the current phase */
+  t: number;
+  /** Returns left before this rally ends in a miss */
+  hitsLeft: number;
+  /** Set once someone reached GAME_WIN_SCORE; players leave after the celebration */
+  winner: 0 | 1 | null;
+}
+
+/** A ball to draw: world px position (center) plus colours. */
+export interface GameBall {
+  x: number;
+  y: number;
+  color: string;
+  shade: string;
+}
+
+/** What renderFrame needs to draw a scoreboard above a table. World pixel coords. */
+export interface Scoreboard {
+  /** Horizontal center */
+  x: number;
+  /** Baseline (bottom) — text is drawn above this */
+  y: number;
+  text: string;
+}
 
 export const Direction = {
   DOWN: 0,
@@ -98,6 +165,8 @@ export interface FurnitureCatalogEntry {
   sprite: SpriteData;
   isDesk: boolean;
   category?: string;
+  /** Manifest id shared by every variant (orientation/state/frame) of one furniture item */
+  groupId?: string;
   /** Orientation from rotation group: 'front' | 'back' | 'left' | 'right' */
   orientation?: string;
   /** Whether this item can be placed on top of desk/table surfaces */
@@ -211,6 +280,16 @@ export interface Character {
   bubbleTimer: number;
   /** Timer to stay seated while inactive after seat reassignment (counts down to 0) */
   seatTimer: number;
+  /** Ping pong slot this character claimed (walking to it or playing at it), or null */
+  playSlot: GameSlot | null;
+  /** Wait spot this character claimed (walking to it or standing on it), or null */
+  waitSpot: WaitSpot | null;
+  /** Monotonic ticket taken when joining a queue; lowest waits longest and goes first */
+  queuedAt: number;
+  /** Seconds of celebration hop left after scoring a point (0 = none) */
+  celebrateTimer: number;
+  /** Seconds the swing frame is held after hitting the ball (0 = ready pose) */
+  swingTimer: number;
   /** Whether this character represents a sub-agent (spawned by Task tool) */
   isSubagent: boolean;
   /** Parent agent ID if this is a sub-agent, null otherwise */
