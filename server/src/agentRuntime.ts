@@ -442,11 +442,7 @@ export class AgentRuntime {
   startStaleCheck(): void {
     if (this.staleCheckTimer) return;
 
-    this.staleCheckTimer = startStaleExternalAgentCheck(
-      this.store,
-      this.knownJsonlFiles,
-      this.hooksEnabled,
-    );
+    this.staleCheckTimer = startStaleExternalAgentCheck(this.store, this.knownJsonlFiles);
   }
 
   // ── Restore persisted external agents (standalone) ──
