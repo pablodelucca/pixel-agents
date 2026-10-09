@@ -6,6 +6,7 @@ import { MobileKeyBar } from '../components/MobileKeyBar.js';
 import { MobileTerminalPage } from '../components/MobileTerminalPage.js';
 import type { TerminalInputHandle } from '../components/TerminalPane.js';
 import { Button } from '../components/ui/Button.js';
+import type { Directory } from '../hooks/useExtensionMessages.js';
 import type { TerminalDrawerController } from '../hooks/useTerminalDrawer.js';
 import { TRACK_TRANSITION, trackTransform, useEdgeSwipe } from './useEdgeSwipe.js';
 import type { MobileShellController } from './useMobileShell.js';
@@ -21,6 +22,10 @@ interface MobileShellProps {
   focusedAgentId: number | null;
   terminalAvailable: boolean;
   terminalUnavailableReason: string | null;
+  /** The + card's launch drawer. */
+  directories: Directory[];
+  onAddDirectory: () => void;
+  onEditDirectory: (directory: Directory) => void;
   onCloseAgent: (agentId: number) => void;
   /** The software keyboard is up (App clamps the shell to the visual viewport). */
   keyboardOpen: boolean;
@@ -42,6 +47,9 @@ export function MobileShell({
   focusedAgentId,
   terminalAvailable,
   terminalUnavailableReason,
+  directories,
+  onAddDirectory,
+  onEditDirectory,
   onCloseAgent,
   keyboardOpen,
 }: MobileShellProps) {
@@ -119,7 +127,10 @@ export function MobileShell({
         activeAgentId={shell.view === 'terminal' ? drawer.activeAgentId : null}
         onSelectAgent={shell.selectCard}
         onCloseAgent={onCloseAgent}
-        onLaunch={shell.launch}
+        onLaunchDirectory={shell.launch}
+        directories={directories}
+        onAddDirectory={onAddDirectory}
+        onEditDirectory={onEditDirectory}
         canLaunch={terminalAvailable}
         launchUnavailableReason={terminalUnavailableReason}
         getAppearance={drawer.getAppearance}
