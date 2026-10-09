@@ -806,12 +806,22 @@ export interface ButtonBounds {
 export type DeleteButtonBounds = ButtonBounds;
 export type RotateButtonBounds = ButtonBounds;
 
+/** One translucent preview sprite at a target tile. */
+export interface GhostSprite {
+  sprite: SpriteData;
+  col: number;
+  row: number;
+  mirrored: boolean;
+}
+
 export interface EditorRenderState {
   showGrid: boolean;
-  ghostSprite: SpriteData | null;
-  ghostMirrored: boolean;
-  ghostCol: number;
-  ghostRow: number;
+  /**
+   * Preview sprites, drawn in order with one shared validity tint: the item
+   * being placed, or a dragged item followed by everything riding on it — the
+   * group previews (and is accepted or refused) as one.
+   */
+  ghosts: GhostSprite[];
   ghostValid: boolean;
   selectedCol: number;
   selectedRow: number;
@@ -946,17 +956,17 @@ export function renderFrame(
         editor.ghostBorderHoverRow,
       );
     }
-    if (editor.ghostSprite && editor.ghostCol >= 0) {
+    for (const ghost of editor.ghosts) {
       renderGhostPreview(
         ctx,
-        editor.ghostSprite,
-        editor.ghostCol,
-        editor.ghostRow,
+        ghost.sprite,
+        ghost.col,
+        ghost.row,
         editor.ghostValid,
         offsetX,
         offsetY,
         zoom,
-        editor.ghostMirrored,
+        ghost.mirrored,
       );
     }
     if (editor.hasSelection) {

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import {
   CAMERA_FOLLOW_LERP,
   CAMERA_FOLLOW_SNAP_THRESHOLD,
+  OFFICE_CANVAS_TEST_ID,
   PAN_MARGIN_FRACTION,
   ZOOM_MAX,
   ZOOM_MIN,
@@ -10,8 +11,8 @@ import {
 } from '../../constants.js';
 import { unlockAudio } from '../../notificationSound.js';
 import { transport } from '../../transport/index.js';
-import { getColorizedSprite } from '../colorize.js';
-import { canPlaceFurniture, getWallPlacementRow } from '../editor/editorActions.js';
+import { furnitureAt } from '../editor/editorActions.js';
+import { buildEditorRenderState } from '../editor/editorRenderState.js';
 import type { EditorState } from '../editor/editorState.js';
 import { startGameLoop } from '../engine/gameLoop.js';
 import type { OfficeState } from '../engine/officeState.js';
@@ -22,7 +23,6 @@ import type {
   SelectionRenderState,
 } from '../engine/renderer.js';
 import { renderFrame } from '../engine/renderer.js';
-import { getCatalogEntry, isRotatable } from '../layout/furnitureCatalog.js';
 import { EditTool, TILE_SIZE } from '../types.js';
 import { computeNormalModeCursor } from './officeCanvasCursor.js';
 import { useCanvasTouchGestures } from './useCanvasTouchGestures.js';
@@ -37,7 +37,9 @@ interface OfficeCanvasProps {
   onEditorSelectionChange: () => void;
   onDeleteSelected: () => void;
   onRotateSelected: () => void;
-  onDragMove: (uid: string, newCol: number, newRow: number) => void;
+  /** A furniture drag released with the item's top-left over (col,row);
+   *  `duplicate` when Alt was held. The handler decides what that commits. */
+  onDrop: (uid: string, col: number, row: number, opts: { duplicate: boolean }) => void;
   editorTick: number;
   zoom: number;
   onZoomChange: (zoom: number) => void;
@@ -63,7 +65,7 @@ export function OfficeCanvas({
   onEditorSelectionChange,
   onDeleteSelected,
   onRotateSelected,
-  onDragMove,
+  onDrop,
   editorTick: _editorTick,
   zoom,
   onZoomChange,
@@ -139,105 +141,9 @@ export function OfficeCanvas({
         const w = canvas.width;
         const h = canvas.height;
 
-        // Build editor render state
-        let editorRender: EditorRenderState | undefined;
-        if (isEditMode) {
-          const showGhostBorder =
-            editorState.activeTool === EditTool.TILE_PAINT ||
-            editorState.activeTool === EditTool.WALL_PAINT ||
-            editorState.activeTool === EditTool.ERASE;
-          editorRender = {
-            showGrid: true,
-            ghostSprite: null,
-            ghostMirrored: false,
-            ghostCol: editorState.ghostCol,
-            ghostRow: editorState.ghostRow,
-            ghostValid: editorState.ghostValid,
-            selectedCol: 0,
-            selectedRow: 0,
-            selectedW: 0,
-            selectedH: 0,
-            hasSelection: false,
-            isRotatable: false,
-            deleteButtonBounds: null,
-            rotateButtonBounds: null,
-            showGhostBorder,
-            ghostBorderHoverCol: showGhostBorder ? editorState.ghostCol : -999,
-            ghostBorderHoverRow: showGhostBorder ? editorState.ghostRow : -999,
-          };
-
-          // Ghost preview for furniture placement
-          if (editorState.activeTool === EditTool.FURNITURE_PLACE && editorState.ghostCol >= 0) {
-            const entry = getCatalogEntry(editorState.selectedFurnitureType);
-            if (entry) {
-              const placementRow = getWallPlacementRow(
-                editorState.selectedFurnitureType,
-                editorState.ghostRow,
-              );
-              const pickedColor = editorState.pickedFurnitureColor;
-              editorRender.ghostSprite = pickedColor
-                ? getColorizedSprite(
-                    `ghost-${editorState.selectedFurnitureType}-${pickedColor.h}-${pickedColor.s}-${pickedColor.b}-${pickedColor.c}-${pickedColor.colorize ?? ''}`,
-                    entry.sprite,
-                    pickedColor,
-                  )
-                : entry.sprite;
-              editorRender.ghostRow = placementRow;
-              editorRender.ghostMirrored =
-                !!entry.mirrorSide && editorState.selectedFurnitureType.endsWith(':left');
-              editorRender.ghostValid = canPlaceFurniture(
-                officeState.getLayout(),
-                editorState.selectedFurnitureType,
-                editorState.ghostCol,
-                placementRow,
-              );
-            }
-          }
-
-          // Ghost preview for drag-to-move
-          if (editorState.isDragMoving && editorState.dragUid && editorState.ghostCol >= 0) {
-            const draggedItem = officeState
-              .getLayout()
-              .furniture.find((f) => f.uid === editorState.dragUid);
-            if (draggedItem) {
-              const entry = getCatalogEntry(draggedItem.type);
-              if (entry) {
-                const ghostCol = editorState.ghostCol - editorState.dragOffsetCol;
-                const ghostRow = editorState.ghostRow - editorState.dragOffsetRow;
-                editorRender.ghostSprite = entry.sprite;
-                editorRender.ghostCol = ghostCol;
-                editorRender.ghostRow = ghostRow;
-                editorRender.ghostMirrored =
-                  !!entry.mirrorSide && draggedItem.type.endsWith(':left');
-                editorRender.ghostValid = canPlaceFurniture(
-                  officeState.getLayout(),
-                  draggedItem.type,
-                  ghostCol,
-                  ghostRow,
-                  editorState.dragUid,
-                );
-              }
-            }
-          }
-
-          // Selection highlight
-          if (editorState.selectedFurnitureUid && !editorState.isDragMoving) {
-            const item = officeState
-              .getLayout()
-              .furniture.find((f) => f.uid === editorState.selectedFurnitureUid);
-            if (item) {
-              const entry = getCatalogEntry(item.type);
-              if (entry) {
-                editorRender.hasSelection = true;
-                editorRender.selectedCol = item.col;
-                editorRender.selectedRow = item.row;
-                editorRender.selectedW = entry.footprintW;
-                editorRender.selectedH = entry.footprintH;
-                editorRender.isRotatable = isRotatable(item.type);
-              }
-            }
-          }
-        }
+        const editorRender: EditorRenderState | undefined = isEditMode
+          ? buildEditorRenderState(editorState, officeState.getLayout())
+          : undefined;
 
         // Camera: smoothly center on the followed agent, or — while the greeter
         // is speaking the Intro — on the character+bubble center the IntroBubble
@@ -405,16 +311,23 @@ export function OfficeCanvas({
           editorState.ghostRow = tile.row;
 
           // Drag-to-move: check if cursor moved to different tile
-          if (editorState.dragUid && !editorState.isDragMoving) {
-            if (tile.col !== editorState.dragStartCol || tile.row !== editorState.dragStartRow) {
+          if (editorState.dragUid) {
+            // Alt is sampled every move, so it can be pressed or released
+            // part-way through a drag and the ghost follows.
+            editorState.dragDuplicate = e.altKey;
+            if (
+              !editorState.isDragMoving &&
+              (tile.col !== editorState.dragStartCol || tile.row !== editorState.dragStartRow)
+            ) {
               editorState.isDragMoving = true;
             }
           }
 
           // Paint on drag (paint-style tools only, not during furniture drag).
           // Carpet + Area paint join the drag set so a single click-drag stamps
-          // every tile under the cursor — stroke-based undo lives in
-          // useEditorActions for carpet, per-tile undo for area.
+          // every tile under the cursor — stroke-based undo (one undo per
+          // click-drag) lives in useEditorActions for floor/wall/erase/carpet;
+          // area paint stays per-tile.
           if (
             editorState.isDragging &&
             (editorState.activeTool === EditTool.TILE_PAINT ||
@@ -455,7 +368,8 @@ export function OfficeCanvas({
         const canvas = canvasRef.current;
         if (canvas) {
           if (editorState.isDragMoving) {
-            canvas.style.cursor = 'grabbing';
+            // 'copy' is the platform's own duplicate-drag affordance.
+            canvas.style.cursor = editorState.dragDuplicate ? 'copy' : 'grabbing';
           } else {
             const pos = screenToWorld(e.clientX, e.clientY);
             if (
@@ -464,39 +378,23 @@ export function OfficeCanvas({
                 hitTestRotateButton(pos.deviceX, pos.deviceY))
             ) {
               canvas.style.cursor = 'pointer';
-            } else if (editorState.activeTool === EditTool.FURNITURE_PICK && tile) {
-              // Pick mode: show pointer over furniture, crosshair elsewhere
-              const layout = officeState.getLayout();
-              const hitFurniture = layout.furniture.find((f) => {
-                const entry = getCatalogEntry(f.type);
-                if (!entry) return false;
-                return (
-                  tile.col >= f.col &&
-                  tile.col < f.col + entry.footprintW &&
-                  tile.row >= f.row &&
-                  tile.row < f.row + entry.footprintH
-                );
-              });
-              canvas.style.cursor = hitFurniture ? 'pointer' : 'crosshair';
+            } else if (
+              (editorState.activeTool === EditTool.FURNITURE_PICK ||
+                editorState.activeTool === EditTool.COLOR_PICK) &&
+              tile
+            ) {
+              // Copy modes (type or colour): pointer over furniture, crosshair elsewhere
+              const hit = furnitureAt(officeState.getLayout(), tile.col, tile.row);
+              canvas.style.cursor = hit ? 'pointer' : 'crosshair';
             } else if (
               (editorState.activeTool === EditTool.SELECT ||
                 (editorState.activeTool === EditTool.FURNITURE_PLACE &&
-                  editorState.selectedFurnitureType === '')) &&
+                  editorState.placing === null)) &&
               tile
             ) {
               // Check if hovering over furniture
-              const layout = officeState.getLayout();
-              const hitFurniture = layout.furniture.find((f) => {
-                const entry = getCatalogEntry(f.type);
-                if (!entry) return false;
-                return (
-                  tile.col >= f.col &&
-                  tile.col < f.col + entry.footprintW &&
-                  tile.row >= f.row &&
-                  tile.row < f.row + entry.footprintH
-                );
-              });
-              canvas.style.cursor = hitFurniture ? 'grab' : 'crosshair';
+              const hit = furnitureAt(officeState.getLayout(), tile.col, tile.row);
+              canvas.style.cursor = hit ? 'grab' : 'crosshair';
             } else {
               canvas.style.cursor = 'crosshair';
             }
@@ -599,32 +497,19 @@ export function OfficeCanvas({
       // SELECT tool (or furniture tool with nothing selected): check for furniture hit to start drag
       const actAsSelect =
         editorState.activeTool === EditTool.SELECT ||
-        (editorState.activeTool === EditTool.FURNITURE_PLACE &&
-          editorState.selectedFurnitureType === '');
+        (editorState.activeTool === EditTool.FURNITURE_PLACE && editorState.placing === null);
       if (actAsSelect && tile) {
-        const layout = officeState.getLayout();
-        // Find all furniture at clicked tile, prefer surface items (on top of desks)
-        let hitFurniture = null as (typeof layout.furniture)[0] | null;
-        for (const f of layout.furniture) {
-          const entry = getCatalogEntry(f.type);
-          if (!entry) continue;
-          if (
-            tile.col >= f.col &&
-            tile.col < f.col + entry.footprintW &&
-            tile.row >= f.row &&
-            tile.row < f.row + entry.footprintH
-          ) {
-            if (!hitFurniture || entry.canPlaceOnSurfaces) hitFurniture = f;
-          }
-        }
+        const hitFurniture = furnitureAt(officeState.getLayout(), tile.col, tile.row);
         if (hitFurniture) {
-          // Start drag — record offset from furniture's top-left
+          // Start drag — record offset from furniture's top-left. Alt at press
+          // time means "drag out a copy"; mousemove keeps it in sync after that.
           editorState.startDrag(
             hitFurniture.uid,
             tile.col,
             tile.row,
             tile.col - hitFurniture.col,
             tile.row - hitFurniture.row,
+            e.altKey,
           );
           return;
         } else {
@@ -667,42 +552,28 @@ export function OfficeCanvas({
       }
       if (e.button === 2) {
         isEraseDraggingRef.current = false;
-        // Close any in-progress carpet / area stroke so the next stroke
-        // starts a fresh undo entry instead of bundling into this one.
-        editorState.carpetStrokeInitialLayout = null;
-        editorState.carpetDragErasing = null;
-        editorState.areaDragErasing = null;
+        // Close the in-progress stroke so the next stroke starts a fresh undo
+        // entry instead of bundling into this one.
+        editorState.endStroke();
         return;
       }
 
       // Handle drag-to-move completion
       if (editorState.dragUid) {
         if (editorState.isDragMoving) {
-          // Compute target position
-          const ghostCol = editorState.ghostCol - editorState.dragOffsetCol;
-          const ghostRow = editorState.ghostRow - editorState.dragOffsetRow;
-          const draggedItem = officeState
-            .getLayout()
-            .furniture.find((f) => f.uid === editorState.dragUid);
-          if (draggedItem) {
-            const valid = canPlaceFurniture(
-              officeState.getLayout(),
-              draggedItem.type,
-              ghostCol,
-              ghostRow,
-              editorState.dragUid,
-            );
-            if (valid) {
-              onDragMove(editorState.dragUid, ghostCol, ghostRow);
-            }
-          }
-          editorState.clearSelection();
+          onDrop(
+            editorState.dragUid,
+            editorState.ghostCol - editorState.dragOffsetCol,
+            editorState.ghostRow - editorState.dragOffsetRow,
+            { duplicate: editorState.dragDuplicate },
+          );
         } else {
-          // Click (no movement) — toggle selection
+          // Click (no movement) — toggle selection. Selecting also collapses
+          // the open tool tab, so the toolbar shows the item's own controls.
           if (editorState.selectedFurnitureUid === editorState.dragUid) {
             editorState.clearSelection();
           } else {
-            editorState.selectedFurnitureUid = editorState.dragUid;
+            editorState.selectPlacedFurniture(editorState.dragUid);
           }
         }
         editorState.clearDrag();
@@ -713,13 +584,11 @@ export function OfficeCanvas({
       }
 
       editorState.isDragging = false;
-      editorState.wallDragAdding = null;
-      // Close the current carpet stroke so the next click starts a fresh undo entry.
-      editorState.carpetStrokeInitialLayout = null;
-      editorState.carpetDragErasing = null;
-      editorState.areaDragErasing = null;
+      // Releasing the mouse ends the stroke, so the next click starts a fresh
+      // undo entry — one click-drag collapses to a single undo.
+      editorState.endStroke();
     },
-    [editorState, isEditMode, officeState, onDragMove, onEditorSelectionChange],
+    [editorState, isEditMode, onDrop, onEditorSelectionChange],
   );
 
   // Shared by mouse click and touch tap — both resolve a viewport point to a
@@ -821,10 +690,7 @@ export function OfficeCanvas({
     isPanningRef.current = false;
     isEraseDraggingRef.current = false;
     editorState.isDragging = false;
-    editorState.wallDragAdding = null;
-    editorState.carpetStrokeInitialLayout = null;
-    editorState.carpetDragErasing = null;
-    editorState.areaDragErasing = null;
+    editorState.endStroke();
     editorState.clearDrag();
     editorState.ghostCol = -1;
     editorState.ghostRow = -1;
@@ -839,6 +705,23 @@ export function OfficeCanvas({
       }
     }
   }, [officeState, editorState, isEditMode]);
+
+  // Alt tapped or released with the mouse already down flips the in-flight drag
+  // between move and copy without waiting for the next mouse move — the rAF
+  // loop redraws the ghost from editorState every frame, so no re-render here.
+  useEffect(() => {
+    if (!isEditMode) return;
+    const syncAlt = (e: KeyboardEvent) => {
+      if (e.key !== 'Alt' || !editorState.dragUid) return;
+      editorState.dragDuplicate = e.type === 'keydown';
+    };
+    window.addEventListener('keydown', syncAlt);
+    window.addEventListener('keyup', syncAlt);
+    return () => {
+      window.removeEventListener('keydown', syncAlt);
+      window.removeEventListener('keyup', syncAlt);
+    };
+  }, [isEditMode, editorState]);
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -913,6 +796,7 @@ export function OfficeCanvas({
     <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-bg">
       <canvas
         ref={canvasRef}
+        data-testid={OFFICE_CANVAS_TEST_ID}
         onMouseMove={handleMouseMove}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
