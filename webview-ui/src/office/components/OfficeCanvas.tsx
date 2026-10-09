@@ -25,6 +25,7 @@ import { renderFrame } from '../engine/renderer.js';
 import { getCatalogEntry, isRotatable } from '../layout/furnitureCatalog.js';
 import { EditTool, TILE_SIZE } from '../types.js';
 import { computeNormalModeCursor } from './officeCanvasCursor.js';
+import { useCanvasTouchGestures } from './useCanvasTouchGestures.js';
 
 interface OfficeCanvasProps {
   officeState: OfficeState;
@@ -45,6 +46,11 @@ interface OfficeCanvasProps {
   showAreas: boolean;
   /** Currently-selected area label in the editor (alpha-bumped overlay). null otherwise. */
   activeAreaLabel: string | null;
+  /** Mobile two-step tap: the first tap on a character selects it (camera
+   *  follow + status label), and only a second tap on the already-selected
+   *  character fires onClick (opens its terminal). Desktop keeps single-click
+   *  focus with tap-again-to-deselect. */
+  tapSelectsFirst?: boolean;
 }
 
 export function OfficeCanvas({
@@ -64,6 +70,7 @@ export function OfficeCanvas({
   panRef,
   showAreas,
   activeAreaLabel,
+  tapSelectsFirst = false,
 }: OfficeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -78,7 +85,6 @@ export function OfficeCanvas({
   const isEraseDraggingRef = useRef(false);
   // Zoom scroll accumulator for trackpad pinch sensitivity
   const zoomAccumulatorRef = useRef(0);
-
   // Clamp pan so the map edge can't go past a margin inside the viewport
   const clampPan = useCallback(
     (px: number, py: number): { x: number; y: number } => {
@@ -542,8 +548,7 @@ export function OfficeCanvas({
       if (e.button === 1) {
         e.preventDefault();
         // Break camera follow + greeter centering on manual pan
-        officeState.cameraFollowId = null;
-        officeState.cancelGreeterCamera();
+        officeState.breakCameraFollow();
         isPanningRef.current = true;
         panStartRef.current = {
           mouseX: e.clientX,
@@ -717,16 +722,29 @@ export function OfficeCanvas({
     [editorState, isEditMode, officeState, onDragMove, onEditorSelectionChange],
   );
 
-  const handleClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (isEditMode) return; // handled by mouseDown/mouseUp
-      const pos = screenToWorld(e.clientX, e.clientY);
+  // Shared by mouse click and touch tap — both resolve a viewport point to a
+  // character / pet / seat interaction.
+  const performTap = useCallback(
+    (clientX: number, clientY: number) => {
+      const pos = screenToWorld(clientX, clientY);
       if (!pos) return;
 
       const hitId = officeState.getCharacterAt(pos.worldX, pos.worldY);
       if (hitId !== null) {
         // Dismiss any active bubble on click
         officeState.dismissBubble(hitId);
+        // Two-step (mobile): first tap selects + follows so the status label
+        // shows; only a repeat tap on the same character opens its terminal.
+        // Deselection is tapping empty floor, as ever.
+        if (tapSelectsFirst) {
+          if (officeState.selectedAgentId === hitId) {
+            onClick(hitId);
+          } else {
+            officeState.selectedAgentId = hitId;
+            officeState.cameraFollowId = hitId;
+          }
+          return;
+        }
         // Toggle selection: click same agent deselects, different agent selects
         if (officeState.selectedAgentId === hitId) {
           officeState.selectedAgentId = null;
@@ -756,7 +774,7 @@ export function OfficeCanvas({
         const selectedCh = officeState.characters.get(officeState.selectedAgentId);
         // Skip seat reassignment for sub-agents
         if (selectedCh && !selectedCh.isSubagent) {
-          const tile = screenToTile(e.clientX, e.clientY);
+          const tile = screenToTile(clientX, clientY);
           if (tile) {
             const seatId = officeState.getSeatAtTile(tile.col, tile.row);
             if (seatId) {
@@ -788,7 +806,15 @@ export function OfficeCanvas({
         officeState.cameraFollowId = null;
       }
     },
-    [officeState, onClick, screenToWorld, screenToTile, isEditMode],
+    [officeState, onClick, screenToWorld, screenToTile, tapSelectsFirst],
+  );
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (isEditMode) return; // handled by mouseDown/mouseUp
+      performTap(e.clientX, e.clientY);
+    },
+    [isEditMode, performTap],
   );
 
   const handleMouseLeave = useCallback(() => {
@@ -847,8 +873,7 @@ export function OfficeCanvas({
       } else {
         // Pan via trackpad two-finger scroll or mouse wheel
         const dpr = window.devicePixelRatio || 1;
-        officeState.cameraFollowId = null;
-        officeState.cancelGreeterCamera();
+        officeState.breakCameraFollow();
         panRef.current = clampPan(
           panRef.current.x - e.deltaX * dpr,
           panRef.current.y - e.deltaY * dpr,
@@ -867,6 +892,18 @@ export function OfficeCanvas({
     return () => canvas.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
 
+  // Touch: one-finger pan, two-finger pinch zoom, short tap = click.
+  useCanvasTouchGestures({
+    canvasRef,
+    enabled: !isEditMode,
+    zoom,
+    onZoomChange,
+    panRef,
+    clampPan,
+    onManualPan: () => officeState.breakCameraFollow(),
+    onTap: performTap,
+  });
+
   // Prevent default middle-click browser behavior (auto-scroll)
   const handleAuxClick = useCallback((e: React.MouseEvent) => {
     if (e.button === 1) e.preventDefault();
@@ -883,7 +920,7 @@ export function OfficeCanvas({
         onAuxClick={handleAuxClick}
         onMouseLeave={handleMouseLeave}
         onContextMenu={handleContextMenu}
-        className="block"
+        className="block touch-none"
       />
     </div>
   );

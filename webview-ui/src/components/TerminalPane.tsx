@@ -10,10 +10,13 @@ import {
   TERMINAL_RESIZE_DEBOUNCE_MS,
   TERMINAL_SCROLLBACK_LINES,
   TERMINAL_THEME,
+  TERMINAL_URL_PATTERN,
 } from '../constants.js';
 import type { TerminalConnectionStatus } from '../terminal/terminalClient.js';
 import { TerminalConnection } from '../terminal/terminalClient.js';
+import { isTypingInTerminal } from '../terminal/terminalDom.js';
 import { terminalLinkOpener } from '../terminal/terminalLinks.js';
+import { attachTouchInput } from '../terminal/touchInput.js';
 
 interface TerminalPaneProps {
   agentId: number;
@@ -21,6 +24,26 @@ interface TerminalPaneProps {
    *  switches — unmounting would drop the scrollback and force a reconnect. */
   isActive: boolean;
   onStatusChange?: (agentId: number, status: TerminalConnectionStatus) => void;
+  /** Override the terminal font size (mobile uses a smaller face for columns). */
+  fontSizePx?: number;
+  /** Focus xterm when the pane opens/activates. Mobile passes false: focusing
+   *  raises the software keyboard over half the screen on every view switch —
+   *  there, tapping the terminal itself is what summons the keyboard. */
+  autoFocus?: boolean;
+  /** Hands the caller this pane's input handle (null on teardown) — how the
+   *  mobile key bar injects keys the software keyboard doesn't have and
+   *  pastes clipboard text. */
+  onRegisterInput?: (agentId: number, handle: TerminalInputHandle | null) => void;
+}
+
+/** Ways to feed input into a pane's PTY from outside the terminal itself. */
+export interface TerminalInputHandle {
+  /** Write raw bytes (key sequences) straight to the PTY. */
+  send: (data: string) => void;
+  /** Paste text through xterm, which wraps it in bracketed-paste markers when
+   *  the running app has turned that mode on — Claude Code has, and without
+   *  the markers a multiline paste would submit at its first newline. */
+  paste: (data: string) => void;
 }
 
 /**
@@ -30,7 +53,14 @@ interface TerminalPaneProps {
  * is driven entirely through refs — the same pattern OfficeCanvas uses for the
  * game loop.
  */
-export function TerminalPane({ agentId, isActive, onStatusChange }: TerminalPaneProps) {
+export function TerminalPane({
+  agentId,
+  isActive,
+  onStatusChange,
+  fontSizePx = TERMINAL_FONT_SIZE_PX,
+  autoFocus = true,
+  onRegisterInput,
+}: TerminalPaneProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -40,6 +70,12 @@ export function TerminalPane({ agentId, isActive, onStatusChange }: TerminalPane
   // reconnect the socket on every parent render.
   const statusRef = useRef(onStatusChange);
   statusRef.current = onStatusChange;
+  const registerInputRef = useRef(onRegisterInput);
+  registerInputRef.current = onRegisterInput;
+  // Read only when the terminal first opens — as a dependency, flipping it
+  // would dispose the terminal and reconnect the socket for nothing.
+  const autoFocusRef = useRef(autoFocus);
+  autoFocusRef.current = autoFocus;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -48,7 +84,7 @@ export function TerminalPane({ agentId, isActive, onStatusChange }: TerminalPane
     const openLink = terminalLinkOpener(window.open.bind(window));
     const term = new Terminal({
       fontFamily: TERMINAL_FONT_FAMILY,
-      fontSize: TERMINAL_FONT_SIZE_PX,
+      fontSize: fontSizePx,
       theme: { ...TERMINAL_THEME },
       scrollback: TERMINAL_SCROLLBACK_LINES,
       cursorBlink: true,
@@ -59,7 +95,7 @@ export function TerminalPane({ agentId, isActive, onStatusChange }: TerminalPane
     const fit = new FitAddon();
     term.loadAddon(fit);
     // Plain URLs printed as text (most of what an agent prints) become clickable.
-    term.loadAddon(new WebLinksAddon(openLink));
+    term.loadAddon(new WebLinksAddon(openLink, { urlRegex: TERMINAL_URL_PATTERN }));
     termRef.current = term;
     fitRef.current = fit;
 
@@ -85,6 +121,17 @@ export function TerminalPane({ agentId, isActive, onStatusChange }: TerminalPane
     void connection.connect();
 
     term.onData((data) => connection.write(data));
+    registerInputRef.current?.(agentId, {
+      send: (data) => connection.write(data),
+      paste: (data) => term.paste(data),
+    });
+
+    // Touch: scroll + flick, tap to focus / open a URL, long-press selection
+    // with handles and a copy pill (see touchGesture.ts for the why).
+    const detachTouch = attachTouchInput(term, host, {
+      openLink,
+      fallbackRowHeightPx: fontSizePx,
+    });
 
     // Debounced: ResizeObserver fires per frame during a drag, and every resize
     // is a syscall on the PTY plus a full TUI repaint.
@@ -105,7 +152,7 @@ export function TerminalPane({ agentId, isActive, onStatusChange }: TerminalPane
       // here.
       if (!term.element) {
         term.open(host);
-        term.focus();
+        if (autoFocusRef.current) term.focus();
       }
       try {
         fit.fit();
@@ -139,13 +186,15 @@ export function TerminalPane({ agentId, isActive, onStatusChange }: TerminalPane
     return () => {
       if (resizeTimer) clearTimeout(resizeTimer);
       if (verifyFrame !== null) cancelAnimationFrame(verifyFrame);
+      detachTouch();
       observer.disconnect();
+      registerInputRef.current?.(agentId, null);
       connection.dispose();
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [agentId]);
+  }, [agentId, fontSizePx]);
 
   // Becoming visible: the pane had no dimensions while hidden, so re-fit and
   // focus now that it does.
@@ -159,15 +208,30 @@ export function TerminalPane({ agentId, isActive, onStatusChange }: TerminalPane
       }
       // The terminal opens lazily on its first visible fit (see the mount
       // effect), so it may not be attached yet — that first fit also focuses.
-      if (termRef.current?.element) termRef.current.focus();
+      //
+      // Beyond autoFocus: if the user was typing in ANOTHER pane's terminal
+      // when this one became active (mobile: card tap while the keyboard is
+      // up), steal the focus. Moving focus input-to-input keeps the iOS
+      // keyboard open, where blur-then-nothing would dismiss it.
+      const active = document.activeElement;
+      const typingInOtherTerminal =
+        isTypingInTerminal(active) && !hostRef.current?.contains(active);
+      if ((autoFocus || typingInOtherTerminal) && termRef.current?.element) {
+        termRef.current.focus();
+      }
     });
     return () => cancelAnimationFrame(id);
-  }, [isActive]);
+  }, [isActive, autoFocus]);
 
   return (
+    // touch-none: no native pan may ever start on the terminal — with the iOS
+    // keyboard up a vertical drag pans the whole page (overflow:hidden does
+    // not apply to viewport panning), and once Safari claims the gesture the
+    // touchmove preventDefault (touchGesture.ts) arrives too late. All touch
+    // scrolling here is synthesized into wheel events instead.
     <div
       ref={hostRef}
-      className="w-full h-full"
+      className="relative overflow-hidden w-full h-full touch-none"
       style={
         {
           display: isActive ? '' : 'none',

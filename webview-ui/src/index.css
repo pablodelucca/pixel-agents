@@ -93,6 +93,15 @@
   body,
   #root {
     @apply m-0 w-full h-full overflow-hidden font-pixel text-base text-text;
+    /* Mobile Safari: 100% tracks the shifting URL-bar viewport; dvh follows
+       the *dynamic* viewport so the card bar hugs the real bottom edge. */
+    height: 100dvh;
+    /* No rubber-banding — the app owns all scrolling (canvas pan, xterm,
+       card bar). */
+    overscroll-behavior: none;
+    /* Whatever peeks out during keyboard show/hide or overscroll must be
+       office-dark, never browser-white. */
+    background: var(--color-bg-dark);
   }
 
   * {
@@ -175,6 +184,10 @@
   .xterm,
   .xterm * {
     font-family: var(--font-terminal);
+    /* iOS: no long-press callout/loupe anywhere in the terminal — a touch
+       claimed for text interaction is cancelled mid-scroll. Touch handling
+       is fully synthesized in TerminalPane. */
+    -webkit-touch-callout: none;
   }
 
   /* xterm's viewport owns the terminal's native scrollbar. Same pixel
@@ -200,9 +213,88 @@
     scrollbar-color: var(--color-bg-thumb) transparent;
   }
 
+  /* Touch text selection chrome over a terminal pane. selectionOverlay.ts
+     creates and positions these, and sets --cell-h, --sel-handle-w and
+     --sel-knob on each handle from constants.ts, so the geometry it computes
+     and the shapes drawn here can't drift. */
+  .terminal-copy-pill {
+    position: absolute;
+    z-index: 10;
+    transform: translateX(-50%);
+    padding: 8px 16px;
+    font-size: 17px;
+    background: var(--color-btn-bg);
+    color: var(--color-text);
+    border: 2px solid var(--color-border);
+    border-radius: 0;
+    box-shadow: var(--shadow-pixel);
+  }
+  /* The wrapper is the touch strip centered on the selection edge (the only
+     thing that hit-tests); the bar (::before, one cell tall) and the square
+     knob (::after) are drawn inside it — knob above the start bar, below the
+     end bar. */
+  .terminal-sel-handle {
+    position: absolute;
+    z-index: 10;
+    width: var(--sel-handle-w);
+    height: calc(var(--cell-h) + var(--sel-knob));
+  }
+  .terminal-sel-handle::before,
+  .terminal-sel-handle::after {
+    content: '';
+    position: absolute;
+    background: var(--color-accent-bright);
+    pointer-events: none;
+  }
+  .terminal-sel-handle::before {
+    left: calc((var(--sel-handle-w) - 2px) / 2);
+    width: 2px;
+    height: var(--cell-h);
+  }
+  .terminal-sel-handle::after {
+    left: calc((var(--sel-handle-w) - var(--sel-knob)) / 2);
+    width: var(--sel-knob);
+    height: var(--sel-knob);
+  }
+  .terminal-sel-handle[data-handle='start']::before {
+    top: var(--sel-knob);
+  }
+  .terminal-sel-handle[data-handle='start']::after {
+    top: 0;
+  }
+  .terminal-sel-handle[data-handle='end']::before {
+    top: 0;
+  }
+  .terminal-sel-handle[data-handle='end']::after {
+    top: var(--cell-h);
+  }
+
   /* Pulsing dot animation (DebugView, ToolOverlay) */
   .pixel-pulse {
     animation: pixel-pulse 1.5s ease-in-out infinite;
+  }
+
+  /* Top-anchored floating chrome (Settings, view toggle, connection pill):
+     in a Home-Screen PWA with viewport-fit=cover the page starts under the
+     iOS status bar, so the usual 8px top offset lands beneath the clock.
+     env() is 0 in browser tabs and on desktop, where this equals top-8. */
+  .mobile-safe-top {
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+  }
+
+  /* Same, for the mobile terminal pane wrappers (4px base, matches inset-4). */
+  .mobile-safe-pane-top {
+    top: calc(env(safe-area-inset-top, 0px) + 4px);
+  }
+
+  /* Scroll containers whose overflow is obvious from clipped content (the
+     mobile card bar) — a scrollbar strip would just eat row height. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 
   /* Pixel-style thin scrollbar utility — used by the Area card folder list

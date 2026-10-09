@@ -1,3 +1,4 @@
+import type { CardVariant } from './cardBar.js';
 import { CharacterMugShot } from './CharacterMugShot.js';
 import { Button } from './ui/Button.js';
 
@@ -20,11 +21,21 @@ const STATUS_DOT: Record<TabStatus, string> = {
   disconnected: 'bg-status-error', // red — terminal socket dropped
 };
 
+const CARD_VARIANT: Record<CardVariant, string> = {
+  default: 'bg-btn-bg border-transparent hover:bg-btn-hover',
+  focused: 'bg-active-bg border-transparent',
+  active: 'bg-active-bg border-accent',
+};
+
 interface AgentCardProps {
   agentId: number;
-  isActive: boolean;
+  variant: CardVariant;
   appearance: AgentAppearance;
   status: TabStatus | null;
+  /** When false the × is invisible (not removed — the card keeps its width so
+   *  the bar doesn't reflow). Mobile only shows it on the active terminal tab
+   *  to keep a stray tap from killing an agent. */
+  showClose?: boolean;
   onSelect: (agentId: number) => void;
   onClose: (agentId: number) => void;
 }
@@ -34,17 +45,16 @@ interface AgentCardProps {
  *  tabs: clicking one selects that agent's pane. */
 export function AgentCard({
   agentId,
-  isActive,
+  variant,
   appearance,
   status,
+  showClose = true,
   onSelect,
   onClose,
 }: AgentCardProps) {
   return (
     <div
-      className={`pointer-events-auto flex items-stretch gap-1 p-1 cursor-pointer border-2 shrink-0 ${
-        isActive ? 'bg-active-bg border-accent' : 'bg-btn-bg border-transparent hover:bg-btn-hover'
-      }`}
+      className={`pointer-events-auto flex items-stretch gap-1 p-1 cursor-pointer border-2 shrink-0 ${CARD_VARIANT[variant]}`}
       onClick={() => onSelect(agentId)}
       title={`Agent ${agentId}`}
     >
@@ -61,7 +71,7 @@ export function AgentCard({
             onClose(agentId);
           }}
           title="Close agent"
-          className="leading-none"
+          className={`leading-none ${showClose ? '' : 'invisible'}`}
         >
           ×
         </Button>
