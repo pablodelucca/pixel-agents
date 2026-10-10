@@ -1085,7 +1085,7 @@ export function adoptExternalSessionFromHook(
     knownJsonlFiles.add(transcriptPath);
     const projectDir = path.dirname(transcriptPath);
     const folderName =
-      folderNameResolver?.({ cwd, projectDir }) ??
+      (folderNameResolver?.({ cwd, projectDir }) ?? (cwd ? path.basename(cwd) : '')) ||
       folderNameFromProjectDir(path.basename(projectDir));
 
     adoptExternalSession(
@@ -1471,6 +1471,31 @@ function folderNameFromProjectDir(dirName: string): string {
   return parts[parts.length - 1] || dirName;
 }
 
+/** Claude's encoded project directory loses underscores and hyphens; the transcript retains cwd. */
+function cwdFromTranscript(file: string): string | undefined {
+  let raw: string;
+  try {
+    const fd = fs.openSync(file, 'r');
+    try {
+      const buf = Buffer.alloc(65536);
+      raw = buf.toString('utf-8', 0, fs.readSync(fd, buf, 0, buf.length, 0));
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return undefined;
+  }
+  for (const line of raw.split('\n')) {
+    try {
+      const cwd = (JSON.parse(line) as { cwd?: unknown }).cwd;
+      if (typeof cwd === 'string' && cwd) return cwd;
+    } catch {
+      // Ignore incomplete or malformed records.
+    }
+  }
+  return undefined;
+}
+
 /** Scan every session root the active provider exposes for active sessions
  *  (global discovery — powers the "Watch All Sessions" toggle). */
 function scanGlobalProjectDirs(
@@ -1533,8 +1558,9 @@ function scanGlobalProjectDirs(
         continue;
       }
 
+      const cwd = cwdFromTranscript(file);
       const folderName =
-        folderNameResolver?.({ projectDir: dirPath }) ??
+        (folderNameResolver?.({ cwd, projectDir: dirPath }) ?? (cwd ? path.basename(cwd) : '')) ||
         folderNameFromProjectDir(path.basename(dirPath));
       knownJsonlFiles.add(file);
       console.log(
